@@ -304,3 +304,65 @@ describe('peekHex', () => {
     await t.close()
   })
 })
+
+describe('desync fails reads that were already queued', () => {
+  // Regression: previously #desync() only set the state field, which refuses
+  // *new* reads. A read already sitting in the queue was still resolved by
+  // whatever bytes arrived next - the exact byte-shifted-frame failure the
+  // desynced state exists to prevent. The earlier test only covered the case
+  // where a single read was outstanding, so it did not catch this.
+  it('does not hand a late reply to the next queued read', async () => {
+    const { port, t } = await opened()
+
+    const first = t.readExactly(4, { timeoutMs: 30 })
+    const second = t.readExactly(4, { timeoutMs: 5000 })
+
+    await expect(first).rejects.toBeInstanceOf(TransportTimeoutError)
+    expect(t.state).toBe('desynced')
+
+    // The late reply to the first command finally turns up.
+    port.push(b(0xde, 0xad, 0xbe, 0xef))
+
+    await expect(second).rejects.toBeInstanceOf(DesyncedError)
+    await t.close()
+  })
+
+  it('does the same when a transfer is aborted', async () => {
+    const { port, t } = await opened()
+    const ac = new AbortController()
+
+    const first = t.readExactly(4, { signal: ac.signal, timeoutMs: 5000 })
+    const second = t.readExactly(4, { timeoutMs: 5000 })
+    ac.abort()
+
+    await expect(first).rejects.toBeInstanceOf(TransferAbortedError)
+    await expect(second).rejects.toBeInstanceOf(DesyncedError)
+
+    port.push(b(1, 2, 3, 4))
+    await expect(t.readExactly(4, { timeoutMs: 50 })).rejects.toBeInstanceOf(DesyncedError)
+    await t.close()
+  })
+
+  it('fails every queued read, not just the next one', async () => {
+    const { t } = await opened()
+    const first = t.readExactly(4, { timeoutMs: 30 })
+    const rest = [t.readExactly(2, { timeoutMs: 5000 }), t.readExactly(8, { timeoutMs: 5000 })]
+
+    await expect(first).rejects.toBeInstanceOf(TransportTimeoutError)
+    for (const p of rest) await expect(p).rejects.toBeInstanceOf(DesyncedError)
+    await t.close()
+  })
+
+  it('accepts reads again after an explicit resync', async () => {
+    const { port, t } = await opened()
+    await expect(t.readExactly(4, { timeoutMs: 20 })).rejects.toBeInstanceOf(TransportTimeoutError)
+    port.push(b(0xde, 0xad))
+    await t.resync(20)
+    expect(t.state).toBe('open')
+
+    const p = t.readExactly(2, { timeoutMs: 500 })
+    port.push(b(7, 8))
+    expect([...(await p)]).toEqual([7, 8])
+    await t.close()
+  })
+})

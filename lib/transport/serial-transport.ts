@@ -125,6 +125,9 @@ export class SerialTransport implements Transport {
   }
 
   #serviceWaiters(): void {
+    // Belt and braces alongside #desync: bytes arriving on a line that is no
+    // longer trusted must never satisfy a read.
+    if (this.#state !== 'open') return
     while (this.#waiters.length > 0) {
       const w = this.#waiters[0]!
       let got: Uint8Array | null
@@ -157,8 +160,20 @@ export class SerialTransport implements Transport {
     if (i >= 0) this.#waiters.splice(i, 1)
   }
 
-  #desync(): void {
-    if (this.#state === 'open') this.#state = 'desynced'
+  /**
+   * Mark the line untrustworthy and fail everything already waiting on it.
+   *
+   * Failing the queue is the load-bearing half. Setting the state only refuses
+   * *new* reads, so a waiter that was already queued when the timeout fired
+   * would still be handed whatever bytes turned up next - which is precisely
+   * the byte-shifted-frame failure this state exists to prevent. The caller
+   * removes its own waiter first, so it still receives its specific error
+   * (a timeout or an abort) rather than this generic one.
+   */
+  #desync(op: string): void {
+    if (this.#state !== 'open' && this.#state !== 'desynced') return
+    this.#state = 'desynced'
+    this.#failAll(new DesyncedError(op))
   }
 
   #await(need: Waiter['need'], op: string, opts?: ReadOpts): Promise<Uint8Array> {
@@ -187,7 +202,7 @@ export class SerialTransport implements Transport {
 
       const onAbort = () => {
         this.#drop(w)
-        this.#desync()
+        this.#desync(op)
         w.cleanup()
         reject(new TransferAbortedError(op))
       }
@@ -195,7 +210,7 @@ export class SerialTransport implements Transport {
       if (timeoutMs > 0 && Number.isFinite(timeoutMs)) {
         timer = setTimeout(() => {
           this.#drop(w)
-          this.#desync()
+          this.#desync(op)
           w.cleanup()
           reject(new TransportTimeoutError(op, timeoutMs, this.peekHex(32), this.#queue.length))
         }, timeoutMs)
@@ -269,6 +284,7 @@ export class SerialTransport implements Transport {
     drained.push(...rest)
 
     if (this.#state === 'desynced') this.#state = 'open'
+    this.#serviceWaiters()
     return Uint8Array.from(drained)
   }
 

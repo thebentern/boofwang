@@ -188,3 +188,86 @@ describe('write path', () => {
     expect(driver.schema.capabilities.read).toBe(true)
   })
 })
+
+describe('validate does not complain about the radio itself', () => {
+  it('exempts VFO pseudo-channels from the name-length rule', () => {
+    // Their names are the radio's own fixed labels - "F3(136M-174M)B" is 14
+    // characters against a 10-character user-name limit - and they have no name
+    // storage to shorten. Warning about them is noise the user cannot act on.
+    const mem = buildEeprom([
+      { slot: 200, record: CHIRP_CHANNELS.SIMPLEX },
+      { slot: 205, record: CHIRP_CHANNELS.AIR_AM },
+    ])
+    const cp = driver.decode(imageFrom(mem))
+    expect(cp.channels.get(201)!.name).toBe('F1(50M-76M)A')
+    expect(cp.channels.get(206)!.name).toBe('F3(136M-174M)B')
+    // Asserted narrowly: slot 205 holds an air-band record, which legitimately
+    // raises the receive-only-band rule. What must be absent is the name rule.
+    expect(driver.validate(cp).map((d) => d.ruleId)).not.toContain('radio.name.too-long')
+  })
+
+  it('still warns about a real channel name that is too long', () => {
+    const mem = buildEeprom([{ slot: 0, record: CHIRP_CHANNELS.SIMPLEX, name: 'WAY-TOO-LONG' }])
+    const cp = driver.decode(imageFrom(mem))
+    const warnings = driver.validate(cp)
+    expect(warnings.map((d) => d.ruleId)).toEqual(['radio.name.too-long'])
+    expect(warnings[0]!.channel).toBe(1)
+  })
+})
+
+describe('validate enforces the receive-only bands the schema declares', () => {
+  // The schema marks the air band (108-137 MHz) receive-only, and its comment
+  // claims "the validator objects before anything reaches the radio". That was
+  // only true once validate() actually read the flag: before this, the marking
+  // was documentation with nothing behind it.
+  it('objects to a channel that could transmit in the air band', () => {
+    const mem = buildEeprom([{ slot: 0, record: CHIRP_CHANNELS.AIR_AM, name: 'GUARD' }])
+    const cp = driver.decode(imageFrom(mem))
+    const ch = cp.channels.get(1)!
+    expect(ch.rxFreq).toBe(121_500_000)
+    expect(ch.txAllowed).toBe(true) // decoded as-is; the radio stores no inhibit here
+
+    const diags = driver.validate(cp)
+    const rule = diags.find((d) => d.ruleId === 'regulatory.band.tx-not-permitted')
+    expect(rule).toBeDefined()
+    expect(rule!.severity).toBe('error')
+    expect(rule!.channel).toBe(1)
+    expect(rule!.message).toMatch(/receive-only/)
+  })
+
+  it('says nothing once the channel is marked receive-only', () => {
+    const mem = buildEeprom([{ slot: 0, record: CHIRP_CHANNELS.AIR_AM, name: 'GUARD' }])
+    const cp = driver.decode(imageFrom(mem))
+    const ch = cp.channels.get(1)!
+    cp.channels.set(1, { ...ch, txAllowed: false })
+    expect(driver.validate(cp)).toEqual([])
+  })
+
+  it('checks the transmit frequency, not the receive one', () => {
+    // A repeater shift can push transmit into a band that receive never
+    // touches, so validating the receive frequency alone would miss it.
+    const mem = buildEeprom([{ slot: 0, record: CHIRP_CHANNELS.SIMPLEX, name: 'X' }])
+    const cp = driver.decode(imageFrom(mem))
+    const ch = cp.channels.get(1)!
+    cp.channels.set(1, {
+      ...ch,
+      rxFreq: 137_500_000 as typeof ch.rxFreq,
+      tx: { kind: 'offset', direction: 'minus', offset: 20_000_000 as typeof ch.rxFreq },
+    })
+    const diags = driver.validate(cp)
+    // RX at 137.5 is fine; TX lands at 117.5, inside the receive-only air band.
+    expect(diags.map((d) => d.ruleId)).toContain('regulatory.band.tx-not-permitted')
+    expect(diags.map((d) => d.ruleId)).not.toContain('radio.band.rx-out-of-range')
+  })
+
+  it('flags a transmit frequency outside every band', () => {
+    const mem = buildEeprom([{ slot: 0, record: CHIRP_CHANNELS.SIMPLEX, name: 'X' }])
+    const cp = driver.decode(imageFrom(mem))
+    const ch = cp.channels.get(1)!
+    cp.channels.set(1, {
+      ...ch,
+      tx: { kind: 'split', txFreq: 900_000_000 as typeof ch.rxFreq },
+    })
+    expect(driver.validate(cp).map((d) => d.ruleId)).toContain('radio.band.tx-out-of-range')
+  })
+})

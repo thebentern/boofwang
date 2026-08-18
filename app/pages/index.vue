@@ -1,48 +1,58 @@
 <script setup lang="ts">
 import type { RadioCardEntry } from '~/components/RadioCard.vue'
+import type { RadioId } from '#core/model/codeplug.js'
+import { SCHEMAS, isImplemented } from '#core/radio/registry.js'
 
 useSeoMeta({ title: 'Radios' })
 
 const support = useSerialSupport()
+const session = useRadioSession()
+const transfer = useTransferStore()
+const codeplug = useCodeplugStore()
 
-// Mirrors lib/radio/registry.ts once drivers land; for now it is the honest
-// state of play, so the landing page never promises a capability that does not
-// exist yet.
-const radios: RadioCardEntry[] = [
+/**
+ * Capabilities come from the driver registry rather than being restated here,
+ * so this page cannot advertise something the code does not do.
+ */
+const radios = computed<RadioCardEntry[]>(() => [
   {
     id: 'uvk5',
     vendor: 'Quansheng',
     model: 'UV-K5',
     summary: '200 channels · analog · 8 KB EEPROM',
-    status: 'planned',
-    read: false,
-    write: false,
     notes:
-      'The reference implementation. Calibration data is excluded from every upload by construction, and unrecognised firmware is treated as read-only.',
+      'The reference implementation. Calibration data is captured in every backup but sits in a read-only region, and unrecognised firmware is read-only rather than refused.',
   },
   {
     id: 'uv5rmini',
     vendor: 'Baofeng',
     model: 'UV-5R Mini',
     summary: '999 channels · analog · 33 KB image',
-    status: 'planned',
-    read: false,
-    write: false,
-    notes:
-      'Shares the UV-17 Pro family protocol: obfuscated 64-byte blocks across three disjoint memory regions.',
+    notes: 'Shares the UV-17 Pro family protocol: obfuscated 64-byte blocks across three disjoint memory regions.',
   },
   {
     id: 'dm32uv',
     vendor: 'Baofeng',
     model: 'DM-32UV',
     summary: '4000 channels · DMR · zones, talkgroups, AES keys',
-    status: 'planned',
-    read: false,
-    write: false,
     notes:
-      'No CHIRP driver exists for this radio. Writing is staged behind a dry run and per-block unlocks, because its memory pages move between reads and a bad write can brick it.',
+      'No CHIRP driver exists for this radio. Writing will be staged behind a dry run and per-block unlocks, because its memory pages move between reads and a bad write can brick it.',
   },
-]
+].map((r) => {
+  const schema = SCHEMAS[r.id as RadioId]
+  return {
+    ...r,
+    id: r.id as RadioId,
+    implemented: isImplemented(r.id as RadioId),
+    canRead: schema?.capabilities.read === true,
+    canWrite: schema?.capabilities.write === true,
+  }
+}))
+
+async function read(id: RadioId) {
+  await session.connectAndRead(id)
+  if (codeplug.isOpen) await navigateTo('/channels')
+}
 </script>
 
 <template>
@@ -54,12 +64,23 @@ const radios: RadioCardEntry[] = [
         nothing to install and no server involved — your codeplugs never leave your machine.
       </p>
       <SerialSupportNotice :support="support" />
+      <div class="flex flex-wrap items-center gap-3 pt-1">
+        <OpenCodeplugButton />
+        <span class="text-sm text-muted">…or read one from a radio below.</span>
+      </div>
     </section>
 
     <section class="space-y-4">
       <h2 class="text-lg font-semibold tracking-tight">Supported radios</h2>
       <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <RadioCard v-for="radio in radios" :key="radio.id" :radio="radio" :enabled="support.supported" />
+        <RadioCard
+          v-for="radio in radios"
+          :key="radio.id"
+          :radio="radio"
+          :enabled="support.supported"
+          :busy="transfer.active"
+          @read="read"
+        />
       </div>
     </section>
 
@@ -70,8 +91,10 @@ const radios: RadioCardEntry[] = [
         color="neutral"
         variant="subtle"
         title="You are responsible for what your radio transmits"
-        description="Presets for weather, marine, aviation and public-safety frequencies are receive-only and cannot be switched to transmit. Transmitting outside the bands your licence covers is illegal, and some radios have no per-channel transmit inhibit at all — boofwang will say so rather than quietly programming a channel you can key up."
+        description="Channels marked receive-only stay receive-only: weather, marine, aviation and public-safety frequencies are never made transmit-capable on import. Transmitting outside the bands your licence covers is illegal, and where a radio cannot enforce a per-channel transmit inhibit, boofwang says so rather than quietly programming a channel you can key up."
       />
     </section>
+
+    <TransferProgress />
   </div>
 </template>

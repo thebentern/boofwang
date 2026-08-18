@@ -6,18 +6,20 @@ No install, no account, no server — a CHIRP alternative you open as a URL.
 
 **Target radios**
 
-| Radio | Memory | Status |
-|---|---|---|
-| Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Not yet implemented |
-| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Not yet implemented |
-| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Not yet implemented |
+| Radio | Memory | Read | Write |
+|---|---|---|---|
+| Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Not yet |
+| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Not yet | Not yet |
+| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Not yet | Not yet |
 
 CHIRP has no DM-32UV driver at all, and Baofeng's own CPS is Windows-only.
 
-> **Status: Phase 0.** The foundations — binary codec, serial transport, app
-> shell and CI — are in place and tested. No radio driver has landed yet, so
-> nothing can read or write a radio today. The landing page says so rather than
-> advertising buttons that do nothing.
+> **Status.** boofwang can read a UV-K5, decode its channels, and export them as
+> CHIRP-compatible CSV, as a `.bwp` codeplug, or as a raw `.bin`. **No radio can
+> be written to yet** — `encode()` throws and every schema reports `write:
+> false`, so the upload button has nothing to bind to. The safety machinery
+> described below is built where it is stated as built and described as planned
+> where it is not; see the write-path note in that section.
 
 ## Development
 
@@ -73,18 +75,34 @@ byte-identical to `image`, for every fixture.
 ## Safety
 
 Programming a radio wrongly can brick it, and programming the wrong frequency
-can break the law. So:
+can break the law.
 
-- **A verified backup is required before any write**, enforced in the driver
-  rather than by a checkbox in the UI.
-- **Every upload shows an annotated byte diff first.** A change outside the
-  range a driver claims to own blocks the write — that means the encoder has a
-  bug.
-- **Receive-only presets cannot be switched to transmit.** Weather, marine,
-  aviation and public-safety bundles are forced receive-only at the source. On
-  radios with no per-channel transmit inhibit, boofwang says so loudly instead
-  of quietly programming a channel you can key up.
-- **DM-32UV writes are staged**: read-only, then a dry run that exercises the
+**In place today:**
+
+- **Every read is backed up automatically**, in the browser, before you touch
+  anything. Calibration data is captured too — a backup that cannot restore it
+  is not a backup — while living in a region flagged read-only so it can never
+  be sent back.
+- **Receive-only channels are recognised and preserved.** The UV-K5 has no
+  transmit-inhibit bit; CHIRP fakes one by parking the transmit frequency at
+  0 MHz, and boofwang decodes that rather than silently reading such a channel
+  as transmit-capable. It exports as CHIRP's `Duplex=off`.
+- **Transmitting where you may not is an error, not a note.** A channel whose
+  transmit frequency lands in a receive-only allocation — the air band, for
+  instance — is flagged before anything reaches a radio.
+- **Unrecognised firmware is read-only but still readable.** Refusing to read it
+  would be backwards: a backup is exactly what an unsupported firmware needs.
+- **A `.bwp` carries its radio's identity and a checksum**, so a codeplug cannot
+  be silently written to the wrong radio or after being corrupted.
+
+**Planned, with the write path:**
+
+- A verified backup will be *required* before any write, enforced in the driver
+  rather than by a checkbox. (Nothing enforces this yet because nothing can
+  write yet.)
+- Every upload will show an annotated byte diff first, and a change outside the
+  range a driver claims to own will block it — that means the encoder has a bug.
+- DM-32UV writes will be staged: read-only, then a dry run that exercises the
   real write path without transmitting, then one memory block at a time behind
   an explicit unlock.
 

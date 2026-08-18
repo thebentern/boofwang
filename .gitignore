@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 # Local upstream reference sources (CHIRP, specs). Not redistributed here;
 # see docs/provenance.md. Fetch with scripts/fetch-reference.sh
 reference/
+
+# Dev-server launch config is machine-local
+.claude/

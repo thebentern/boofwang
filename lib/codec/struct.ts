@@ -216,10 +216,24 @@ export function diffRanges(a: Uint8Array, b: Uint8Array): (readonly [number, num
   return out
 }
 
-/** True when every byte of `probe` lies inside one of `ranges`. */
+/**
+ * True when every byte of `probe` is covered by the *union* of `ranges`.
+ *
+ * Testing each range individually would be wrong, and wrong in a way that
+ * matters: the UV-K5's owned ranges are adjacent (the channel table ends at
+ * 0x0D60 and the attribute table starts there), so a diff spanning that
+ * boundary is fully owned yet fits inside neither range on its own. Reporting
+ * it as unowned would block a legitimate write and be read as an encoder bug.
+ */
 export function rangesContain(ranges: readonly (readonly [number, number])[], probe: readonly [number, number]): boolean {
-  for (const [s, e] of ranges) {
-    if (probe[0] >= s && probe[1] <= e) return true
+  const [start, end] = probe
+  if (start >= end) return true
+  let cursor = start
+  for (const [s, e] of mergeRanges([...ranges])) {
+    if (e <= cursor) continue
+    if (s > cursor) return false // a gap before the next range
+    cursor = e
+    if (cursor >= end) return true
   }
   return false
 }

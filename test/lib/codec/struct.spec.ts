@@ -246,3 +246,44 @@ describe('blank', () => {
     expect([...PARTIAL.blank(0x00)]).toEqual(Array(16).fill(0x00))
   })
 })
+
+describe('rangesContain across adjacent ranges', () => {
+  // The UV-K5's owned ranges are adjacent: the channel table ends at 0x0D60 and
+  // the attribute table begins there. A diff spanning that boundary is fully
+  // owned, but fits inside neither range on its own - so testing each range
+  // separately would report a legitimate write as an encoder bug and block it.
+  const UVK5_OWNED = [
+    [0x0000, 0x0d60],
+    [0x0d60, 0x0e28],
+    [0x0f50, 0x1bd0],
+  ] as const
+
+  it('accepts a probe spanning two adjacent ranges', () => {
+    expect(rangesContain(UVK5_OWNED, [0x0d5e, 0x0d62])).toBe(true)
+  })
+
+  it('accepts a probe covering two adjacent ranges entirely', () => {
+    expect(rangesContain(UVK5_OWNED, [0x0000, 0x0e28])).toBe(true)
+  })
+
+  it('still rejects a probe that crosses a genuine gap', () => {
+    // 0x0E28..0x0F50 is unmodelled: nothing may write there.
+    expect(rangesContain(UVK5_OWNED, [0x0e20, 0x0f60])).toBe(false)
+    expect(rangesContain(UVK5_OWNED, [0x0e30, 0x0e40])).toBe(false)
+  })
+
+  it('rejects a probe that runs past the last range', () => {
+    expect(rangesContain(UVK5_OWNED, [0x1bc0, 0x1c00])).toBe(false)
+  })
+
+  it('handles single ranges and empty probes', () => {
+    expect(rangesContain([[0, 16]], [4, 8])).toBe(true)
+    expect(rangesContain([[0, 16]], [16, 20])).toBe(false)
+    expect(rangesContain([], [4, 4])).toBe(true)
+    expect(rangesContain([], [4, 8])).toBe(false)
+  })
+
+  it('does not depend on the ranges being sorted', () => {
+    expect(rangesContain([[0x0d60, 0x0e28], [0x0000, 0x0d60]], [0x0d5e, 0x0d62])).toBe(true)
+  })
+})

@@ -1,23 +1,19 @@
 <script setup lang="ts">
+import type { RadioId } from '#core/model/codeplug.js'
+
 export interface RadioCardEntry {
-  id: string
+  id: RadioId
   vendor: string
   model: string
   summary: string
-  status: 'planned' | 'read-only' | 'beta' | 'stable'
-  read: boolean
-  write: boolean
+  implemented: boolean
+  canRead: boolean
+  canWrite: boolean
   notes: string
 }
 
-defineProps<{ radio: RadioCardEntry; enabled: boolean }>()
-
-const STATUS = {
-  planned: { label: 'Not yet implemented', color: 'neutral' as const },
-  'read-only': { label: 'Read only', color: 'info' as const },
-  beta: { label: 'Beta', color: 'warning' as const },
-  stable: { label: 'Stable', color: 'success' as const },
-}
+defineProps<{ radio: RadioCardEntry; enabled: boolean; busy: boolean }>()
+const emit = defineEmits<{ read: [RadioId] }>()
 </script>
 
 <template>
@@ -31,9 +27,9 @@ const STATUS = {
         </div>
         <UBadge
           class="ms-auto shrink-0"
-          :color="STATUS[radio.status].color"
+          :color="radio.canRead ? 'info' : 'neutral'"
           variant="subtle"
-          :label="STATUS[radio.status].label"
+          :label="radio.canRead ? 'Read only' : 'Not yet implemented'"
         />
       </div>
     </template>
@@ -45,7 +41,9 @@ const STATUS = {
         icon="i-lucide-download"
         label="Read from radio"
         size="sm"
-        :disabled="!enabled || !radio.read"
+        :loading="busy"
+        :disabled="!enabled || !radio.canRead || busy"
+        @click="emit('read', radio.id)"
       />
       <UButton
         icon="i-lucide-upload"
@@ -53,13 +51,13 @@ const STATUS = {
         size="sm"
         color="neutral"
         variant="subtle"
-        :disabled="!enabled || !radio.write"
+        :disabled="!enabled || !radio.canWrite"
       />
     </div>
 
-    <p v-if="!radio.write" class="text-xs text-muted flex items-start gap-1.5">
+    <p v-if="radio.canRead && !radio.canWrite" class="text-xs text-muted flex items-start gap-1.5">
       <UIcon name="i-lucide-lock" class="size-3.5 mt-0.5 shrink-0" />
-      Writing is disabled for this radio until the write path has been verified against real hardware.
+      Writing stays disabled until the write path has been verified against real hardware.
     </p>
   </UCard>
 </template>

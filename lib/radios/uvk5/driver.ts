@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { sha256Hex } from '../../codec/checksum.js'
-import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
+import { emptyCodeplug, txFrequency, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { ctcss, dtcs, NO_TONE, type TonePair, type ToneSpec } from '../../model/tones.js'
 import { hz, type Hz } from '../../model/units.js'
 import {
@@ -183,7 +183,43 @@ export function createUvk5Driver(): RadioDriver {
             message: `${(ch.rxFreq / 1e6).toFixed(5)} MHz is outside every band this radio covers.`,
           })
         }
-        if (ch.name.length > UVK5_SCHEMA.memory.nameLength) {
+
+        // The transmit frequency, not the receive one: a repeater shift can
+        // move transmit into a band where transmitting is not allowed even
+        // though the channel is perfectly legal to listen on.
+        const txHz = txFrequency(ch)
+        if (txHz !== null) {
+          const txBand = UVK5_SCHEMA.rf.bands.find((b) => txHz >= b.loHz && txHz <= b.hiHz)
+          if (!txBand) {
+            out.push({
+              severity: 'error',
+              ruleId: 'radio.band.tx-out-of-range',
+              channel: ch.index,
+              field: 'tx',
+              message: `This channel transmits on ${(txHz / 1e6).toFixed(5)} MHz, which is outside every band this radio covers.`,
+            })
+          } else if (!txBand.txAllowed) {
+            // The air band is the case that matters here: AM aviation spectrum,
+            // which no amateur licence authorises transmitting on. The schema
+            // marks it receive-only; this is what makes that marking do
+            // something rather than merely document an intention.
+            out.push({
+              severity: 'error',
+              ruleId: 'regulatory.band.tx-not-permitted',
+              channel: ch.index,
+              field: 'tx',
+              message:
+                `This channel can transmit on ${(txHz / 1e6).toFixed(5)} MHz, in the ${txBand.label} band, ` +
+                'which is receive-only. Mark the channel receive-only before writing it to a radio.',
+            })
+          }
+        }
+        // The VFO pseudo-channels have no name storage; their names are the
+        // radio's own fixed labels ("F3(136M-174M)B"), which are longer than
+        // the user-name limit by design. Complaining about them would be
+        // complaining about the radio.
+        const isSpecial = ch.index > NAMED_CHANNEL_COUNT
+        if (!isSpecial && ch.name.length > UVK5_SCHEMA.memory.nameLength) {
           out.push({
             severity: 'warning',
             ruleId: 'radio.name.too-long',

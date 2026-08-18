@@ -349,3 +349,57 @@ describe('idempotent writes (the property uploads depend on)', () => {
     expect([...b]).toEqual([0xff, 0xff, 0xff, 0xff])
   })
 })
+
+describe('rejecting values that would silently corrupt a field', () => {
+  it('refuses a negative integer instead of wrapping it', () => {
+    // Wrapping matters here specifically: -1 in the UV-K5's 32-bit frequency
+    // field becomes 0xFFFFFFFF, which is that radio's "channel is empty"
+    // sentinel. A sign error would erase a channel and report success.
+    expect(() => u32le.set(new Uint8Array(4), 0, -1)).toThrow(/does not fit/)
+    expect(() => u8.set(new Uint8Array(1), 0, -1)).toThrow(/does not fit/)
+  })
+
+  it('refuses an integer too large for the field', () => {
+    expect(() => u8.set(new Uint8Array(1), 0, 256)).toThrow(/does not fit/)
+    expect(() => u16le.set(new Uint8Array(2), 0, 0x10000)).toThrow(/does not fit/)
+    expect(() => u32le.set(new Uint8Array(4), 0, 2 ** 32)).toThrow(/does not fit/)
+  })
+
+  it('still accepts the full unsigned range', () => {
+    const b = new Uint8Array(4)
+    expect(() => u32le.set(b, 0, 0xffffffff)).not.toThrow()
+    expect(u32le.get(b, 0)).toBe(0xffffffff)
+  })
+
+  it('refuses a non-finite integer', () => {
+    expect(() => u16le.set(new Uint8Array(2), 0, Number.NaN)).toThrow(/finite/)
+    expect(() => u16le.set(new Uint8Array(2), 0, Infinity)).toThrow(/finite/)
+  })
+
+  it('refuses NaN in a bit slice rather than zeroing the whole word', () => {
+    // NaN passes `< 0` and `>= span` (both false), so without an explicit
+    // check it propagates into the word and the entire byte is written as
+    // zero - destroying exactly the unmapped bits this field promises to keep.
+    const f = bits(1, { flag: [7, 1] })
+    const b = buf(0b0101_0101)
+    expect(() => f.set(b, 0, { flag: Number.NaN })).toThrow(/does not fit/)
+    expect(b[0]).toBe(0b0101_0101)
+  })
+
+  it('leaves a BCD field untouched when the value does not fit', () => {
+    // Writing the low digits and only then throwing is worse than writing
+    // nothing: the caller sees an error and reasonably assumes the buffer is
+    // unchanged.
+    for (const f of [bcdLE(2), bcdBE(2)]) {
+      const b = buf(0x12, 0x34)
+      expect(() => f.set(b, 0, 123456)).toThrow(/more than 4 digits/)
+      expect([...b]).toEqual([0x12, 0x34])
+    }
+  })
+
+  it('leaves a BCD field untouched for a negative value', () => {
+    const b = buf(0x12, 0x34)
+    expect(() => bcdLE(2).set(b, 0, -5)).toThrow(/negative/)
+    expect([...b]).toEqual([0x12, 0x34])
+  })
+})

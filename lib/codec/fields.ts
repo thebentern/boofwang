@@ -31,6 +31,22 @@ function bounds(buf: Uint8Array, off: number, size: number, what: string): void 
   }
 }
 
+/**
+ * Reject values an unsigned field cannot hold, rather than wrapping them.
+ *
+ * Silent wrapping is dangerous here rather than merely sloppy: writing -1 to
+ * the UV-K5's 32-bit frequency field wraps to 0xFFFFFFFF, which is exactly that
+ * radio's "this channel is empty" sentinel. A sign error would erase a channel
+ * and report success.
+ */
+function checkUnsigned(value: number, size: number, name: string): number {
+  if (!Number.isFinite(value)) throw new RangeError(`${name}: ${value} is not a finite number`)
+  const v = Math.trunc(value)
+  const max = 2 ** (size * 8) - 1
+  if (v < 0 || v > max) throw new RangeError(`${name}: ${value} does not fit in ${size} byte(s) (0..${max})`)
+  return v
+}
+
 // ---------------------------------------------------------------- integers --
 
 export const u8: Field<number> = {
@@ -41,7 +57,7 @@ export const u8: Field<number> = {
   },
   set(buf, off, v) {
     bounds(buf, off, 1, 'u8')
-    buf[off] = v & 0xff
+    buf[off] = checkUnsigned(v, 1, 'u8')
   },
 }
 
@@ -53,7 +69,10 @@ export const i8: Field<number> = {
   },
   set(buf, off, v) {
     bounds(buf, off, 1, 'i8')
-    buf[off] = v & 0xff
+    if (!Number.isFinite(v)) throw new RangeError(`i8: ${v} is not a finite number`)
+    const t = Math.trunc(v)
+    if (t < -128 || t > 127) throw new RangeError(`i8: ${v} does not fit in one signed byte (-128..127)`)
+    buf[off] = t & 0xff
   },
 }
 
@@ -68,7 +87,7 @@ function uintLE(size: number, name: string): Field<number> {
     },
     set(buf, off, value) {
       bounds(buf, off, size, name)
-      let v = Math.trunc(value)
+      let v = checkUnsigned(value, size, name)
       for (let i = 0; i < size; i++) {
         buf[off + i] = v & 0xff
         v = Math.floor(v / 256)
@@ -88,7 +107,7 @@ function uintBE(size: number, name: string): Field<number> {
     },
     set(buf, off, value) {
       bounds(buf, off, size, name)
-      let v = Math.trunc(value)
+      let v = checkUnsigned(value, size, name)
       for (let i = size - 1; i >= 0; i--) {
         buf[off + i] = v & 0xff
         v = Math.floor(v / 256)
@@ -238,7 +257,11 @@ export function bits<M extends BitMap>(
         const next = v[name]
         if (next === undefined) continue
         const span = 2 ** width
-        if (next < 0 || next >= span) {
+        // `NaN < 0` and `NaN >= span` are both false, so an explicit finiteness
+        // check is required; without it NaN propagates into the word and the
+        // whole thing is written as zero, wiping the very bits this field
+        // promises to leave alone.
+        if (!Number.isFinite(next) || next < 0 || next >= span) {
           throw new RangeError(`bits: ${String(name)} = ${next} does not fit in ${width} bit(s)`)
         }
         const scale = 2 ** lsb
@@ -308,6 +331,15 @@ export function scaled(base: Field<number>, factor: number, sentinels: readonly 
 
 // --------------------------------------------------------------------- bcd --
 
+/** Range-check a BCD value before any byte is written. */
+function checkBcd(value: number, nBytes: number, name: string): number {
+  const v = Math.round(value)
+  if (v < 0) throw new RangeError(`${name}(${nBytes}): negative value ${value}`)
+  const digits = nBytes * 2
+  if (v >= 10 ** digits) throw new RangeError(`${name}(${nBytes}): ${value} needs more than ${digits} digits`)
+  return v
+}
+
 /**
  * Packed BCD, least-significant *byte* first.
  *
@@ -342,14 +374,15 @@ export function bcdLE(nBytes: number): Field<number> {
       // 0xFF-filled slot, typically. Writing that back must be a no-op, or the
       // round trip would replace "undecodable" with a fabricated zero.
       if (!Number.isFinite(value)) return
-      let v = Math.round(value)
-      if (v < 0) throw new RangeError(`bcdLE(${nBytes}): negative value ${value}`)
+      // Validated before a single byte is written: a field left holding the low
+      // digits of a rejected value is worse than one left untouched, because
+      // the caller sees a thrown error and reasonably assumes nothing changed.
+      let v = checkBcd(value, nBytes, 'bcdLE')
       for (let i = 0; i < nBytes; i++) {
         const pair = v % 100
         buf[off + i] = (Math.floor(pair / 10) << 4) | pair % 10
         v = Math.floor(v / 100)
       }
-      if (v !== 0) throw new RangeError(`bcdLE(${nBytes}): ${value} needs more than ${nBytes * 2} digits`)
     },
   }
 }
@@ -372,18 +405,13 @@ export function bcdBE(nBytes: number): Field<number> {
     },
     set(buf, off, value) {
       bounds(buf, off, nBytes, `bcdBE(${nBytes})`)
-      // `get` returns NaN for nibbles that are not valid BCD - an unprogrammed
-      // 0xFF-filled slot, typically. Writing that back must be a no-op, or the
-      // round trip would replace "undecodable" with a fabricated zero.
       if (!Number.isFinite(value)) return
-      let v = Math.round(value)
-      if (v < 0) throw new RangeError(`bcdBE(${nBytes}): negative value ${value}`)
+      let v = checkBcd(value, nBytes, 'bcdBE')
       for (let i = nBytes - 1; i >= 0; i--) {
         const pair = v % 100
         buf[off + i] = (Math.floor(pair / 10) << 4) | pair % 10
         v = Math.floor(v / 100)
       }
-      if (v !== 0) throw new RangeError(`bcdBE(${nBytes}): ${value} needs more than ${nBytes * 2} digits`)
     },
   }
 }
