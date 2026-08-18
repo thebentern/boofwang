@@ -1,0 +1,142 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+import type { Hz, Milliwatts } from '../model/units.js'
+import type { Modulation, RadioId } from '../model/index.js'
+
+/**
+ * A declarative description of what a radio can do.
+ *
+ * The point of making this data rather than code is that the UI becomes a pure
+ * function of it: the channel table, the editors and the settings form all
+ * render by iterating a schema. Adding a radio should touch `lib/radios/<id>/`
+ * and one line of the registry, and nothing under `app/`. If a second or third
+ * radio forces a UI change, that is a defect in this type, not in the UI.
+ *
+ * It maps onto CHIRP's `RadioFeatures` field for field, with two differences:
+ * bands carry a `txAllowed` flag CHIRP has no equivalent for, and the DMR
+ * feature block has no CHIRP analogue at all.
+ */
+
+export interface BandLimit {
+  readonly loHz: Hz
+  readonly hiHz: Hz
+  readonly label: string
+  /** False for receive-only allocations (broadcast, air band on most radios). */
+  readonly txAllowed: boolean
+}
+
+export interface PowerLevel {
+  readonly id: string
+  readonly label: string
+  readonly mW: Milliwatts
+  /** The value stored in the radio's own field. */
+  readonly raw: number
+}
+
+export type ToneMode = 'none' | 'tone' | 'tsql' | 'dtcs' | 'cross'
+export type DuplexKind = 'simplex' | 'plus' | 'minus' | 'split' | 'off'
+
+export interface FieldSpec {
+  readonly key: string
+  readonly label: string
+  readonly help?: string
+  readonly type: 'bool' | 'int' | 'enum' | 'string' | 'freq' | 'tone' | 'hex'
+  readonly options?: readonly { readonly value: string | number; readonly label: string }[]
+  readonly min?: number
+  readonly max?: number
+  readonly maxLength?: number
+  /** Icon names used here must also be listed in nuxt.config's icon.clientBundle.icons. */
+  readonly icon?: string
+}
+
+export interface SettingGroup {
+  readonly id: string
+  readonly label: string
+  readonly description?: string
+  readonly fields: readonly FieldSpec[]
+}
+
+export interface RadioSchema {
+  readonly id: RadioId
+  readonly vendor: string
+  readonly model: string
+  readonly aliases: readonly string[]
+  readonly status: 'planned' | 'read-only' | 'beta' | 'stable'
+
+  readonly capabilities: {
+    readonly read: boolean
+    readonly write: boolean
+    /** Non-empty when writing needs an explicit per-feature unlock. */
+    readonly writeRequiresUnlock?: string
+  }
+
+  readonly memory: {
+    readonly channelCount: number
+    readonly firstIndex: number
+    /** Named slots past the ordinary range - the UV-K5's 14 VFO pseudo-channels. */
+    readonly specialChannels: readonly { readonly index: number; readonly name: string }[]
+    readonly nameLength: number
+    readonly nameCharset: string
+    /** The byte an erased record is filled with. Explicit, because it differs per radio. */
+    readonly eraseFill: number
+  }
+
+  readonly rf: {
+    readonly bands: readonly BandLimit[]
+    readonly modulations: readonly Modulation[]
+    readonly bandwidths: readonly number[]
+    readonly powerLevels: readonly PowerLevel[]
+    /** In hertz, not kHz floats: integer comparison, no float equality traps. */
+    readonly tuningSteps: readonly Hz[]
+    readonly duplexes: readonly DuplexKind[]
+    readonly toneModes: readonly ToneMode[]
+    readonly ctcssDeciHz: readonly number[]
+    readonly dtcsCodes: readonly number[]
+    readonly canSkip: boolean
+    readonly hasRxDtcs: boolean
+    readonly hasCtone: boolean
+    /**
+     * Whether a single channel can be marked receive-only.
+     *
+     * `false` means an RX-only channel cannot be honoured and must be refused
+     * rather than programmed as transmit-capable. `mechanism` records how it is
+     * achieved when it can be, since not every radio has a dedicated bit - the
+     * UV-K5 has none, and instead parks the transmit frequency at 0 MHz.
+     */
+    readonly txInhibit: false | { readonly mechanism: string }
+  }
+
+  readonly features: {
+    readonly dmr: false | { readonly colorCodes: readonly [number, number]; readonly timeslots: 1 | 2 }
+    readonly zones: false | { readonly max: number; readonly channelsPer: number; readonly nameLength: number }
+    readonly talkGroups: false | { readonly max: number; readonly nameLength: number }
+    readonly contacts: false | { readonly max: number }
+    readonly rxGroups: false | { readonly max: number }
+    readonly scanLists: false | { readonly max: number; readonly channelsPer: number }
+    readonly radioIds: false | { readonly max: number }
+    readonly encryption:
+      | false
+      | { readonly slots: number; readonly types: readonly string[]; readonly nameLength: number }
+  }
+
+  /** Per-radio channel fields with no cross-radio meaning; rendered generically. */
+  readonly extraFields: readonly FieldSpec[]
+  readonly settings: readonly SettingGroup[]
+}
+
+/** Is `f` inside any band this radio covers? */
+export function bandFor(schema: RadioSchema, f: Hz): BandLimit | null {
+  for (const b of schema.rf.bands) {
+    if (f >= b.loHz && f <= b.hiHz) return b
+  }
+  return null
+}
+
+/** The power level closest to, but not exceeding, `target`. */
+export function clampPower(schema: RadioSchema, target: Milliwatts): PowerLevel {
+  const levels = [...schema.rf.powerLevels].sort((a, b) => a.mW - b.mW)
+  let best = levels[0]!
+  for (const l of levels) {
+    if (l.mW <= target) best = l
+  }
+  return best
+}

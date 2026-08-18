@@ -23,9 +23,15 @@ export interface SerialOpenOptions {
   openSettleMs?: number
 }
 
+/**
+ * `| undefined` is explicit on every member because the project builds with
+ * `exactOptionalPropertyTypes`, and these bags are routinely forwarded as
+ * `{ timeoutMs: 2000, signal: ctx.signal }` where `ctx.signal` may legitimately
+ * be absent.
+ */
 export interface ReadOpts {
-  timeoutMs?: number
-  signal?: AbortSignal
+  timeoutMs?: number | undefined
+  signal?: AbortSignal | undefined
 }
 
 export type TransportState = 'closed' | 'open' | 'desynced' | 'disconnected'
