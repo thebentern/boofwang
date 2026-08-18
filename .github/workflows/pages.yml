@@ -1,0 +1,56 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel an in-flight deploy: doing so can leave the Pages environment
+# wedged.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build
+        env:
+          # `base_path` is e.g. /boofwang; Nuxt needs the trailing slash too.
+          NUXT_APP_BASE_URL: ${{ steps.pages.outputs.base_path }}/
+        run: pnpm build
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: .output/public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

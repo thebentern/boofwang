@@ -1,0 +1,53 @@
+{
+  "name": "boofwang",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "Browser-based codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-5R Mini, and Baofeng DM-32UV",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thebentern/boofwang.git"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "packageManager": "pnpm@9.14.2",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
+    "check:headers": "node scripts/check-headers.mjs"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^4.10.0",
+    "@pinia/nuxt": "^0.11.0",
+    "@tanstack/vue-virtual": "^3.13.0",
+    "@vueuse/nuxt": "^13.0.0",
+    "idb": "^8.0.3",
+    "nuxt": "^4.5.2",
+    "pinia": "^3.0.0",
+    "vue": "^3.5.41",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.123",
+    "@nuxt/eslint": "^1.9.0",
+    "@types/node": "^24.0.0",
+    "@types/w3c-web-serial": "^1.0.8",
+    "@vitest/coverage-v8": "^3.2.0",
+    "eslint": "^10.8.1",
+    "fast-check": "^4.1.1",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0",
+    "vue-tsc": "^3.0.0"
+  }
+}

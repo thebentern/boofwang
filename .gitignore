@@ -141,3 +141,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Local upstream reference sources (CHIRP, specs). Not redistributed here;
+# see docs/provenance.md. Fetch with scripts/fetch-reference.sh
+reference/

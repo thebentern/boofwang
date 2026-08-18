@@ -1,0 +1,16 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+/* Tailwind v4 is CSS-first: theme tokens live here, not in a tailwind.config.js. */
+@theme {
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
+}
+
+:root {
+  --ui-radius: 0.375rem;
+}
+
+/* Hex dumps, byte diffs and frequency columns must not reflow or kern. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          # Nuxt 4.5 requires ^22.19 || ^24.11 || >=26.
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: SPDX licence headers
+        run: pnpm check:headers
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        # Protocol specs that need a radio plugged in are skipped unless
+        # BOOFWANG_HW is set; everything else replays recorded traces.
+        run: pnpm test:cov
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify the GitHub Pages artifact
+        run: |
+          set -euo pipefail
+          for f in .nojekyll index.html 404.html; do
+            test -e ".output/public/$f" || { echo "::error::.output/public/$f is missing"; exit 1; }
+          done
+          # Without .nojekyll, Pages runs Jekyll and strips /_nuxt/, which
+          # silently serves a blank page.
+          test -d .output/public/_nuxt || { echo "::error::no build assets emitted"; exit 1; }
+          echo "artifact OK"
