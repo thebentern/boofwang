@@ -156,6 +156,41 @@ export class RadioInProgrammingModeError extends DriverError {
   }
 }
 
+/**
+ * The line is returning our own transmitted bytes.
+ *
+ * Worth its own error because the symptom is so misleading. An echoed command
+ * is a structurally perfect frame - correct header, correct footer, valid
+ * checksum - so every layer below this happily accepts it, and the radio
+ * appears to be answering with nonsense rather than not answering at all. On
+ * the UV-K5 the echoed hello even decodes to an empty firmware string, which
+ * previously surfaced as "unrecognised firmware" and sent people looking for a
+ * firmware problem that does not exist.
+ *
+ * The usual causes are physical: the two-pin plug not pushed fully home, the
+ * radio switched off, or a counterfeit USB-serial chip.
+ */
+export class LoopbackDetectedError extends DriverError {
+  override readonly name = 'LoopbackDetectedError'
+  constructor(what: string) {
+    super(
+      `The programming cable is echoing boofwang's own data back instead of the radio replying (${what}). ` +
+        'The radio is not responding. Check that it is switched on, that the plug is pushed all the way in — ' +
+        'the two-pin connector often needs a firm push — and that the cable is seated in the right sockets.',
+    )
+  }
+}
+
+export class NoRadioResponseError extends DriverError {
+  override readonly name = 'NoRadioResponseError'
+  constructor(what: string) {
+    super(
+      `The radio did not respond (${what}). Check that it is switched on, that the programming cable is fully ` +
+        'seated, and that no other program is using the port.',
+    )
+  }
+}
+
 export class ImageRadioMismatchError extends DriverError {
   override readonly name = 'ImageRadioMismatchError'
   constructor(connected: string, image: string) {

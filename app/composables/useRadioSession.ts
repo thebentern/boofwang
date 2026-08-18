@@ -71,8 +71,26 @@ export function useRadioSession() {
         transfer.end()
       }
     } catch (e) {
+      device.captureFailure(e)
       const message = e instanceof Error ? e.message : String(e)
-      toast.add({ title: 'Could not read the radio', description: message, icon: 'i-lucide-triangle-alert', color: 'error', duration: 0 })
+      toast.add({
+        title: 'Could not read the radio',
+        description: message,
+        icon: 'i-lucide-triangle-alert',
+        color: 'error',
+        duration: 0,
+        actions: device.traceJson()
+          ? [
+              {
+                label: 'Save the protocol log',
+                icon: 'i-lucide-file-down',
+                color: 'neutral' as const,
+                variant: 'subtle' as const,
+                onClick: () => void downloadTrace(),
+              },
+            ]
+          : undefined,
+      })
     } finally {
       await device.disconnect()
     }
@@ -103,7 +121,8 @@ export function useRadioSession() {
   async function downloadTrace() {
     const json = device.traceJson()
     if (!json) return
-    await saveFile(json, `${baseName()}-trace.json`, 'application/json')
+    const stamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-')
+    await saveFile(json, `boofwang-trace-${stamp}.json`, 'application/json')
   }
 
   return { connectAndRead, downloadBwp, downloadRawBin, downloadCsv, downloadTrace }

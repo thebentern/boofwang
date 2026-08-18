@@ -5,7 +5,7 @@ import { fromHex, toHex } from '#core/codec/checksum.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { FakeSerialPort } from '#core/transport/fake-serial-port.js'
 import { ProtocolError } from '#core/transport/errors.js'
-import { RadioInProgrammingModeError } from '#core/radio/driver.js'
+import { LoopbackDetectedError, RadioInProgrammingModeError } from '#core/radio/driver.js'
 import {
   BAUD_RATE,
   HELLO,
@@ -308,6 +308,84 @@ describe('readMem / writeMem', () => {
     const t = new SerialTransport(port)
     await t.open(OPEN)
     await expect(writeMem(t, 0x0100, new Uint8Array(4), { timeoutMs: 300 })).rejects.toThrow(/rejected a write/)
+    await t.close()
+  })
+})
+
+describe('a cable that echoes instead of a radio that answers', () => {
+  /**
+   * Observed on real hardware: a UV-K5 that was not responding, on a Prolific
+   * PL2303 cable, put every transmitted byte back on the receive line. The echo
+   * is a structurally perfect frame - right header, right footer, valid CRC -
+   * so every validation layer accepted it, and the echoed hello decoded to an
+   * empty firmware string, which surfaced as "unrecognised firmware". That sent
+   * the user looking for a firmware problem when the radio simply was not
+   * talking.
+   */
+  function loopbackPort() {
+    // Returns whatever it is given, exactly as a shorted line would.
+    return new FakeSerialPort({ respond: (written) => written })
+  }
+
+  it('reports a loopback rather than pretending the radio replied', async () => {
+    const t = new SerialTransport(loopbackPort())
+    await t.open(OPEN)
+    await expect(sayHello(t, 3, { timeoutMs: 200 })).rejects.toBeInstanceOf(LoopbackDetectedError)
+    await t.close()
+  })
+
+  it('explains what to physically check', async () => {
+    const t = new SerialTransport(loopbackPort())
+    await t.open(OPEN)
+    const err = (await sayHello(t, 2, { timeoutMs: 200 }).catch((e: unknown) => e)) as Error
+    expect(err.message).toMatch(/echoing/)
+    expect(err.message).toMatch(/switched on/)
+    expect(err.message).toMatch(/pushed all the way in/)
+    // And it must not blame the firmware, which is what the old code did.
+    expect(err.message).not.toMatch(/firmware/i)
+    await t.close()
+  })
+
+  it('reports a loopback on a memory read too', async () => {
+    const t = new SerialTransport(loopbackPort())
+    await t.open(OPEN)
+    const err = (await readMem(t, 0x0000, 0x80, { timeoutMs: 200 }).catch((e: unknown) => e)) as Error
+    expect(err).toBeInstanceOf(LoopbackDetectedError)
+    expect(err.message).toMatch(/while reading memory/)
+    await t.close()
+  })
+
+  it('still works on a cable that echoes AND carries a real reply', async () => {
+    // Some cables echo but the radio answers behind it. Skipping exactly one
+    // echo keeps those working.
+    const port = new FakeSerialPort({
+      respond: (written) => {
+        const payload = xorArray(written.subarray(4, 4 + written[2]!))
+        if (payload[0] !== 0x14) return written
+        const body = new Uint8Array(28)
+        body[0] = 0x15
+        body[1] = 0x05
+        for (let i = 0; i < 'k5_2.01.26'.length; i++) body[4 + i] = 'k5_2.01.26'.charCodeAt(i)
+        // Echo first, then the genuine reply.
+        return Uint8Array.from([...written, ...buildFrame(body)])
+      },
+    })
+    const t = new SerialTransport(port)
+    await t.open(OPEN)
+    await expect(sayHello(t, 3, { timeoutMs: 500 })).resolves.toBe('k5_2.01.26')
+    await t.close()
+  })
+
+  it('refuses a hello reply with no firmware version in it', async () => {
+    // Distinct from a loopback: a well-formed reply that simply carries nothing
+    // resembling a version string is not an "unknown firmware" either.
+    const port = new FakeSerialPort({
+      respond: () => buildFrame(Uint8Array.from([0x15, 0x05, 0x00, 0x00, ...new Array(24).fill(0x41)])),
+    })
+    const t = new SerialTransport(port)
+    await t.open(OPEN)
+    const err = (await sayHello(t, 2, { timeoutMs: 200 }).catch((e: unknown) => e)) as Error
+    expect(err.name).toBe('NoRadioResponseError')
     await t.close()
   })
 })

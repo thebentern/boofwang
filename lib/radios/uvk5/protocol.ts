@@ -2,7 +2,7 @@
 import { crc16Xmodem, hexDump } from '../../codec/checksum.js'
 import { ProtocolError } from '../../transport/errors.js'
 import type { ReadOpts, Transport } from '../../transport/transport.js'
-import { RadioInProgrammingModeError } from '../../radio/driver.js'
+import { LoopbackDetectedError, NoRadioResponseError, RadioInProgrammingModeError } from '../../radio/driver.js'
 
 /**
  * Quansheng UV-K5 serial protocol.
@@ -119,9 +119,54 @@ export async function sendCommand(t: Transport, payload: Uint8Array, opts?: Read
   await t.write(buildFrame(payload), opts)
 }
 
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
+/**
+ * Send a command and return the radio's reply, skipping an echo of the command
+ * itself.
+ *
+ * Some cables put the transmitted bytes back on the receive line. The echo is a
+ * structurally perfect frame, so nothing below this notices - which is why it
+ * has to be handled by identity rather than by validation. Comparing against
+ * what was just sent is unambiguous: command opcodes (0x14 hello, 0x1B read,
+ * 0x1D write, 0xDD reset) and reply opcodes (0x15/0x18, 0x1C, 0x1E) are
+ * disjoint, so a genuine reply can never equal the command.
+ *
+ * Exactly one echo is skipped. If the echo is all that comes back, the radio is
+ * not talking, and saying so is far more useful than letting the caller puzzle
+ * over a reply that happens to be its own question.
+ */
 export async function command(t: Transport, payload: Uint8Array, opts?: FramingOpts): Promise<Uint8Array> {
   await sendCommand(t, payload, opts)
-  return readFrame(t, opts)
+  const reply = await readFrame(t, opts)
+  if (!sameBytes(reply, payload)) return reply
+
+  try {
+    const second = await readFrame(t, opts)
+    if (sameBytes(second, payload)) throw new LoopbackDetectedError(describeCommand(payload))
+    return second
+  } catch (e) {
+    if (e instanceof LoopbackDetectedError) throw e
+    // Nothing followed the echo: the line is a loopback and the radio is silent.
+    throw new LoopbackDetectedError(describeCommand(payload))
+  }
+}
+
+function describeCommand(payload: Uint8Array): string {
+  switch (payload[0]) {
+    case 0x14:
+      return 'while identifying the radio'
+    case 0x1b:
+      return 'while reading memory'
+    case 0x1d:
+      return 'while writing memory'
+    default:
+      return `command 0x${(payload[0] ?? 0).toString(16).padStart(2, '0')}`
+  }
 }
 
 // ----------------------------------------------------------------- commands --
@@ -165,9 +210,20 @@ export async function sayHello(t: Transport, tries = 5, opts?: FramingOpts): Pro
       if (reply.length >= 2 && reply[0] === 0x18 && reply[1] === 0x05) {
         throw new RadioInProgrammingModeError()
       }
-      return parseFirmwareString(reply)
+      const firmware = parseFirmwareString(reply)
+      // An empty string means no terminator was found in the reply, so nothing
+      // in it looks like a firmware version. Treating that as an unrecognised
+      // *firmware* would be wrong and actively misleading - it points at the
+      // radio's software when the real problem is that this is not a firmware
+      // reply at all.
+      if (firmware === '') {
+        throw new NoRadioResponseError('the reply to the hello command contained no firmware version')
+      }
+      return firmware
     } catch (e) {
-      if (e instanceof RadioInProgrammingModeError) throw e
+      // Neither of these improves with retrying, and both need the user to do
+      // something physical.
+      if (e instanceof RadioInProgrammingModeError || e instanceof LoopbackDetectedError) throw e
       lastError = e
       if (t.state === 'desynced') await t.resync(100).catch(() => {})
     }

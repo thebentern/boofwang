@@ -20,6 +20,15 @@ export type ConnState = 'idle' | 'requesting' | 'opening' | 'identifying' | 'con
 export const useDeviceStore = defineStore('device', () => {
   const state = ref<ConnState>('idle')
   const error = ref<string | null>(null)
+  /**
+   * The trace from the last failed session, kept after disconnect.
+   *
+   * A connection that fails is exactly when the byte log matters, and tearing
+   * the transport down discards it. Holding on to the last failure means the
+   * user can attach it to a bug report after the fact rather than having to
+   * reproduce the problem with a recorder running.
+   */
+  const lastFailureTrace = ref<string | null>(null)
   const ident = ref<IdentifyResult | null>(null)
   const radioId = ref<RadioId | null>(null)
   const portLabel = ref<string>('')
@@ -72,6 +81,7 @@ export const useDeviceStore = defineStore('device', () => {
     } catch (e) {
       state.value = 'error'
       error.value = e instanceof Error ? e.message : String(e)
+      lastFailureTrace.value = transport?.toJSON() ?? null
       await disconnect()
       throw e
     }
@@ -92,9 +102,15 @@ export const useDeviceStore = defineStore('device', () => {
     ident.value = null
   }
 
-  /** The recorded protocol trace, for a bug report. */
+  /** The live session's trace, or the last failure's if the port has closed. */
   function traceJson(): string | null {
-    return transport ? transport.toJSON() : null
+    return transport?.toJSON() ?? lastFailureTrace.value
+  }
+
+  /** Record a failure that happened after identify, so its trace survives too. */
+  function captureFailure(e: unknown) {
+    error.value = e instanceof Error ? e.message : String(e)
+    lastFailureTrace.value = transport?.toJSON() ?? lastFailureTrace.value
   }
 
   return {
@@ -104,8 +120,10 @@ export const useDeviceStore = defineStore('device', () => {
     radioId,
     portLabel,
     connected,
+    lastFailureTrace,
     connect,
     disconnect,
+    captureFailure,
     currentDriver,
     currentTransport,
     traceJson,

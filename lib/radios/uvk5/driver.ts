@@ -71,11 +71,13 @@ export function createUvk5Driver(): RadioDriver {
     abortPolicy: 'reset-command',
 
     match(info) {
-      // The usual UV-K5 cable is a CH340 (QinHeng 1a86:7523). That chip is on
-      // countless unrelated devices, so this is a hint for ordering the port
-      // picker, never an identification.
-      if (info.usbVendorId === 0x1a86) return 'possible'
-      return 'no'
+      // UV-K5 programming cables ship with several different USB-serial chips:
+      // QinHeng CH340 (1a86), Prolific PL2303 (067b), Silicon Labs CP210x
+      // (10c4) and FTDI (0403) are all common. Every one of them is also in
+      // countless unrelated devices, so this only orders the port picker; the
+      // handshake is what actually identifies a radio.
+      const KNOWN_BRIDGES = [0x1a86, 0x067b, 0x10c4, 0x0403]
+      return info.usbVendorId !== undefined && KNOWN_BRIDGES.includes(info.usbVendorId) ? 'possible' : 'no'
     },
 
     async identify(t: Transport, ctx: DriverCtx = {}): Promise<IdentifyResult> {
