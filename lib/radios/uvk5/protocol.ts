@@ -72,6 +72,8 @@ export function buildFrame(payload: Uint8Array): Uint8Array {
 }
 
 export interface FramingOpts extends ReadOpts {
+  /** Human-readable USB adapter description, quoted back in a loopback error. */
+  adapter?: string | undefined
   /** Verify the reply CRC. CHIRP does not; we do by default, and say so on failure. */
   verifyCrc?: boolean | undefined
 }
@@ -147,12 +149,12 @@ export async function command(t: Transport, payload: Uint8Array, opts?: FramingO
 
   try {
     const second = await readFrame(t, opts)
-    if (sameBytes(second, payload)) throw new LoopbackDetectedError(describeCommand(payload))
+    if (sameBytes(second, payload)) throw new LoopbackDetectedError(describeCommand(payload), opts?.adapter)
     return second
   } catch (e) {
     if (e instanceof LoopbackDetectedError) throw e
-    // Nothing followed the echo: the line is a loopback and the radio is silent.
-    throw new LoopbackDetectedError(describeCommand(payload))
+    // Nothing followed the echo: the adapter is looping back and the radio is silent.
+    throw new LoopbackDetectedError(describeCommand(payload), opts?.adapter)
   }
 }
 

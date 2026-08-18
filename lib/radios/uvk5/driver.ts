@@ -83,7 +83,7 @@ export function createUvk5Driver(): RadioDriver {
     async identify(t: Transport, ctx: DriverCtx = {}): Promise<IdentifyResult> {
       ctx.progress?.({ phase: 'handshake', done: 0, total: 1, label: 'Saying hello' })
       const timeoutMs = ctx.readTimeoutMs ?? DEFAULT_DRIVER_TIMEOUT_MS
-      const firmware = await sayHello(t, 5, { timeoutMs, signal: ctx.signal })
+      const firmware = await sayHello(t, 5, { timeoutMs, signal: ctx.signal, adapter: ctx.adapter })
       const variant = classifyFirmware(firmware)
       ctx.log?.info(`UV-K5 firmware ${JSON.stringify(firmware)} → layout ${variant.layout}`)
       ctx.progress?.({ phase: 'handshake', done: 1, total: 1, label: firmware })

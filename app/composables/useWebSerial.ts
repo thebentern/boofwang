@@ -13,6 +13,30 @@ export interface PortChoice {
   info: { usbVendorId?: number; usbProductId?: number }
 }
 
+/**
+ * Well-known USB-serial bridges, by vendor id.
+ *
+ * Named so an error can say "Prolific PL2303" rather than "067b:2303". Worth
+ * the table: counterfeit PL2303 chips in particular cause a disproportionate
+ * share of programming-cable failures, and recognising one by name is the
+ * difference between a user replacing a cable and a user filing a bug.
+ */
+const USB_BRIDGES: Record<number, string> = {
+  0x1a86: 'QinHeng CH340',
+  0x067b: 'Prolific PL2303',
+  0x10c4: 'Silicon Labs CP210x',
+  0x0403: 'FTDI',
+}
+
+export function describeAdapter(info: { usbVendorId?: number; usbProductId?: number }): string {
+  const vid = info.usbVendorId
+  const pid = info.usbProductId
+  if (vid === undefined) return 'an unidentified serial port'
+  const hex = `${vid.toString(16).padStart(4, '0')}:${(pid ?? 0).toString(16).padStart(4, '0')}`
+  const name = USB_BRIDGES[vid]
+  return name ? `${name} (${hex})` : `USB device ${hex}`
+}
+
 export function serialAvailable(): boolean {
   return typeof navigator !== 'undefined' && 'serial' in navigator
 }

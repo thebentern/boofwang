@@ -334,13 +334,23 @@ describe('a cable that echoes instead of a radio that answers', () => {
     await t.close()
   })
 
-  it('explains what to physically check', async () => {
+  it('names the adapter when one is known, since a specific chip is often the cause', async () => {
+    const t = new SerialTransport(loopbackPort())
+    await t.open(OPEN)
+    const err = (await sayHello(t, 2, { timeoutMs: 200, adapter: 'Prolific PL2303 (067b:2303)' }).catch(
+      (e: unknown) => e,
+    )) as Error
+    expect(err.message).toMatch(/reports itself as Prolific PL2303 \(067b:2303\)/)
+    await t.close()
+  })
+
+  it('explains what to check', async () => {
     const t = new SerialTransport(loopbackPort())
     await t.open(OPEN)
     const err = (await sayHello(t, 2, { timeoutMs: 200 }).catch((e: unknown) => e)) as Error
-    expect(err.message).toMatch(/echoing/)
+    expect(err.message).toMatch(/returning boofwang's own data/)
     expect(err.message).toMatch(/switched on/)
-    expect(err.message).toMatch(/pushed all the way in/)
+    expect(err.message).toMatch(/CH340/)
     // And it must not blame the firmware, which is what the old code did.
     expect(err.message).not.toMatch(/firmware/i)
     await t.close()

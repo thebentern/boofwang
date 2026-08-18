@@ -57,10 +57,7 @@ export const useDeviceStore = defineStore('device', () => {
       port = chosen
       driver = createDriver(id)
       radioId.value = id
-      portLabel.value =
-        info.usbVendorId !== undefined
-          ? `USB ${info.usbVendorId.toString(16).padStart(4, '0')}:${(info.usbProductId ?? 0).toString(16).padStart(4, '0')}`
-          : 'Serial port'
+      portLabel.value = describeAdapter(info)
 
       // Every session is recorded. A trace from a radio that would not connect
       // is the single most useful thing a bug report can carry, and it costs
@@ -75,7 +72,7 @@ export const useDeviceStore = defineStore('device', () => {
       })
 
       state.value = 'identifying'
-      ident.value = await driver.identify(transport)
+      ident.value = await driver.identify(transport, { adapter: portLabel.value })
       state.value = 'connected'
       return ident.value
     } catch (e) {

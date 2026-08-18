@@ -41,6 +41,14 @@ export interface DriverCtx {
    * worse than a slow one - it desyncs the link and aborts the read.
    */
   readTimeoutMs?: number | undefined
+  /**
+   * Human-readable USB adapter description ("Prolific PL2303 (067b:2303)").
+   *
+   * Quoted back when the adapter misbehaves. Naming the chip turns "something
+   * is wrong" into something the user can act on, because a specific family of
+   * counterfeit chips causes a disproportionate share of these failures.
+   */
+  adapter?: string | undefined
   progress?(p: Progress): void
   signal?: AbortSignal
   log?: Logger
@@ -164,19 +172,27 @@ export class RadioInProgrammingModeError extends DriverError {
  * checksum - so every layer below this happily accepts it, and the radio
  * appears to be answering with nonsense rather than not answering at all. On
  * the UV-K5 the echoed hello even decodes to an empty firmware string, which
- * previously surfaced as "unrecognised firmware" and sent people looking for a
+ * once surfaced as "unrecognised firmware" and sent people looking for a
  * firmware problem that does not exist.
  *
- * The usual causes are physical: the two-pin plug not pushed fully home, the
- * radio switched off, or a counterfeit USB-serial chip.
+ * Observed cause, from a real session: a counterfeit Prolific PL2303 adapter
+ * (bcdDevice 0x0300) that macOS could not configure at all - `tcsetattr`
+ * rejected even a no-op change - and which returned everything written to it.
+ * Testing the same cable at the wire level showed no short between transmit and
+ * receive, so the echo came from the adapter rather than the cabling. Cheap
+ * counterfeit USB-serial chips are common in this hobby and are the first thing
+ * to suspect; the CH340-based cables are what the UV-K5 community settled on.
  */
 export class LoopbackDetectedError extends DriverError {
   override readonly name = 'LoopbackDetectedError'
-  constructor(what: string) {
+  constructor(what: string, adapter?: string) {
     super(
-      `The programming cable is echoing boofwang's own data back instead of the radio replying (${what}). ` +
-        'The radio is not responding. Check that it is switched on, that the plug is pushed all the way in — ' +
-        'the two-pin connector often needs a firm push — and that the cable is seated in the right sockets.',
+      `The USB-serial adapter is returning boofwang's own data instead of the radio replying (${what}). ` +
+        'The radio is not responding.' +
+        (adapter ? ` The adapter reports itself as ${adapter}.` : '') +
+        ' Check the radio is switched on and the plug is fully seated; if it still fails, suspect the adapter. ' +
+        'Counterfeit USB-serial chips are common and often behave exactly like this - a CH340-based cable is the ' +
+        'usual remedy.',
     )
   }
 }
