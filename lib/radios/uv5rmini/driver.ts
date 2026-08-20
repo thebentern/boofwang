@@ -372,10 +372,39 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
         encodeChannel(mem, i, doc.channels.get(i + 1) ?? null, variant)
       }
 
+      /*
+       * Settings are patched into their own region, and only where they differ.
+       *
+       * `write()` assigns the keys present in the patch and leaves the rest of
+       * the 64 bytes alone, so the fields this build does not name keep whatever
+       * the radio had - the same rule the channel records follow, and what keeps
+       * `encode(decode(image), image)` byte-exact.
+       */
+      const settingsRegion = base.regions.find((r) => r.start === SETTINGS_REGION)
+      let settings = settingsRegion?.data
+      if (settingsRegion && settings && settings.length >= UV5RM_SETTINGS.size) {
+        const patch: Record<string, number> = {}
+        const current = UV5RM_SETTINGS.read(settings, 0) as Record<string, number>
+        for (const [key, value] of Object.entries(doc.settings)) {
+          if (typeof value !== 'number') continue
+          if (!(key in current)) continue
+          if (current[key] === value) continue
+          patch[key] = value
+        }
+        if (Object.keys(patch).length > 0) {
+          settings = settings.slice()
+          UV5RM_SETTINGS.write(settings, 0, patch)
+        }
+      }
+
       return {
         ...base,
         createdAt: new Date().toISOString(),
-        regions: base.regions.map((r) => (r.start === found.region.start ? { ...r, data: mem } : r)),
+        regions: base.regions.map((r) => {
+          if (r.start === found.region.start) return { ...r, data: mem }
+          if (r.start === SETTINGS_REGION && settings) return { ...r, data: settings }
+          return r
+        }),
       }
     },
 
@@ -423,7 +452,9 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
     ownedRanges: (regionStart: number) =>
       regionStart === CHANNEL_BASE
         ? [[CHANNEL_BASE, CHANNEL_BASE + VARIANTS[1]!.channelCount * CHANNEL_SIZE] as const]
-        : [],
+        : regionStart === SETTINGS_REGION
+          ? [[0, UV5RM_SETTINGS.size] as const]
+          : [],
   }
 
   return driver

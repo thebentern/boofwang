@@ -204,7 +204,10 @@ bytes, not as BCD: `04 03 05 06 02 05 00 00` is 435.625 MHz. That is how the
 offset was confirmed against a real radio - a wrong offset gives a number, a
 right one gives a frequency that exists.
 
-Radio-wide settings are decoded into `Codeplug.settings` and nothing writes them
-back, which is why the round trip stays byte-exact. Editing them is
+Radio-wide settings are decoded into `Codeplug.settings` and written back, and
+verified on hardware: squelch 3 to 5 changed **exactly one byte of 33,344**, at
+image 0x8040, and the radio restored to its original sha256. `encode` patches
+only the named keys, so the fields this build cannot name keep whatever the
+radio had - which is why the round trip is still byte-exact when nothing was
+edited. Exposing them in the interface is
 [issue #2](https://github.com/thebentern/boofwang/issues/2).
-

@@ -321,3 +321,55 @@ describe('programming an empty slot', () => {
     expect(equalBytes(channels(img), before)).toBe(true)
   })
 })
+
+describe('settings, written as well as read', () => {
+  it('changes only the setting that was edited', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const before = (doc.settings as Record<string, number>).squelch ?? 0
+    doc.settings = { ...doc.settings, squelch: before === 9 ? 1 : before + 1 }
+
+    const out = writable.encode(doc, img)
+    const region = (i: RadioImage) => i.regions.find((r) => r.start === 0x9000)!.data
+    const a = region(img)
+    const b = region(out)
+
+    const changed: number[] = []
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) changed.push(i)
+    expect(changed).toEqual([0x00])
+    expect(b[0x00]).toBe(before === 9 ? 1 : before + 1)
+  })
+
+  it('leaves the settings region untouched when nothing changed', () => {
+    // Decoding a field is the usual temptation to start normalising it.
+    const img = image()
+    const out = writable.encode(writable.decode(img), img)
+    const a = img.regions.find((r) => r.start === 0x9000)!.data
+    const b = out.regions.find((r) => r.start === 0x9000)!.data
+    expect(equalBytes(a, b)).toBe(true)
+  })
+
+  it('does not touch the bytes it has no name for', () => {
+    // The 64-byte block has fields this build does not model. A patch write
+    // assigns only the named keys, so the rest survive a read/edit/write cycle.
+    const img = image()
+    const doc = writable.decode(img)
+    doc.settings = { ...doc.settings, beep: 0, vox: 1 }
+
+    const a = img.regions.find((r) => r.start === 0x9000)!.data
+    const b = writable.encode(doc, img).regions.find((r) => r.start === 0x9000)!.data
+    for (let i = 0; i < a.length; i++) {
+      if (i === 0x06 || i === 0x02) continue // beep, vox
+      expect(b[i], `byte 0x${i.toString(16)} moved`).toBe(a[i])
+    }
+  })
+
+  it('ignores a settings key the radio does not have', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    doc.settings = { ...doc.settings, notARealSetting: 7 }
+    const a = img.regions.find((r) => r.start === 0x9000)!.data
+    const b = writable.encode(doc, img).regions.find((r) => r.start === 0x9000)!.data
+    expect(equalBytes(a, b)).toBe(true)
+  })
+})
