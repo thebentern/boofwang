@@ -205,3 +205,36 @@ export const KEY_AREA: readonly [number, number] = [KEY_BASE, KEY_BASE + KEY_SLO
 export function isKeySlotEmpty(slot: Uint8Array): boolean {
   return slot.every((b) => b === 0x00 || b === 0xff)
 }
+
+/**
+ * The inverse of {@link decodeToneWord}, kept beside it so the two cannot drift.
+ *
+ * Produces the packed-BCD spelling the radio itself writes: `FF FF` for no tone,
+ * `high >= 0x80` for DCS with `>= 0xC0` marking the inverted polarity, and
+ * plain BCD digits for CTCSS. Writing the word as tenths of a hertz - which is
+ * what this driver did until it was checked - turns 127.3 Hz into 472.3 Hz.
+ */
+export function encodeToneWord(tone: ToneSpec | null): number {
+  if (!tone) return 0xffff
+
+  if (tone.kind === 'dtcs') {
+    const code = tone.code
+    const hundreds = Math.floor(code / 100) % 10
+    const tens = Math.floor(code / 10) % 10
+    const ones = code % 10
+    const high = (tone.polarity === 'R' ? 0xc0 : 0x80) | hundreds
+    const low = (tens << 4) | ones
+    return low | (high << 8)
+  }
+
+  // CTCSS: the value is tenths of a hertz spread over four BCD nibbles as
+  // hundreds, tens, ones, tenths.
+  const deciHz = tone.deciHz
+  const hundreds = Math.floor(deciHz / 1000) % 10
+  const tens = Math.floor(deciHz / 100) % 10
+  const ones = Math.floor(deciHz / 10) % 10
+  const tenths = deciHz % 10
+  const high = (hundreds << 4) | tens
+  const low = (ones << 4) | tenths
+  return low | (high << 8)
+}
