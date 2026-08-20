@@ -72,20 +72,54 @@ Names are 12 bytes at `+0x14`, padded with 0xFF. CHIRP maps both 0xFF and 0x00
 to spaces and then strips the trailing ones, rather than treating them as
 terminators, so a name containing one keeps everything after it.
 
-## Verified
+## Verified session, 2026-08-20
 
-- Decode cross-checked against CHIRP's own `bitwise` parser on four
-  synthesised records (simplex, repeater shift, DTCS both polarities, CTCSS):
-  every field agrees — frequencies, tones, the inverted bandwidth bit, the
-  power index, scan and BCL flags, and names.
+| | |
+|---|---|
+| Answers to | `PROGRAMCOLORPROU` — the **UV-5R Mini**, not the 5RM |
+| Reports itself as | `5RMINI  +L00000` (the 0x4d reply) |
+| Adapter | FTDI FT232R, 115200 8N1 |
+| Image | 33,344 bytes = `0x8240`, exactly the three-region total |
+| Read | 521 blocks in 21 s |
+| sha256 | `31672672aad217fa771deca2be511d179da192b6eb9e5ace67fd9c0d07175cc0` |
+
+Confirmed by this session:
+
+- **The three-region map is right.** 0x8240 bytes came back, and every one of
+  the 521 replies carried the four-byte request header the driver checks.
+- **The app's read is byte-identical to an independent raw read** taken outside
+  it with a separate Python implementation. Same sha256.
+- 21 factory channels decode: five on 2 m, sixteen on 70 cm, all unnamed, no
+  tones, channels 1-16 High and 17-21 Low.
+- **Decode agrees with CHIRP field for field** on these real bytes. The same
+  33,344 bytes parsed with CHIRP's own `bitwise` engine give identical
+  frequencies, tone words, `lowpower`, `wide`, `scan` and names for all 21.
+- The exported CHIRP CSV round-trips: CHIRP parsed all 21 channels and
+  re-exported the file byte for byte identically
+  (`scripts/crosscheck-chirp-csv.py`).
+
+The traffic is worth recording because it is exactly predictable: 2127 bytes
+out (16-byte ident + 27 bytes of magics + 521 x 4-byte reads) and 35,461 in
+(33 bytes of handshake replies + 521 x 68). Any deviation is a dropped frame.
+
+### Getting there
+
+The radio was unreachable for the first attempts: every byte sent came back
+byte-identical, at all four baud rates and with the handshake lines both
+asserted and cleared. That is a cable shorting transmit to receive, not a
+radio, and the FTDI adapter was the same one that had read a DM-32UV minutes
+earlier — so the fault was at the plug rather than the adapter. The 2.5 mm
+connector was not fully seated. Reseating it fixed it, and the wire-level echo
+test is what distinguished "the plug is not in" from "the firmware is wrong".
 
 ## Not verified
 
-- **Anything against a real radio.** The UV-5R Mini connected during
-  development was unreachable: every byte sent came back byte-identical at all
-  four baud rates, which is a cable shorting transmit to receive rather than a
-  radio. The FTDI adapter was the same one that had read a DM-32UV minutes
-  earlier, so the fault was at the plug. Until a radio answers, the read path
-  is transcription plus a cross-check, not a tested driver.
 - Writing. `writeImage` and `encode` throw.
-- Which of the two variants any given retail box contains.
+- The `5RM` variant. Its ident, region map, channel count and power table are
+  transcribed from CHIRP and exercised by unit tests, but no `5RM` has been on
+  the cable — only the UV-5R Mini.
+- Tones, repeater shifts and named channels on real hardware: this unit is
+  factory default, so every channel is simplex, unnamed and tone-less. Those
+  paths are covered by synthesised records cross-checked against CHIRP.
+- Anything outside the channel array. Settings, VFOs and the two small tail
+  regions are read and preserved but not decoded.

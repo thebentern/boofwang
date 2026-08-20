@@ -1,0 +1,21 @@
+{
+ "ident46": "01360174040005200220026001035003",
+ "ident4d": "5RMINI  +L00000",
+ "regions": [
+  {
+   "start": 0,
+   "size": 32832
+  },
+  {
+   "start": 36864,
+   "size": 64
+  },
+  {
+   "start": 40960,
+   "size": 448
+  }
+ ],
+ "sha256": "31672672aad217fa771deca2be511d179da192b6eb9e5ace67fd9c0d07175cc0",
+ "bytes": 33344,
+ "note": "Factory-default codeplug read from a real Baofeng UV-5R Mini over an FTDI cable. No names, no DTMF identities and no high-entropy data: every channel is unnamed and the printable-string scan finds nothing."
+}

@@ -12,7 +12,7 @@ Live at **[boofwa.ng](https://boofwa.ng)**.
 |---|---|---|---|---|
 | Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write and restore |
 | Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | No | Read, cross-checked against CHIRP |
-| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | No | **No** — see below |
+| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | No | Read, cross-checked against CHIRP |
 | Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Key slots only | Read, write and restore |
 
 CHIRP has no DM-32UV driver at all, and Baofeng's own CPS is Windows-only.
@@ -23,11 +23,12 @@ CHIRP has no DM-32UV driver at all, and Baofeng's own CPS is Windows-only.
 > its pages move between sessions and 22 of its 59 blocks have no documented
 > meaning.
 >
-> **The UV-5R Mini driver has never seen a radio.** It is transcribed from
-> CHIRP and cross-checked field by field against CHIRP's own struct parser,
-> which is real evidence but is not a hardware test. Note also that two
-> different radios are sold under near-identical names; both are supported and
-> the handshake decides which is on the cable. See
+> The UV-5R Mini has been read on real hardware, and the app's read is
+> byte-identical to an independent raw read taken outside it. Note that two
+> different radios are sold under near-identical names — "UV-5R Mini" and
+> "5RM"/"UV-5RM" differ in ident string, region map, channel count and power
+> table. Both are supported and the handshake decides which is on the cable;
+> only the UV-5R Mini has been on a cable so far. See
 > [docs/protocols/uv5rmini.md](docs/protocols/uv5rmini.md).
 
 **Files it reads and writes**
