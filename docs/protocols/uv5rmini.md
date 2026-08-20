@@ -123,3 +123,63 @@ test is what distinguished "the plug is not in" from "the firmware is wrong".
   paths are covered by synthesised records cross-checked against CHIRP.
 - Anything outside the channel array. Settings, VFOs and the two small tail
   regions are read and preserved but not decoded.
+
+## Writing
+
+**This radio cannot take a sparse write.** It erases a flash page before
+programming and writes back only the block it was handed, so sending one block
+wipes everything that shared that page.
+
+This was found the hard way, on a real radio. A single 0x40 block written to
+name channel 1 erased **channels 3 to 21**. The write looked perfect while it
+happened - every frame acknowledged, every block read back and compared, and the
+app reported "1 block written, all read back and matched" - because the block
+that was sent genuinely was correct. Only a full read afterwards showed the rest
+was gone. The radio was recovered from the backup taken minutes earlier, which
+is the whole reason a backup is required before any write.
+
+So this driver does what CHIRP does: **the entire image, every block, in order**,
+every time. 521 blocks, roughly 17 seconds to write and as long again to verify.
+`capabilities.writesWholeImage` marks it so the confirmation says "Send 521
+blocks" rather than describing the size of the edit.
+
+The other three radios here take a sparse write happily, which is what makes a
+one-channel edit cost one block on them. Do not carry that design back here.
+
+Frames are `W` (0x57) + a 16-bit big-endian address + length + the **obfuscated**
+payload, acknowledged with 0x06 per block. The obfuscation applies on the way out
+as well as the way in.
+
+## Verified write session, 2026-08-20
+
+| | |
+|---|---|
+| Radio | UV-5R Mini, answers `PROGRAMCOLORPROU`, reports `5RMINI  +L00000` |
+| Pre-write state | `0b029cf245415be424fb5d3b4784a9ff50c6a582c1d8e9c45fb7599cdc4ce56f` |
+| Write traffic | 37,555 bytes out, 35,982 in - 521 write frames plus 521 read-backs |
+
+1. Read through the app; matched an independent raw read.
+2. Named channel 1 `BOOF`. The diff reported 12 bytes, and the confirmation
+   correctly said **521 blocks** because that is what the radio receives.
+3. Wrote. An independent read found channel 1 renamed and **every other channel
+   byte-identical** - the thing the earlier sparse write destroyed.
+4. Restored, and the radio returned to `0b029cf2...` byte for byte.
+
+### Two behaviours worth knowing
+
+Clearing a channel name writes 12 bytes of 0xFF where the factory image had
+0x00. Both decode to no name and the radio displays neither, but a cleared name
+is not byte-identical to a never-set one.
+
+A whole-image write puts back whatever the image holds at radio address 0x9018,
+a byte the radio maintains itself and changes between sessions. CHIRP has the
+same behaviour for the same reason. It is one byte of runtime state, not
+configuration.
+
+### Not verified
+
+- The `5RM` variant. Its ident, region map, channel count and power table are
+  transcribed and unit-tested, but no 5RM has been on the cable.
+- Tones, repeater shifts and named channels on hardware: this unit is factory
+  default and has none.
+

@@ -119,9 +119,15 @@ export function decodeToneWord(word: number): ToneSpec | null {
   return dtcs(code, reversed ? 'R' : 'N')
 }
 
-/** The inverse, kept beside the decoder so the two cannot drift apart. */
+/**
+ * The inverse, kept beside the decoder so the two cannot drift apart.
+ *
+ * "No tone" is written as zero, which is what the radio writes. Blank memory
+ * reads 0xFFFF and decodes to no tone as well, so both spellings are accepted
+ * on the way in - but only one is ever produced.
+ */
 export function encodeToneWord(tone: ToneSpec | null): number {
-  if (!tone) return 0xffff
+  if (!tone) return 0
   if (tone.kind === 'ctcss') return tone.deciHz
   const index = UV17PRO_DTCS_CODES.indexOf(tone.code)
   if (index < 0) return 0xffff

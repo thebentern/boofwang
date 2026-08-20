@@ -68,6 +68,17 @@ export interface RadioSchema {
     /** Non-empty when writing needs an explicit per-feature unlock. */
     readonly writeRequiresUnlock?: string
     /**
+     * Whether a write must send the entire image rather than only what changed.
+     *
+     * Some radios erase a flash page before programming and write back only the
+     * block they were handed, so a sparse write silently wipes everything
+     * sharing that page. Where this is set, the driver sends every block and
+     * the confirmation has to say so - telling someone "1 block" while sending
+     * the whole radio would be describing their edit rather than the write.
+     */
+    readonly writesWholeImage?: boolean
+
+    /**
      * What a write can actually reach, in the user's words, when it is not
      * the whole codeplug.
      *

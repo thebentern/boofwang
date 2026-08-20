@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { sha256Hex } from '../../codec/checksum.js'
+import { hexDump, sha256Hex } from '../../codec/checksum.js'
+import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { NO_TONE, type TonePair } from '../../model/tones.js'
 import { hz, mW } from '../../model/units.js'
+import { txFrequency } from '../../model/channel.js'
 import {
+  BackupRequiredError,
   DEFAULT_DRIVER_TIMEOUT_MS,
   DriverError,
+  WriteVerifyError,
+  type WriteOperation,
   WriteBlockedError,
   type Diagnostic,
   type DriverCtx,
@@ -14,6 +19,7 @@ import {
   type WriteReport,
 } from '../../radio/driver.js'
 import type { RadioImage } from '../../radio/image.js'
+import type { RadioSchema } from '../../radio/schema.js'
 import { locate } from '../../radio/image.js'
 import type { Transport } from '../../transport/transport.js'
 import {
@@ -22,14 +28,18 @@ import {
   handshake,
   imageSize,
   readBlock,
+  writeBlock,
   type Uv5rVariant,
 } from './protocol.js'
 import {
   CHANNEL_BASE,
   CHANNEL_SIZE,
+  NAME_LENGTH,
   UV5RM_CHANNEL,
   decodeName,
   decodeToneWord,
+  encodeName,
+  encodeToneWord,
   isChannelEmpty,
   isTxInhibited,
 } from './layout.js'
@@ -58,10 +68,23 @@ export function describeIdent(detail: Uint8Array): string {
   return best.trim()
 }
 
-export function createUv5rMiniDriver(): RadioDriver {
+export interface Uv5rMiniOptions {
+  /** Whether this build may write. Turned on in the registry. */
+  enableWrite?: boolean
+}
+
+export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver {
+  const schema: RadioSchema = options.enableWrite
+    ? {
+        ...UV5RMINI_SCHEMA,
+        status: 'beta',
+        capabilities: { ...UV5RMINI_SCHEMA.capabilities, write: true, writesWholeImage: true },
+      }
+    : UV5RMINI_SCHEMA
+
   const driver: RadioDriver = {
     id: 'uv5rmini',
-    schema: UV5RMINI_SCHEMA,
+    schema,
     serial: { ...UV5RMINI_SERIAL, signals: { ...UV5RMINI_SERIAL.signals } },
     // No exit command in this protocol; the radio leaves programming mode when
     // the port closes.
@@ -107,10 +130,7 @@ export function createUv5rMiniDriver(): RadioDriver {
         raw,
         caps: {
           read: true,
-          // Writing is not implemented. Read, decode and a hardware fixture
-          // come first, in the order every other radio here was brought up.
-          write: false,
-          reason: 'Writing to the UV-5R Mini is not implemented yet.',
+          write: schema.capabilities.write,
         },
         identHash: await sha256Hex(raw),
         meta: { ident: [...raw], model: ident.variant.label },
@@ -163,8 +183,137 @@ export function createUv5rMiniDriver(): RadioDriver {
       }
     },
 
-    async writeImage(): Promise<WriteReport> {
-      throw new WriteBlockedError('the UV-5R Mini')
+    async writeImage(t: Transport, image: RadioImage, ctx: DriverCtx = {}): Promise<WriteReport> {
+      if (image.radioId !== 'uv5rmini') throw new DriverError(`Not a UV-5R Mini image: ${image.radioId}`)
+      if (!schema.capabilities.write && !ctx.dryRun) throw new WriteBlockedError('the UV-5R Mini')
+      if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('uv5rmini')
+
+      const timeoutMs = ctx.readTimeoutMs ?? DEFAULT_DRIVER_TIMEOUT_MS
+      const opts = { timeoutMs, signal: ctx.signal }
+
+      const ident = ctx.ident ?? (await driver.identify(t, ctx))
+      if (ctx.backup && ctx.backup.identHash !== ident.identHash) throw new BackupRequiredError('uv5rmini')
+      if (!ctx.dryRun && !ident.caps.write) {
+        throw new WriteBlockedError(ident.caps.reason ?? `firmware ${ident.variant}`)
+      }
+
+      const variant = variantOf(image.layout)
+      if (variant.id !== variantOf(ident.layout).id) {
+        throw new DriverError(
+          `This image came from a ${variant.label} and the radio on the cable is a ` +
+            `${variantOf(ident.layout).label}. They differ in region map, channel count and power table.`,
+        )
+      }
+
+      /*
+       * Every block is sent, in order, always.
+       *
+       * This radio erases a flash page before programming it, and only the
+       * block it was handed gets written back - so sending one block wipes
+       * everything else that shared its page. That was found the hard way: a
+       * single-block write to slot 1 erased channels 3 to 21 on a real radio.
+       * The damage is invisible in the write itself, which acknowledges each
+       * frame and reads it back correctly, because the block that was sent is
+       * genuinely fine. Only a full read afterwards shows the rest is gone.
+       *
+       * The other three radios here take a sparse write happily and that is
+       * what makes a one-channel edit cost one block. This one cannot, so it
+       * gets CHIRP's behaviour instead: the whole image, every time. It is 521
+       * blocks and about 17 seconds, which is a price worth paying.
+       */
+      const regionOf = (start: number) => image.regions.find((r) => r.start === start)
+
+      const blocks: { addr: number; data: Uint8Array }[] = []
+      for (const region of variant.regions) {
+        const data = regionOf(region.start)?.data
+        if (!data || data.length !== region.size) {
+          throw new DriverError(`The image is missing the region at 0x${region.start.toString(16)}`)
+        }
+        for (let off = 0; off < region.size; off += BLOCK_SIZE) {
+          const chunk = new Uint8Array(BLOCK_SIZE).fill(0xff)
+          chunk.set(data.subarray(off, Math.min(off + BLOCK_SIZE, region.size)), 0)
+          blocks.push({ addr: region.start + off, data: chunk })
+        }
+      }
+
+      const operations: WriteOperation[] = blocks.map((b) => ({
+        addr: b.addr,
+        length: BLOCK_SIZE,
+        label: `0x${b.addr.toString(16).padStart(4, '0')}`,
+      }))
+
+      if (blocks.length === 0) {
+        return { blocksWritten: 0, bytesWritten: 0, verified: true, dryRun: ctx.dryRun === true, operations }
+      }
+      if (ctx.dryRun) {
+        return {
+          blocksWritten: blocks.length,
+          bytesWritten: blocks.length * BLOCK_SIZE,
+          verified: false,
+          dryRun: true,
+          operations,
+        }
+      }
+
+      let sent = 0
+      const partial = (e: unknown) => {
+        if (e instanceof Error) {
+          ;(e as Error & { partial?: WriteReport }).partial = {
+            blocksWritten: sent,
+            bytesWritten: sent * BLOCK_SIZE,
+            verified: false,
+            dryRun: false,
+            operations,
+          }
+        }
+        return e
+      }
+
+      try {
+        for (const b of blocks) {
+          ctx.signal?.throwIfAborted()
+          await writeBlock(t, b.addr, b.data, opts)
+          sent++
+          ctx.progress?.({
+            phase: 'write',
+            done: sent * BLOCK_SIZE,
+            total: blocks.length * BLOCK_SIZE,
+            label: `0x${b.addr.toString(16).padStart(4, '0')}`,
+          })
+        }
+
+        // Every block is read back and compared. An acknowledgement says the
+        // frame arrived, not that it landed where it was meant to.
+        for (const [i, b] of blocks.entries()) {
+          ctx.signal?.throwIfAborted()
+          const got = await readBlock(t, b.addr, BLOCK_SIZE, opts)
+          if (!equalBytes(got, b.data)) {
+            const at = got.findIndex((x, j) => x !== b.data[j])
+            throw new WriteVerifyError(
+              b.addr,
+              hexDump(b.data.subarray(at, at + 8), 8),
+              hexDump(got.subarray(at, at + 8), 8),
+              i + 1,
+            )
+          }
+          ctx.progress?.({
+            phase: 'verify',
+            done: (i + 1) * BLOCK_SIZE,
+            total: blocks.length * BLOCK_SIZE,
+            label: `0x${b.addr.toString(16).padStart(4, '0')}`,
+          })
+        }
+      } catch (e) {
+        throw partial(e)
+      }
+
+      return {
+        blocksWritten: blocks.length,
+        bytesWritten: blocks.length * BLOCK_SIZE,
+        verified: true,
+        dryRun: false,
+        operations,
+      }
     },
 
     decode(image: RadioImage): Codeplug {
@@ -185,8 +334,29 @@ export function createUv5rMiniDriver(): RadioDriver {
       return cp
     },
 
-    encode(): RadioImage {
-      throw new WriteBlockedError('the UV-5R Mini')
+    encode(doc: Codeplug, base: RadioImage): RadioImage {
+      if (doc.radio !== 'uv5rmini') throw new DriverError(`Not a UV-5R Mini codeplug: ${doc.radio}`)
+      if (base.radioId !== 'uv5rmini') throw new DriverError(`Not a UV-5R Mini image: ${base.radioId}`)
+
+      const found = locate(base, CHANNEL_BASE)
+      if (!found) throw new DriverError('UV-5R Mini image has no channel region')
+
+      // A copy of the bytes that came off the radio, patched in place. There is
+      // no way to build one from nothing: the settings, the VFOs and the two
+      // small tail regions this build does not decode survive only because they
+      // are carried through untouched.
+      const mem = found.region.data.slice()
+      const variant = variantOf(base.layout)
+
+      for (let i = 0; i < variant.channelCount; i++) {
+        encodeChannel(mem, i, doc.channels.get(i + 1) ?? null, variant)
+      }
+
+      return {
+        ...base,
+        createdAt: new Date().toISOString(),
+        regions: base.regions.map((r) => (r.start === found.region.start ? { ...r, data: mem } : r)),
+      }
     },
 
     validate(doc: Codeplug): Diagnostic[] {
@@ -224,12 +394,16 @@ export function createUv5rMiniDriver(): RadioDriver {
     },
 
     /**
-     * Nothing is claimed yet, because nothing is written yet.
+     * The channel array, and nothing else.
      *
-     * An empty set means any byte the encoder changed would be flagged as a
-     * defect - which is the correct answer while `encode` throws.
+     * Settings, the VFOs and the two small tail regions are read and preserved
+     * but not decoded, so a change landing there means the encoder has a bug
+     * rather than that the user edited something.
      */
-    ownedRanges: () => [],
+    ownedRanges: (regionStart: number) =>
+      regionStart === CHANNEL_BASE
+        ? [[CHANNEL_BASE, CHANNEL_BASE + VARIANTS[1]!.channelCount * CHANNEL_SIZE] as const]
+        : [],
   }
 
   return driver
@@ -244,6 +418,108 @@ export function createUv5rMiniDriver(): RadioDriver {
  */
 export function variantOf(layout: string): Uv5rVariant {
   return VARIANTS.find((v) => v.id === layout) ?? VARIANTS[0]!
+}
+
+
+/**
+ * Write one channel back into the image, in place.
+ *
+ * The exact inverse of `decodeChannel`, and a partial patch on purpose: the
+ * unknown bit runs, the four undocumented bytes at 0x10-0x13 and anything else
+ * this build does not model keep whatever the radio had. That is what makes
+ * `encode(decode(image), image)` byte-identical, and it is the only reason it
+ * is safe to send bytes to a radio whose memory map is only partly understood.
+ */
+export function encodeChannel(
+  mem: Uint8Array,
+  i: number,
+  ch: Channel | null,
+  variant: Uv5rVariant = VARIANTS[0]!,
+): void {
+  const addr = CHANNEL_BASE + i * CHANNEL_SIZE
+  if (addr + CHANNEL_SIZE > mem.length) return
+
+  if (ch === null) {
+    /*
+     * An empty slot is marked by its first byte and nothing else is touched.
+     *
+     * CHIRP tests only that byte, and these radios leave stale data behind the
+     * marker rather than blanking the record. Filling it would invent bytes the
+     * radio never held - the mistake that broke the UV-82 round trip.
+     */
+    if (mem[addr] !== 0xff) mem[addr] = 0xff
+    return
+  }
+
+  const record = mem.subarray(addr, addr + CHANNEL_SIZE)
+  const alreadyInhibited =
+    record.subarray(0x04, 0x08).every((b) => b === 0xff) ||
+    record.subarray(0x04, 0x08).every((b) => b === 0x00)
+  const keepMarker = !ch.txAllowed && alreadyInhibited
+
+  /*
+   * Tones and names are only rewritten when they actually changed.
+   *
+   * Both have two spellings for the same meaning. "No tone" is 0x0000 as the
+   * radio writes it and 0xFFFF in blank memory, and both decode to no tone; an
+   * unnamed channel is 0x00-filled here and 0xFF-padded when written. Encoding
+   * the decoded value unconditionally normalises one spelling to the other,
+   * which changes bytes to say exactly what they already said - it breaks the
+   * byte-exact round trip and puts pointless blocks on the wire.
+   */
+  const current = UV5RM_CHANNEL.read(mem, addr)
+  const sameTone = (a: ReturnType<typeof decodeToneWord>, b: ReturnType<typeof decodeToneWord>) =>
+    a === null || b === null ? a === b : JSON.stringify(a) === JSON.stringify(b)
+
+  const rxToneChanged = !sameTone(decodeToneWord(current.rxTone), ch.tone.rx)
+  const txToneChanged = !sameTone(decodeToneWord(current.txTone), ch.tone.tx)
+  const nameChanged = decodeName(current.nameBytes) !== ch.name.slice(0, NAME_LENGTH)
+
+  UV5RM_CHANNEL.write(mem, addr, {
+    rxFreq: ch.rxFreq,
+    ...(ch.txAllowed ? { txFreq: txFrequency(ch) ?? ch.rxFreq } : {}),
+    ...(rxToneChanged ? { rxTone: encodeToneWord(ch.tone.rx) } : {}),
+    ...(txToneChanged ? { txTone: encodeToneWord(ch.tone.tx) } : {}),
+    scode: Number(ch.extras.vendor?.scode ?? 0) & 0xff,
+    pttid: Number(ch.extras.vendor?.pttId ?? 0) & 0xff,
+    power: { lowpower: powerIndexFor(ch.power.mW, variant) },
+    flags: {
+      // The bit called `wide` means NARROW: a set bit selects MODES[0], which
+      // is NFM. Trusting the name would put every channel on the wrong
+      // bandwidth, in both directions.
+      wide: ch.bandwidthHz <= 12_500 ? 1 : 0,
+      scan: ch.skip === 'skip' ? 0 : 1,
+      bcl: Number(ch.extras.vendor?.busyChannelLockout ?? 0) ? 1 : 0,
+    },
+    ...(nameChanged ? { nameBytes: encodeName(ch.name, NAME_LENGTH) } : {}),
+  })
+
+  /*
+   * Receive-only is written as four 0xFF bytes.
+   *
+   * `_is_txinh` for this family accepts all-0xFF and all-0x00, and a numeric
+   * field cannot express either - writing a zero *frequency* is not the same as
+   * writing the marker. An existing marker is left in whichever spelling it
+   * already uses, because rewriting it would put four bytes on the wire to say
+   * what they already said.
+   */
+  if (!ch.txAllowed && !keepMarker) mem.fill(0xff, addr + 0x04, addr + 0x08)
+}
+
+/**
+ * Which power index this radio uses for a given output.
+ *
+ * The two variants order their tables differently and 5 W is "High" on one and
+ * "Medium" on the other, so the index is resolved against the table of whatever
+ * answered the handshake rather than a shared constant.
+ */
+function powerIndexFor(mw: number, variant: Uv5rVariant): number {
+  let best = 0
+  for (let i = 1; i < variant.power.length; i++) {
+    const here = variant.power[i]!.mW
+    if (Math.abs(here - mw) < Math.abs(variant.power[best]!.mW - mw)) best = i
+  }
+  return best
 }
 
 /** Decode one channel record, or null when the slot is unused. */

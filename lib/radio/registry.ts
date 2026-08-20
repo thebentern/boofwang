@@ -5,7 +5,6 @@ import { createUv82Driver } from '../radios/uv82/driver.js'
 import { createUv5rMiniDriver } from '../radios/uv5rmini/driver.js'
 import { createUvk5Driver } from '../radios/uvk5/driver.js'
 import type { RadioDriver } from './driver.js'
-import { UV5RMINI_SCHEMA } from '../radios/uv5rmini/schema.js'
 import type { RadioSchema } from './schema.js'
 
 /**
@@ -34,9 +33,9 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // read, preserved and never sent back. See docs/protocols/dm32uv.md.
   dm32uv: () => createDm32uvDriver({ enableWrite: true }),
   // A UV-17 Pro family radio despite the name: 115200 baud, obfuscated 64-byte
-  // blocks across four disjoint regions. Read and decode only, in the order
-  // every other radio here was brought up.
-  uv5rmini: createUv5rMiniDriver,
+  // blocks. Writing covers the channel array only, sent as the blocks that
+  // differ from the image the radio was read from.
+  uv5rmini: () => createUv5rMiniDriver({ enableWrite: true }),
 }
 
 export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
@@ -44,7 +43,7 @@ export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
   uvk5: createUvk5Driver({ enableWrite: true }).schema,
   uv82: createUv82Driver({ enableWrite: true }).schema,
   dm32uv: createDm32uvDriver({ enableWrite: true }).schema,
-  uv5rmini: UV5RMINI_SCHEMA,
+  uv5rmini: createUv5rMiniDriver({ enableWrite: true }).schema,
 }
 
 export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5rmini', 'dm32uv']

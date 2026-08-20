@@ -83,7 +83,22 @@ const diff = computed(() => {
  * be describing the edit rather than the write.
  */
 const blockBytes = computed(() => codeplug.driverRef?.writeBlockBytes ?? 0)
-const blocks = computed(() => codeplug.pendingWrite?.changedBlocks.length ?? 0)
+
+/**
+ * Blocks the radio will actually receive, which is not always the diff.
+ *
+ * A radio that erases a flash page before programming cannot take a sparse
+ * write - it gets the whole image every time. Counting the diff there would
+ * promise "1 block" and then send five hundred.
+ */
+const wholeImage = computed(() => codeplug.schema?.capabilities.writesWholeImage === true)
+const imageBlocks = computed(() => {
+  const size = codeplug.image?.regions.reduce((n, r) => n + r.data.length, 0) ?? 0
+  return blockBytes.value > 0 ? Math.ceil(size / blockBytes.value) : 0
+})
+const blocks = computed(() =>
+  wholeImage.value ? imageBlocks.value : (codeplug.pendingWrite?.changedBlocks.length ?? 0),
+)
 const bytes = computed(() => blocks.value * blockBytes.value)
 
 const gate = computed(() => {
