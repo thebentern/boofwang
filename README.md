@@ -1,167 +1,158 @@
 # boofwang
 
-A codeplug editor and programmer that runs in your browser, talking to radios
-over the [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API).
-No install, no account, no server — a CHIRP alternative you open as a URL.
+Browser-based codeplug editor and programmer for two-way radios, over the
+[Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API).
+Static site, no server, no account. Codeplugs stay on the machine.
 
-Live at **[boofwa.ng](https://boofwa.ng)**.
+Live at [boofwa.ng](https://boofwa.ng).
 
-**Target radios**
+## Radios
 
-| Radio | Memory | Read | Write | Verified on hardware |
+| Radio | Memory | Read | Write | Hardware-verified |
 |---|---|---|---|---|
-| Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write and restore |
-| Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | No | Read, cross-checked against CHIRP |
-| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | No | Read, cross-checked against CHIRP |
-| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Key slots only | Read, write and restore |
+| Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write, restore |
+| Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | No | Read |
+| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | No | Read |
+| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Key slots only | Read, write, restore |
 
-CHIRP has no DM-32UV driver at all, and Baofeng's own CPS is Windows-only.
+CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
 
-> **Status.** The UV-K5 and the DM-32UV have both been written to and restored,
-> verified by reading the radio back outside the app and comparing sha256. The
-> DM-32UV write is deliberately narrow: only its encryption key slots, because
-> its pages move between sessions and 22 of its 59 blocks have no documented
-> meaning.
->
-> The UV-5R Mini has been read on real hardware, and the app's read is
-> byte-identical to an independent raw read taken outside it. Note that two
-> different radios are sold under near-identical names — "UV-5R Mini" and
-> "5RM"/"UV-5RM" differ in ident string, region map, channel count and power
-> table. Both are supported and the handshake decides which is on the cable;
-> only the UV-5R Mini has been on a cable so far. See
-> [docs/protocols/uv5rmini.md](docs/protocols/uv5rmini.md).
+Per-radio protocol notes, including exactly what has and has not been exercised
+against hardware, are in [`docs/protocols/`](docs/protocols/).
 
-**Files it reads and writes**
+Two different radios are sold as "UV-5R Mini" and "5RM"/"UV-5RM". They differ in
+ident string, region map, channel count and power table. Both are implemented;
+the handshake selects between them. Only the UV-5R Mini has been tested on
+hardware.
+
+DM-32UV writes cover the encryption key slots only. Its pages relocate between
+sessions and 22 of its 59 allocated blocks are undocumented, so every other byte
+is read, preserved and never sent back.
+
+## File formats
 
 | Format | Read | Write |
 |---|---|---|
-| `.bwp` — boofwang codeplug, says which radio it is | Yes | Yes |
-| CHIRP `.img` — opens in CHIRP, and CHIRP's images open here | Yes | Yes |
-| CHIRP CSV | Yes | Yes, byte-identical to CHIRP's own output |
+| `.bwp` — boofwang codeplug; records radio identity and a SHA-256 | Yes | Yes |
+| CHIRP `.img` | Yes | Yes |
+| CHIRP CSV | Yes | Yes |
 | Raw `.bin` | Yes | Yes |
+
+CSV output is byte-identical to CHIRP's own, checked by loading it with
+`chirp.generic_csv.CSVRadio` and diffing CHIRP's re-export
+(`scripts/crosscheck-chirp-csv.py`).
+
+`.img` files carry CHIRP's metadata trailer and open in CHIRP. The DM-32UV is
+excluded, because CHIRP cannot open a radio it has no driver for.
 
 ## Development
 
-Requires [pnpm](https://pnpm.io/). Node is pinned to 24.11.1 via `.npmrc`
-(`use-node-version`), so pnpm fetches the right runtime itself.
+Requires [pnpm](https://pnpm.io/). Node 24.11.1 is pinned in `.npmrc` via
+`use-node-version`.
 
 ```bash
 pnpm install
 pnpm dev            # http://localhost:3000
-pnpm test           # unit tests (no hardware needed)
+pnpm test
 pnpm typecheck
 pnpm lint
 pnpm build          # static output in .output/public
 ```
 
-Radio protocol tests that need hardware plugged in are skipped unless
-`BOOFWANG_HW=1` is set; everything else runs against recorded traces and a
-scripted fake serial port, so the whole stack is testable with nothing
-connected.
+No test requires a radio. Drivers are exercised against captured hardware
+images in `test/fixtures/images/` and a scripted fake serial port.
 
-To pull down the upstream references the drivers are transcribed from (CHIRP
-sources, the DM-32UV protocol specification) into the git-ignored `reference/`
-directory:
+Upstream references the drivers are transcribed from (CHIRP sources, the DM-32UV
+protocol specification) are not redistributed here. Fetch them into the
+git-ignored `reference/` directory:
 
 ```bash
 ./scripts/fetch-reference.sh
 ```
 
-## Driving a real radio from an automated session
+## Serial bridge (development only)
 
-Web Serial deliberately requires a person to answer a native port chooser, which
-means an automated session can never obtain a port on its own. That is the right
-design for a tool that talks to hardware, and it also means iterating on a
-driver against a real radio would otherwise need a human clicking a dialog on
-every run.
-
-`tools/serial-bridge` closes that loop. It is a localhost WebSocket-to-serial
-process, run by hand, that hands the browser a `SerialPortLike` backed by a
-socket instead of `navigator.serial`:
+Web Serial requires a person to answer a native port chooser, so an automated
+session cannot obtain a port. `tools/serial-bridge` supplies a `SerialPortLike`
+backed by a localhost WebSocket instead of `navigator.serial`.
 
 ```bash
-pnpm bridge                       # in one terminal
-pnpm dev                          # in another
-# then open http://localhost:3000/?bridge
+pnpm bridge                       # one terminal
+pnpm dev                          # another
+# http://localhost:3000/?bridge
 ```
 
-Everything below the `SerialPortLike` seam — transport framing, timeouts, the
-protocol, the driver, decode, and the whole UI — is the shipping code path. What
-it does **not** exercise is the roughly thirty lines of `navigator.serial` glue
-in `app/composables/useWebSerial.ts`, which still needs a human and a real port.
-That gap is why this is a development aid and not a feature: the bridge binds to
-127.0.0.1 only, rejects non-localhost origins, is never started by the app or
-the build, and the client side is gated behind both a dev build and an explicit
-`?bridge` query parameter.
+Everything below the `SerialPortLike` seam is the shipping code path: transport
+framing, timeouts, protocol, driver, decode and UI. It does not exercise the
+`navigator.serial` glue in `app/composables/useWebSerial.ts`.
 
-It earns its keep. Two bugs that every synthetic test had passed showed up
-within minutes of the first real read: boofwang was verifying a reply checksum
-the radio does not compute, and inventing a scan-skip flag the radio does not
-have.
+Constraints: binds to 127.0.0.1, rejects non-localhost origins, is never started
+by the app or the build, and the client side requires both a dev build and an
+explicit `?bridge` query parameter.
 
-## How it is put together
+## Layout
 
 ```
-lib/          framework-agnostic core — no Vue, no Nuxt, testable in plain Node
+lib/          framework-agnostic core; no Vue or Nuxt imports, runs in plain Node
   codec/      binary struct DSL: explicit offsets, partial writes, coverage reporting
-  transport/  Web Serial: byte-accumulating reads, timeouts, teardown, fakes, trace recorder
-  platform/   pure browser-capability checks
-app/          Nuxt 4 UI, driven by radio schemas rather than per-radio code
+  transport/  Web Serial framing, timeouts, teardown, fakes, trace recorder
+  radio/      driver interface, registry, image model, write gate, diffing
+  radios/     one directory per radio: protocol, layout, schema, driver
+  model/      channels, tones, units, codeplug document
+  io/         CHIRP CSV, CHIRP .img, .bwp, raw .bin
+  storage/    IndexedDB backups
+  platform/   browser capability checks
+app/          Nuxt 4 UI, rendered from radio schemas rather than per-radio code
 ```
 
-The `lib/` boundary is enforced by ESLint (`no-restricted-imports`) and by a
-Vitest project running in a DOM-less Node environment, so it cannot drift.
+The `lib/` boundary is enforced by an ESLint `no-restricted-imports` rule and by
+a Vitest project running in a DOM-less Node environment.
 
-### The property everything else rests on
+### Encoding invariant
 
-`driver.encode(doc, base)` always takes the bytes read off the radio as its
-base and overwrites only the byte ranges it declares it understands. There is
-no `encode(doc)`. Unknown bytes survive a read/edit/write cycle because they
-are never allocated fresh — which matters most on the DM-32UV, where roughly 31
-of its 71 memory pages are still undocumented.
+`driver.encode(doc, base)` takes the bytes read off the radio as its base and
+overwrites only the ranges the driver declares it understands. There is no
+`encode(doc)`. Bytes the codebase does not model survive a read/edit/write cycle
+because they are never allocated fresh.
 
-The invariant is tested directly: `encode(decode(image), image)` must be
-byte-identical to `image`, for every fixture.
+Tested directly: `encode(decode(image), image)` is byte-identical to `image`,
+for every fixture.
 
 ## Safety
 
-Programming a radio wrongly can brick it, and programming the wrong frequency
-can break the law.
+- A backup of the connected radio is required before any write, enforced in the
+  driver rather than the UI. `writeImage` throws `BackupRequiredError` when one
+  is absent or belongs to a different radio.
+- Where a driver can fingerprint the physical unit, the backup must match that
+  unit and not merely the model and firmware. The DM-32UV uses its calibration
+  block; identifiers derived only from firmware cannot distinguish two identical
+  radios.
+- Every write is preceded by a byte diff. A change outside the ranges the driver
+  claims to own blocks the write; it indicates a defect in the encoder.
+- Every block written is read back and compared before the next is sent.
+- Read-only regions are marked in the image and never transmitted. The UV-K5's
+  calibration block is one.
+- Receive-only channels are decoded as such and preserved. The UV-K5 has no
+  transmit-inhibit bit; CHIRP expresses it by parking the transmit frequency at
+  zero, and boofwang reads and writes that convention.
+- Transmitting into a receive-only allocation is a blocking error, not a
+  warning.
+- Unrecognised firmware is read-only but still readable, so an unsupported radio
+  can still be backed up.
+- Encryption key material is masked by default and revealed one slot at a time.
+  The keys page states the legal position: encryption is prohibited on amateur
+  (47 CFR 97.113(a)(4)), GMRS/FRS (95.1731, 95.587) and MURS (95.2731).
 
-**In place today:**
-
-- **Every read is backed up automatically**, in the browser, before you touch
-  anything. Calibration data is captured too — a backup that cannot restore it
-  is not a backup — while living in a region flagged read-only so it can never
-  be sent back.
-- **Receive-only channels are recognised and preserved.** The UV-K5 has no
-  transmit-inhibit bit; CHIRP fakes one by parking the transmit frequency at
-  0 MHz, and boofwang decodes that rather than silently reading such a channel
-  as transmit-capable. It exports as CHIRP's `Duplex=off`.
-- **Transmitting where you may not is an error, not a note.** A channel whose
-  transmit frequency lands in a receive-only allocation — the air band, for
-  instance — is flagged before anything reaches a radio.
-- **Unrecognised firmware is read-only but still readable.** Refusing to read it
-  would be backwards: a backup is exactly what an unsupported firmware needs.
-- **A `.bwp` carries its radio's identity and a checksum**, so a codeplug cannot
-  be silently written to the wrong radio or after being corrupted.
-
-**Planned, with the write path:**
-
-- A verified backup will be *required* before any write, enforced in the driver
-  rather than by a checkbox. (Nothing enforces this yet because nothing can
-  write yet.)
-- Every upload will show an annotated byte diff first, and a change outside the
-  range a driver claims to own will block it — that means the encoder has a bug.
-- DM-32UV writes will be staged: read-only, then a dry run that exercises the
-  real write path without transmitting, then one memory block at a time behind
-  an explicit unlock.
+The write gate is a single pure function, `evaluateWriteGate`, called by both
+the UI and the transfer flow. Its blocking conditions are: writing unsupported
+for the radio or firmware, image/radio mismatch, missing or foreign backup,
+encode failure, changed bytes outside owned ranges, validation errors, and
+nothing to write.
 
 ## Licence
 
-GPL-3.0-or-later. See [`LICENSE`](LICENSE), and
-[`docs/provenance.md`](docs/provenance.md) for what boofwang derives from and
-what it deliberately does not use.
+GPL-3.0-or-later. See [`LICENSE`](LICENSE) and
+[`docs/provenance.md`](docs/provenance.md).
 
-boofwang is an independent project, not affiliated with or endorsed by Baofeng,
-Quansheng, or the CHIRP project.
+Independent project. Not affiliated with or endorsed by Baofeng, Quansheng, or
+the CHIRP project.
