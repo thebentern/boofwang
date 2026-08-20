@@ -24,6 +24,7 @@ import { locate } from '../../radio/image.js'
 import type { Transport } from '../../transport/transport.js'
 import {
   BLOCK_SIZE,
+  SETTINGS_REGION,
   VARIANTS,
   handshake,
   imageSize,
@@ -36,6 +37,7 @@ import {
   CHANNEL_SIZE,
   NAME_LENGTH,
   UV5RM_CHANNEL,
+  UV5RM_SETTINGS,
   decodeName,
   decodeToneWord,
   encodeName,
@@ -333,6 +335,22 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
         const ch = decodeChannel(mem, i, variant)
         if (ch) cp.channels.set(ch.index, ch)
       }
+
+      /*
+       * Radio-wide settings are decoded so they survive an export and can be
+       * seen, even though nothing edits them yet.
+       *
+       * They are the whole of the 64-byte region the radio serves from 0x9000.
+       * CHIRP seeks to image offset 0x8040 for them, which is the same bytes
+       * seen from the other side: the image is the three regions concatenated,
+       * so that offset is where this region begins. Reading them by region
+       * start rather than by image offset keeps the two from drifting.
+       */
+      const block = image.regions.find((r) => r.start === SETTINGS_REGION)?.data
+      if (block && block.length >= UV5RM_SETTINGS.size) {
+        cp.settings = { ...UV5RM_SETTINGS.read(block, 0) }
+      }
+
       return cp
     },
 

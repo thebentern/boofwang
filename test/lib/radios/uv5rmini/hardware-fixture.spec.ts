@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { equalBytes } from '#core/codec/struct.js'
 import { createUv5rMiniDriver } from '#core/radios/uv5rmini/driver.js'
 import { VARIANTS, imageSize } from '#core/radios/uv5rmini/protocol.js'
 import { exportChirpCsv } from '#core/io/chirp-csv.js'
@@ -47,6 +48,7 @@ function image(): RadioImage {
 }
 
 const driver = createUv5rMiniDriver()
+const writableDriver = createUv5rMiniDriver({ enableWrite: true })
 
 describe('a real UV-5R Mini', () => {
   it('is the size the three-region variant says it is', () => {
@@ -124,5 +126,44 @@ describe('a real UV-5R Mini', () => {
       longest = Math.max(longest, run)
     }
     expect(longest).toBeLessThan(4)
+  })
+})
+
+describe('the rest of the image', () => {
+  it('decodes radio-wide settings from the real fixture', () => {
+    /*
+     * The last of the image nobody had read. It lives in the 64-byte region the
+     * radio serves from 0x9000, which is image offset 0x8040 once the three
+     * regions are concatenated - CHIRP's `#seekto` values are image offsets.
+     *
+     * The values are checked against the unit these bytes came from: a squelch
+     * of 3 and a 120-second timeout are settings, not noise, which is what
+     * distinguishes a correct offset from a plausible-looking wrong one.
+     */
+    const doc = driver.decode(image())
+    const s = doc.settings as Record<string, number>
+
+    expect(s.squelch).toBe(3)
+    expect(s.timeout).toBe(8)
+    expect(s.vox).toBe(4)
+    expect(s.beep).toBe(1)
+
+    // Every field is a byte, so anything outside that is a bad offset.
+    for (const [k, v] of Object.entries(s)) {
+      expect(typeof v, k).toBe('number')
+      expect(v, k).toBeGreaterThanOrEqual(0)
+      expect(v, k).toBeLessThanOrEqual(255)
+    }
+  })
+
+  it('still round-trips byte-for-byte with settings decoded', () => {
+    // Decoding them must not tempt the encoder into writing them back: nothing
+    // edits settings yet, and normalising a byte nobody asked to change is what
+    // breaks the invariant the whole write path rests on.
+    const img = image()
+    const out = writableDriver.encode(writableDriver.decode(img), img)
+    for (let r = 0; r < img.regions.length; r++) {
+      expect(equalBytes(out.regions[r]!.data, img.regions[r]!.data), `region ${r}`).toBe(true)
+    }
   })
 })

@@ -96,6 +96,15 @@ export const VARIANTS: readonly Uv5rVariant[] = [
 
 export const imageSize = (v: Uv5rVariant): number => v.regions.reduce((n, r) => n + r.size, 0)
 
+/**
+ * The radio address of the block holding radio-wide settings.
+ *
+ * CHIRP addresses these as image offset 0x8040, which is the same bytes counted
+ * from the front of the concatenated image. Naming the region instead keeps the
+ * two spellings from drifting apart when a region size changes.
+ */
+export const SETTINGS_REGION = 0x9000
+
 export const ACK = 0x06
 
 /**

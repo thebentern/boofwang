@@ -154,3 +154,61 @@ export function isTxInhibited(record: Uint8Array): boolean {
   const tx = record.subarray(0x04, 0x08)
   return tx.every((b) => b === 0xff) || tx.every((b) => b === 0x00)
 }
+
+/**
+ * Where the rest of the image lives.
+ *
+ * CHIRP's `#seekto` values are offsets into the downloaded image, not radio
+ * addresses, which is what makes them land where they do: the image is the
+ * three regions concatenated, so image 0x8040 is the start of the 64-byte
+ * region the radio serves from 0x9000.
+ */
+export const VFO_A_BASE = 0x8000
+export const VFO_B_BASE = 0x8020
+export const SETTINGS_BASE = 0x8040
+export const ANI_BASE = 0x8080
+export const PTTID_BASE = 0x80a0
+
+/**
+ * Radio-wide settings, transcribed from `settings_obj` in
+ * `baofeng_uv17Pro.py`.
+ *
+ * Only the fields whose meaning is unambiguous are named. The rest of the
+ * 64-byte block keeps whatever the radio had - the same rule the channel
+ * records follow, and the reason a read/edit/write cycle stays byte-exact.
+ */
+export const UV5RM_SETTINGS = defineStruct(0x40, {
+  squelch: at(0x00, u8),
+  saveMode: at(0x01, u8),
+  vox: at(0x02, u8),
+  backlight: at(0x03, u8),
+  dualStandby: at(0x04, u8),
+  timeout: at(0x05, u8),
+  beep: at(0x06, u8),
+  voiceSwitch: at(0x07, u8),
+  voice: at(0x08, u8),
+  sideTone: at(0x09, u8),
+  scanMode: at(0x0a, u8),
+  pttId: at(0x0b, u8),
+  pttDelay: at(0x0c, u8),
+  chADisplayType: at(0x0d, u8),
+  chBDisplayType: at(0x0e, u8),
+  busyChannelLockout: at(0x0f, u8),
+  autoLock: at(0x10, u8),
+  alarmMode: at(0x11, u8),
+  alarmTone: at(0x12, u8),
+  tailClear: at(0x14, u8),
+  repeaterTailClear: at(0x15, u8),
+  repeaterTailDetect: at(0x16, u8),
+  roger: at(0x17, u8),
+  activeVfo: at(0x18, u8),
+  fmRadio: at(0x19, u8),
+  keyLock: at(0x1b, u8),
+  powerOnDisplayType: at(0x1c, u8),
+  tone: at(0x1d, u8),
+  voxDelay: at(0x20, u8),
+  menuQuitTime: at(0x21, u8),
+  bluetooth: at(0x22, u8),
+  displayAni: at(0x24, u8),
+})
+

@@ -183,3 +183,28 @@ configuration.
 - Tones, repeater shifts and named channels on hardware: this unit is factory
   default and has none.
 
+## The rest of the image
+
+CHIRP's `#seekto` values are offsets into the **downloaded image**, not radio
+addresses. The image is the three regions concatenated, which is what puts
+`settings_obj` where it is:
+
+| Image offset | Radio address | Contents |
+|---|---|---|
+| `0x0000` | `0x0000` | 999 channel records, 32 bytes each |
+| `0x7CE0`-`0x8000` | - | gap, not decoded |
+| `0x8000` | `0x8000` | VFO A (`vfo_entry`, 32 bytes) |
+| `0x8020` | `0x8020` | VFO B |
+| `0x8040` | **`0x9000`** | `settings_obj`, the whole 64-byte region |
+| `0x8080` | **`0xA000`** | `ani_obj` |
+| `0x80A0` | `0xA020` | `pttid[20]`, 16 bytes each |
+
+`vfo_entry` holds its frequency as **one decimal digit per byte** across eight
+bytes, not as BCD: `04 03 05 06 02 05 00 00` is 435.625 MHz. That is how the
+offset was confirmed against a real radio - a wrong offset gives a number, a
+right one gives a frequency that exists.
+
+Radio-wide settings are decoded into `Codeplug.settings` and nothing writes them
+back, which is why the round trip stays byte-exact. Editing them is
+[issue #2](https://github.com/thebentern/boofwang/issues/2).
+
