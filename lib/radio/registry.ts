@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { RadioId } from '../model/codeplug.js'
+import { createDm32uvDriver } from '../radios/dm32uv/driver.js'
+import { DM32UV_SCHEMA } from '../radios/dm32uv/schema.js'
 import { createUv82Driver } from '../radios/uv82/driver.js'
 import { UV82_SCHEMA } from '../radios/uv82/schema.js'
 import { createUvk5Driver } from '../radios/uvk5/driver.js'
@@ -24,18 +26,21 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // Read and decode are verified against a real radio; writing is not
   // implemented yet, following the same order the UV-K5 was brought up in.
   uv82: createUv82Driver,
+  // Read and decode verified against a real radio; writing is staged and not
+  // implemented, because this radio's pages move and 22 of its 59 allocated
+  // blocks have no documented meaning.
+  dm32uv: createDm32uvDriver,
   // Planned. Listed so the UI can show them honestly as unimplemented rather
   // than pretending they do not exist.
   uv5rmini: null,
-  dm32uv: null,
 }
 
 export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
   // The schema the UI renders must match what the driver enforces.
   uvk5: createUvk5Driver({ enableWrite: true }).schema,
   uv82: UV82_SCHEMA,
+  dm32uv: DM32UV_SCHEMA,
   uv5rmini: null,
-  dm32uv: null,
 }
 
 export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5rmini', 'dm32uv']

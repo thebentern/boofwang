@@ -75,6 +75,30 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     dirty.value = true
   }
 
+  /** Add or replace a key slot. */
+  function setEncryptionKey(key: Codeplug['encryptionKeys'][number]) {
+    const cp = doc.value
+    if (!cp) return
+    const at = cp.encryptionKeys.findIndex((k) => k.slot === key.slot)
+    if (at >= 0) cp.encryptionKeys[at] = key
+    else cp.encryptionKeys.push({ ...key })
+    cp.encryptionKeys.sort((a, b) => a.slot - b.slot)
+    revalidate()
+    revision.value++
+    dirty.value = true
+  }
+
+  function removeEncryptionKey(slot: number) {
+    const cp = doc.value
+    if (!cp) return
+    const before = cp.encryptionKeys.length
+    cp.encryptionKeys = cp.encryptionKeys.filter((k) => k.slot !== slot)
+    if (cp.encryptionKeys.length === before) return
+    revalidate()
+    revision.value++
+    dirty.value = true
+  }
+
   /** Remove a channel. The slot is erased on the radio when the image is written. */
   function deleteChannel(index: number) {
     if (!doc.value?.channels.delete(index)) return
@@ -185,6 +209,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     encodeError,
     pendingWrite,
     deleteChannel,
+    setEncryptionKey,
+    removeEncryptionKey,
     revalidate,
     channels,
     diagnostics,

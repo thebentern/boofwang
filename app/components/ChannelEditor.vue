@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Channel } from '#core/model/channel.js'
 import { formatCtcss, type ToneSpec } from '#core/model/tones.js'
+import { encryptionLegality } from '#core/model/encryption.js'
 import { formatFreq, hz, parseFreq } from '#core/model/units.js'
 
 /**
@@ -67,7 +68,27 @@ const nameError = computed(() =>
     : null,
 )
 
-const canSave = computed(() => rxError.value === null && nameError.value === null)
+const canSave = computed(() => rxError.value === null && nameError.value === null && !encryptionBlocked.value)
+
+/**
+ * Encryption, on radios that have it.
+ *
+ * Shown per channel because that is where the decision actually lives, and
+ * because the legality of it depends on the frequency in the field above.
+ */
+const supportsEncryption = computed(() => schema.value.features.encryption !== false)
+const availableKeys = computed(() => codeplug.doc?.encryptionKeys ?? [])
+const encKeyId = ref(Number(props.channel.extras.vendor?.encryptionKeyId ?? '0'))
+
+const legality = computed(() => {
+  try {
+    return encryptionLegality(parseFreq(rxText.value))
+  } catch {
+    return null
+  }
+})
+
+const encryptionBlocked = computed(() => encKeyId.value !== 0 && legality.value !== null && !legality.value.allowed)
 
 function buildTone(kind: ToneKind, ctcssV: number, dtcsV: number): ToneSpec | null {
   if (kind === 'ctcss') return { kind: 'ctcss', deciHz: ctcssV }
@@ -98,6 +119,14 @@ function save() {
     power: { mW: level.mW, label: level.label },
     tuningStep: hz(stepHz.value),
     ...(txAllowed.value ? {} : { txInhibitReason: 'Marked receive-only' }),
+    ...(supportsEncryption.value
+      ? {
+          extras: {
+            ...props.channel.extras,
+            vendor: { ...props.channel.extras.vendor, encryptionKeyId: String(encKeyId.value) },
+          },
+        }
+      : {}),
   })
   emit('close')
 }
@@ -197,6 +226,42 @@ function remove() {
         </div>
       </UFormField>
     </div>
+
+    <template v-if="supportsEncryption">
+      <USeparator />
+      <UFormField label="Encryption">
+        <USelect
+          v-model="encKeyId"
+          class="w-full"
+          :items="[
+            { value: 0, label: 'None (clear)' },
+            ...availableKeys.map((k) => ({ value: k.slot, label: `Slot ${k.slot} — ${k.name || 'unnamed'}` })),
+          ]"
+        />
+        <template #help>
+          <span v-if="availableKeys.length === 0" class="text-muted">
+            No keys are defined yet. Add one on the Keys page first.
+          </span>
+        </template>
+      </UFormField>
+
+      <UAlert
+        v-if="encKeyId !== 0 && legality"
+        :icon="legality.allowed ? 'i-lucide-shield' : 'i-lucide-shield-alert'"
+        :color="legality.allowed ? 'warning' : 'error'"
+        variant="subtle"
+        :title="
+          legality.allowed
+            ? 'Licensed business and commercial use only'
+            : `Encryption is not permitted on this frequency (${legality.service})`
+        "
+      >
+        <template #description>
+          <span>{{ legality.reason }}</span>
+          <span v-if="legality.cfr" class="text-muted"> ({{ legality.cfr }})</span>
+        </template>
+      </UAlert>
+    </template>
 
     <UFormField label="Tuning step">
       <USelect
