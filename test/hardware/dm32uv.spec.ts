@@ -83,6 +83,28 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
     }
 
     const { image: baseline, ident } = await read()
+
+    // The DMR address book, which lives outside the configuration region and is
+    // read only. Checked here because it is the one part of a read that cannot
+    // be exercised from a fixture: the region's extent is per-radio, and the
+    // page walk only matters once there are more than 44 contacts.
+    const contacts = driver.decode(baseline).contacts
+    const contactsStart = (ident.meta as { contactsStart?: number }).contactsStart
+    if (typeof contactsStart === 'number') {
+      for (const c of contacts) {
+        expect(c.name, `contact ${c.id} name is not printable`).toMatch(/^[\x20-\x7e]*$/)
+        expect(c.dmrId, `contact ${c.id} id out of 24-bit range`).toBeGreaterThan(0)
+        expect(c.dmrId).toBeLessThanOrEqual(0xff_ffff)
+      }
+      if (contacts.length > 45) {
+        // 44 entries per page and they do not straddle the boundary. The flat
+        // index*92 formula in circulation reads garbage from entry 44 onward,
+        // so a readable name either side of it is the check that matters.
+        expect(contacts[43]!.name).toMatch(/^[\x20-\x7e]+$/)
+        expect(contacts[44]!.name).toMatch(/^[\x20-\x7e]+$/)
+        expect(contacts[45]!.name).toMatch(/^[\x20-\x7e]+$/)
+      }
+    }
     const backup = {
       id: 'hw',
       identHash: ident.identHash,
@@ -247,6 +269,9 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       expect(back.settings['standbyTextColour.colour']).toBe(settingsWere['standbyTextColour.colour'])
       // And the settings this build models but does not offer are unchanged.
       expect(back.settings.gpsReportInterval).toBe(settingsWere.gpsReportInterval)
+
+      // The address book is never written, so a codeplug edit must not touch it.
+      expect(driver.decode(after).contacts).toEqual(contacts)
 
       // Nothing outside the blocks the driver claims may have moved.
       for (const region of after.regions) {

@@ -296,6 +296,24 @@ the spec alone.
 | Settings | `0x04` | one sparse struct in a 4 KiB page | perhaps a tenth of the page is named with confidence; `ownedRanges` is computed from the struct and comes to under 200 bytes |
 | Talk group index | `0x0B` | counts, bitmask, two sorted tables | called a "Quick Access Contact List" and is not an address book — decoded, never written |
 
+### The address book, on this radio
+
+Verified against real data, which is the part a fixture cannot give: this radio
+holds **147 contacts**, and the region it reports is `0x278000`–`0x634FFF` with a
+cap of 50,000 — not the `0x6DBFFF` the reference captured, which is why the
+extent is queried per session rather than assumed.
+
+All 147 decode with printable names, callsigns, cities and 24-bit IDs, and none
+implausible. The page walk is exercised for real at every boundary: entry 43 is
+the last on page 0 and entry 44 the first on page 1, and this radio's
+`KE5JGW / 3105231`, `KF5CGR / 3105247`, `KF5CGR / 3105248` run straight across
+it. The flat `index * 92` formula in circulation reads garbage from entry 44
+onward, so that continuity is the check that matters.
+
+The 16-byte city field truncates on the radio's own terms — "North Little Rock"
+is stored as "North Little Roc" — and is carried through as found rather than
+tidied.
+
 The **DMR address book** is not a block at all. It lives in a raw region found
 per session by V-frame `0x0F` (`0x278000`–`0x6DBFFF`, ~4.4 MiB here), with no
 logical id at `0xFFF` and no translation layer — real physical addresses that
