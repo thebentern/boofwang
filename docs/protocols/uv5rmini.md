@@ -176,12 +176,37 @@ a byte the radio maintains itself and changes between sessions. CHIRP has the
 same behaviour for the same reason. It is one byte of runtime state, not
 configuration.
 
+### Feature write session, 2026-08-20
+
+Five channels were programmed at once to exercise every path that had only ever
+been checked against synthesised records, then read back and parsed with
+**CHIRP's own bitwise engine** rather than this codebase's decoder:
+
+| Path | What CHIRP read back |
+|---|---|
+| Name | all five names round-tripped |
+| CTCSS | `('Tone', 88.5)` on receive and transmit |
+| DTCS normal | `('DTCS', 23, 'N')` |
+| DTCS **reversed** | `('DTCS', 754, 'R')` |
+| Positive shift | +0.600 MHz |
+| Negative shift | -0.600 MHz |
+| Narrowband | `wide=1`, which CHIRP reads as NFM |
+| Low power | `lowpower=1` |
+| Receive-only | transmit frequency filled, reported as inhibited |
+
+D754 matters more than it looks: it sits above the 645 insertion point in the
+105-code table, which is exactly where an off-by-one in that table would show.
+It round-tripped.
+
+The radio was restored to `0b029cf2...` byte for byte afterwards.
+
 ### Not verified
 
 - The `5RM` variant. Its ident, region map, channel count and power table are
   transcribed and unit-tested, but no 5RM has been on the cable.
-- Tones, repeater shifts and named channels on hardware: this unit is factory
-  default and has none.
+- Creating a channel in an empty slot **on hardware**. The encoder path is
+  tested and the erased-flash bits are cleared, but `updateChannel` will not
+  create a channel, so the interface cannot reach it yet.
 
 ## The rest of the image
 
