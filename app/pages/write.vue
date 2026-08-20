@@ -225,8 +225,8 @@ async function send() {
 
 <template>
   <div v-if="!codeplug.isOpen" class="mx-auto px-4 py-10" style="max-width: 880px">
-    <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em">There is no codeplug to write</h1>
-    <p class="mt-2" style="font-size: 12.5px; line-height: 1.6; color: var(--mu); max-width: 70ch">
+    <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">There is no codeplug to write</h1>
+    <p class="mt-2" style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 70ch">
       Read a radio first. The read changes nothing, and it saves the backup this page will not write without.
     </p>
     <div class="mt-4">
@@ -238,10 +238,10 @@ async function send() {
     <!-- The only view with anything to decide; the other two are reports. -->
     <div class="flex items-center flex-wrap" style="gap: 9px; margin-bottom: 5px">
       <UIcon name="i-lucide-upload" style="width: 16px; height: 16px; color: var(--cn)" />
-      <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em">Write to the {{ model }}</h1>
-      <span style="font-size: 12px; color: var(--fn)">3 steps · nothing sent yet</span>
+      <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">Write to the {{ model }}</h1>
+      <span style="font-size: 13.5px; color: var(--fn)">3 steps · nothing sent yet</span>
     </div>
-    <p style="margin-bottom: 18px; font-size: 12.5px; color: var(--mu); max-width: 78ch">
+    <p style="margin-bottom: 18px; font-size: 14px; color: var(--mu); max-width: 78ch">
       Three things stand between an edit and the radio, in this order: a way back, an account of what changes,
       and your word.
     </p>
@@ -255,7 +255,7 @@ async function send() {
           border: `1px solid ${backupBlocker ? 'var(--dgL)' : 'var(--okL)'}`,
         }"
       >
-        <div class="flex items-start gap-3" style="padding: 14px 16px">
+        <div class="flex items-start gap-3" style="padding: 17px 19px">
           <span
             class="flex items-center justify-center shrink-0 rounded-[6px]"
             :style="{
@@ -275,7 +275,7 @@ async function send() {
 
           <div class="min-w-0 flex-1">
             <div class="flex items-baseline flex-wrap" style="gap: 9px">
-              <span style="font-size: 13.5px; font-weight: 600">A way back</span>
+              <span style="font-size: 15px; font-weight: 600">A way back</span>
 
               <span v-if="checking" class="chip" style="background: var(--pn3); color: var(--fn)">checking…</span>
               <span
@@ -292,7 +292,7 @@ async function send() {
               </span>
             </div>
 
-            <p style="margin-top: 5px; font-size: 12.5px; line-height: 1.55; color: var(--mu); max-width: 70ch">
+            <p style="margin-top: 5px; font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 70ch">
               <template v-if="checking">Looking for a stored backup of this radio…</template>
               <template v-else-if="backupBlocker">
                 {{ backupBlocker.message }}
@@ -307,17 +307,17 @@ async function send() {
 
       <!-- Card 2. What changes. This is the confirmation step; the typed token below only records it. -->
       <div class="rounded-[7px] overflow-hidden" style="background: var(--pn); border: 1px solid var(--ln)">
-        <div class="flex items-start gap-3" style="padding: 14px 16px">
+        <div class="flex items-start gap-3" style="padding: 17px 19px">
           <span
             class="flex items-center justify-center shrink-0 rounded-[6px]"
-            style="width: 26px; height: 26px; margin-top: 1px; border: 1px solid var(--ln); background: var(--pn2)"
+            style="width: 26px; height: 30px; margin-top: 1px; border: 1px solid var(--ln); background: var(--pn2)"
           >
             <UIcon name="i-lucide-scale" class="size-3.5" style="color: var(--mu)" />
           </span>
 
           <div class="min-w-0 flex-1">
             <div class="flex items-baseline flex-wrap" style="gap: 9px">
-              <span style="font-size: 13.5px; font-weight: 600">What changes</span>
+              <span style="font-size: 15px; font-weight: 600">What changes</span>
 
               <span
                 v-if="diff && diff.changed > 0"
@@ -358,7 +358,7 @@ async function send() {
               </span>
             </div>
 
-            <p style="margin-top: 5px; font-size: 12.5px; line-height: 1.55; color: var(--mu); max-width: 70ch">
+            <p style="margin-top: 5px; font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 70ch">
               Not a byte count. One line per channel, and the two that carry more than their size are called out
               by name: a channel gaining transmit, and a slot being erased.
             </p>
@@ -366,7 +366,7 @@ async function send() {
         </div>
 
         <div v-if="diff && diff.changed > 0" style="border-top: 1px solid var(--ln)">
-          <div style="max-height: 340px; overflow-y: auto; padding: 12px 14px">
+          <div style="max-height: 340px; overflow-y: auto; padding: 15px 17px">
             <DiffList :diff="diff" :blocks="blocks" :bytes="bytes" />
           </div>
         </div>
@@ -378,9 +378,9 @@ async function send() {
         -->
         <div
           v-else-if="blocks > 0"
-          style="border-top: 1px solid var(--ln); padding: 12px 14px; background: var(--pn2)"
+          style="border-top: 1px solid var(--ln); padding: 15px 17px; background: var(--pn2)"
         >
-          <p style="font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 74ch">
+          <p style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
             Nothing in the channel list changes. The
             <span class="font-mono tabular">{{ bytes.toLocaleString() }} bytes</span>
             about to be sent are elsewhere in the codeplug — a zone or talk group name, or a key slot — and
@@ -394,10 +394,10 @@ async function send() {
         v-for="w in warnings"
         :key="w.code"
         class="flex items-start gap-2.5 rounded-[6px]"
-        style="padding: 9px 13px; border: 1px solid var(--cnL); background: var(--cnB)"
+        style="padding: 12px 16px; border: 1px solid var(--cnL); background: var(--cnB)"
       >
         <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" style="color: var(--cn); margin-top: 2px" />
-        <p style="font-size: 12.5px; line-height: 1.55; color: var(--mu); max-width: 74ch">
+        <p style="font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 74ch">
           {{ w.message }}
           <span v-if="w.count > 1" style="color: var(--fn)"> · {{ w.count }} channels</span>
         </p>
@@ -405,17 +405,17 @@ async function send() {
 
       <!-- Card 3. Your word. -->
       <div class="rounded-[7px] overflow-hidden" style="background: var(--pn); border: 1px solid var(--cnL)">
-        <div class="flex items-start gap-3" style="padding: 14px 16px">
+        <div class="flex items-start gap-3" style="padding: 17px 19px">
           <span
             class="flex items-center justify-center shrink-0 rounded-[6px]"
-            style="width: 26px; height: 26px; margin-top: 1px; border: 1px solid var(--cnL); background: var(--cnB)"
+            style="width: 26px; height: 30px; margin-top: 1px; border: 1px solid var(--cnL); background: var(--cnB)"
           >
             <UIcon name="i-lucide-type" class="size-3.5" style="color: var(--cn)" />
           </span>
 
           <div class="min-w-0 flex-1">
             <div class="flex items-baseline flex-wrap" style="gap: 9px">
-              <span style="font-size: 13.5px; font-weight: 600">Your word</span>
+              <span style="font-size: 15px; font-weight: 600">Your word</span>
               <span v-if="blocked" class="chip" style="background: var(--dgB); color: var(--dg)">
                 <UIcon name="i-lucide-circle-x" class="size-3" />
                 Blocked
@@ -426,7 +426,7 @@ async function send() {
               </span>
             </div>
 
-            <p style="margin-top: 5px; font-size: 12.5px; line-height: 1.55; color: var(--mu); max-width: 70ch">
+            <p style="margin-top: 5px; font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 70ch">
               Writing is the only action in boofwang that asks you to type. It is also the only one that can leave
               a radio unusable.
             </p>
@@ -438,10 +438,10 @@ async function send() {
           offered. The gate explains here; `writeImage` refuses regardless, and
           if the two ever disagree the driver wins.
         -->
-        <div v-if="blocked" style="border-top: 1px solid var(--ln); padding: 14px 16px">
+        <div v-if="blocked" style="border-top: 1px solid var(--ln); padding: 17px 19px">
           <div
             class="flex items-start gap-2.5 rounded-[6px]"
-            style="padding: 11px 13px; border: 1px solid var(--dgL); background: var(--dgB)"
+            style="padding: 17px 19px; border: 1px solid var(--dgL); background: var(--dgB)"
           >
             <UIcon
               name="i-lucide-shield-alert"
@@ -452,14 +452,14 @@ async function send() {
               <p
                 v-for="b in otherBlockers"
                 :key="b.code"
-                style="font-size: 12.5px; line-height: 1.55; color: var(--tx); max-width: 74ch"
+                style="font-size: 14px; line-height: 1.55; color: var(--tx); max-width: 74ch"
               >
                 {{ b.message }}
                 <span v-if="b.remedy" style="color: var(--mu)">{{ b.remedy }}</span>
               </p>
               <p
                 v-if="otherBlockers.length === 0"
-                style="font-size: 12.5px; line-height: 1.55; color: var(--tx); max-width: 74ch"
+                style="font-size: 14px; line-height: 1.55; color: var(--tx); max-width: 74ch"
               >
                 A way back has to exist before anything is sent. The first card says what is missing.
               </p>
@@ -471,7 +471,7 @@ async function send() {
           </div>
         </div>
 
-        <div v-else style="border-top: 1px solid var(--ln); padding: 14px 16px">
+        <div v-else style="border-top: 1px solid var(--ln); padding: 17px 19px">
           <ConfirmTyped
             token="WRITE"
             :label="`Send ${blocks} block${blocks === 1 ? '' : 's'}`"
@@ -496,7 +496,7 @@ async function send() {
       What is true of all of them is that no write is called done until every
       block has been read back.
     -->
-    <p style="margin-top: 14px; font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 74ch">
+    <p style="margin-top: 14px; font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
       No write is finished until every block has been read back off the radio and compared. If any block does not
       match, the write stops and says which one — the backup above is what puts the radio back.
     </p>
@@ -510,7 +510,7 @@ async function send() {
         <span class="label-xs" style="color: var(--cn); letter-spacing: 0.08em">Do not unplug</span>
       </div>
 
-      <h1 style="margin-bottom: 14px; font-size: 17px; font-weight: 600">Writing to the radio</h1>
+      <h1 style="margin-bottom: 14px; font-size: 19px; font-weight: 600">Writing to the radio</h1>
 
       <div style="height: 4px; border-radius: 2px; background: var(--pn3); overflow: hidden; margin-bottom: 9px">
         <div
@@ -525,13 +525,13 @@ async function send() {
 
       <div
         class="flex items-center justify-between gap-3"
-        style="font-size: 11.5px; color: var(--mu); margin-bottom: 14px"
+        style="font-size: 13px; color: var(--mu); margin-bottom: 14px"
       >
         <span>{{ phaseWords }}</span>
         <span v-if="sweepTotal > 0" class="font-mono tabular">{{ sweepDone }} / {{ sweepTotal }} blocks</span>
       </div>
 
-      <p style="font-size: 11.5px; line-height: 1.55; color: var(--fn)">
+      <p style="font-size: 13px; line-height: 1.55; color: var(--fn)">
         Every block is read back and compared before the write is called done. Leave the cable connected and the radio switched on.
       </p>
     </div>
@@ -544,7 +544,7 @@ async function send() {
         <span class="label-xs" style="color: var(--ok); letter-spacing: 0.08em">Verified</span>
       </div>
 
-      <h1 style="margin-bottom: 8px; font-size: 17px; font-weight: 600">
+      <h1 style="margin-bottom: 8px; font-size: 19px; font-weight: 600">
         {{ sentBlocks }} block{{ sentBlocks === 1 ? '' : 's' }} written, all read back and matched
       </h1>
 
@@ -554,7 +554,7 @@ async function send() {
         a fresher one exists would be exactly the sort of comfortable lie the
         rest of this page refuses to tell.
       -->
-      <p style="margin-bottom: 16px; font-size: 12.5px; line-height: 1.6; color: var(--mu)">
+      <p style="margin-bottom: 16px; font-size: 14px; line-height: 1.6; color: var(--mu)">
         The radio now holds what you were shown. That state is the new baseline, and the backup you started from
         is still on file under Backups.
       </p>

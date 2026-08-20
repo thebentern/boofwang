@@ -146,24 +146,24 @@ body {
 }
 
 /*
- * Uppercase tracked label, the smallest type in the system at 10.5px.
+ * Uppercase tracked label, the smallest type in the system.
  * Used for status-bar segments and section headings only.
  */
 .label-xs {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--fn);
 }
 
-/* Chip: 10.5px on a 4px radius, the one size used everywhere. */
+/* Chip: the one size used everywhere, on a 4px radius. */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10.5px;
-  padding: 1.5px 6px;
+  font-size: 12px;
+  padding: 2.5px 8px;
   border-radius: 4px;
   white-space: nowrap;
 }

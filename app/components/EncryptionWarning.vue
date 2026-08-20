@@ -50,7 +50,7 @@ const showBody = computed(() => isGate.value || expanded.value)
       <div>
         <div
           style="
-            font-size: 10.5px;
+            font-size: 12px;
             letter-spacing: 0.08em;
             text-transform: uppercase;
             color: var(--cn);
@@ -60,7 +60,7 @@ const showBody = computed(() => isGate.value || expanded.value)
         >
           Licensed business and commercial use only
         </div>
-        <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--tx)">
+        <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--tx)">
           Encryption is unlawful on the services most of these radios are used on
         </h1>
       </div>
@@ -70,19 +70,19 @@ const showBody = computed(() => isGate.value || expanded.value)
     <div
       v-else
       class="flex items-center gap-2 flex-wrap"
-      style="padding: 9px 12px"
+      style="padding: 12px 15px"
     >
       <UIcon name="i-lucide-shield-alert" class="shrink-0" style="width: 13px; height: 13px; color: var(--cn)" />
-      <span style="font-size: 12px; color: var(--cn); font-weight: 600">
+      <span style="font-size: 13.5px; color: var(--cn); font-weight: 600">
         Unlawful on amateur, GMRS, FRS and MURS.
       </span>
-      <span class="font-mono tabular" style="font-size: 11.5px; color: var(--mu)">
+      <span class="font-mono tabular" style="font-size: 13px; color: var(--mu)">
         47 CFR 97.113(a)(4) · 95.587 · 95.2731
       </span>
       <button
         type="button"
         class="ms-auto"
-        style="font-size: 11.5px; color: var(--in)"
+        style="font-size: 13px; color: var(--in)"
         :aria-expanded="expanded"
         @click="expanded = !expanded"
       >
@@ -99,19 +99,19 @@ const showBody = computed(() => isGate.value || expanded.value)
       }"
     >
       <div class="grid" style="gap: 9px">
-        <p style="font-size: 13px; line-height: 1.6; color: var(--mu); max-width: 74ch">
+        <p style="font-size: 14.5px; line-height: 1.6; color: var(--mu); max-width: 74ch">
           Encryption is permitted only where your licence authorises it — typically a
           <strong style="color: var(--tx); font-weight: 600">Part 90 land-mobile licence</strong>
           for business, industrial or public-safety operation.
         </p>
-        <p style="font-size: 13px; line-height: 1.6; color: var(--mu); max-width: 74ch">
+        <p style="font-size: 14.5px; line-height: 1.6; color: var(--mu); max-width: 74ch">
           It is <strong style="color: var(--tx); font-weight: 600">prohibited on amateur radio</strong>, which
           forbids transmissions encoded to obscure their meaning
-          (<span class="font-mono tabular" style="font-size: 12px">47 CFR 97.113(a)(4)</span>), and on
+          (<span class="font-mono tabular" style="font-size: 13.5px">47 CFR 97.113(a)(4)</span>), and on
           <strong style="color: var(--tx); font-weight: 600">GMRS, FRS and MURS</strong>. Programming an
           encrypted channel on those frequencies is unlawful even if the radio allows it.
         </p>
-        <p style="font-size: 12.5px; line-height: 1.6; color: var(--fn); max-width: 74ch">
+        <p style="font-size: 14px; line-height: 1.6; color: var(--fn); max-width: 74ch">
           boofwang does not check your licence. You are responsible for what you transmit.
         </p>
       </div>

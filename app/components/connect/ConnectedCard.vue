@@ -41,7 +41,7 @@ const items = computed(() =>
 </script>
 
 <template>
-  <div style="border: 1px solid var(--okL); background: var(--pn); border-radius: 8px; padding: 16px 18px">
+  <div style="border: 1px solid var(--okL); background: var(--pn); border-radius: 8px; padding: 19px 21px">
     <div class="flex items-center gap-3.5 flex-wrap">
       <span
         class="flex items-center justify-center shrink-0"
@@ -51,7 +51,7 @@ const items = computed(() =>
       </span>
 
       <div class="min-w-0">
-        <div v-if="confirmed" style="font-size: 16px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3">
+        <div v-if="confirmed" style="font-size: 17.5px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3">
           {{ title }}
         </div>
         <!--
@@ -63,14 +63,14 @@ const items = computed(() =>
           <button
             type="button"
             class="flex items-center gap-1.5 rounded-[5px] -mx-1 px-1 text-left"
-            style="font-size: 16px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; color: var(--tx)"
+            style="font-size: 17.5px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; color: var(--tx)"
           >
             {{ title }}
             <UIcon name="i-lucide-chevron-down" style="width: 14px; height: 14px; color: var(--fn)" />
           </button>
         </UDropdownMenu>
 
-        <div class="font-mono tabular mt-0.5" style="font-size: 11.5px; color: var(--fn)">{{ detail }}</div>
+        <div class="font-mono tabular mt-0.5" style="font-size: 13px; color: var(--fn)">{{ detail }}</div>
       </div>
 
       <div class="ms-auto flex items-center gap-2.5">
@@ -88,7 +88,7 @@ const items = computed(() =>
 
     <div class="flex items-center gap-2 mt-[11px] pt-[11px]" style="border-top: 1px solid var(--ln)">
       <UIcon name="i-lucide-circle-check" class="shrink-0" style="width: 13px; height: 13px; color: var(--ok)" />
-      <span style="font-size: 12px; color: var(--mu)">
+      <span style="font-size: 13.5px; color: var(--mu)">
         Reading changes nothing on the radio and saves a backup before you edit anything.
       </span>
     </div>

@@ -80,11 +80,11 @@ async function confirmRestore() {
     <div style="border: 1px solid var(--dgL); background: var(--pn); border-radius: 8px; padding: 20px">
       <div class="flex items-center gap-2" style="margin-bottom: 7px">
         <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" style="color: var(--dg)" />
-        <span style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dg); font-weight: 600">
+        <span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dg); font-weight: 600">
           Do not unplug
         </span>
       </div>
-      <h1 style="font-size: 17px; font-weight: 600; margin-bottom: 14px">Restoring the radio</h1>
+      <h1 style="font-size: 19px; font-weight: 600; margin-bottom: 14px">Restoring the radio</h1>
 
       <div style="height: 4px; border-radius: 2px; background: var(--pn3); overflow: hidden; margin-bottom: 9px">
         <div
@@ -92,14 +92,14 @@ async function confirmRestore() {
           :style="{ width: `${transfer.percent}%` }"
         />
       </div>
-      <div class="flex items-center justify-between" style="font-size: 11.5px; color: var(--mu); margin-bottom: 14px">
+      <div class="flex items-center justify-between" style="font-size: 13px; color: var(--mu); margin-bottom: 14px">
         <span>{{ transfer.phase ?? 'connecting' }}</span>
         <span v-if="transfer.total" class="font-mono tabular">
           {{ transfer.done.toLocaleString() }} / {{ transfer.total.toLocaleString() }} bytes
         </span>
       </div>
 
-      <p style="font-size: 11.5px; line-height: 1.55; color: var(--fn)">
+      <p style="font-size: 13px; line-height: 1.55; color: var(--fn)">
         Each block is written, read back and compared. Leave the cable connected and the radio switched on.
       </p>
     </div>
@@ -110,10 +110,10 @@ async function confirmRestore() {
 
     <div
       v-else-if="!backup"
-      style="border: 1px solid var(--ln); background: var(--pn); border-radius: 8px; padding: 18px"
+      style="border: 1px solid var(--ln); background: var(--pn); border-radius: 8px; padding: 22px"
     >
-      <h1 style="font-size: 16px; font-weight: 600; margin-bottom: 6px">That backup is not in this browser</h1>
-      <p style="font-size: 12.5px; line-height: 1.6; color: var(--mu); margin-bottom: 14px">
+      <h1 style="font-size: 17.5px; font-weight: 600; margin-bottom: 6px">That backup is not in this browser</h1>
+      <p style="font-size: 14px; line-height: 1.6; color: var(--mu); margin-bottom: 14px">
         Backups live in this browser only, so a link to one does not travel. Pick it from the list instead.
       </p>
       <RiskAction risk="neutral" ghost icon="i-lucide-history" label="Back to backups" @click="navigateTo('/backups')" />
@@ -144,19 +144,19 @@ async function confirmRestore() {
         />
         <div>
           <div
-            style="font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; margin-bottom: 3px"
+            style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; margin-bottom: 3px"
             :style="{ color: `var(${canWrite ? '--dg' : '--fn'})` }"
           >
             {{ canWrite ? 'Overwrites the radio' : 'Nothing will be sent' }}
           </div>
-          <h1 style="font-size: 16px; font-weight: 600">
+          <h1 style="font-size: 17.5px; font-weight: 600">
             {{ canWrite ? `Restore the radio to ${takenAt}` : 'This image cannot be put back' }}
           </h1>
         </div>
       </div>
 
       <div style="padding: 16px 17px">
-        <p v-if="canWrite" style="font-size: 12.5px; line-height: 1.6; color: var(--mu); margin-bottom: 13px">
+        <p v-if="canWrite" style="font-size: 14px; line-height: 1.6; color: var(--mu); margin-bottom: 13px">
           Whatever is on the radio now is replaced by this image. Anything programmed since that read — by boofwang or
           by anything else — is gone. There is no diff here on purpose: a restore expects the radio to differ.
         </p>
@@ -167,19 +167,19 @@ async function confirmRestore() {
         >
           <div class="flex items-center gap-2">
             <UIcon name="i-lucide-cpu" class="size-3.5 shrink-0" style="color: var(--fn)" />
-            <span class="font-mono tabular" style="font-size: 11.5px; color: var(--mu)">
+            <span class="font-mono tabular" style="font-size: 13px; color: var(--mu)">
               {{ backup.radioId }} · {{ backup.variant }} · {{ backup.byteLength.toLocaleString() }} bytes
             </span>
           </div>
           <div class="flex items-center gap-2 min-w-0">
             <UIcon name="i-lucide-hash" class="size-3.5 shrink-0" style="color: var(--fn)" />
-            <span class="font-mono tabular truncate" style="font-size: 11.5px; color: var(--fn)" :title="backup.sha256">
+            <span class="font-mono tabular truncate" style="font-size: 13px; color: var(--fn)" :title="backup.sha256">
               sha256 {{ backup.sha256.slice(0, 16) }}…
             </span>
           </div>
         </div>
 
-        <p v-if="!canWrite" style="font-size: 12.5px; line-height: 1.6; color: var(--mu); margin-bottom: 15px">
+        <p v-if="!canWrite" style="font-size: 14px; line-height: 1.6; color: var(--mu); margin-bottom: 15px">
           <template v-if="!hasDriver">
             There is no driver for the {{ backup.radioId }} yet, so boofwang cannot put this image back.
           </template>
@@ -192,10 +192,10 @@ async function confirmRestore() {
         <div
           v-else-if="writeScope"
           class="flex items-start gap-2.5"
-          style="border: 1px solid var(--cnL); background: var(--cnB); border-radius: 6px; padding: 11px 13px; margin-bottom: 15px"
+          style="border: 1px solid var(--cnL); background: var(--cnB); border-radius: 6px; padding: 17px 19px; margin-bottom: 15px"
         >
           <UIcon name="i-lucide-circle-dot" class="size-3.5 shrink-0" style="color: var(--cn); margin-top: 2px" />
-          <p style="font-size: 12.5px; line-height: 1.6; color: var(--mu)">
+          <p style="font-size: 14px; line-height: 1.6; color: var(--mu)">
             <strong style="font-weight: 600; color: var(--tx)">
               The {{ schema?.model }} only accepts writes to its {{ writeScope }}.
             </strong>
@@ -228,7 +228,7 @@ async function confirmRestore() {
           @click="navigateTo('/backups')"
         />
 
-        <p v-if="canWrite" style="margin-top: 14px; font-size: 11.5px; line-height: 1.6; color: var(--fn)">
+        <p v-if="canWrite" style="margin-top: 14px; font-size: 13px; line-height: 1.6; color: var(--fn)">
           No base image is supplied for a restore, so the driver reads the radio and sends only the blocks that differ,
           reading each one back before sending the next. A block that fails verification stops the restore there and
           the radio keeps the blocks already confirmed.

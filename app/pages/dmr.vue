@@ -137,10 +137,10 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
   <div class="mx-auto" style="max-width: 900px; padding: 22px 16px 48px">
     <div class="flex items-center gap-2.5 flex-wrap" style="margin-bottom: 11px">
       <UIcon name="i-lucide-folder-tree" class="shrink-0" style="width: 17px; height: 17px; color: var(--cn)" />
-      <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">
+      <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">
         Zones and DMR lists
       </h1>
-      <span v-if="codeplug.isOpen && supported" class="ms-auto" style="font-size: 12px; color: var(--mu)">
+      <span v-if="codeplug.isOpen && supported" class="ms-auto" style="font-size: 13.5px; color: var(--mu)">
         {{ codeplug.zones.length }} zones · {{ codeplug.talkGroups.length }} talk groups ·
         {{ codeplug.scanLists.length }} scan lists · {{ codeplug.rxGroups.length }} RX groups<template
           v-if="codeplug.contacts.length"
@@ -150,10 +150,10 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
 
     <div
       v-if="!codeplug.isOpen"
-      style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; padding: 18px"
+      style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; padding: 22px"
     >
-      <h2 style="font-size: 13px; font-weight: 600; color: var(--tx); margin-bottom: 5px">No codeplug open</h2>
-      <p style="font-size: 12.5px; line-height: 1.6; color: var(--mu); max-width: 74ch; margin-bottom: 13px">
+      <h2 style="font-size: 14.5px; font-weight: 600; color: var(--tx); margin-bottom: 5px">No codeplug open</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 74ch; margin-bottom: 13px">
         Zones and DMR lists belong to a codeplug. Read a radio that has them, or open a codeplug file you
         saved earlier.
       </p>
@@ -165,12 +165,12 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
 
     <div
       v-else-if="!supported"
-      style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; padding: 18px"
+      style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; padding: 22px"
     >
-      <h2 style="font-size: 13px; font-weight: 600; color: var(--tx); margin-bottom: 5px">
+      <h2 style="font-size: 14.5px; font-weight: 600; color: var(--tx); margin-bottom: 5px">
         The {{ codeplug.schema?.vendor }} {{ codeplug.schema?.model }} has no zones or DMR lists
       </h2>
-      <p style="font-size: 12.5px; line-height: 1.6; color: var(--mu); max-width: 74ch">
+      <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 74ch">
         These are DMR features. Of the radios boofwang supports, only the Baofeng DM-32UV has them.
       </p>
     </div>
@@ -186,7 +186,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             v-else
             :key="zone.id"
             class="flex items-start gap-3"
-            :style="`padding: 11px 13px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+            :style="`padding: 17px 19px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
           >
             <span class="idx">{{ i + 1 }}</span>
             <div class="min-w-0 flex-1 grid" style="gap: 6px">
@@ -232,7 +232,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             v-else
             :key="group.id"
             class="flex items-center gap-3"
-            :style="`padding: 10px 13px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+            :style="`padding: 13px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
           >
             <span class="idx">{{ i + 1 }}</span>
             <InlineEdit
@@ -245,7 +245,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               @cancel="cancel"
             />
             <template v-if="!isEditing('talkgroup', group.id)">
-              <span class="ms-auto font-mono shrink-0" style="font-size: 12px; color: var(--tx)">{{ group.number }}</span>
+              <span class="ms-auto font-mono shrink-0" style="font-size: 13.5px; color: var(--tx)">{{ group.number }}</span>
               <span class="chip shrink-0" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
                 {{ CALL_TYPE[group.callType] ?? group.callType }}
               </span>
@@ -265,7 +265,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             v-else
             :key="list.id"
             class="flex items-start gap-3"
-            :style="`padding: 11px 13px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+            :style="`padding: 17px 19px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
           >
             <span class="idx">{{ i + 1 }}</span>
             <div class="min-w-0 flex-1 grid" style="gap: 6px">
@@ -310,7 +310,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             v-else
             :key="group.id"
             class="flex items-start gap-3"
-            :style="`padding: 11px 13px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+            :style="`padding: 17px 19px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
           >
             <span class="idx">{{ i + 1 }}</span>
             <div class="min-w-0 flex-1 grid" style="gap: 6px">
@@ -368,7 +368,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             v-else
             :key="entry.id"
             class="flex items-center gap-3 flex-wrap"
-            :style="`padding: 10px 13px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+            :style="`padding: 13px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
           >
             <span class="idx">{{ i + 1 }}</span>
             <label class="grid gap-1" style="min-width: 120px">
@@ -378,7 +378,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 :value="entry.name"
                 maxlength="12"
                 class="rounded-[6px] px-2.5 outline-none"
-                style="height: 27px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 12.5px"
+                style="height: 31px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
                 autocomplete="off"
                 spellcheck="false"
                 @change="codeplug.updateRadioId(entry.id, { name: ($event.target as HTMLInputElement).value })"
@@ -392,7 +392,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 min="0"
                 max="16777215"
                 class="rounded-[6px] px-2.5 outline-none font-mono"
-                style="height: 27px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 12.5px"
+                style="height: 31px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
                 @change="codeplug.updateRadioId(entry.id, { dmrId: Number(($event.target as HTMLInputElement).value) })"
               >
             </label>
@@ -426,18 +426,18 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               v-for="(contact, i) in codeplug.contacts.slice(0, 200)"
               :key="contact.id"
               class="flex items-center gap-3 flex-wrap"
-              :style="`padding: 9px 13px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+              :style="`padding: 12px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
             >
               <span class="idx">{{ i + 1 }}</span>
-              <span style="font-size: 13px; font-weight: 600; color: var(--tx)">{{ contact.name || '(unnamed)' }}</span>
+              <span style="font-size: 14.5px; font-weight: 600; color: var(--tx)">{{ contact.name || '(unnamed)' }}</span>
               <span v-if="contact.callsign" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
                 {{ contact.callsign }}
               </span>
-              <span class="ms-auto font-mono shrink-0" style="font-size: 12px; color: var(--tx)">{{ contact.dmrId }}</span>
+              <span class="ms-auto font-mono shrink-0" style="font-size: 13.5px; color: var(--tx)">{{ contact.dmrId }}</span>
             </div>
             <p
               v-if="codeplug.contacts.length > 200"
-              style="font-size: 11.5px; color: var(--mu); padding: 10px 13px; border-top: 1px solid var(--ln)"
+              style="font-size: 13px; color: var(--mu); padding: 13px 16px; border-top: 1px solid var(--ln)"
             >
               …and {{ (codeplug.contacts.length - 200).toLocaleString() }} more. All of them are in the
               backup; only the first 200 are listed here.
@@ -456,7 +456,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
 
 <style scoped>
 .sec {
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 600;
   color: var(--tx);
   margin-bottom: 7px;
@@ -468,13 +468,13 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
   overflow: hidden;
 }
 .empty {
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--mu);
-  padding: 16px 14px;
+  padding: 19px 17px;
 }
 .idx {
   font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--mu);
   width: 22px;
   flex-shrink: 0;
@@ -482,12 +482,12 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
 }
 .meta {
   font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--mu);
   line-height: 1.55;
 }
 .note {
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--mu);
   margin-top: 6px;
   line-height: 1.6;

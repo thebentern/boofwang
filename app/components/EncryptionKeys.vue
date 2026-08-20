@@ -183,17 +183,17 @@ function keyText(row: { key: { keyHex: string } | undefined; blank: boolean; slo
 }
 
 const INPUT_STYLE =
-  'height: 29px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 12.5px'
+  'height: 33px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px'
 </script>
 
 <template>
   <div v-if="slots">
     <div class="flex items-center gap-2.5 flex-wrap" style="margin-bottom: 11px">
       <UIcon name="i-lucide-key-round" class="shrink-0" style="width: 17px; height: 17px; color: var(--cn)" />
-      <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">
+      <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">
         Encryption keys
       </h1>
-      <span style="font-size: 12px; color: var(--fn)">
+      <span style="font-size: 13.5px; color: var(--fn)">
         {{ schema?.vendor }} {{ schema?.model }} · {{ slots.slots }} slots
       </span>
 
@@ -210,11 +210,11 @@ const INPUT_STYLE =
         -->
         <div
           class="flex items-center flex-wrap"
-          style="gap: 9px; padding: 9px 13px; border-bottom: 1px solid var(--ln)"
+          style="gap: 9px; padding: 12px 16px; border-bottom: 1px solid var(--ln)"
         >
           <span
             class="font-mono tabular text-right shrink-0"
-            style="font-size: 11.5px; color: var(--fn); width: 18px"
+            style="font-size: 13px; color: var(--fn); width: 18px"
           >{{ row.slot }}</span>
 
           <UIcon
@@ -228,7 +228,7 @@ const INPUT_STYLE =
 
           <span
             class="shrink-0 truncate"
-            style="font-size: 12.5px; width: 86px"
+            style="font-size: 14px; width: 86px"
             :style="row.key
               ? { fontWeight: 600, color: 'var(--tx)' }
               : { fontWeight: 400, color: 'var(--fn)' }"
@@ -253,7 +253,7 @@ const INPUT_STYLE =
           <span
             class="font-mono tabular"
             :class="revealed === row.slot ? 'break-all' : 'truncate'"
-            style="font-size: 11px; min-width: 0"
+            style="font-size: 12.5px; min-width: 0"
             :style="{
               color: !row.key ? 'var(--ln2)' : row.blank ? 'var(--cn)' : revealed === row.slot ? 'var(--tx)' : 'var(--fn)',
               letterSpacing: revealed === row.slot ? '0' : '0.5px',
@@ -303,7 +303,7 @@ const INPUT_STYLE =
 
         <div
           v-if="editing === row.slot"
-          style="background: var(--pn2); border-bottom: 1px solid var(--ln); padding: 13px 13px 14px 40px"
+          style="background: var(--pn2); border-bottom: 1px solid var(--ln); padding: 16px 16px 14px 40px"
         >
           <div class="grid gap-3 sm:grid-cols-2" style="margin-bottom: 11px">
             <label class="grid gap-1.5">
@@ -337,7 +337,7 @@ const INPUT_STYLE =
             <span class="flex items-baseline gap-2 flex-wrap">
               <span class="label-xs">Key — {{ KEY_BYTES[draftType] * 2 }} hex characters</span>
               <!-- Not part of the label: shouting the escape hatch makes it read as the instruction. -->
-              <span v-if="keepsExistingKey" style="font-size: 11.5px; color: var(--fn)">
+              <span v-if="keepsExistingKey" style="font-size: 13px; color: var(--fn)">
                 leave blank to keep the current key
               </span>
             </span>
@@ -352,7 +352,7 @@ const INPUT_STYLE =
               autocomplete="off"
               spellcheck="false"
             >
-            <span v-if="keyProblem" style="font-size: 11.5px; color: var(--dg)">{{ keyProblem }}</span>
+            <span v-if="keyProblem" style="font-size: 13px; color: var(--dg)">{{ keyProblem }}</span>
           </label>
 
           <div class="flex items-center gap-2">
@@ -369,7 +369,7 @@ const INPUT_STYLE =
       </div>
     </div>
 
-    <p style="font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 78ch; margin-top: 11px">
+    <p style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 78ch; margin-top: 11px">
       Keys are held in this browser and written into any codeplug file you save. Anyone with access to that
       file or this browser profile can read them. boofwang has no server and sends them nowhere.
     </p>

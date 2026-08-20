@@ -80,10 +80,10 @@ const rows = computed(() =>
 
 <template>
   <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; overflow: hidden">
-    <div class="flex items-center gap-2.5" style="padding: 9px 13px; border-bottom: 1px solid var(--ln)">
+    <div class="flex items-center gap-2.5" style="padding: 12px 16px; border-bottom: 1px solid var(--ln)">
       <UIcon name="i-lucide-list" style="width: 13px; height: 13px; color: var(--fn)" />
       <span class="label-xs">Radios boofwang knows</span>
-      <span class="ms-auto hidden sm:inline" style="font-size: 11.5px; color: var(--fn)">
+      <span class="ms-auto hidden sm:inline" style="font-size: 13px; color: var(--fn)">
         The handshake identifies which is on the cable.
       </span>
     </div>
@@ -96,11 +96,11 @@ const rows = computed(() =>
       >
         <span
           class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-          style="font-size: 12.5px; font-weight: 600; color: var(--tx)"
+          style="font-size: 14px; font-weight: 600; color: var(--tx)"
         >{{ row.name }}</span>
         <span
           class="font-mono tabular whitespace-nowrap hidden sm:inline"
-          style="font-size: 11px; color: var(--fn)"
+          style="font-size: 12.5px; color: var(--fn)"
         >{{ row.memory }}</span>
         <span
           class="chip ms-auto shrink-0"

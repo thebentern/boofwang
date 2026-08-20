@@ -48,10 +48,10 @@ const credits = [
   <div class="mx-auto" style="max-width: 720px; padding: 26px 16px 56px">
     <div class="flex items-center gap-[9px]" style="margin-bottom: 8px">
       <UIcon name="i-lucide-info" style="width: 17px; height: 17px; color: var(--tx)" />
-      <h1 style="font-size: 20px; font-weight: 600; letter-spacing: -0.02em">About boofwang</h1>
+      <h1 style="font-size: 22px; font-weight: 600; letter-spacing: -0.02em">About boofwang</h1>
     </div>
 
-    <p style="margin-bottom: 24px; font-size: 13px; line-height: 1.65; color: var(--mu)">
+    <p style="margin-bottom: 24px; font-size: 14.5px; line-height: 1.65; color: var(--mu)">
       A codeplug editor and programmer that runs entirely in your browser, at
       <a href="https://boofwa.ng" :style="LINK">boofwa.ng</a>. It speaks to radios over the Web Serial
       API, so there is no desktop application to install and no account to create.
@@ -113,7 +113,7 @@ const credits = [
         <div
           v-for="(credit, index) in credits"
           :key="credit.name"
-          style="padding: 11px 13px"
+          style="padding: 17px 19px"
           :style="index < credits.length - 1 ? { borderBottom: '1px solid var(--ln)' } : {}"
         >
           <div class="flex items-center gap-2" style="margin-bottom: 3px">
@@ -122,7 +122,7 @@ const credits = [
               target="_blank"
               rel="noopener"
               class="inline-flex items-center gap-1.5"
-              style="font-size: 12.5px; font-weight: 600; color: var(--tx)"
+              style="font-size: 14px; font-weight: 600; color: var(--tx)"
             >
               {{ credit.name }}
               <UIcon name="i-lucide-external-link" style="width: 11px; height: 11px; color: var(--fn)" />
@@ -132,7 +132,7 @@ const credits = [
               style="color: var(--fn); border: 1px solid var(--ln)"
             >{{ credit.licence }}</span>
           </div>
-          <p style="font-size: 12px; line-height: 1.55; color: var(--mu)">{{ credit.what }}</p>
+          <p style="font-size: 13.5px; line-height: 1.55; color: var(--mu)">{{ credit.what }}</p>
         </div>
       </div>
 
@@ -155,7 +155,7 @@ const credits = [
         <UIcon name="i-lucide-git-branch" :style="ICON" />
         Help it along
       </h2>
-      <p style="margin-bottom: 12px; font-size: 12.5px; line-height: 1.6; color: var(--mu)">
+      <p style="margin-bottom: 12px; font-size: 14px; line-height: 1.6; color: var(--mu)">
         Bug reports with a protocol log are worth more than anything else — especially from a radio
         nobody here owns. Drivers are welcome too.
       </p>
@@ -166,7 +166,7 @@ const credits = [
           target="_blank"
           rel="noopener"
           class="inline-flex items-center gap-[7px] rounded-[5px]"
-          style="height: 30px; padding: 0 12px; border: 1px solid var(--ln2); font-size: 12.5px; font-weight: 500; color: var(--tx)"
+          style="height: 30px; padding: 0 12px; border: 1px solid var(--ln2); font-size: 14px; font-weight: 500; color: var(--tx)"
         >
           <UIcon name="i-lucide-bug" style="width: 13px; height: 13px" />
           Report a bug
@@ -177,7 +177,7 @@ const credits = [
           target="_blank"
           rel="noopener"
           class="inline-flex items-center gap-[7px] rounded-[5px]"
-          style="height: 30px; padding: 0 12px; border: 1px solid var(--ln); font-size: 12.5px; color: var(--mu)"
+          style="height: 30px; padding: 0 12px; border: 1px solid var(--ln); font-size: 14px; color: var(--mu)"
         >
           <UIcon name="i-lucide-git-branch" style="width: 13px; height: 13px" />
           Contribute a driver
@@ -188,7 +188,7 @@ const credits = [
           target="_blank"
           rel="noopener"
           class="inline-flex items-center gap-[7px] rounded-[5px]"
-          style="height: 30px; padding: 0 12px; border: 1px solid var(--cnL); background: var(--cnB); font-size: 12.5px; font-weight: 500; color: var(--cn)"
+          style="height: 30px; padding: 0 12px; border: 1px solid var(--cnL); background: var(--cnB); font-size: 14px; font-weight: 500; color: var(--cn)"
         >
           <UIcon name="i-lucide-coffee" style="width: 13px; height: 13px" />
           Buy me a coffee

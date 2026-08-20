@@ -92,7 +92,7 @@ const description = computed(
   <div class="flex items-center flex-wrap" role="img" :aria-label="description">
     <span
       class="inline-flex items-center gap-1.5 whitespace-nowrap"
-      style="font-size: 11px; padding: 3px 8px; border-radius: 5px"
+      style="font-size: 12.5px; padding: 3px 8px; border-radius: 5px"
       :style="chip(browser)"
     >
       <UIcon name="i-lucide-laptop" style="width: 11px; height: 11px" />
@@ -102,13 +102,13 @@ const description = computed(
     <span
       aria-hidden="true"
       class="font-mono px-[3px]"
-      style="font-size: 11px"
+      style="font-size: 12.5px"
       :style="{ color: LINK_COLOURS[firstLink] }"
     >{{ LINK_GLYPHS[firstLink] }}</span>
 
     <span
       class="inline-flex items-center gap-1.5 whitespace-nowrap"
-      style="font-size: 11px; padding: 3px 8px; border-radius: 5px"
+      style="font-size: 12.5px; padding: 3px 8px; border-radius: 5px"
       :style="chip(adapter)"
     >
       <UIcon name="i-lucide-usb" style="width: 11px; height: 11px" />
@@ -118,13 +118,13 @@ const description = computed(
     <span
       aria-hidden="true"
       class="font-mono px-[3px]"
-      style="font-size: 11px"
+      style="font-size: 12.5px"
       :style="{ color: LINK_COLOURS[secondLink] }"
     >{{ LINK_GLYPHS[secondLink] }}</span>
 
     <span
       class="inline-flex items-center gap-1.5 whitespace-nowrap"
-      style="font-size: 11px; padding: 3px 8px; border-radius: 5px"
+      style="font-size: 12.5px; padding: 3px 8px; border-radius: 5px"
       :style="chip(radio)"
     >
       <UIcon name="i-lucide-radio-tower" style="width: 11px; height: 11px" />

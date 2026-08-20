@@ -16,7 +16,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [unknown] }>()
 
 const INPUT_STYLE =
-  'height: 29px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 12.5px'
+  'height: 33px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px'
 
 /**
  * A missing value is shown as missing, not as a zero.
@@ -50,7 +50,7 @@ const enumLabel = computed(() => {
 
     <span
       v-if="!present"
-      style="font-size: 12px; color: var(--mu); font-style: italic"
+      style="font-size: 13.5px; color: var(--mu); font-style: italic"
     >not read from this radio</span>
 
     <select
@@ -77,7 +77,7 @@ const enumLabel = computed(() => {
         style="width: 15px; height: 15px; accent-color: var(--cn)"
         @change="emit('update:modelValue', ($event.target as HTMLInputElement).checked ? 1 : 0)"
       >
-      <span style="font-size: 12.5px; color: var(--mu)">{{ asNumber !== 0 ? 'On' : 'Off' }}</span>
+      <span style="font-size: 14px; color: var(--mu)">{{ asNumber !== 0 ? 'On' : 'Off' }}</span>
     </span>
 
     <input
@@ -103,6 +103,6 @@ const enumLabel = computed(() => {
       @change="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     >
 
-    <span v-if="field.help" style="font-size: 11px; color: var(--mu); line-height: 1.5">{{ field.help }}</span>
+    <span v-if="field.help" style="font-size: 12.5px; color: var(--mu); line-height: 1.5">{{ field.help }}</span>
   </label>
 </template>

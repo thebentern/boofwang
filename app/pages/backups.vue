@@ -114,8 +114,8 @@ async function askPersist() {
   <div class="mx-auto" style="max-width: 900px; padding: 22px 16px 48px">
     <div class="flex items-center flex-wrap gap-x-2.5 gap-y-1" style="margin-bottom: 11px">
       <UIcon name="i-lucide-history" class="size-4 shrink-0" style="color: var(--mu)" />
-      <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.02em">Backups</h1>
-      <span style="font-size: 12px; color: var(--fn)">
+      <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em">Backups</h1>
+      <span style="font-size: 13.5px; color: var(--fn)">
         Every read is saved here automatically, in this browser only.
       </span>
     </div>
@@ -123,10 +123,10 @@ async function askPersist() {
     <div
       v-if="persisted !== true"
       class="flex items-center flex-wrap gap-2.5"
-      style="border: 1px solid var(--cnL); background: var(--cnB); border-radius: 6px; padding: 10px 13px; margin-bottom: 11px"
+      style="border: 1px solid var(--cnL); background: var(--cnB); border-radius: 6px; padding: 13px 16px; margin-bottom: 11px"
     >
       <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" style="color: var(--cn)" />
-      <span style="font-size: 12.5px; color: var(--tx)">
+      <span style="font-size: 14px; color: var(--tx)">
         <strong style="font-weight: 600">These backups can be evicted.</strong>
         <span style="color: var(--mu)">
           Browsers discard script-created storage under pressure, and Safari drops it after a week without a visit.
@@ -148,12 +148,12 @@ async function askPersist() {
     <div
       v-else-if="!backups.length"
       class="flex items-center gap-3"
-      style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; padding: 16px 18px"
+      style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; padding: 19px 21px"
     >
       <UIcon name="i-lucide-history" class="size-4 shrink-0" style="color: var(--fn)" />
       <div>
-        <p style="font-size: 13.5px; font-weight: 600">Nothing saved yet</p>
-        <p style="font-size: 12.5px; color: var(--mu)">Read a radio and its codeplug will appear here.</p>
+        <p style="font-size: 15px; font-weight: 600">Nothing saved yet</p>
+        <p style="font-size: 14px; color: var(--mu)">Read a radio and its codeplug will appear here.</p>
       </div>
     </div>
 
@@ -173,7 +173,7 @@ async function askPersist() {
 
           <div class="min-w-0 flex-1">
             <div class="flex items-baseline flex-wrap gap-2" style="margin-bottom: 3px">
-              <span style="font-size: 12.5px; font-weight: 600">{{ b.label }}</span>
+              <span style="font-size: 14px; font-weight: 600">{{ b.label }}</span>
               <span
                 class="chip"
                 :style="ORIGIN[b.origin].caution
@@ -186,7 +186,7 @@ async function askPersist() {
                 style="background: var(--okB); color: var(--ok); border: 1px solid var(--okL)"
               >current baseline</span>
             </div>
-            <div class="font-mono tabular truncate" style="font-size: 11px; color: var(--fn)" :title="b.sha256">
+            <div class="font-mono tabular truncate" style="font-size: 12.5px; color: var(--fn)" :title="b.sha256">
               {{ b.radioId }} · {{ b.byteLength.toLocaleString() }} bytes · sha256 {{ b.sha256.slice(0, 16) }}…
             </div>
           </div>
@@ -243,7 +243,7 @@ async function askPersist() {
           style="margin-top: 9px; border: 1px solid var(--dgL); background: var(--dgB); border-radius: 6px; padding: 8px 10px"
         >
           <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" style="color: var(--dg)" />
-          <span style="font-size: 11.5px; line-height: 1.5; color: var(--mu)">
+          <span style="font-size: 13px; line-height: 1.5; color: var(--mu)">
             <template v-if="isBaseline(b)">
               This is the image the open codeplug came from. Delete it and the way back is only on the radio.
             </template>
@@ -265,7 +265,7 @@ async function askPersist() {
       </div>
     </div>
 
-    <p v-if="backups.length" style="margin-top: 11px; font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 78ch">
+    <p v-if="backups.length" style="margin-top: 11px; font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 78ch">
       Restore overwrites what is on the radio right now with the image above — the same register as a write, and it
       asks the same way. A read that has never been written from is the safest thing in this list.
     </p>

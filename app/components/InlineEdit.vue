@@ -18,7 +18,7 @@ const model = defineModel<string>('draft', { required: true })
 const emit = defineEmits<{ save: []; cancel: []; edit: [] }>()
 
 const INPUT_STYLE =
-  'height: 29px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 12.5px'
+  'height: 33px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px'
 </script>
 
 <template>
@@ -39,12 +39,12 @@ const INPUT_STYLE =
       <RiskAction risk="neutral" size="sm" icon="i-lucide-check" label="Save" @click="emit('save')" />
       <RiskAction risk="neutral" ghost size="sm" label="Cancel" @click="emit('cancel')" />
     </div>
-    <p v-if="hint" style="font-size: 11.5px; color: var(--mu); margin-top: 5px; line-height: 1.5">{{ hint }}</p>
+    <p v-if="hint" style="font-size: 13px; color: var(--mu); margin-top: 5px; line-height: 1.5">{{ hint }}</p>
   </div>
 
   <div v-else class="flex items-center gap-2 flex-wrap min-w-0">
     <slot>
-      <span style="font-size: 13px; font-weight: 600; color: var(--tx)">{{ value || '(unnamed)' }}</span>
+      <span style="font-size: 14.5px; font-weight: 600; color: var(--tx)">{{ value || '(unnamed)' }}</span>
     </slot>
     <button
       type="button"

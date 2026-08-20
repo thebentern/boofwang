@@ -82,31 +82,31 @@ const totals = computed(() => {
         {{ kindOf(c).label }}
       </span>
 
-      <span class="font-mono tabular text-right shrink-0" style="width: 24px; font-size: 11.5px; color: var(--fn)">
+      <span class="font-mono tabular text-right shrink-0" style="width: 24px; font-size: 13px; color: var(--fn)">
         {{ c.slot }}
       </span>
 
       <span
         v-if="c.before"
         class="truncate"
-        style="font-size: 12px; color: var(--fn); text-decoration: line-through"
+        style="font-size: 13.5px; color: var(--fn); text-decoration: line-through"
       >{{ c.before }}</span>
 
       <UIcon v-if="c.before && c.after" name="i-lucide-arrow-right" class="size-3 shrink-0" style="color: var(--fn)" />
 
-      <span v-if="c.after" class="truncate" style="font-size: 12px; color: var(--tx)">{{ c.after }}</span>
+      <span v-if="c.after" class="truncate" style="font-size: 13.5px; color: var(--tx)">{{ c.after }}</span>
 
       <span
         v-if="c.note"
         class="ms-auto shrink-0"
-        style="font-size: 11.5px"
+        style="font-size: 13px"
         :style="{ color: TONE_COLOR[NOTE[c.note].tone] }"
       >{{ NOTE[c.note].text }}</span>
     </div>
 
     <div
       class="flex items-center gap-3 flex-wrap"
-      style="padding: 7px 14px; background: var(--pn2); font-size: 11.5px; color: var(--mu)"
+      style="padding: 7px 14px; background: var(--pn2); font-size: 13px; color: var(--mu)"
     >
       <span>{{ totals }}</span>
       <span v-if="blocks !== undefined" class="ms-auto font-mono tabular" style="color: var(--fn)">

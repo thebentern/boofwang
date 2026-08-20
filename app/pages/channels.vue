@@ -34,10 +34,10 @@ function onCreate(index: number) {
     <div
       v-if="!codeplug.isOpen"
       class="max-w-2xl"
-      style="background: var(--pn); border: 1px solid var(--ln); border-radius: 8px; padding: 16px 18px"
+      style="background: var(--pn); border: 1px solid var(--ln); border-radius: 8px; padding: 19px 21px"
     >
-      <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.02em">No codeplug open</h1>
-      <p style="margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--mu); max-width: 62ch">
+      <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em">No codeplug open</h1>
+      <p style="margin-top: 6px; font-size: 14.5px; line-height: 1.6; color: var(--mu); max-width: 62ch">
         Read one from a radio, or open a <code class="font-mono">.bwp</code> file you saved earlier. Reading
         changes nothing on the radio and saves a backup before you edit anything.
       </p>

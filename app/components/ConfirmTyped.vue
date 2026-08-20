@@ -62,10 +62,10 @@ defineExpose({ reset: () => (typed.value = '') })
         :aria-label="`Type ${token} to confirm`"
         class="font-mono rounded-[6px] px-2.5 outline-none focus:ring-0"
         style="
-          height: 29px;
+          height: 33px;
           width: 106px;
           letter-spacing: 0.08em;
-          font-size: 12.5px;
+          font-size: 14px;
           background: var(--pn);
           color: var(--tx);
           border: 1px solid var(--ln2);

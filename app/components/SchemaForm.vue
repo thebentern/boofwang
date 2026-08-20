@@ -23,11 +23,11 @@ const emit = defineEmits<{ change: [key: string, value: unknown] }>()
       :key="group.id"
       style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; overflow: hidden"
     >
-      <div style="padding: 11px 14px 10px; border-bottom: 1px solid var(--ln); background: var(--pn2)">
-        <h2 style="font-size: 13px; font-weight: 600; color: var(--tx)">{{ group.label }}</h2>
+      <div style="padding: 14px 17px 13px; border-bottom: 1px solid var(--ln); background: var(--pn2)">
+        <h2 style="font-size: 14.5px; font-weight: 600; color: var(--tx)">{{ group.label }}</h2>
         <p
           v-if="group.description"
-          style="font-size: 11.5px; color: var(--mu); margin-top: 3px; line-height: 1.55; max-width: 74ch"
+          style="font-size: 13px; color: var(--mu); margin-top: 3px; line-height: 1.55; max-width: 74ch"
         >{{ group.description }}</p>
       </div>
 

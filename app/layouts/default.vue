@@ -37,10 +37,10 @@ const isDark = computed(() => colorMode.value === 'dark')
 <template>
   <div class="min-h-screen flex flex-col" style="background: var(--bg); color: var(--tx)">
     <header class="sticky top-0 z-20" style="background: var(--pn); border-bottom: 1px solid var(--ln)">
-      <div class="mx-auto max-w-[1400px] px-4 flex items-center gap-5" style="height: 44px">
+      <div class="mx-auto max-w-[1400px] px-4 flex items-center gap-5" style="height: 52px">
         <NuxtLink to="/" class="flex items-center gap-2 shrink-0">
           <UIcon name="i-lucide-radio-tower" style="width: 15px; height: 15px; color: var(--tx)" />
-          <span style="font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em">boofwang</span>
+          <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">boofwa.ng</span>
         </NuxtLink>
 
         <nav class="hidden sm:flex items-center gap-0.5">
@@ -49,7 +49,7 @@ const isDark = computed(() => colorMode.value === 'dark')
             :key="item.to"
             :to="item.to"
             class="flex items-center gap-1.5 rounded-[5px] px-2.5 transition-colors"
-            style="height: 25px; font-size: 12.5px"
+            style="height: 25px; font-size: 14px"
             :style="activePath === item.to
               ? { background: 'var(--pn3)', color: 'var(--tx)', fontWeight: 600 }
               : { color: 'var(--mu)' }"
@@ -65,7 +65,7 @@ const isDark = computed(() => colorMode.value === 'dark')
             target="_blank"
             rel="noopener"
             class="hidden md:flex items-center gap-1.5"
-            style="font-size: 11.5px; color: var(--fn)"
+            style="font-size: 13px; color: var(--fn)"
           >
             <UIcon name="i-lucide-bug" style="width: 12px; height: 12px" />
             Report a bug
@@ -92,7 +92,7 @@ const isDark = computed(() => colorMode.value === 'dark')
     <footer style="border-top: 1px solid var(--ln)">
       <div
         class="mx-auto max-w-[1400px] px-4 py-5 flex flex-wrap items-center gap-x-4 gap-y-1.5"
-        style="font-size: 11.5px; color: var(--fn)"
+        style="font-size: 13px; color: var(--fn)"
       >
         <span class="font-mono">boofwa.ng</span>
         <span>GNU GPL v3 or later</span>

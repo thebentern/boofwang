@@ -72,8 +72,8 @@ const hint = computed(() => {
       <!-- Radio -->
       <div class="flex items-center gap-2 pe-3.5 h-full" style="border-right: 1px solid var(--ln)">
         <UIcon name="i-lucide-radio" class="size-3.5 shrink-0" style="color: var(--fn)" />
-        <span style="font-size: 12.5px; font-weight: 600; color: var(--tx)">{{ radioName }}</span>
-        <span v-if="firmware" class="font-mono tabular" style="font-size: 11px; color: var(--fn)">{{ firmware }}</span>
+        <span style="font-size: 14px; font-weight: 600; color: var(--tx)">{{ radioName }}</span>
+        <span v-if="firmware" class="font-mono tabular" style="font-size: 12.5px; color: var(--fn)">{{ firmware }}</span>
       </div>
 
       <!-- Edits -->
@@ -123,7 +123,7 @@ const hint = computed(() => {
       </div>
 
       <div class="ms-auto flex items-center gap-3">
-        <span class="hidden md:inline" style="font-size: 11.5px; color: var(--fn)">{{ hint }}</span>
+        <span class="hidden md:inline" style="font-size: 13px; color: var(--fn)">{{ hint }}</span>
         <RiskAction
           v-if="canWrite"
           risk="caution"

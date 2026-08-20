@@ -729,7 +729,7 @@ const headerStyle = computed(() => ({
     <div class="flex items-center flex-wrap" style="gap: 9px; margin-bottom: 9px">
       <div
         class="flex items-center"
-        style="height: 29px; gap: 7px; padding: 0 9px; border: 1px solid var(--ln2); border-radius: 6px; background: var(--pn)"
+        style="height: 33px; gap: 7px; padding: 0 9px; border: 1px solid var(--ln2); border-radius: 6px; background: var(--pn)"
       >
         <UIcon name="i-lucide-search" style="width: 12px; height: 12px; color: var(--fn)" />
         <input
@@ -737,7 +737,7 @@ const headerStyle = computed(() => ({
           type="text"
           aria-label="Filter channels"
           placeholder="Name, frequency or slot"
-          style="width: 168px; border: 0; background: transparent; outline: none; font-size: 12.5px; color: var(--tx)"
+          style="width: 168px; border: 0; background: transparent; outline: none; font-size: 14px; color: var(--tx)"
         >
       </div>
 
@@ -766,12 +766,12 @@ const headerStyle = computed(() => ({
             :style="{ width: '12px', height: '12px', color: facet === f.key ? f.tone : 'var(--fn)' }"
           />
           {{ f.label }}
-          <span class="font-mono tabular" style="font-size: 10.5px; color: var(--fn)">{{ f.count }}</span>
+          <span class="font-mono tabular" style="font-size: 12px; color: var(--fn)">{{ f.count }}</span>
         </button>
       </div>
 
       <div class="ms-auto flex items-center" style="gap: 8px">
-        <span class="font-mono tabular" style="font-size: 11.5px; color: var(--mu)">
+        <span class="font-mono tabular" style="font-size: 13px; color: var(--mu)">
           {{ rows.length }} of {{ slots.length }} slots
         </span>
 
@@ -779,7 +779,7 @@ const headerStyle = computed(() => ({
           <button
             type="button"
             class="inline-flex items-center"
-            style="height: 27px; padding: 0 10px; gap: 6px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 12px"
+            style="height: 31px; padding: 0 10px; gap: 6px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13.5px"
           >
             <UIcon name="i-lucide-columns-3" style="width: 12px; height: 12px; color: var(--fn)" />
             Columns
@@ -791,7 +791,7 @@ const headerStyle = computed(() => ({
                 :key="c.key"
                 type="button"
                 class="flex items-center w-full"
-                style="gap: 8px; padding: 5px 8px; border-radius: 4px; font-size: 12px; color: var(--mu)"
+                style="gap: 8px; padding: 5px 8px; border-radius: 4px; font-size: 13.5px; color: var(--mu)"
                 @click="optional[c.key] = !optional[c.key]"
               >
                 <UIcon
@@ -808,7 +808,7 @@ const headerStyle = computed(() => ({
           <button
             type="button"
             class="inline-flex items-center"
-            style="height: 27px; padding: 0 10px; gap: 6px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 12px"
+            style="height: 31px; padding: 0 10px; gap: 6px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13.5px"
           >
             <UIcon name="i-lucide-download" style="width: 12px; height: 12px; color: var(--fn)" />
             Export
@@ -820,13 +820,13 @@ const headerStyle = computed(() => ({
                 :key="x.label"
                 type="button"
                 class="flex items-center w-full whitespace-nowrap"
-                style="gap: 8px; padding: 5px 8px; border-radius: 4px; font-size: 12px; color: var(--mu)"
+                style="gap: 8px; padding: 5px 8px; border-radius: 4px; font-size: 13.5px; color: var(--mu)"
                 @click="x.run()"
               >
                 <UIcon :name="x.icon" style="width: 12px; height: 12px; color: var(--fn)" />
                 {{ x.label }}
               </button>
-              <p style="padding: 4px 8px 2px; font-size: 11px; color: var(--fn); max-width: 30ch; white-space: normal">
+              <p style="padding: 4px 8px 2px; font-size: 12.5px; color: var(--fn); max-width: 30ch; white-space: normal">
                 Exports change nothing on the radio.
               </p>
             </div>
@@ -865,14 +865,14 @@ const headerStyle = computed(() => ({
             color: `var(${g.severity === 'error' ? '--dg' : '--cn'})`,
           }"
         >{{ g.severity }}</span>
-        <span style="font-size: 12.5px; line-height: 1.45; min-width: 0">
+        <span style="font-size: 14px; line-height: 1.45; min-width: 0">
           <strong v-if="g.count > 1" style="font-weight: 600">{{ g.count }}× </strong>{{ g.message }}
         </span>
         <button
           v-if="g.slots.length"
           type="button"
           class="font-mono tabular whitespace-nowrap"
-          style="font-size: 11.5px; color: var(--in); background: transparent; border: 0; padding: 0"
+          style="font-size: 13px; color: var(--in); background: transparent; border: 0; padding: 0"
           @click="showGroup(g)"
         >{{ slotRanges(g.slots) }}</button>
         <button
@@ -1005,7 +1005,7 @@ const headerStyle = computed(() => ({
               data-cell-editor
               type="text"
               :aria-label="`Name of slot ${r.key}`"
-              style="height: 21px; min-width: 0; border: 1px solid var(--in); background: var(--bg); color: var(--tx); border-radius: 3px; font-size: 12.5px; padding: 0 4px; outline: none"
+              style="height: 21px; min-width: 0; border: 1px solid var(--in); background: var(--bg); color: var(--tx); border-radius: 3px; font-size: 14px; padding: 0 4px; outline: none"
               @click.stop
               @keydown="onEditorKey"
               @blur="onEditorBlur(r.key, 'name')"
@@ -1112,7 +1112,7 @@ const headerStyle = computed(() => ({
           </div>
         </div>
 
-        <p v-if="!rows.length" style="padding: 22px 12px; text-align: center; font-size: 12.5px; color: var(--fn)">
+        <p v-if="!rows.length" style="padding: 22px 12px; text-align: center; font-size: 14px; color: var(--fn)">
           No slots match this filter.
         </p>
       </div>
@@ -1122,7 +1122,7 @@ const headerStyle = computed(() => ({
         class="flex items-center flex-wrap"
         style="border-top: 1px solid var(--ln); background: var(--pn2); padding: 7px 12px; gap: 14px"
       >
-        <span class="flex items-center" style="gap: 6px; font-size: 11.5px; color: var(--fn)">
+        <span class="flex items-center" style="gap: 6px; font-size: 13px; color: var(--fn)">
           <UIcon name="i-lucide-pencil" style="width: 11px; height: 11px" />
           Click a name or frequency to edit in place. Return commits, Escape reverts.
         </span>
@@ -1131,7 +1131,7 @@ const headerStyle = computed(() => ({
             v-for="l in LEGEND"
             :key="l.label"
             class="flex items-center"
-            style="gap: 5px; font-size: 11px; color: var(--mu)"
+            style="gap: 5px; font-size: 12.5px; color: var(--mu)"
           >
             <UIcon :name="l.icon" :style="{ width: '11px', height: '11px', color: l.color }" />
             {{ l.label }}

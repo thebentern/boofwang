@@ -6,6 +6,13 @@ import type { RadioImage } from '#core/radio/image.js'
 import type { IdentifyResult } from '#core/radio/driver.js'
 import { createDm32uvDriver } from '#core/radios/dm32uv/driver.js'
 import { REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
+import {
+  RXGROUP_BLOCK,
+  SCANLIST_BLOCK,
+  ZONE_BLOCK_FIRST,
+  ZONE_HEADER,
+  ZONE_SIZE,
+} from '#core/radios/dm32uv/layout.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial-port.js'
 
@@ -122,9 +129,29 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       const keyWas = doc.encryptionKeys[0]!
       doc.encryptionKeys[0] = { ...keyWas, keyHex: '5A'.repeat(keyWas.keyHex.length / 2) }
 
+      // The structures that were never read at all until now.
+      const zoneMembersWere = doc.zones[0]!.channels
+      const liveChannels = [...doc.channels.keys()].slice(0, 3)
+      doc.zones[0] = { ...doc.zones[0]!, channels: liveChannels }
+
+      const scanWas = doc.scanLists[0]
+      if (scanWas) doc.scanLists[0] = { ...scanWas, name: 'HW SCAN', channels: liveChannels }
+
+      const rxWas = doc.rxGroups[0]
+      if (rxWas) doc.rxGroups[0] = { ...rxWas, name: 'HW RXG', dmrIds: [3105, 91] }
+
+      const ridWas = doc.radioIds[0]
+      if (ridWas) doc.radioIds[0] = { ...ridWas, name: 'HW ID', dmrId: 3_105_999 }
+
+      const settingsWere = { ...doc.settings }
+      doc.settings.powerOnLine1 = 'HW BOOF'
+      doc.settings['callsignColour.colour'] = 5
+      doc.settings['gpsFlags.gpsSwitch'] = settingsWere['gpsFlags.gpsSwitch'] === 1 ? 0 : 1
+
       // Add a channel past the end and delete one in the middle. Both were
       // silently dropped before: the encode loop was bounded by the stored
       // count, and the count itself was not writable.
+      const baseline0ScanCount = block(baseline, SCANLIST_BLOCK)[0]!
       const countWas = block(baseline, CHANNEL_BLOCK)[0]! | (block(baseline, CHANNEL_BLOCK)[1]! << 8)
       const added = countWas + 1
       doc.channels.set(added, { ...a, index: added, name: 'HW ADDED', txAllowed: true, tone: { rx: null, tx: null, rxInverted: false } })
@@ -183,6 +210,41 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       expect(back.talkGroups[0]!.number, 'a talk group rename changed its number').toBe(tgWas.number)
       expect(back.talkGroups[0]!.callType, 'a talk group rename changed its call type').toBe(tgWas.callType)
       expect(back.encryptionKeys[0]!.keyHex.toUpperCase()).toBe('5A'.repeat(keyWas.keyHex.length / 2))
+
+      // Zone membership: the entries and the count both reached the radio, and
+      // the stale pointers past the old count were left exactly as they were.
+      expect(back.zones[0]!.channels, 'zone membership did not reach the radio').toEqual(liveChannels)
+      expect(zoneMembersWere.length).toBeGreaterThan(liveChannels.length)
+      const zoneRec = block(after, ZONE_BLOCK_FIRST).subarray(ZONE_HEADER, ZONE_HEADER + ZONE_SIZE)
+      const zoneRecWas = block(baseline, ZONE_BLOCK_FIRST).subarray(ZONE_HEADER, ZONE_HEADER + ZONE_SIZE)
+      expect(zoneRec[0x10], 'the zone count byte').toBe(liveChannels.length)
+      expect(
+        equalBytes(zoneRec.subarray(0x11 + 2 * zoneMembersWere.length), zoneRecWas.subarray(0x11 + 2 * zoneMembersWere.length)),
+        'the entries past the old count were rewritten',
+      ).toBe(true)
+
+      if (scanWas) {
+        expect(back.scanLists[0]!.name).toBe('HW SCAN')
+        expect(back.scanLists[0]!.channels).toEqual(liveChannels)
+        expect(block(after, SCANLIST_BLOCK)[0], 'the scan list count moved').toBe(baseline0ScanCount)
+      }
+      if (rxWas) {
+        expect(back.rxGroups[0]!.name).toBe('HW RXG')
+        expect(back.rxGroups[0]!.dmrIds).toEqual([3105, 91])
+        // The occupancy bitmask is the record of truth and must still agree.
+        expect(block(after, RXGROUP_BLOCK)[0]).toBe(block(baseline, RXGROUP_BLOCK)[0])
+      }
+      if (ridWas) {
+        expect(back.radioIds[0]!.name).toBe('HW ID')
+        expect(back.radioIds[0]!.dmrId, 'the 24-bit DMR ID').toBe(3_105_999)
+      }
+
+      expect(back.settings.powerOnLine1).toBe('HW BOOF')
+      expect(back.settings['callsignColour.colour']).toBe(5)
+      // One nibble of a shared byte moved; the other must not have.
+      expect(back.settings['standbyTextColour.colour']).toBe(settingsWere['standbyTextColour.colour'])
+      // And the settings this build models but does not offer are unchanged.
+      expect(back.settings.gpsReportInterval).toBe(settingsWere.gpsReportInterval)
 
       // Nothing outside the blocks the driver claims may have moved.
       for (const region of after.regions) {

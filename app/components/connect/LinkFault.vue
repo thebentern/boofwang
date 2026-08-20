@@ -289,7 +289,7 @@ const actions = computed(() => (copy.value.actions ?? []).filter((a) => a.key !=
       </span>
 
       <div class="min-w-0 flex-1">
-        <div style="font-size: 15px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; margin-bottom: 8px">
+        <div style="font-size: 16.5px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; margin-bottom: 8px">
           {{ fill(copy.title) }}
         </div>
 
@@ -301,7 +301,7 @@ const actions = computed(() => (copy.value.actions ?? []).filter((a) => a.key !=
           :links="copy.links"
         />
 
-        <p style="margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--mu); max-width: 78ch">
+        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 78ch">
           {{ fill(copy.body) }}
         </p>
 
@@ -309,7 +309,7 @@ const actions = computed(() => (copy.value.actions ?? []).filter((a) => a.key !=
           v-if="logText"
           class="font-mono tabular mt-[11px] overflow-auto"
           style="
-            font-size: 11.5px;
+            font-size: 13px;
             color: var(--fn);
             background: var(--pn2);
             border: 1px solid var(--ln);
@@ -327,7 +327,7 @@ const actions = computed(() => (copy.value.actions ?? []).filter((a) => a.key !=
               :style="{ width: `${progress?.percent ?? 0}%` }"
             />
           </div>
-          <div class="flex justify-between mt-[7px]" style="font-size: 11.5px; color: var(--mu)">
+          <div class="flex justify-between mt-[7px]" style="font-size: 13px; color: var(--mu)">
             <span>{{ phaseLabel }}</span>
             <span class="font-mono tabular">
               {{ (progress?.done ?? 0).toLocaleString() }} / {{ (progress?.total ?? 0).toLocaleString() }} bytes
@@ -338,7 +338,7 @@ const actions = computed(() => (copy.value.actions ?? []).filter((a) => a.key !=
         <div v-if="copy.steps" class="mt-3 grid gap-1.5">
           <div v-for="[icon, text] in copy.steps" :key="text" class="flex gap-2 items-baseline">
             <UIcon :name="icon" class="shrink-0" style="width: 13px; height: 13px; color: var(--fn)" />
-            <span style="font-size: 12.5px; line-height: 1.55; color: var(--mu)">{{ text }}</span>
+            <span style="font-size: 14px; line-height: 1.55; color: var(--mu)">{{ text }}</span>
           </div>
         </div>
 

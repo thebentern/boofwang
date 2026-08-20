@@ -443,11 +443,11 @@ function stage() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[1400px]" style="padding: 16px 14px 30px">
+  <div class="mx-auto max-w-[1400px]" style="padding: 19px 17px 30px">
     <div class="flex items-center gap-2.5 flex-wrap" style="margin-bottom: 12px">
       <UIcon name="i-lucide-layers" class="shrink-0" style="width: 15px; height: 15px; color: var(--mu)" />
-      <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">Presets</h1>
-      <span style="font-size: 12px; color: var(--fn)">
+      <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">Presets</h1>
+      <span style="font-size: 13.5px; color: var(--fn)">
         Bundled channel sets, placed into slots you choose. Nothing commits until you have seen the plan.
       </span>
     </div>
@@ -457,7 +457,7 @@ function stage() {
       <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; overflow: hidden">
         <div
           class="flex items-center gap-[7px]"
-          style="padding: 9px 12px; border-bottom: 1px solid var(--ln)"
+          style="padding: 12px 15px; border-bottom: 1px solid var(--ln)"
         >
           <UIcon name="i-lucide-layers" style="width: 12px; height: 12px; color: var(--fn)" />
           <span class="label-xs" style="letter-spacing: 0.07em">Library</span>
@@ -471,7 +471,7 @@ function stage() {
             :key="set.id"
             type="button"
             class="w-full flex items-center justify-between gap-2 text-left"
-            style="padding: 6px 12px; font-size: 12.5px; cursor: pointer"
+            style="padding: 6px 12px; font-size: 14px; cursor: pointer"
             :style="{
               borderLeft: `2px solid ${selectedId === set.id ? 'var(--tx)' : 'transparent'}`,
               background: selectedId === set.id ? 'var(--pn2)' : 'transparent',
@@ -494,13 +494,13 @@ function stage() {
               />
               <span class="truncate">{{ set.shortName }}</span>
             </span>
-            <span class="font-mono tabular shrink-0" style="font-size: 11px; color: var(--fn)">
+            <span class="font-mono tabular shrink-0" style="font-size: 12.5px; color: var(--fn)">
               {{ set.channels.length }}
             </span>
           </button>
         </div>
 
-        <div style="border-top: 1px solid var(--ln); padding: 9px 12px" class="grid gap-2">
+        <div style="border-top: 1px solid var(--ln); padding: 12px 15px" class="grid gap-2">
           <input
             ref="fileInput"
             type="file"
@@ -515,7 +515,7 @@ function stage() {
             size="sm"
             @click="fileInput?.click()"
           />
-          <p style="font-size: 11px; line-height: 1.5; color: var(--fn); margin: 0">
+          <p style="font-size: 12.5px; line-height: 1.5; color: var(--fn); margin: 0">
             Export a list from
             <a
               href="https://www.repeaterbook.com/"
@@ -538,14 +538,14 @@ function stage() {
 
       <!-- Contents -->
       <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; overflow: hidden">
-        <div style="padding: 12px 14px; border-bottom: 1px solid var(--ln)">
+        <div style="padding: 15px 17px; border-bottom: 1px solid var(--ln)">
           <div class="flex items-baseline gap-2.5 flex-wrap" style="margin-bottom: 4px">
-            <span style="font-size: 13.5px; font-weight: 600; color: var(--tx)">{{ selectedSet.name }}</span>
+            <span style="font-size: 15px; font-weight: 600; color: var(--tx)">{{ selectedSet.name }}</span>
             <span class="chip" :style="chipStyle(selectedSet.source === 'Bundled' ? 'neutral' : 'in')">
               {{ selectedSet.source }}
             </span>
           </div>
-          <p style="margin: 0; font-size: 12px; line-height: 1.55; color: var(--mu); max-width: 72ch">
+          <p style="margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--mu); max-width: 72ch">
             {{ selectedSet.description }}
           </p>
         </div>
@@ -597,20 +597,20 @@ function stage() {
             </button>
             <span
               class="font-mono tabular text-right"
-              style="font-size: 11.5px; color: var(--fn)"
+              style="font-size: 13px; color: var(--fn)"
             >{{ at + 1 }}</span>
             <span
               class="truncate"
-              style="font-size: 12.5px; font-weight: 500"
+              style="font-size: 14px; font-weight: 500"
               :style="{ color: excluded.has(at) ? 'var(--fn)' : 'var(--tx)' }"
             >{{ channel.name }}</span>
-            <span class="font-mono tabular text-right" style="font-size: 12px; color: var(--tx)">
+            <span class="font-mono tabular text-right" style="font-size: 13.5px; color: var(--tx)">
               {{ (channel.rxFreq / 1e6).toFixed(5) }}
             </span>
-            <span class="font-mono tabular" style="font-size: 12px; color: var(--mu)">
+            <span class="font-mono tabular" style="font-size: 13.5px; color: var(--mu)">
               {{ channel.tone.tx?.kind === 'ctcss' ? (channel.tone.tx.deciHz / 10).toFixed(1) : '—' }}
             </span>
-            <span class="font-mono tabular text-right" style="font-size: 12px; color: var(--fn)">
+            <span class="font-mono tabular text-right" style="font-size: 13.5px; color: var(--fn)">
               {{ channel.txAllowed ? formatPower(channel.powerMW) : '—' }}
             </span>
             <span class="chip justify-self-start" :style="chipStyle(channel.txAllowed ? 'neutral' : 'cn')">
@@ -630,7 +630,7 @@ function stage() {
           <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; overflow: hidden">
             <div
               class="flex items-center gap-[7px]"
-              style="padding: 9px 13px; border-bottom: 1px solid var(--ln)"
+              style="padding: 12px 16px; border-bottom: 1px solid var(--ln)"
             >
               <UIcon name="i-lucide-hash" style="width: 12px; height: 12px; color: var(--fn)" />
               <span class="label-xs" style="letter-spacing: 0.07em">Placement</span>
@@ -640,7 +640,7 @@ function stage() {
               <label
                 for="preset-start-slot"
                 class="block"
-                style="font-size: 11.5px; color: var(--mu); margin-bottom: 7px"
+                style="font-size: 13px; color: var(--mu); margin-bottom: 7px"
               >Start at slot</label>
               <div class="flex items-center gap-2" style="margin-bottom: 13px">
                 <input
@@ -651,20 +651,20 @@ function stage() {
                   maxlength="3"
                   :value="startSlot"
                   style="
-                    height: 29px;
+                    height: 33px;
                     width: 64px;
                     border: 1px solid var(--ln2);
                     background: var(--bg);
                     color: var(--tx);
                     border-radius: 5px;
-                    font-size: 13px;
+                    font-size: 14.5px;
                     padding: 0 9px;
                     outline: none;
                   "
                   @input="onStartInput"
                 >
                 <UIcon name="i-lucide-arrow-right" style="width: 12px; height: 12px; color: var(--fn)" />
-                <span class="tabular" style="font-size: 11.5px; color: var(--fn)">{{ rangeLabel }}</span>
+                <span class="tabular" style="font-size: 13px; color: var(--fn)">{{ rangeLabel }}</span>
               </div>
 
               <div class="grid gap-1.5">
@@ -691,7 +691,7 @@ function stage() {
                     }"
                   />
                   <span class="min-w-0">
-                    <span class="flex items-center gap-1.5" style="font-size: 12px; font-weight: 500">
+                    <span class="flex items-center gap-1.5" style="font-size: 13.5px; font-weight: 500">
                       <UIcon
                         :name="option.icon"
                         class="shrink-0"
@@ -706,7 +706,7 @@ function stage() {
                     </span>
                     <span
                       class="block"
-                      style="font-size: 11px; color: var(--fn); line-height: 1.4; margin-top: 2px"
+                      style="font-size: 12.5px; color: var(--fn); line-height: 1.4; margin-top: 2px"
                     >{{ option.sub }}</span>
                   </span>
                 </button>
@@ -720,7 +720,7 @@ function stage() {
           >
             <div
               class="flex items-center gap-[7px]"
-              style="padding: 9px 13px; border-bottom: 1px solid var(--ln)"
+              style="padding: 12px 16px; border-bottom: 1px solid var(--ln)"
             >
               <UIcon name="i-lucide-scale" style="width: 12px; height: 12px; color: var(--fn)" />
               <span class="label-xs" style="letter-spacing: 0.07em">What will change</span>
@@ -736,7 +736,7 @@ function stage() {
               >
                 <span
                   class="font-mono tabular text-right shrink-0"
-                  style="font-size: 11.5px; color: var(--fn); width: 22px"
+                  style="font-size: 13px; color: var(--fn); width: 22px"
                 >{{ row.slot }}</span>
                 <span
                   class="chip shrink-0 justify-center"
@@ -746,11 +746,11 @@ function stage() {
                   <UIcon :name="PLAN_KIND[row.kind].icon" style="width: 11px; height: 11px" />
                   {{ PLAN_KIND[row.kind].label }}
                 </span>
-                <span class="truncate" style="font-size: 12px; color: var(--tx)">{{ row.text }}</span>
+                <span class="truncate" style="font-size: 13.5px; color: var(--tx)">{{ row.text }}</span>
               </div>
             </div>
 
-            <div style="border-top: 1px solid var(--ln); padding: 11px 13px" class="grid gap-2">
+            <div style="border-top: 1px solid var(--ln); padding: 17px 19px" class="grid gap-2">
               <div v-if="plan.note" class="flex items-start gap-[7px]">
                 <UIcon
                   name="i-lucide-triangle-alert"
@@ -759,7 +759,7 @@ function stage() {
                   :style="{ color: TONES[plan.noteTone].color }"
                 />
                 <p
-                  style="margin: 0; font-size: 11.5px; line-height: 1.5"
+                  style="margin: 0; font-size: 13px; line-height: 1.5"
                   :style="{ color: TONES[plan.noteTone].color }"
                 >{{ plan.note }}</p>
               </div>
@@ -772,7 +772,7 @@ function stage() {
                 @click="stage"
               />
 
-              <span style="font-size: 11px; color: var(--fn); line-height: 1.5">
+              <span style="font-size: 12.5px; color: var(--fn); line-height: 1.5">
                 Staged into the open codeplug only. Nothing reaches the radio until you write.
               </span>
             </div>
@@ -785,16 +785,16 @@ function stage() {
         >
           <div
             class="flex items-center gap-[7px]"
-            style="padding: 9px 13px; border-bottom: 1px solid var(--ln)"
+            style="padding: 12px 16px; border-bottom: 1px solid var(--ln)"
           >
             <UIcon name="i-lucide-hash" style="width: 12px; height: 12px; color: var(--fn)" />
             <span class="label-xs" style="letter-spacing: 0.07em">Placement</span>
           </div>
           <div style="padding: 13px">
-            <h2 style="font-size: 13px; font-weight: 600; color: var(--tx); margin-bottom: 5px">
+            <h2 style="font-size: 14.5px; font-weight: 600; color: var(--tx); margin-bottom: 5px">
               No codeplug open
             </h2>
-            <p style="margin: 0 0 13px; font-size: 12px; line-height: 1.55; color: var(--mu)">
+            <p style="margin: 0 0 13px; font-size: 13.5px; line-height: 1.55; color: var(--mu)">
               A preset is placed into slots, and there are no slots without a codeplug. Read a radio, or open a
               codeplug file you saved earlier. The sets stay readable meanwhile.
             </p>
