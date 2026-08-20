@@ -282,11 +282,83 @@ that the later ones shuffle down. Writing a channel into a block the radio has
 not allocated is refused by name, because a silently misplaced channel takes
 every zone and scan-list entry pointing at either number with it.
 
+## The structures that were never read — 2026-08-20
+
+Five more decoded, mapped from the reference and then falsified against this
+radio's own 241,664 bytes. Three would have been decoded wrongly by following
+the spec alone.
+
+| Structure | Block | Shape | The trap |
+|---|---|---|---|
+| Scan lists | `0x11` | 1-byte count, 57-byte records | the count is **one** byte; `0x001` is already the `S` of "Scan List 1", so a 16-bit read reports 21,250 lists |
+| RX groups | `0x0F` | 17-byte header, 109-byte records | the first four bytes are an **occupancy bitmask**, not a count — read as an integer this radio claims 31 groups and has 5 |
+| Radio IDs | `0x67` | 16-byte header, 16-byte records | the DMR ID is **u24le at the top of the record**, not after the name |
+| Settings | `0x04` | one sparse struct in a 4 KiB page | perhaps a tenth of the page is named with confidence; `ownedRanges` is computed from the struct and comes to under 200 bytes |
+| Talk group index | `0x0B` | counts, bitmask, two sorted tables | called a "Quick Access Contact List" and is not an address book — decoded, never written |
+
+The **DMR address book** is not a block at all. It lives in a raw region found
+per session by V-frame `0x0F` (`0x278000`–`0x6DBFFF`, ~4.4 MiB here), with no
+logical id at `0xFFF` and no translation layer — real physical addresses that
+stay put. It is read count-first, so a radio with no contacts costs one
+four-byte read rather than seven minutes. Entries are 92 bytes and **do not
+straddle a page**: 44 per page, 44 × 92 = 4048, and the flat `index * 92`
+formula in circulation is wrong twice over. Read only, and it is dropped from a
+raw `.bin` export because a flat file has nowhere to record where it came from.
+
+### Zone membership is writable; scan list membership is not
+
+Zone membership was settled by this radio, as recorded above. Scan list
+membership was not, and the disagreement is worth writing down because both
+sides have direct evidence.
+
+| Reading | Members at | Slots | Evidence |
+|---|---|---|---|
+| A | `+0x18` | 16 | this radio: `0x0B` = 16 and 9, and the non-zero words from `+0x18` are 16 and 9 |
+| B | `+0x1A` | 15 | the reference's OEM CPS write capture: all nine lists store `0x0000` at `+0x18` |
+
+Every populated record on this radio matches A on the count and misses B by
+exactly one. Under B, record 1's count of 16 exceeds the 15 slots B allows at
+all. Under A, the vendor's own software wrote "channel 0" as the first member of
+every list it ever saved.
+
+Writing the wrong one shifts every channel in the list, so neither is written.
+The name is unambiguous and is. Settling it needs one deliberate edit **on the
+radio's own keypad** — change a scan list's membership to something
+non-sequential, read the block back, and see which offset moved.
+
+### Channel keys
+
+`DM32_KEY_FUNCTIONS` is transcribed from `05-DATA-STRUCTURES.md:2253-2271`. An
+earlier version claimed the same provenance without it: it agreed for the first
+fourteen values and invented every one after. Because the settings schema builds
+its dropdown as `map((label, value) => …)`, the index *is* the byte written, so
+a wrong label was a wrong byte. This radio's `0x088`/`0x089`/`0x08D`/`0x08F` =
+`0x1c`/`0x19`/`0x11`/`0x10` read as Keypad Lock, Monitor, Zone Down, Zone Up —
+the Zone Down/Zone Up pair on the two programmable keys is the tell.
+
+### Radio IDs are addressed by slot
+
+A radio ID's index *is* its physical slot, and channel byte `0x2B` points at it.
+The bank is written back slot by slot, never repacked: packing it densely would
+silently repoint every channel after a gap, and an entry the count did not reach
+got copied down and left in place, so the bank held the same ID twice. The count
+covers the highest occupied slot rather than how many entries there are.
+
 ## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied
   slot has not been established.
-- Settings, contacts, RX groups, scan lists and radio IDs — never decoded.
+- **Scan list membership.** See the two readings above; the name is written and
+  the membership is not.
+- **Writing the DMR address book.** Read only. There is no hardware sample with
+  more than one entry in it, and the walk past the first page rests entirely on
+  the reference implementation.
+- **Block `0x0B`**, the radio's own talk-group index. Decoded, never written:
+  regenerating it means keeping two counts, a bitmask and two sorted tables in
+  step, and no observed radio has ever had them out of step. Renaming a talk
+  group therefore leaves the radio's own name-ordering stale until it rebuilds
+  it — cosmetic, and disclosed rather than fixed.
+- Contacts beyond the address book, roaming zones and roaming channels.
 - The meaning of 22 allocated blocks.
 - Whether the alignment of a *short* key differs from a full one. Only AES-256,
   which fills the whole 32-byte field, has been written.

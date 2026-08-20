@@ -135,7 +135,7 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       doc.zones[0] = { ...doc.zones[0]!, channels: liveChannels }
 
       const scanWas = doc.scanLists[0]
-      if (scanWas) doc.scanLists[0] = { ...scanWas, name: 'HW SCAN', channels: liveChannels }
+      if (scanWas) doc.scanLists[0] = { ...scanWas, name: 'HW SCAN' }
 
       const rxWas = doc.rxGroups[0]
       if (rxWas) doc.rxGroups[0] = { ...rxWas, name: 'HW RXG', dmrIds: [3105, 91] }
@@ -225,7 +225,9 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
 
       if (scanWas) {
         expect(back.scanLists[0]!.name).toBe('HW SCAN')
-        expect(back.scanLists[0]!.channels).toEqual(liveChannels)
+        // Membership is deliberately not written: two readings of those bytes
+        // sit one word apart and both have direct evidence.
+        expect(back.scanLists[0]!.channels, 'scan list membership reached the radio').toEqual(scanWas.channels)
         expect(block(after, SCANLIST_BLOCK)[0], 'the scan list count moved').toBe(baseline0ScanCount)
       }
       if (rxWas) {
