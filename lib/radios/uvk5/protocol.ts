@@ -71,10 +71,27 @@ export function buildFrame(payload: Uint8Array): Uint8Array {
   return frame
 }
 
+/**
+ * The value the radio puts where a reply checksum would go.
+ *
+ * Stock firmware 2.01.32 sends 0xFFFF on every reply: it does not checksum what
+ * it sends. Confirmed against hardware - the hello reply carried 0xFFFF while
+ * its payload actually checksums to 0x5608. This is why CHIRP never verifies
+ * reply checksums, and why boofwang verifying them "as an improvement" broke
+ * every real conversation while passing every synthetic test: the fakes were
+ * generating a checksum the radio does not.
+ */
+export const NO_REPLY_CHECKSUM = 0xffff
+
 export interface FramingOpts extends ReadOpts {
   /** Human-readable USB adapter description, quoted back in a loopback error. */
   adapter?: string | undefined
-  /** Verify the reply CRC. CHIRP does not; we do by default, and say so on failure. */
+  /**
+   * Verify the reply checksum when the radio supplies one.
+   *
+   * A reply carrying {@link NO_REPLY_CHECKSUM} is always accepted: that is the
+   * radio declining to checksum, not a corrupted frame.
+   */
   verifyCrc?: boolean | undefined
 }
 
@@ -100,17 +117,23 @@ export async function readFrame(t: Transport, opts: FramingOpts = {}): Promise<U
   const payload = xorArray(body)
 
   if (opts.verifyCrc !== false) {
-    // The first two footer bytes are the CRC over the payload, obfuscated
-    // continuing from where the body left off.
+    // The first two footer bytes sit where a checksum over the payload would
+    // go, obfuscated continuing from where the body left off.
     const deob = xorArray(Uint8Array.from([...body, footer[0]!, footer[1]!]))
     const got = deob[length]! | (deob[length + 1]! << 8)
-    const want = crc16Xmodem(payload)
-    if (got !== want) {
-      throw new ProtocolError(
-        'UV-K5 reply failed its checksum',
-        `crc16 ${want.toString(16).padStart(4, '0')}`,
-        `crc16 ${got.toString(16).padStart(4, '0')} for payload ${hexDump(payload, 16)}`,
-      )
+    // The radio does not checksum its replies; it sends 0xFFFF. Insisting on a
+    // real value here rejects every genuine reply. Checking when one *is*
+    // present costs nothing and would catch corruption on a firmware that
+    // bothers, so the check stays, gated on the sentinel.
+    if (got !== NO_REPLY_CHECKSUM) {
+      const want = crc16Xmodem(payload)
+      if (got !== want) {
+        throw new ProtocolError(
+          'UV-K5 reply failed its checksum',
+          `crc16 ${want.toString(16).padStart(4, '0')}`,
+          `crc16 ${got.toString(16).padStart(4, '0')} for payload ${hexDump(payload, 16)}`,
+        )
+      }
     }
   }
 

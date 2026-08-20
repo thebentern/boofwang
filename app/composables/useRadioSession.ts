@@ -25,8 +25,10 @@ export function useRadioSession() {
     }
 
     // requestPort needs transient user activation, so it has to be the first
-    // thing that happens after the click.
-    const choice = await requestPort()
+    // thing that happens after the click. `acquirePort` is the same call unless
+    // the dev bridge is enabled (see useWebSerial), in which case the port
+    // comes from a localhost socket instead of the native chooser.
+    const choice = await acquirePort()
     if (!choice) return
 
     try {

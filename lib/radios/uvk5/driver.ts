@@ -314,7 +314,12 @@ export function decodeChannel(mem: Uint8Array, i: number): Channel | null {
     bandwidthHz: isNarrow ? BANDWIDTH_NARROW_HZ : BANDWIDTH_WIDE_HZ,
     power: { mW: powerLevel.mW, label: powerLevel.label },
     tuningStep: hz(stepHz) as Hz,
-    skip: attr !== null && attr.isScanlist1 === 0 && attr.isScanlist2 === 0 ? 'skip' : 'none',
+    // CHIRP declares `rf.valid_skips = []` for this radio: it has no skip flag.
+    // Scan behaviour is expressed purely by scanlist membership, which lives in
+    // `extras.uvk5`. Deriving a skip from "in neither scanlist" would invent a
+    // field the radio does not have and, worse, stamp `S` on every exported CSV
+    // row - marking every channel scan-skipped on whatever radio imported it.
+    skip: 'none',
     comment: '',
     extras: {
       uvk5: {

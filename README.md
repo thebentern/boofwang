@@ -48,6 +48,38 @@ directory:
 ./scripts/fetch-reference.sh
 ```
 
+## Driving a real radio from an automated session
+
+Web Serial deliberately requires a person to answer a native port chooser, which
+means an automated session can never obtain a port on its own. That is the right
+design for a tool that talks to hardware, and it also means iterating on a
+driver against a real radio would otherwise need a human clicking a dialog on
+every run.
+
+`tools/serial-bridge` closes that loop. It is a localhost WebSocket-to-serial
+process, run by hand, that hands the browser a `SerialPortLike` backed by a
+socket instead of `navigator.serial`:
+
+```bash
+pnpm bridge                       # in one terminal
+pnpm dev                          # in another
+# then open http://localhost:3000/boofwang/?bridge
+```
+
+Everything below the `SerialPortLike` seam — transport framing, timeouts, the
+protocol, the driver, decode, and the whole UI — is the shipping code path. What
+it does **not** exercise is the roughly thirty lines of `navigator.serial` glue
+in `app/composables/useWebSerial.ts`, which still needs a human and a real port.
+That gap is why this is a development aid and not a feature: the bridge binds to
+127.0.0.1 only, rejects non-localhost origins, is never started by the app or
+the build, and the client side is gated behind both a dev build and an explicit
+`?bridge` query parameter.
+
+It earns its keep. Two bugs that every synthetic test had passed showed up
+within minutes of the first real read: boofwang was verifying a reply checksum
+the radio does not compute, and inventing a scan-skip flag the radio does not
+have.
+
 ## How it is put together
 
 ```

@@ -25,7 +25,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "check:headers": "node scripts/check-headers.mjs"
+    "check:headers": "node scripts/check-headers.mjs",
+    "bridge": "node tools/serial-bridge/server.mjs"
   },
   "dependencies": {
     "@nuxt/ui": "^4.10.0",
@@ -43,11 +44,14 @@
     "@nuxt/eslint": "^1.9.0",
     "@types/node": "^24.0.0",
     "@types/w3c-web-serial": "^1.0.8",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^3.2.0",
     "eslint": "^10.8.1",
     "fast-check": "^4.1.1",
+    "serialport": "^13.0.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0",
-    "vue-tsc": "^3.0.0"
+    "vue-tsc": "^3.0.0",
+    "ws": "^8.21.3"
   }
 }

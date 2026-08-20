@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { SerialPortLike } from '#core/transport/transport.js'
+import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial-port.js'
 
 /**
  * The only place in boofwang that touches `navigator.serial`.
@@ -110,4 +111,79 @@ export async function saveFile(data: Uint8Array | string, filename: string, mime
   a.click()
   URL.revokeObjectURL(url)
   return true
+}
+
+// ---------------------------------------------------------- dev-only bridge --
+
+/**
+ * The development serial bridge.
+ *
+ * `requestPort()` can only be answered by a person clicking a native chooser,
+ * which means an automated session cannot get a port at all. That is correct
+ * for a tool that talks to hardware, and it is also why bringing up a driver
+ * against a real radio otherwise needs a human in the loop on every iteration.
+ *
+ * With `pnpm bridge` running, adding `?bridge` to the URL routes port selection
+ * through a localhost socket instead. Everything below `SerialPortLike` - the
+ * transport, framing, protocol, driver, decode and UI - is unchanged, so what
+ * gets exercised is the shipping code path rather than a parallel one. The
+ * `navigator.serial` glue in this file is the part that is not covered, and it
+ * is deliberately kept small for that reason.
+ *
+ * Guarded three ways: only in a dev build, only with the query parameter, and
+ * only against a socket the bridge itself refuses to expose off-box.
+ */
+const BRIDGE_DEFAULT_URL = 'ws://127.0.0.1:8765'
+
+export function bridgeUrl(): string | null {
+  if (!import.meta.dev) return null
+  if (typeof window === 'undefined') return null
+  const params = new URLSearchParams(window.location.search)
+  if (!params.has('bridge')) return null
+  return params.get('bridge') || BRIDGE_DEFAULT_URL
+}
+
+export function bridgeEnabled(): boolean {
+  return bridgeUrl() !== null
+}
+
+/**
+ * Pick a port through the bridge.
+ *
+ * Chooses the single adapter when there is only one, which is the case that
+ * matters for an iteration loop. With several attached it prefers one whose USB
+ * vendor is a known serial bridge, and otherwise refuses to guess.
+ */
+export async function requestBridgePort(): Promise<PortChoice | null> {
+  const url = bridgeUrl()
+  if (!url) return null
+
+  const ports = await listBridgePorts(url)
+  if (ports.length === 0) throw new Error('The bridge sees no serial adapters. Is the cable plugged in?')
+
+  let chosen = ports[0]!
+  if (ports.length > 1) {
+    const known = ports.filter((p) => p.vendorId !== null && p.vendorId in USB_BRIDGES)
+    if (known.length !== 1) {
+      throw new Error(
+        `The bridge sees ${ports.length} adapters and cannot choose between them: ` +
+          `${ports.map((p) => p.path).join(', ')}.`,
+      )
+    }
+    chosen = known[0]!
+  }
+
+  const port = new BridgeSerialPort(url, chosen)
+  return {
+    port,
+    info: {
+      ...(chosen.vendorId === null ? {} : { usbVendorId: chosen.vendorId }),
+      ...(chosen.productId === null ? {} : { usbProductId: chosen.productId }),
+    },
+  }
+}
+
+/** Bridge if it is enabled, otherwise the real chooser. */
+export async function acquirePort(): Promise<PortChoice | null> {
+  return bridgeEnabled() ? requestBridgePort() : requestPort()
 }

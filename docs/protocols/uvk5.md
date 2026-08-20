@@ -27,6 +27,17 @@ Confirmed by this session:
 - `1B 05 08 00 <off:u16le> <len:u8> 00 <magic>` reads 128 bytes per call; the
   whole `0x2000` takes 64 calls.
 - No echo of transmitted frames on a working adapter.
+- **The radio does not checksum its replies.** Every reply carries `0xFFFF`
+  where a checksum over the payload would go — the hello reply carried `0xFFFF`
+  while its payload actually checksums to `0x5608`. This is why CHIRP never
+  verifies reply checksums. boofwang briefly did, described in a comment as an
+  improvement, which rejected every genuine reply while passing every synthetic
+  test, because the fakes computed a checksum the radio does not. It now accepts
+  `0xFFFF` as "none supplied" and verifies only a real value.
+- **The radio has no skip flag.** CHIRP declares `rf.valid_skips = []`; scan
+  behaviour is scanlist membership alone. Deriving a skip from "in neither
+  scanlist" put `S` on all 31 rows of an exported CSV, which would mark every
+  channel scan-skipped on whatever radio imported it.
 
 Decode was cross-checked by parsing the same image with CHIRP's own `bitwise`
 engine and the `MEM_FORMAT` string from `uvk5.py`, then comparing field by

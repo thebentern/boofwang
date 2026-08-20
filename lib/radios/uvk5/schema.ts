@@ -60,7 +60,8 @@ export const UVK5_SCHEMA: RadioSchema = {
     toneModes: ['none', 'tone', 'tsql', 'dtcs', 'cross'],
     ctcssDeciHz: CTCSS_DECIHZ,
     dtcsCodes: DTCS_CODES,
-    canSkip: true,
+    // No skip flag exists on this radio; CHIRP declares valid_skips = [].
+    canSkip: false,
     hasRxDtcs: true,
     hasCtone: true,
     /**

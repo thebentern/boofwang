@@ -18,7 +18,14 @@ import {
   nameAddr,
 } from '#core/radios/uvk5/layout.js'
 import { classifyFirmware } from '#core/radios/uvk5/variants.js'
-import { buildFrame, xorArray } from '#core/radios/uvk5/protocol.js'
+import {
+  NO_REPLY_CHECKSUM,
+  buildFrame,
+  parseFirmwareString,
+  readFrame,
+  xorArray,
+} from '#core/radios/uvk5/protocol.js'
+import { crc16Xmodem, fromHex } from '#core/codec/checksum.js'
 import { FakeSerialPort } from '#core/transport/fake-serial-port.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import type { RadioImage } from '#core/radio/image.js'
@@ -314,5 +321,81 @@ describe('the whole stack, replaying a real radio', () => {
     )
     expect(live.channels.get(5)).toMatchObject({ name: 'CH005', rxFreq: 146_025_000 })
     await t.close()
+  })
+})
+
+describe('frames exactly as the radio sent them', () => {
+  /**
+   * A verbatim hello reply, captured over an FTDI cable from a UV-K5 running
+   * 2.01.32. Not synthesised, and that is the entire point.
+   *
+   * boofwang once verified the checksum on every reply, described in the code
+   * as an improvement over CHIRP. Every synthetic test passed, because the
+   * fakes computed a correct checksum. The radio does not: it sends 0xFFFF and
+   * leaves it there. So the "improvement" rejected every genuine reply, and
+   * only a real radio could show it.
+   */
+  const REAL_HELLO_REPLY =
+    'abcd280003693 0e61cbf3d710f06e740b3e1e98016 6c14c62e910d409de26100 3b38cabe4df3cddcf53a9578deca dcba'.replaceAll(
+      ' ',
+      '',
+    )
+
+  it('accepts the reply the radio actually sends', async () => {
+    const port = new FakeSerialPort({ greeting: fromHex(REAL_HELLO_REPLY) })
+    const t = new SerialTransport(port)
+    await t.open({ baudRate: 38_400 })
+    const payload = await readFrame(t, { timeoutMs: 500 })
+    expect(payload[0]).toBe(0x15)
+    expect(parseFirmwareString(payload)).toBe('2.01.32')
+    await t.close()
+  })
+
+  it('confirms the radio supplies no checksum at all', () => {
+    const raw = fromHex(REAL_HELLO_REPLY)
+    const length = raw[2]!
+    const body = raw.subarray(4, 4 + length)
+    const footer = raw.subarray(4 + length, 4 + length + 4)
+    const deob = xorArray(Uint8Array.from([...body, footer[0]!, footer[1]!]))
+    const supplied = deob[length]! | (deob[length + 1]! << 8)
+    expect(supplied).toBe(NO_REPLY_CHECKSUM)
+    // And it is genuinely not the payload's checksum, so this is the radio
+    // declining rather than a coincidence.
+    expect(crc16Xmodem(xorArray(body))).not.toBe(NO_REPLY_CHECKSUM)
+  })
+
+  it('still rejects a frame whose supplied checksum is wrong', async () => {
+    // Firmware that does checksum its replies should still be held to it.
+    const body = Uint8Array.from([0x15, 0x05, 0x00, 0x00, 0x32, 0x2e, 0x30, 0x31, 0x00])
+    const good = buildFrame(body)
+    good[good.length - 4] = good[good.length - 4]! ^ 0x5a // corrupt the checksum
+    const t = new SerialTransport(new FakeSerialPort({ greeting: good }))
+    await t.open({ baudRate: 38_400 })
+    await expect(readFrame(t, { timeoutMs: 300 })).rejects.toThrow(/checksum/)
+    await t.close()
+  })
+})
+
+describe('fields this radio does not have', () => {
+  const cp = createUvk5Driver().decode(realImage())
+
+  it('never reports a skip flag, because the UV-K5 has none', () => {
+    // CHIRP declares `rf.valid_skips = []` for this radio. Scan behaviour is
+    // scanlist membership and nothing else. Deriving a skip from "in neither
+    // scanlist" stamped `S` on every exported CSV row, which would mark every
+    // channel scan-skipped on whatever radio imported the file.
+    expect(createUvk5Driver().schema.rf.canSkip).toBe(false)
+    for (const c of cp.channels.values()) {
+      expect(c.skip, `channel ${c.index}`).toBe('none')
+    }
+  })
+
+  it('still records scanlist membership, where it actually lives', () => {
+    for (const c of cp.channels.values()) {
+      if (c.index > NAMED_CHANNEL_COUNT) continue
+      expect(c.extras.uvk5).toBeDefined()
+      expect(typeof c.extras.uvk5!.scanList1).toBe('boolean')
+      expect(typeof c.extras.uvk5!.scanList2).toBe('boolean')
+    }
   })
 })
