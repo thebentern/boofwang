@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { defineStore } from 'pinia'
 import type { Channel } from '#core/model/channel.js'
+import { hz } from '#core/model/units.js'
 import type { Codeplug } from '#core/model/codeplug.js'
 import { sortedChannels } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
@@ -100,6 +101,61 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   }
 
   /** Remove a channel. The slot is erased on the radio when the image is written. */
+  /**
+   * Program an empty slot.
+   *
+   * `updateChannel` deliberately does nothing for a slot that holds no channel,
+   * which left the editor able to change and delete but never create - the one
+   * missing verb. The defaults come from the schema rather than a constant, so
+   * a new channel lands inside a band the radio actually covers and at a power
+   * level it actually has.
+   *
+   * Nothing is written to the radio here. The driver decides what an empty slot
+   * becoming programmed means on the wire, which on at least one radio includes
+   * clearing bits that read as set in erased flash.
+   */
+  function createChannel(index: number): Channel | null {
+    const cp = doc.value
+    const schema = driverRef.value?.schema
+    if (!cp || !schema || cp.channels.has(index)) return null
+
+    const band = schema.rf.bands.find((b) => b.txAllowed) ?? schema.rf.bands[0]
+    if (!band) return null
+
+    const created: Channel = Object.freeze<Channel>({
+      index,
+      name: '',
+      rxFreq: band.loHz,
+      tx: { kind: 'simplex' },
+      txAllowed: band.txAllowed,
+      ...(band.txAllowed ? {} : { txInhibitReason: `${band.label} is receive-only` }),
+      tone: { rx: null, tx: null, rxInverted: false },
+      modulation: schema.rf.modulations[0] ?? 'FM',
+      bandwidthHz: schema.rf.bandwidths[0] ?? 12_500,
+      // The lowest level the radio has, not the highest. A new channel should
+      // not arrive at full power by default, and the first entry of a schema
+      // carrying more than one variant's table may be a level this radio does
+      // not have at all.
+      power: (() => {
+        const lowest = [...schema.rf.powerLevels].sort((a, b) => a.mW - b.mW)[0]!
+        return { mW: lowest.mW, label: lowest.label }
+      })(),
+      tuningStep: schema.rf.tuningSteps[0] ?? hz(5000),
+      skip: 'none',
+      comment: '',
+      extras: {},
+    })
+
+    cp.channels.set(index, created)
+    channels.value = Object.freeze(
+      [...channels.value, created].sort((a, b) => a.index - b.index),
+    )
+    revalidate()
+    revision.value++
+    dirty.value = true
+    return created
+  }
+
   function deleteChannel(index: number) {
     if (!doc.value?.channels.delete(index)) return
     channels.value = Object.freeze(channels.value.filter((c) => c.index !== index))
@@ -188,6 +244,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     encoded,
     encodeError,
     pendingWrite,
+    createChannel,
     deleteChannel,
     setEncryptionKey,
     removeEncryptionKey,

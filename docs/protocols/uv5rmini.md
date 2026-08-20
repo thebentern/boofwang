@@ -204,9 +204,10 @@ The radio was restored to `0b029cf2...` byte for byte afterwards.
 
 - The `5RM` variant. Its ident, region map, channel count and power table are
   transcribed and unit-tested, but no 5RM has been on the cable.
-- Creating a channel in an empty slot **on hardware**. The encoder path is
-  tested and the erased-flash bits are cleared, but `updateChannel` will not
-  create a channel, so the interface cannot reach it yet.
+- Nothing outstanding for the channel path. Creating a channel in an empty slot
+  was verified on hardware: 24 bytes changed, all inside the slot, and CHIRP
+  read back `scramble 0, fhss 0, sqmode 0, bcl 0` with the four unknown bytes
+  clear - the erased-flash bits are cleared rather than inherited.
 
 ## The rest of the image
 

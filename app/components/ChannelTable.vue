@@ -19,7 +19,7 @@ import { exportChirpCsv } from '#core/io/chirp-csv.js'
  * unwritten edit and an empty slot each have their own glyph and colour, and
  * the two that carry consequence also tint the row.
  */
-const emit = defineEmits<{ edit: [Channel] }>()
+const emit = defineEmits<{ edit: [Channel]; create: [number] }>()
 
 const codeplug = useCodeplugStore()
 const session = useRadioSession()
@@ -955,9 +955,10 @@ const headerStyle = computed(() => ({
               right: 0,
               transform: `translateY(${r.start}px)`,
             }"
-            :tabindex="r.row.channel ? 0 : -1"
-            @click="r.row.channel && emit('edit', r.row.channel)"
-            @keydown.enter.self="r.row.channel && emit('edit', r.row.channel)"
+            :tabindex="0"
+            :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty — click to program it`"
+            @click="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
+            @keydown.enter.self="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
           >
             <!-- Selection -->
             <span class="flex items-center justify-center" @click.stop>

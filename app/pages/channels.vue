@@ -14,6 +14,19 @@ useSeoMeta({ title: 'Channels' })
 const codeplug = useCodeplugStore()
 
 const editing = ref<Channel | null>(null)
+
+/**
+ * Program an empty slot and open it for editing straight away.
+ *
+ * The row is created with schema defaults rather than left blank, because an
+ * editor opened on nothing has no frequency to validate and no power level to
+ * select. The user lands on a real channel they can change, which is also what
+ * makes the diff show something.
+ */
+function onCreate(index: number) {
+  const created = codeplug.createChannel(index)
+  if (created) editing.value = created
+}
 </script>
 
 <template>
@@ -41,7 +54,7 @@ const editing = ref<Channel | null>(null)
     </div>
 
     <template v-else>
-      <ChannelTable @edit="editing = $event" />
+      <ChannelTable @edit="editing = $event" @create="onCreate" />
 
       <!--
         The table edits a name and a receive frequency in place; everything else
