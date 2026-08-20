@@ -158,13 +158,29 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
         raw,
         caps: {
           read: true,
-          // Writing is not implemented yet; see writeImage.
-          write: false,
+          /*
+           * Writable only on a plain UV-82, and only on a firmware whose layout
+           * is recognised.
+           *
+           * The HP is excluded deliberately. It shares this radio's magic and
+           * this driver identifies it, but it has three power levels where the
+           * plain UV-82 has two, indexed by the same two-bit field. This build
+           * models two, so a Low channel on an HP would decode as High and be
+           * written back at 8 W - promoting a channel the user never touched.
+           * Reading and backing one up is unaffected.
+           */
+          write: schema.capabilities.write && basetype !== null && !basetype.triPower,
           ...(basetype === null
             ? {
                 reason:
                   `Firmware ${JSON.stringify(fw.version)} is not one this build recognises, so its memory ` +
                   'layout cannot be assumed. The radio can still be read and backed up.',
+              }
+            : basetype.triPower
+            ? {
+                reason:
+                  `The ${basetype.model} has three power levels and this build models two, so writing could ` +
+                  'change the power on channels you did not touch. It can still be read and backed up.',
               }
             : {}),
         },
@@ -253,12 +269,31 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
        * driver understands - a block with no change in it is never a candidate,
        * so the parts of memory nobody has modelled are never touched.
        */
-      const base = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
+      /*
+       * What to diff against.
+       *
+       * An ordinary write supplies the image the radio was read from, so only
+       * edited blocks are sent. A restore does not - it deliberately expects the
+       * radio to differ from the image being restored, which is the whole point
+       * of restoring. There the radio itself is read first and used as the base,
+       * so a restore still sends only what actually differs rather than
+       * rewriting six kilobytes, and there is still a way back from a bad write.
+       */
+      let base = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
       if (!base) {
-        throw new DriverError(
-          'Writing to the UV-82 needs the image that was read from it, so that only the blocks you ' +
-            'changed are sent. Read the radio, edit, then write.',
-        )
+        const live = new Uint8Array(next.length)
+        live.set(next.subarray(0, IDENT_SIZE), 0)
+        for (let addr = 0; addr < MAIN_SIZE; addr += BLOCK_SIZE) {
+          ctx.signal?.throwIfAborted()
+          live.set(await readBlock(t, addr, BLOCK_SIZE, addr === 0, opts), IDENT_SIZE + addr)
+          ctx.progress?.({
+            phase: 'read',
+            done: addr + BLOCK_SIZE,
+            total: MAIN_SIZE,
+            label: 'Reading what is on the radio now',
+          })
+        }
+        base = live
       }
       if (base.length !== next.length) {
         throw new DriverError('The edited image is a different size to the one that was read')
@@ -508,7 +543,7 @@ export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): v
 
   UV82_CHANNEL.write(mem, addr, {
     rxFreq: ch.rxFreq,
-    ...(keepMarker ? {} : { txFreq }),
+    ...(ch.txAllowed ? { txFreq } : {}),
     rxTone: encodeToneWord(ch.tone.rx, `Channel ${ch.index} receive tone`),
     txTone: encodeToneWord(ch.tone.tx, `Channel ${ch.index} transmit tone`),
     f0e: { lowPower: ch.power.mW <= UV82_SCHEMA.rf.powerLevels[1]!.mW ? POWER_LOW : 0 },
@@ -521,6 +556,24 @@ export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): v
     },
     f0c: { scode: Number(ch.extras.vendor?.scode ?? 0) & 0x0f },
   })
+
+  /*
+   * Receive-only is written as four 0xFF bytes, and only ever as that.
+   *
+   * CHIRP's `_is_txinh` recognises exactly one marker - `FF FF FF FF`. A
+   * transmit frequency of zero is not an inhibit to it: it computes the
+   * distance from the receive frequency, calls the channel a split, and reports
+   * transmit as *enabled*. So a channel that boofwang marked receive-only would
+   * come back transmit-capable in CHIRP and, worse, on the radio.
+   *
+   * That is the failure this codebase cares about most - it is how a weather or
+   * public-safety frequency ends up in a radio someone can key up - so the
+   * marker is written explicitly rather than left to a numeric field that
+   * cannot express it. An existing 0x00 filling is left alone, because CHIRP
+   * reads that as inhibited too and rewriting it would put four pointless bytes
+   * on the wire.
+   */
+  if (!ch.txAllowed && !keepMarker) mem.fill(0xff, addr + 0x04, addr + 0x08)
 
   UV82_NAME.write(mem, nameAddr(i), { name: ch.name.slice(0, NAME_LENGTH) })
 }

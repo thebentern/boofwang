@@ -120,13 +120,14 @@ function listenOnly(name: string, mhz: number, bandwidthHz: number): PresetChann
 const GMRS: PresetSet = {
   id: 'gmrs',
   group: 'us',
-  name: 'GMRS — 22 channels + 8 repeater pairs',
+  name: 'GMRS — 15 channels + 8 repeater pairs',
   shortName: 'GMRS',
   icon: 'i-lucide-users',
   source: 'Bundled',
   description:
-    'The full Part 95E channel set. Channels 8–14 are limited to 0.5 W by rule and are programmed that way; '
-    + 'the eight 462/467 MHz repeater pairs carry a 141.3 Hz tone by convention.',
+    'The Part 95E channels a GMRS licence covers: 1-7 and 15-22, which are shared with FRS and interoperate '
+    + 'directly, plus the eight 462/467 MHz repeater pairs, which carry a 141.3 Hz tone by convention. '
+    + 'Channels 8-14 are FRS-only and are not included.',
   attribution: '47 CFR 95 Subpart E',
   stepHz: kHz(12.5),
   channels: [
@@ -138,14 +139,10 @@ const GMRS: PresetSet = {
     simplex('GMRS 5', 462.6625, 5, BW_20K),
     simplex('GMRS 6', 462.6875, 5, BW_20K),
     simplex('GMRS 7', 462.7125, 5, BW_20K),
-    // 8-14: the 467 MHz interstitials, 0.5 W and narrowband by rule.
-    simplex('FRS 8', 467.5625, 0.5, BW_12K5),
-    simplex('FRS 9', 467.5875, 0.5, BW_12K5),
-    simplex('FRS 10', 467.6125, 0.5, BW_12K5),
-    simplex('FRS 11', 467.6375, 0.5, BW_12K5),
-    simplex('FRS 12', 467.6625, 0.5, BW_12K5),
-    simplex('FRS 13', 467.6875, 0.5, BW_12K5),
-    simplex('FRS 14', 467.7125, 0.5, BW_12K5),
+    // Channels 8-14 are deliberately absent. The 467 MHz interstitials are
+    // FRS-only: a GMRS licensee may not transmit there at all, so a GMRS set
+    // that carried them would be offering channels the licence does not cover.
+    // Channels 1-7 and 15-22 are shared with FRS and interoperate directly.
     // 15-22: the main GMRS channels, 50 W.
     simplex('GMRS 15', 462.55, 50, BW_20K),
     simplex('GMRS 16', 462.575, 50, BW_20K),
@@ -231,6 +228,33 @@ const BAND_2M: PresetSet = {
   ],
 }
 
+
+const BAND_70CM: PresetSet = {
+  id: 'band70cm',
+  group: 'us',
+  name: '70 cm band plan — ARRL',
+  shortName: '70 cm band plan',
+  icon: 'i-lucide-antenna',
+  source: 'Bundled',
+  description:
+    'The national simplex frequency and the simplex channels above it. The ARRL plan calls 446.000 the '
+    + 'national simplex frequency and shares 445-447 MHz between auxiliary links, repeaters and simplex by '
+    + 'local option; the 25 kHz channels above 446.000 are convention rather than rule. Repeater pairs are '
+    + 'local and belong in a CHIRP CSV import.',
+  attribution: 'ARRL 70 cm band plan',
+  stepHz: kHz(25),
+  channels: [
+    simplex('CALL 70CM', 446.0, 5, BW_16K),
+    simplex('SIMPLEX 1', 446.025, 5, BW_16K),
+    simplex('SIMPLEX 2', 446.05, 5, BW_16K),
+    simplex('SIMPLEX 3', 446.075, 5, BW_16K),
+    simplex('SIMPLEX 4', 446.1, 5, BW_16K),
+    simplex('SIMPLEX 5', 446.125, 5, BW_16K),
+    simplex('SIMPLEX 6', 446.15, 5, BW_16K),
+    simplex('SIMPLEX 7', 446.175, 5, BW_16K),
+  ],
+}
+
 const UK_PMR446: PresetSet = {
   id: 'ukpmr',
   group: 'other',
@@ -263,7 +287,7 @@ const UK_PMR446: PresetSet = {
   ],
 }
 
-export const PRESET_SETS: readonly PresetSet[] = [GMRS, NOAA, MURS, BAND_2M, UK_PMR446]
+export const PRESET_SETS: readonly PresetSet[] = [GMRS, NOAA, MURS, BAND_2M, BAND_70CM, UK_PMR446]
 
 /**
  * The library's headings, in order.

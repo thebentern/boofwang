@@ -67,8 +67,15 @@ const POLICIES: readonly { id: Policy, label: string, sub: string, icon: string 
   { id: 'gaps', label: 'Fill empty slots only', sub: 'Skips anything already programmed.', icon: 'i-lucide-circle-minus' },
 ]
 
+const { imported, importCsv } = useImportedPresets()
+const toast = useToast()
+const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
+
+/** Bundled sets first, then whatever the user has brought in. */
+const allSets = computed<PresetSet[]>(() => [...PRESET_SETS, ...imported.value])
+
 const selectedId = ref(PRESET_SETS[0]!.id)
-const selectedSet = computed<PresetSet>(() => PRESET_SETS.find((s) => s.id === selectedId.value) ?? PRESET_SETS[0]!)
+const selectedSet = computed<PresetSet>(() => allSets.value.find((s) => s.id === selectedId.value) ?? PRESET_SETS[0]!)
 
 /** A set nobody may transmit on gets the caution icon in the library, NOAA included. */
 function isListenOnlySet(set: PresetSet): boolean {
@@ -76,8 +83,57 @@ function isListenOnlySet(set: PresetSet): boolean {
 }
 
 const setsByGroup = computed(() =>
-  PRESET_GROUPS.map((g) => ({ ...g, items: PRESET_SETS.filter((s) => s.group === g.id) })),
+  PRESET_GROUPS.map((g) => ({ ...g, items: allSets.value.filter((s) => s.group === g.id) })),
 )
+
+/**
+ * Read a channel list the user exported from somewhere else.
+ *
+ * RepeaterBook, RadioReference and CHIRP all export the same CHIRP CSV, so one
+ * reader covers all three - and none of them needs a network call, an API key,
+ * or somebody's password for another site. RepeaterBook's terms forbid
+ * redistributing its data anyway, so a file the user downloaded themselves is
+ * the only honest route.
+ */
+async function onFilePicked(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  try {
+    const { set, issues, unknownColumns } = importCsv(file.name, await file.text())
+    if (!set) {
+      toast.add({
+        title: 'Nothing to import',
+        description: issues[0]?.message ?? 'No channels were found in that file.',
+        icon: 'i-lucide-circle-alert',
+        color: 'error',
+        duration: 0,
+      })
+      return
+    }
+    selectedId.value = set.id
+    const problems = issues.filter((i) => i.severity === 'error').length
+    toast.add({
+      title: `Imported ${set.channels.length} channel${set.channels.length === 1 ? '' : 's'}`,
+      description: [
+        problems ? `${problems} row${problems === 1 ? '' : 's'} could not be read and were skipped.` : '',
+        unknownColumns.length ? `Columns ignored: ${unknownColumns.join(', ')}.` : '',
+      ].filter(Boolean).join(' ') || 'Staged nowhere yet — place it below when you are ready.',
+      icon: problems ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check',
+      color: problems ? 'warning' : 'success',
+      duration: 10_000,
+    })
+  } catch (e) {
+    toast.add({
+      title: 'Could not read that file',
+      description: e instanceof Error ? e.message : String(e),
+      icon: 'i-lucide-circle-alert',
+      color: 'error',
+      duration: 0,
+    })
+  } finally {
+    if (fileInput.value) fileInput.value.value = ''
+  }
+}
 
 /**
  * Rows the user has turned off, by position in the set.
@@ -442,6 +498,40 @@ function stage() {
               {{ set.channels.length }}
             </span>
           </button>
+        </div>
+
+        <div style="border-top: 1px solid var(--ln); padding: 9px 12px" class="grid gap-2">
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".csv,text/csv,text/plain"
+            class="hidden"
+            @change="onFilePicked"
+          >
+          <RiskAction
+            risk="neutral"
+            icon="i-lucide-file-down"
+            label="Import a CHIRP CSV…"
+            size="sm"
+            @click="fileInput?.click()"
+          />
+          <p style="font-size: 11px; line-height: 1.5; color: var(--fn); margin: 0">
+            Export a list from
+            <a
+              href="https://www.repeaterbook.com/"
+              target="_blank"
+              rel="noopener"
+              style="color: var(--in)"
+            >RepeaterBook</a>
+            or
+            <a
+              href="https://www.radioreference.com/db/browse/"
+              target="_blank"
+              rel="noopener"
+              style="color: var(--in)"
+            >RadioReference</a>
+            and open it here.
+          </p>
         </div>
 
       </div>

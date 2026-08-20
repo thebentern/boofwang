@@ -57,23 +57,26 @@ describe('bundled presets', () => {
     }
   })
 
-  it('gives GMRS all 30 of its channels and MURS its 5', () => {
-    // 22 simplex channels plus the 8 repeater pairs, which is the full Part 95E
-    // set - a GMRS licensee with a repeater needs the inputs too.
-    expect(PRESET_SETS.find((s) => s.id === 'gmrs')!.channels).toHaveLength(30)
+  it('gives GMRS the 15 channels its licence covers, plus 8 repeater pairs', () => {
+    expect(PRESET_SETS.find((s) => s.id === 'gmrs')!.channels).toHaveLength(23)
     expect(PRESET_SETS.find((s) => s.id === 'murs')!.channels).toHaveLength(5)
   })
 
-  it('limits the 467 MHz interstitials to half a watt and narrowband', () => {
-    // Channels 8-14 are FRS-only and capped at 0.5 W ERP with 12.5 kHz
-    // bandwidth. A preset that ships them at 5 W is a rule violation boofwang
-    // authored rather than inherited, so it is guarded.
+  it('carries no FRS-only channel in the GMRS set', () => {
+    // 467.5625-467.7125 are channels 8-14 and are FRS-only. A GMRS licence does
+    // not cover transmitting there, so a GMRS set that offered them would be
+    // handing someone a channel their licence does not reach.
     const gmrs = PRESET_SETS.find((s) => s.id === 'gmrs')!
-    for (const n of [8, 9, 10, 11, 12, 13, 14]) {
-      const ch = gmrs.channels.find((c) => c.name === `FRS ${n}`)
-      expect(ch, `FRS ${n}`).toBeTruthy()
-      expect(ch!.powerMW, `FRS ${n}`).toBeLessThanOrEqual(500)
-      expect(ch!.bandwidthHz, `FRS ${n}`).toBeLessThanOrEqual(12_500)
+    for (const c of gmrs.channels) {
+      const isFrsOnly = c.rxFreq >= 467_562_500 && c.rxFreq <= 467_712_500 && c.tx.kind === 'simplex'
+      expect(isFrsOnly, `${c.name} at ${c.rxFreq}`).toBe(false)
     }
+  })
+
+  it('ships a 70 cm set built on the national simplex frequency', () => {
+    const b = PRESET_SETS.find((s) => s.id === 'band70cm')!
+    expect(b.channels[0]!.rxFreq).toBe(446_000_000)
+    expect(b.channels.every((c) => c.rxFreq >= 446_000_000 && c.rxFreq <= 446_175_000)).toBe(true)
+    expect(b.channels.every((c) => c.txAllowed)).toBe(true)
   })
 })
