@@ -269,9 +269,10 @@ describe('writing', () => {
     expect(driver.schema.capabilities.write).toBe(false)
   })
 
-  it('claims nothing outside the key block, whatever else is enabled', () => {
+  it('claims nothing in a block it has not decoded', () => {
+    // Block 0 is not part of the image, and calibration is never a candidate.
     expect(driver.ownedRanges(0)).toEqual([])
-    expect(driver.ownedRanges(logicalAddress(0x12))).toEqual([])
+    expect(driver.ownedRanges(logicalAddress(0x02))).toEqual([])
   })
 
   it('requires a power cycle after an interrupted session', () => {

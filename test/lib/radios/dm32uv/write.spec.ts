@@ -7,10 +7,23 @@ import { equalBytes } from '#core/codec/struct.js'
 import { diffImages } from '#core/radio/diff.js'
 import { BackupRequiredError, DriverError, type BackupRef } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
-import { createDm32uvDriver, encodeKeys } from '#core/radios/dm32uv/driver.js'
-import { logicalAddress } from '#core/radios/dm32uv/image.js'
-import { KEY_AREA, KEY_SLOTS, keySlotOffset } from '#core/radios/dm32uv/layout.js'
+import type { Channel } from '#core/model/channel.js'
+import { createDm32uvDriver, decodeChannel, encodeChannel, encodeKeys } from '#core/radios/dm32uv/driver.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
+import { logicalAddress } from '#core/radios/dm32uv/image.js'
+import {
+  CHANNEL_BLOCK_FIRST,
+  CHANNEL_BLOCK_LAST,
+  CHANNEL_SIZE,
+  KEY_AREA,
+  KEY_BLOCK,
+  KEY_SLOTS,
+  TALKGROUP_BLOCK_FIRST,
+  TALKGROUP_BLOCK_LAST,
+  ZONE_BLOCK_FIRST,
+  ZONE_BLOCK_LAST,
+  keySlotOffset,
+} from '#core/radios/dm32uv/layout.js'
 
 const BLOB = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../../../fixtures/images/dm32uv-DM32.01.01.040.blocks.bin', import.meta.url))),
@@ -86,16 +99,46 @@ describe('what a key write touches', () => {
     expect(equalBytes(out.subarray(0, KEY_AREA[0]), before.subarray(0, KEY_AREA[0]))).toBe(true)
   })
 
-  it('claims only the key area, and only in block 0x10', () => {
+  it('claims the key area in block 0x10, and only that area', () => {
     expect(writable.ownedRanges(KEY_BLOCK_ADDR)).toEqual([KEY_AREA])
-    expect(writable.ownedRanges(logicalAddress(0x12))).toEqual([])
+  })
+
+  it('never claims calibration', () => {
+    // Block 0x02 holds the unit's calibration. It is captured in every backup so
+    // a restore can put it back, and it is never a write candidate - losing it
+    // is not something a codeplug edit should ever be able to do.
     expect(writable.ownedRanges(logicalAddress(0x02))).toEqual([])
   })
 
-  it('never claims a byte outside block 0x10', () => {
+  it('claims nothing in the blocks nobody has decoded', () => {
+    // 22 of the 59 allocated blocks have no documented meaning. Claiming one
+    // would assert an understanding that does not exist, and the diff check
+    // that blocks a stray write would stop catching it.
+    // Taken from the layout rather than written out here: hardcoding the ranges
+    // in a test only proves the test agrees with itself. The zone blocks are
+    // 0x5c-0x64 and the talk group blocks 0x44-0x48, which is not the tidy
+    // ordering a guess would produce.
+    const decoded = new Set<number>([KEY_BLOCK])
+    for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) decoded.add(id)
+    for (let id = ZONE_BLOCK_FIRST; id <= ZONE_BLOCK_LAST; id++) decoded.add(id)
+    for (let id = TALKGROUP_BLOCK_FIRST; id <= TALKGROUP_BLOCK_LAST; id++) decoded.add(id)
+
     for (const b of INDEX.blocks) {
-      if (b.id === 0x10) continue
-      expect(writable.ownedRanges(logicalAddress(b.id)), `block 0x${b.id.toString(16)}`).toEqual([])
+      if (decoded.has(b.id)) continue
+      expect(
+        writable.ownedRanges(logicalAddress(b.id)),
+        `block 0x${b.id.toString(16)} is undecoded and must not be claimed`,
+      ).toEqual([])
+    }
+  })
+
+  it('never claims the last byte of a page, which carries the block id', () => {
+    // The flash translation layer identifies a page by its final byte. A write
+    // that touched it would make the page unfindable on the next scan.
+    for (const b of INDEX.blocks) {
+      for (const [, end] of writable.ownedRanges(logicalAddress(b.id))) {
+        expect(end, `block 0x${b.id.toString(16)}`).toBeLessThanOrEqual(PAGE_SIZE - 1)
+      }
     }
   })
 })
@@ -359,5 +402,271 @@ describe('a key slot this build does not understand', () => {
     encodeKeys(patched, doc.encryptionKeys)
     const off = keySlotOffset(5)
     expect([...patched.subarray(off, off + SLOT_SIZE)]).toEqual(new Array(SLOT_SIZE).fill(0))
+  })
+})
+
+describe('channels, zones and talk groups now write too', () => {
+  it('round-trips the whole document byte-for-byte', () => {
+    // The invariant everything else rests on, now that encode() touches four
+    // kinds of record instead of one.
+    const img = image()
+    const out = writable.encode(writable.decode(img), img)
+    for (let i = 0; i < img.regions.length; i++) {
+      expect(
+        equalBytes(out.regions[i]!.data, img.regions[i]!.data),
+        `block 0x${(img.regions[i]!.start >>> 12).toString(16)}`,
+      ).toBe(true)
+    }
+  })
+
+  it('changes only the channel that was edited', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const slot = [...doc.channels.keys()][0]!
+    doc.channels.set(slot, { ...doc.channels.get(slot)!, name: 'RENAMED' })
+
+    const out = writable.encode(doc, img)
+    const moved = diffImages(img, out, writable)
+    expect(moved.changedBlocks.length).toBe(1)
+    expect(moved.unowned).toEqual([])
+
+    expect(writable.decode(out).channels.get(slot)!.name).toBe('RENAMED')
+  })
+
+  it('carries a tone onto a channel and reads it back', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const slot = [...doc.channels.values()].find((c) => c.modulation === 'FM')?.index
+    expect(slot, 'the fixture has no analog channel to tone').toBeTruthy()
+
+    doc.channels.set(slot!, {
+      ...doc.channels.get(slot!)!,
+      tone: { rx: { kind: 'ctcss', deciHz: 1273 }, tx: { kind: 'ctcss', deciHz: 1273 }, rxInverted: false },
+    })
+    const back = writable.decode(writable.encode(doc, img)).channels.get(slot!)!
+    expect(back.tone.rx).toEqual({ kind: 'ctcss', deciHz: 1273 })
+    expect(back.tone.tx).toEqual({ kind: 'ctcss', deciHz: 1273 })
+  })
+
+  it('carries a DCS code with its polarity', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const slot = [...doc.channels.values()].find((c) => c.modulation === 'FM')!.index
+    doc.channels.set(slot, {
+      ...doc.channels.get(slot)!,
+      tone: { rx: { kind: 'dtcs', code: 754, polarity: 'R' }, tx: null, rxInverted: false },
+    })
+    const back = writable.decode(writable.encode(doc, img)).channels.get(slot)!
+    expect(back.tone.rx).toEqual({ kind: 'dtcs', code: 754, polarity: 'R' })
+  })
+
+  it('keeps a receive-only channel receive-only', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const slot = [...doc.channels.keys()][0]!
+    doc.channels.set(slot, {
+      ...doc.channels.get(slot)!,
+      txAllowed: false,
+      txInhibitReason: 'test',
+    })
+    expect(writable.decode(writable.encode(doc, img)).channels.get(slot)!.txAllowed).toBe(false)
+  })
+
+  it('renames a zone without disturbing its channel list', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    expect(doc.zones.length).toBeGreaterThan(0)
+    const before = doc.zones[0]!
+    doc.zones[0] = { ...before, name: 'ZONE X' }
+
+    const back = writable.decode(writable.encode(doc, img))
+    expect(back.zones[0]!.name).toBe('ZONE X')
+    expect(back.zones[0]!.channels).toEqual(before.channels)
+  })
+
+  it('renames a talk group and keeps its number and call type', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    expect(doc.talkGroups.length).toBeGreaterThan(0)
+    const before = doc.talkGroups[0]!
+    doc.talkGroups[0] = { ...before, name: 'TG EDIT' }
+
+    const back = writable.decode(writable.encode(doc, img)).talkGroups[0]!
+    expect(back.name).toBe('TG EDIT')
+    expect(back.number).toBe(before.number)
+    expect(back.callType).toBe(before.callType)
+  })
+
+  it('never moves a byte outside the ranges it claims', () => {
+    // The check that would have caught the encoder writing somewhere it does
+    // not understand, on a radio where 22 of 59 blocks are undocumented.
+    const img = image()
+    const doc = writable.decode(img)
+    const slot = [...doc.channels.keys()][0]!
+    doc.channels.set(slot, { ...doc.channels.get(slot)!, name: 'X', bandwidthHz: 25_000 })
+    doc.zones[0] = { ...doc.zones[0]!, name: 'Z' }
+    doc.talkGroups[0] = { ...doc.talkGroups[0]!, name: 'T' }
+
+    expect(diffImages(img, writable.encode(doc, img), writable).unowned).toEqual([])
+  })
+})
+
+/**
+ * These assert the bit positions the protocol reference documents, against raw
+ * hex, rather than asking boofwang whether it agrees with itself.
+ *
+ * The distinction matters here. Decoder and encoder shared the same wrong bit
+ * for transmit-forbid, so `encode(decode(image)) === image` was byte-identical
+ * and a test that set `txAllowed: false` and read it back passed - while the
+ * radio went on transmitting. Only raw bytes catch that.
+ */
+describe('channel flag bytes, against the reference hex', () => {
+  const REC = 0 // where in `mem` the worked-example record sits
+  const mem = () => new Uint8Array(CHANNEL_SIZE).fill(0)
+
+  function decodeOne(bytes: Partial<Record<number, number>>): Channel {
+    const m = mem()
+    // A plausible frequency, or decodeChannel discards the record.
+    m.set([0x50, 0x12, 0x00, 0x43], 0x10)
+    m.set([0x50, 0x12, 0x00, 0x43], 0x14)
+    for (const [off, v] of Object.entries(bytes)) m[Number(off)] = v!
+    return decodeChannel(m, REC, 0)!
+  }
+
+  // reference/dm32/05-DATA-STRUCTURES.md:701 - "0x18 = 14: mode 1 = Digital,
+  // forbid TX 0, power (bits 2-1) = 2 = High, lone worker 0"
+  it('reads the reference worked example 0x18 = 0x14 as digital, transmit allowed, High', () => {
+    const ch = decodeOne({ 0x18: 0x14 })
+    expect(ch.modulation).toBe('DMR')
+    expect(ch.txAllowed).toBe(true)
+    expect(ch.power.label).toBe('High')
+  })
+
+  // Same page: the analog channel in that block is 0x18 = 0x04, power High.
+  it('reads the reference analog example 0x18 = 0x04 as analog, High', () => {
+    const ch = decodeOne({ 0x18: 0x04 })
+    expect(ch.modulation).toBe('FM')
+    expect(ch.txAllowed).toBe(true)
+    expect(ch.power.label).toBe('High')
+  })
+
+  // This radio's own LR DMR / AR DMR / USA DMR / Test DMR all hold 0x1c, and
+  // the OEM CPS shows them receive-only. boofwang used to call them writable.
+  it('reads this radio’s 0x18 = 0x1c as transmit-forbidden', () => {
+    const ch = decodeOne({ 0x18: 0x1c })
+    expect(ch.txAllowed).toBe(false)
+    expect(ch.power.label).toBe('High')
+  })
+
+  it('writes transmit-forbid to bit 3, leaving the power bits alone', () => {
+    const m = mem()
+    m.set([0x50, 0x12, 0x00, 0x43], 0x10)
+    m.set([0x50, 0x12, 0x00, 0x43], 0x14)
+    m[0x18] = 0x04 // analog, transmit allowed, High
+    const ch = decodeChannel(m, REC, 0)!
+    encodeChannel(m, REC, { ...ch, txAllowed: false, txInhibitReason: 'receive only' })
+    // 0x04 | 0x08 = 0x0c. Writing bit 1 instead gave 0x06: transmit still
+    // allowed, and the power level changed to a value the reference does not
+    // define.
+    expect(m[0x18]).toBe(0x0c)
+  })
+
+  it('round-trips all three power levels through bits 2-1', () => {
+    for (const [raw, label] of [
+      [0x00, 'Low'],
+      [0x02, 'Medium'],
+      [0x04, 'High'],
+    ] as const) {
+      const ch = decodeOne({ 0x18: raw })
+      expect(ch.power.label, `0x18 = 0x${raw.toString(16)}`).toBe(label)
+
+      const m = mem()
+      m.set([0x50, 0x12, 0x00, 0x43], 0x10)
+      m.set([0x50, 0x12, 0x00, 0x43], 0x14)
+      encodeChannel(m, REC, ch)
+      expect(m[0x18], `re-encoding ${label}`).toBe(raw)
+    }
+  })
+
+  it('keeps the lone worker bit, which shares the byte with power', () => {
+    const m = mem()
+    m.set([0x50, 0x12, 0x00, 0x43], 0x10)
+    m.set([0x50, 0x12, 0x00, 0x43], 0x14)
+    m[0x18] = 0x05 // analog, High, lone worker on
+    const ch = decodeChannel(m, REC, 0)!
+    encodeChannel(m, REC, { ...ch, name: 'RENAMED' })
+    expect(m[0x18]).toBe(0x05)
+  })
+
+  // reference:309-317 - bit 7 bandwidth, bit 6 scan add, bits 5-2 scan list,
+  // bits 1-0 preserve. The whole byte used to be rewritten as 0 or 1.
+  it('keeps scan-add and scan-list membership when only the name changes', () => {
+    const m = mem()
+    m.set([0x50, 0x12, 0x00, 0x43], 0x10)
+    m.set([0x50, 0x12, 0x00, 0x43], 0x14)
+    m[0x19] = 0xcc // wide, auto scan on, scan list 3
+    const ch = decodeChannel(m, REC, 0)!
+    expect(ch.bandwidthHz).toBe(25_000)
+    encodeChannel(m, REC, { ...ch, name: 'RENAMED' })
+    expect(m[0x19]).toBe(0xcc)
+  })
+
+  it('narrows bandwidth without dropping the channel out of its scan list', () => {
+    const m = mem()
+    m.set([0x50, 0x12, 0x00, 0x43], 0x10)
+    m.set([0x50, 0x12, 0x00, 0x43], 0x14)
+    m[0x19] = 0xcf // ...and both preserve bits set
+    const ch = decodeChannel(m, REC, 0)!
+    encodeChannel(m, REC, { ...ch, bandwidthHz: 12_500 })
+    // Only bit 7 clears; scan add, scan list and the two preserve bits stay.
+    expect(m[0x19]).toBe(0x4f)
+  })
+
+  // reference:392-406 - timeslot is bit 4, colour code is the low nibble,
+  // attested by an OEM CPS capture where TS1 stores 0x01 and TS2 stores 0x11.
+  it('writes time slot 2 to bit 4, as the CPS capture does', () => {
+    const m = mem()
+    m.set([0x50, 0x12, 0x00, 0x43], 0x10)
+    m.set([0x50, 0x12, 0x00, 0x43], 0x14)
+    m[0x18] = 0x10 // digital
+    m[0x1d] = 0x01 // colour code 1, TS1
+    const ch = decodeChannel(m, REC, 0)!
+    expect(ch.extras.vendor?.timeSlot).toBe('1')
+    expect(ch.extras.vendor?.colorCode).toBe('1')
+
+    encodeChannel(m, REC, {
+      ...ch,
+      extras: { ...ch.extras, vendor: { ...ch.extras.vendor, timeSlot: '2' } },
+    })
+    // Writing bit 3 instead gave 0x09, which the radio reads as colour code 9
+    // on time slot 1 - the slot unchanged and the colour code destroyed.
+    expect(m[0x1d]).toBe(0x11)
+  })
+
+  it('carries colour codes above 7, which three bits could not hold', () => {
+    const m = mem()
+    m.set([0x50, 0x12, 0x00, 0x43], 0x10)
+    m.set([0x50, 0x12, 0x00, 0x43], 0x14)
+    m[0x18] = 0x10
+    m[0x1d] = 0x1d // colour code 13, TS2
+    const ch = decodeChannel(m, REC, 0)!
+    expect(ch.extras.vendor?.colorCode).toBe('13')
+    expect(ch.extras.vendor?.timeSlot).toBe('2')
+    encodeChannel(m, REC, { ...ch, name: 'RENAMED' })
+    expect(m[0x1d]).toBe(0x1d)
+  })
+
+  it('leaves a receive-only channel’s transmit frequency where the radio put it', () => {
+    const m = mem()
+    m.set([0x50, 0x12, 0x00, 0x43], 0x10) // rx 430.01250
+    m.set([0x00, 0x50, 0x02, 0x44], 0x14) // tx elsewhere
+    m[0x18] = 0x0c // analog, transmit forbidden, High
+    const before = m.slice(0x14, 0x18)
+    const ch = decodeChannel(m, REC, 0)!
+    expect(ch.txAllowed).toBe(false)
+    encodeChannel(m, REC, { ...ch, name: 'RENAMED' })
+    // The old code wrote the receive frequency here, so clearing the
+    // receive-only flag later would have keyed up on the wrong pair.
+    expect(equalBytes(m.slice(0x14, 0x18), before)).toBe(true)
   })
 })

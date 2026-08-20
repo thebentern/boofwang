@@ -53,23 +53,64 @@ export const DM32_CHANNEL = defineStruct(CHANNEL_SIZE, {
   name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
   rxFreq: at(0x10, bcdFreqLE(4)),
   txFreq: at(0x14, bcdFreqLE(4)),
+  /**
+   * Byte 0x18. Bit positions per `reference/dm32/05-DATA-STRUCTURES.md:296-308`,
+   * its Python decoder at :742 and its Go decoder at :1023, all agreeing, and
+   * pinned by two worked examples with real hex: `0x14` is "digital, forbid TX
+   * 0, power (bits 2-1) = 2 = High" and the analog `0x04` is "analog, power
+   * High".
+   *
+   * This radio's own image agrees: `LR DMR` and three siblings hold `0x1c`
+   * (bit 3 set = forbid TX) and the OEM CPS shows them as receive-only, while
+   * `MURS-1` holds `0x04` and shows as High power.
+   */
   mode: at(
     0x18,
     chirpBits(1, [
       ['channelMode', 4],
-      ['unknown', 2],
       ['txForbid', 1],
-      ['power', 1],
+      ['power', 2],
+      ['loneWorker', 1],
     ]),
   ),
-  bandwidth: at(0x19, u8),
+  /**
+   * Byte 0x19. Modelled bit by bit rather than as a `u8` so that writing the
+   * bandwidth cannot take scan-list membership with it: `u8.set` stores all
+   * eight bits, so a channel in scan list 3 with Auto Scan on (`0xcc`) came
+   * back as `0x00`.
+   *
+   * Bits 6 and 5-2 are unhedged in the reference and bits 1-0 are explicitly
+   * marked "preserve". The bandwidth polarity at bit 7 is marked DERIVED there
+   * (:319-330) and this radio cannot settle it - all 49 of its channels hold
+   * `0x19 = 0x00`. Following the reference, and the hedge stands.
+   */
+  scan: at(
+    0x19,
+    chirpBits(1, [
+      ['bandwidth', 1],
+      ['scanAdd', 1],
+      ['scanList', 4],
+      ['unknown', 2],
+    ]),
+  ),
+  /**
+   * Byte 0x1D on a digital channel. The timeslot is bit 4 and the colour code
+   * is the whole low nibble - attested by the reference's OEM CPS capture,
+   * where the user named channels after their slot: `RIC Monitor TS1` stores
+   * `0x01` and `RIC Monitor TS2` stores `0x11`.
+   *
+   * Declaring the colour code as three bits put the timeslot on bit 3, so
+   * switching a channel to TS2 wrote `0x0a` - which the radio reads as colour
+   * code 10, still on TS1.
+   */
   digital: at(
     0x1d,
     chirpBits(1, [
       ['encryptEnable', 1],
-      ['unknown', 3],
+      ['shortDataConfirm', 1],
+      ['tdmaDirect', 1],
       ['timeSlot', 1],
-      ['colorCode', 3],
+      ['colorCode', 4],
     ]),
   ),
   rxTone: at(0x21, u16le),
@@ -204,4 +245,37 @@ export const KEY_AREA: readonly [number, number] = [KEY_BASE, KEY_BASE + KEY_SLO
 /** An erased slot reads as 0x00 then 0xFF filler, so both count as empty. */
 export function isKeySlotEmpty(slot: Uint8Array): boolean {
   return slot.every((b) => b === 0x00 || b === 0xff)
+}
+
+/**
+ * The inverse of {@link decodeToneWord}, kept beside it so the two cannot drift.
+ *
+ * Produces the packed-BCD spelling the radio itself writes: `FF FF` for no tone,
+ * `high >= 0x80` for DCS with `>= 0xC0` marking the inverted polarity, and
+ * plain BCD digits for CTCSS. Writing the word as tenths of a hertz - which is
+ * what this driver did until it was checked - turns 127.3 Hz into 472.3 Hz.
+ */
+export function encodeToneWord(tone: ToneSpec | null): number {
+  if (!tone) return 0xffff
+
+  if (tone.kind === 'dtcs') {
+    const code = tone.code
+    const hundreds = Math.floor(code / 100) % 10
+    const tens = Math.floor(code / 10) % 10
+    const ones = code % 10
+    const high = (tone.polarity === 'R' ? 0xc0 : 0x80) | hundreds
+    const low = (tens << 4) | ones
+    return low | (high << 8)
+  }
+
+  // CTCSS: the value is tenths of a hertz spread over four BCD nibbles as
+  // hundreds, tens, ones, tenths.
+  const deciHz = tone.deciHz
+  const hundreds = Math.floor(deciHz / 1000) % 10
+  const tens = Math.floor(deciHz / 100) % 10
+  const ones = Math.floor(deciHz / 10) % 10
+  const tenths = deciHz % 10
+  const high = (hundreds << 4) | tens
+  const low = (ones << 4) | tenths
+  return low | (high << 8)
 }

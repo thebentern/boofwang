@@ -33,9 +33,12 @@ export const DM32UV_SCHEMA: RadioSchema = {
     ],
     modulations: ['FM', 'DMR'],
     bandwidths: [25_000, 12_500],
+    // Three levels, not two: byte 0x18 bits 2-1 carry 0=Low, 1=Medium, 2=High.
+    // `raw` is the value those two bits hold.
     powerLevels: [
       { id: 'low', label: 'Low', mW: mW(1000), raw: 0 },
-      { id: 'high', label: 'High', mW: mW(5000), raw: 1 },
+      { id: 'medium', label: 'Medium', mW: mW(2500), raw: 1 },
+      { id: 'high', label: 'High', mW: mW(5000), raw: 2 },
     ],
     tuningSteps: [2_500, 5_000, 6_250, 10_000, 12_500, 25_000].map((s) => hz(s)),
     duplexes: ['simplex', 'plus', 'minus', 'split', 'off'],

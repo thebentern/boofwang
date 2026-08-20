@@ -253,28 +253,34 @@ export function useRadioSession() {
       codeplug.load(image, device.currentDriver())
 
       // Say what was actually restored, not what was asked for. Some drivers
-      // write only part of an image on purpose - the DM-32UV writes just the
-      // encryption key slots - and calling that a full restore would leave
-      // someone believing their channels had been rolled back when they had
-      // not.
+      // write only part of an image on purpose - the DM-32UV can write
+      // channels, zone names, talk groups and key slots but not the twenty-odd
+      // blocks nothing has decoded - and calling that a full restore would
+      // leave someone believing their whole radio had been rolled back.
       const total = image.regions.length
+      const scope = device.currentDriver().schema.capabilities.writeScope
       const partial = report.blocksWritten > 0 && report.blocksWritten < total
       toast.add({
         title:
           report.blocksWritten === 0
-            ? 'The radio already matched this backup'
+            ? scope
+              ? 'Nothing to restore in the part this radio can write'
+              : 'The radio already matched this backup'
             : partial
               ? 'Partly restored'
               : 'Restored and verified',
         description:
           report.blocksWritten === 0
-            ? 'Nothing needed to be written.'
+            ? scope
+              ? `The ${scope} already match this backup. The rest of the radio cannot be written by ` +
+                'boofwang and was not compared.'
+              : 'Nothing needed to be written.'
             : partial
               ? `${report.blocksWritten} of ${total} block(s) were restored and verified. This radio only ` +
-                'supports writing part of its memory, so the rest is unchanged.'
+                `supports writing ${scope ?? 'part of its memory'}, so the rest is unchanged.`
               : `${report.blocksWritten} block(s) restored. Every one was read back and matched.`,
-        icon: partial ? 'i-lucide-info' : 'i-lucide-circle-check',
-        color: partial ? 'warning' : 'success',
+        icon: partial || (report.blocksWritten === 0 && scope) ? 'i-lucide-info' : 'i-lucide-circle-check',
+        color: partial || (report.blocksWritten === 0 && scope) ? 'warning' : 'success',
         duration: 12_000,
       })
     } catch (e) {

@@ -4,6 +4,7 @@ import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { NO_TONE, type TonePair } from '../../model/tones.js'
 import { hz } from '../../model/units.js'
+import { txFrequency } from '../../model/channel.js'
 import {
   DEFAULT_DRIVER_TIMEOUT_MS,
   BackupRequiredError,
@@ -25,6 +26,7 @@ import { blockData, blockIds, logicalAddress } from './image.js'
 import { cloneImage } from '../../radio/image.js'
 import {
   CALL_TYPE_ALL,
+  CALL_TYPE_GROUP,
   CALL_TYPE_PRIVATE,
   CHANNEL_BLOCK_FIRST,
   CHANNEL_BLOCK_LAST,
@@ -40,6 +42,7 @@ import {
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
   decodeToneWord,
+  encodeToneWord,
   KEY_AREA,
   ZONE_HEADER,
   ZONE_SIZE,
@@ -80,6 +83,111 @@ export interface Dm32uvDriverOptions {
   enableWrite?: boolean
 }
 
+/** One 4 KiB page this driver is prepared to send, with the bytes it wants there. */
+interface WriteTarget {
+  blockId: number
+  desired: { start: number; data: Uint8Array }
+  label: string
+}
+
+/**
+ * The blocks to write, in ascending order of what they can cost you.
+ *
+ * Talk group and zone records are names. A channel record decides where the
+ * radio transmits. The key slots are secret material that cannot be read back
+ * and checked by eye. If the fifth page fails, the four safer ones are already
+ * on the radio, which is the right way round.
+ *
+ * A block absent from the image is skipped rather than fabricated - this radio
+ * allocates only the pages it uses, and inventing one would write 4 KiB of
+ * whatever we happened to have over a page the radio never asked for.
+ */
+function writeTargets(image: RadioImage): WriteTarget[] {
+  const out: WriteTarget[] = []
+  const add = (blockId: number, label: string) => {
+    const region = image.regions.find((r) => r.start === logicalAddress(blockId))
+    if (region) out.push({ blockId, desired: region, label })
+  }
+
+  for (let id = TALKGROUP_BLOCK_FIRST; id <= TALKGROUP_BLOCK_LAST; id++) {
+    add(id, `block 0x${id.toString(16)} (talk groups)`)
+  }
+  for (let id = ZONE_BLOCK_FIRST; id <= ZONE_BLOCK_LAST; id++) {
+    add(id, `block 0x${id.toString(16)} (zones)`)
+  }
+  for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) {
+    add(id, `block 0x${id.toString(16)} (channels)`)
+  }
+  add(KEY_BLOCK, `block 0x${KEY_BLOCK.toString(16)} (encryption keys)`)
+  return out
+}
+
+/** Whether two pages agree across every range this driver claims to understand. */
+function unchangedWithin(
+  a: Uint8Array,
+  b: Uint8Array,
+  owned: ReadonlyArray<readonly [number, number]>,
+): boolean {
+  for (const [from, to] of owned) {
+    for (let i = from; i < to; i++) {
+      if (a[i] !== b[i]) return false
+    }
+  }
+  return true
+}
+
+/**
+ * Merge the bytes the user actually changed onto the page the radio holds now.
+ *
+ * `desired` is `encode(doc, base)`, so it differs from `base` exactly where the
+ * user edited. Copying only those bytes means a change someone made on the
+ * radio's own keypad since the image was read survives the write, instead of
+ * being quietly reverted to whatever the codeplug was holding. With no base to
+ * compare against, the whole owned range is written - that is the plain
+ * "put this image on the radio" case.
+ */
+function mergeOwned(
+  live: Uint8Array,
+  desired: Uint8Array,
+  base: Uint8Array | undefined,
+  owned: ReadonlyArray<readonly [number, number]>,
+): Uint8Array {
+  const merged = live.slice()
+  for (const [from, to] of owned) {
+    for (let i = from; i < to; i++) {
+      if (base && desired[i] === base[i]) continue
+      merged[i] = desired[i]!
+    }
+  }
+  return merged
+}
+
+/**
+ * Merge the key area a whole slot at a time.
+ *
+ * Byte granularity is wrong here in a way it is not elsewhere: half of an old
+ * key and half of a new one is a key that decrypts nothing, and unlike a
+ * channel you cannot look at the radio and see that it is wrong.
+ *
+ * Copying the whole key area from our image would silently revert the other
+ * slots to whatever they held when it was read. That is a real sequence: read
+ * on Monday, change a key on the radio itself, then open Monday's backup, edit
+ * one slot and write - and the untouched keys quietly go back in time.
+ */
+function mergeKeySlots(live: Uint8Array, desired: Uint8Array, base: Uint8Array | undefined): Uint8Array {
+  const merged = live.slice()
+  for (let slot = 1; slot <= KEY_SLOTS; slot++) {
+    const off = keySlotOffset(slot)
+    const next = desired.subarray(off, off + DM32_KEY_SLOT.size)
+    // Without a base to compare against, fall back to the live page: a slot
+    // that already matches needs no write either way.
+    const previous = base?.subarray(off, off + DM32_KEY_SLOT.size) ?? live.subarray(off, off + DM32_KEY_SLOT.size)
+    if (equalBytes(next, previous)) continue
+    merged.set(next, off)
+  }
+  return merged
+}
+
 export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriver {
   const schema: RadioSchema = options.enableWrite
     ? {
@@ -88,7 +196,16 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         capabilities: {
           ...DM32UV_SCHEMA.capabilities,
           write: true,
-          writeScope: 'encryption key slots',
+          /*
+           * Still a scope, just a wider one. The write now reaches channel
+           * records, zone names, talk groups and key slots - but not the
+           * channel-count header, so channels cannot be added or removed, and
+           * not settings, contacts, scan lists or RX groups, which this build
+           * has never decoded. Saying "read and write" without qualification
+           * would present a restore of four block ranges as a full rollback of
+           * a 59-block radio.
+           */
+          writeScope: 'channels, zone names, talk groups and encryption keys',
         },
       }
     : DM32UV_SCHEMA
@@ -227,24 +344,30 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
     },
 
     /**
-     * Send changed key slots back to the radio.
+     * Send the changed pages back to the radio, one 4 KiB page at a time.
      *
      * The order matters and every step earns its place on this radio:
      *
      * 1. A verified backup of *this* radio is required, and the driver refuses
      *    without it. There is no way back from a bad write otherwise.
      * 2. The page map is rediscovered. Physical addresses are assigned by a
-     *    translation layer and move between sessions, so the address block 0x10
+     *    translation layer and move between sessions, so the address a block
      *    lived at when it was read may belong to something else now.
-     * 3. The live page is re-read and its tail byte checked. If it no longer
-     *    identifies as block 0x10, the map moved underneath us and the write
-     *    stops rather than guessing.
-     * 4. Only KEY_AREA is merged onto those live bytes. The emergency settings
-     *    before it, the ~3 KB after it that nothing has explained, and the tail
-     *    byte itself all come from the radio, not from our image - so a stale
-     *    image cannot damage what it does not understand.
-     * 5. The page is read back and compared. Because the translation layer may
-     *    relocate a page on write, the map is rescanned before verifying.
+     * 3. Each live page is re-read and its tail byte checked. If it no longer
+     *    identifies as the block we meant, the map moved underneath us and the
+     *    write stops rather than guessing.
+     * 4. Only {@link RadioDriver.ownedRanges} is merged onto those live bytes,
+     *    and within that only the bytes the user actually changed. Everything
+     *    this build does not understand - the ~3 KB after the key slots, the
+     *    channel-count header, the tail byte itself - comes from the radio, not
+     *    from our image, so a stale image cannot damage what it cannot read.
+     * 5. Each page is read back and compared. Because the translation layer may
+     *    relocate a page on write, the map is rescanned before verifying, and
+     *    the rescan is kept for the pages still to come.
+     *
+     * Pages go out least dangerous first - talk groups, zone names, channels,
+     * then key slots - so that a failure part way through has committed the
+     * cheapest changes rather than the most expensive.
      */
     async writeImage(t: Transport, image: RadioImage, ctx: DriverCtx = {}): Promise<WriteReport> {
       if (image.radioId !== 'dm32uv') throw new DriverError(`Not a DM-32UV image: ${image.radioId}`)
@@ -256,8 +379,17 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       const timeoutMs = ctx.readTimeoutMs ?? DEFAULT_DRIVER_TIMEOUT_MS
       const opts = { timeoutMs, signal: ctx.signal }
 
-      const desired = image.regions.find((r) => r.start === logicalAddress(KEY_BLOCK))
-      if (!desired) throw new DriverError('This image has no block 0x10, so there are no keys to write')
+      // Every block this build claims to understand, in ascending risk order:
+      // talk groups and zone names are names, channel records key a
+      // transmitter, and the key slots are secret material. If a later block
+      // fails, the earlier and safer ones are already committed.
+      const targets = writeTargets(image)
+      if (targets.length === 0) {
+        throw new DriverError(
+          'This image has none of the blocks boofwang can write, so there is nothing to send. ' +
+            'Read the radio again before writing.',
+        )
+      }
 
       // Reuse the session's identification rather than repeating the
       // handshake. This radio's is stateful - a second PSEARCH on an
@@ -341,123 +473,130 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         }
       }
 
-      const physical = map.physOf.get(KEY_BLOCK)
-      if (physical === undefined) {
-        throw new DriverError(
-          'The radio has no page for block 0x10, where encryption keys live. Read it again before writing.',
-        )
-      }
+      let blocksWritten = 0
+      let bytesWritten = 0
+      let verified = true
+      const operations: WriteOperation[] = []
+      // The page map is re-read after every write, because a write can relocate
+      // pages. `physOf` is the current one.
+      let physOf = map.physOf
 
-      // The live bytes are the base for the merge, never our stored image.
-      const live = await readPage(t, physical, KEY_BLOCK, opts)
-      const merged = live.slice()
-      const [from, to] = KEY_AREA
-
-      // Copy slot by slot, and only the slots the user actually changed.
-      //
-      // Copying the whole key area from our image would silently revert the
-      // other seven slots to whatever they held when it was read. That is a
-      // real sequence: read on Monday, change a key on the radio itself, then
-      // open Monday's backup, edit one slot and write - and six untouched keys
-      // quietly go back in time.
-      const base = ctx.baseImage?.regions.find((r) => r.start === logicalAddress(KEY_BLOCK))?.data
-      const changed: number[] = []
-      for (let slot = 1; slot <= KEY_SLOTS; slot++) {
-        const off = keySlotOffset(slot)
-        const next = desired.data.subarray(off, off + DM32_KEY_SLOT.size)
-        const wasRead = base?.subarray(off, off + DM32_KEY_SLOT.size)
-        // Without a base to compare against, fall back to the live page: a slot
-        // that already matches needs no write either way.
-        const previous = wasRead ?? live.subarray(off, off + DM32_KEY_SLOT.size)
-        if (equalBytes(next, previous)) continue
-        merged.set(next, off)
-        changed.push(slot)
-      }
-      merged[PAGE_SIZE - 1] = KEY_BLOCK // the tail byte is never ours to change
-
-      // Belt and braces: nothing outside the key area may differ from the live
-      // page. If it does, the merge is wrong and the write must not happen.
-      for (let i = 0; i < PAGE_SIZE; i++) {
-        if ((i < from || i >= to) && merged[i] !== live[i]) {
-          throw new DriverError(
-            `Refusing to write: the merge would change byte 0x${i.toString(16)} of block 0x10, which is ` +
-              'outside the encryption key area. That is a defect in boofwang, not in your codeplug.',
-          )
-        }
-      }
-
-      const operations: WriteOperation[] = [
-        { addr: physical, length: PAGE_SIZE, label: 'block 0x10 (encryption keys)' },
-      ]
-
-      if (equalBytes(merged, live)) {
-        return {
-          blocksWritten: 0,
-          bytesWritten: 0,
-          verified: true,
-          dryRun: ctx.dryRun === true,
-          operations: [{ ...operations[0]!, skipped: 'unchanged' }],
-        }
-      }
-
-      if (ctx.dryRun) {
-        return { blocksWritten: 1, bytesWritten: PAGE_SIZE, verified: false, dryRun: true, operations }
-      }
-
-      ctx.progress?.({ phase: 'write', done: 0, total: PAGE_SIZE, label: 'block 0x10' })
-      await writePage(t, physical, merged, opts)
-      ctx.progress?.({ phase: 'write', done: PAGE_SIZE, total: PAGE_SIZE, label: 'block 0x10' })
-
-      // From here the page is on the radio and acknowledged. Anything that goes
-      // wrong below is a verification failure, not a write that did not happen,
-      // and every error carries that fact so the user is never told nothing
-      // was changed when something was.
-      const committed: WriteReport = {
-        blocksWritten: 1,
-        bytesWritten: PAGE_SIZE,
-        verified: false,
-        dryRun: false,
-        operations,
-      }
+      // Everything already sent, so an error below can say so rather than
+      // letting the caller believe nothing was changed.
       const withReport = (e: unknown) => {
-        if (e instanceof Error) (e as Error & { partial?: WriteReport }).partial = committed
+        if (e instanceof Error) {
+          ;(e as Error & { partial?: WriteReport }).partial = {
+            blocksWritten,
+            bytesWritten,
+            verified: false,
+            dryRun: ctx.dryRun === true,
+            operations: [...operations],
+          }
+        }
         return e
       }
 
-      try {
-        // Verify. The page may have been relocated by the write, so find it
-        // again rather than assuming it stayed put.
-        ctx.progress?.({ phase: 'verify', done: 0, total: PAGE_SIZE, label: 'block 0x10' })
-        const after = await scanPageMap(t, start, end, opts)
-        const nowAt = after.physOf.get(KEY_BLOCK)
-        if (nowAt === undefined) {
-          throw new WriteVerifyError(physical, 'block 0x10 present', 'the block vanished from the map', 1)
-        }
-        const readBack = await readPage(t, nowAt, KEY_BLOCK, opts)
-        // Compare the whole page. All 4096 bytes were sent, so verifying only
-        // the 352 we meant to change would call a page verified while the other
-        // 3744 went unchecked.
-        if (!equalBytes(readBack, merged)) {
-          const at = readBack.findIndex((b, i) => b !== merged[i])
-          throw new WriteVerifyError(
-            nowAt,
-            hexDump(merged.subarray(at, at + 16), 16),
-            hexDump(readBack.subarray(at, at + 16), 16),
-            1,
+      for (let n = 0; n < targets.length; n++) {
+        const { blockId, desired, label } = targets[n]!
+
+        const physical = physOf.get(blockId)
+        if (physical === undefined) {
+          throw withReport(
+            new DriverError(
+              `The radio has no page for ${label}. Read it again before writing.`,
+            ),
           )
         }
-        ctx.progress?.({ phase: 'verify', done: PAGE_SIZE, total: PAGE_SIZE, label: 'block 0x10' })
-      } catch (e) {
-        throw withReport(e)
+
+        const base = ctx.baseImage?.regions.find((r) => r.start === logicalAddress(blockId))?.data
+        const owned = driver.ownedRanges(logicalAddress(blockId))
+
+        // If the user changed nothing in this block, do not even read it. The
+        // merge below would produce the live page unchanged and skip it anyway,
+        // so this is the same outcome without ~60 page reads to rename one
+        // channel. Only safe because `desired` is `encode(doc, base)`: it
+        // differs from `base` exactly where the user edited.
+        if (base && unchangedWithin(desired.data, base, owned)) {
+          operations.push({ addr: physical, length: PAGE_SIZE, label, skipped: 'unchanged' })
+          continue
+        }
+
+        // The live bytes are the base for the merge, never our stored image.
+        const live = await readPage(t, physical, blockId, opts)
+
+        const merged =
+          blockId === KEY_BLOCK
+            ? mergeKeySlots(live, desired.data, base)
+            : mergeOwned(live, desired.data, base, owned)
+        merged[PAGE_SIZE - 1] = blockId // the tail byte is never ours to change
+
+        // Belt and braces: nothing outside the ranges this driver claims may
+        // differ from the live page. If it does, the merge is wrong and the
+        // write must not happen.
+        for (let i = 0; i < PAGE_SIZE; i++) {
+          if (merged[i] === live[i]) continue
+          if (owned.some(([from, to]) => i >= from && i < to)) continue
+          throw withReport(
+            new DriverError(
+              `Refusing to write: the merge would change byte 0x${i.toString(16)} of ${label}, which is ` +
+                'outside the range boofwang understands. That is a defect in boofwang, not in your codeplug.',
+            ),
+          )
+        }
+
+        const operation: WriteOperation = { addr: physical, length: PAGE_SIZE, label }
+
+        if (equalBytes(merged, live)) {
+          operations.push({ ...operation, skipped: 'unchanged' })
+          continue
+        }
+
+        if (ctx.dryRun) {
+          blocksWritten++
+          bytesWritten += PAGE_SIZE
+          verified = false
+          operations.push(operation)
+          continue
+        }
+
+        ctx.progress?.({ phase: 'write', done: n, total: targets.length, label })
+        await writePage(t, physical, merged, opts)
+        blocksWritten++
+        bytesWritten += PAGE_SIZE
+        operations.push(operation)
+
+        try {
+          // Verify. The page may have been relocated by the write, so find it
+          // again rather than assuming it stayed put.
+          ctx.progress?.({ phase: 'verify', done: n, total: targets.length, label })
+          const after = await scanPageMap(t, start, end, opts)
+          const nowAt = after.physOf.get(blockId)
+          if (nowAt === undefined) {
+            throw new WriteVerifyError(physical, `${label} present`, 'the block vanished from the map', blocksWritten)
+          }
+          // Keep the map current: a relocation moves other pages too, and the
+          // next block in this loop must not be written to a stale address.
+          physOf = after.physOf
+          const readBack = await readPage(t, nowAt, blockId, opts)
+          // Compare the whole page. All 4096 bytes were sent, so verifying only
+          // the ones we meant to change would call a page verified while the
+          // rest went unchecked.
+          if (!equalBytes(readBack, merged)) {
+            const at = readBack.findIndex((b, i) => b !== merged[i])
+            throw new WriteVerifyError(
+              nowAt,
+              hexDump(merged.subarray(at, at + 16), 16),
+              hexDump(readBack.subarray(at, at + 16), 16),
+              blocksWritten,
+            )
+          }
+        } catch (e) {
+          throw withReport(e)
+        }
       }
 
-      return {
-        blocksWritten: 1,
-        bytesWritten: PAGE_SIZE,
-        verified: true,
-        dryRun: false,
-        operations: [{ ...operations[0]!, label: `block 0x10 — key slot(s) ${changed.join(', ')}` }],
-      }
+      ctx.progress?.({ phase: 'verify', done: targets.length, total: targets.length, label: 'Done' })
+      return { blocksWritten, bytesWritten, verified, dryRun: ctx.dryRun === true, operations }
     },
 
     decode(image: RadioImage): Codeplug {
@@ -492,6 +631,35 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       if (!block) throw new DriverError('This image has no block 0x10, so it holds no encryption keys')
 
       encodeKeys(block.data, doc.encryptionKeys)
+
+      /*
+       * Channels, zone names and talk groups, each patched in place.
+       *
+       * Every one of these writes only the fields the decoder reads. The bytes
+       * nobody has modelled - and on this radio that is most of them, 22 of 59
+       * allocated blocks having no documented meaning - survive because they
+       * are never assigned, not because they are copied somewhere safe.
+       */
+      const channelBlock = (id: number) => out.regions.find((r) => r.start === logicalAddress(id))?.data
+      const firstChannels = channelBlock(CHANNEL_BLOCK_FIRST)
+      if (firstChannels) {
+        const total = firstChannels[0]! | (firstChannels[1]! << 8)
+        let index = 0
+        for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST && index < total; id++) {
+          const data = channelBlock(id)
+          if (!data) continue
+          const base2 = id === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
+          const capacity = Math.floor((PAGE_SIZE - base2 - 1) / CHANNEL_SIZE)
+          for (let i = 0; i < capacity && index < total; i++, index++) {
+            const ch = doc.channels.get(index + 1)
+            if (ch) encodeChannel(data, base2 + i * CHANNEL_SIZE, ch)
+          }
+        }
+      }
+
+      encodeZones(out, doc.zones)
+      encodeTalkGroups(out, doc.talkGroups)
+
       return { ...out, sha256: '' }
     },
 
@@ -529,7 +697,32 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
      * Everything outside this is read and preserved but never written, which is
      * what makes a stale or partly-understood image harmless.
      */
-    ownedRanges: (regionStart: number) => (regionStart === logicalAddress(KEY_BLOCK) ? [KEY_AREA] : []),
+    /**
+     * The bytes this driver claims to understand, per block.
+     *
+     * Deliberately per-block rather than one range: a DM-32UV image is 59
+     * pages, most of them undocumented, and claiming a span that crosses one
+     * would assert understanding of pages nobody has read. A change outside
+     * these is a defect in the encoder, and on this radio that is the only
+     * thing standing between a bug and 22 blocks of unrecoverable memory.
+     */
+    ownedRanges: (regionStart: number) => {
+      if (regionStart === logicalAddress(KEY_BLOCK)) return [KEY_AREA]
+
+      const blockId = regionStart >>> 12
+      if (blockId >= CHANNEL_BLOCK_FIRST && blockId <= CHANNEL_BLOCK_LAST) {
+        const base = blockId === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
+        return [[base, PAGE_SIZE - 1] as const]
+      }
+      if (blockId >= ZONE_BLOCK_FIRST && blockId <= ZONE_BLOCK_LAST) {
+        const base = blockId === ZONE_BLOCK_FIRST ? ZONE_HEADER : 0
+        return [[base, PAGE_SIZE - 1] as const]
+      }
+      if (blockId >= TALKGROUP_BLOCK_FIRST && blockId <= TALKGROUP_BLOCK_LAST) {
+        return [[0, PAGE_SIZE - 1] as const]
+      }
+      return []
+    },
   }
 
   return driver
@@ -584,7 +777,10 @@ export function decodeChannel(data: Uint8Array, offset: number, index: number): 
   const tone: TonePair =
     rxTone || txTone ? { rx: rxTone, tx: txTone, rxInverted: false } : NO_TONE
 
-  const level = raw.mode.power ? DM32UV_SCHEMA.rf.powerLevels[1]! : DM32UV_SCHEMA.rf.powerLevels[0]!
+  // Bits 2-1 hold 0=Low, 1=Medium, 2=High. 3 is undefined by the reference;
+  // clamp rather than index off the end of the table.
+  const levels = DM32UV_SCHEMA.rf.powerLevels
+  const level = levels[Math.min(raw.mode.power, levels.length - 1)]!
 
   return {
     index,
@@ -595,7 +791,7 @@ export function decodeChannel(data: Uint8Array, offset: number, index: number): 
     ...(txAllowed ? {} : { txInhibitReason: 'Transmit forbidden on this channel' }),
     tone,
     modulation: digital ? 'DMR' : 'FM',
-    bandwidthHz: raw.bandwidth & 0x01 ? 25_000 : 12_500,
+    bandwidthHz: raw.scan.bandwidth ? 25_000 : 12_500,
     power: { mW: level.mW, label: level.label },
     tuningStep: hz(12_500),
     skip: 'none',
@@ -607,9 +803,87 @@ export function decodeChannel(data: Uint8Array, offset: number, index: number): 
         encryptionKeyId: String(raw.encryptionKeyId),
         encryptEnabled: String(raw.digital.encryptEnable),
         radioIdIndex: String(raw.radioIdIndex),
+        loneWorker: String(raw.mode.loneWorker),
+        scanAdd: String(raw.scan.scanAdd),
+        scanList: String(raw.scan.scanList),
       },
     },
   }
+}
+
+
+/**
+ * Write one channel record back, in place.
+ *
+ * The exact inverse of {@link decodeChannel}, and a partial patch: the four
+ * unknown bits in the mode byte, the three in the digital byte, the contact
+ * index, the scan-list membership and everything else this build does not model
+ * keep whatever the radio had. That is what makes `encode(decode(image), image)`
+ * byte-identical, and it is the only honest way to write to a radio where 22 of
+ * 59 allocated blocks have no documented meaning.
+ */
+export function encodeChannel(data: Uint8Array, offset: number, ch: Channel): void {
+  const digital = ch.modulation === 'DMR'
+  const current = DM32_CHANNEL.read(data, offset)
+
+  // Preserve whichever analog/digital spelling the radio already used: the mode
+  // nibble has two values for each, and normalising them would rewrite bytes to
+  // say what they already said.
+  const wasDigital = current.mode.channelMode === 1 || current.mode.channelMode === 3
+  const channelMode = wasDigital === digital ? current.mode.channelMode : digital ? 1 : 0
+
+  const vendor = ch.extras.vendor ?? {}
+  const num = (key: string, fallback: number) => {
+    const v = Number(vendor[key])
+    return Number.isFinite(v) ? v : fallback
+  }
+
+  // Where the radio should transmit, independent of whether it may. A
+  // receive-only channel keeps whatever pair the radio had stored.
+  const txSplit = ch.txAllowed ? (txFrequency(ch) ?? ch.rxFreq) : null
+
+  // The highest level the radio offers that does not exceed what was asked
+  // for. Comparing against one threshold picked the wrong level as soon as
+  // there were three of them.
+  const levels = DM32UV_SCHEMA.rf.powerLevels
+  let power = 0
+  for (let i = 0; i < levels.length; i++) {
+    if (ch.power.mW >= levels[i]!.mW) power = i
+  }
+
+  DM32_CHANNEL.write(data, offset, {
+    name: ch.name,
+    rxFreq: ch.rxFreq,
+    // `txFrequency` answers "where would this radio transmit", and returns null
+    // for a receive-only channel before it ever looks at the offset. Falling
+    // back to the receive frequency therefore overwrote the stored transmit
+    // frequency of every receive-only channel with its own receive frequency -
+    // so clearing the receive-only flag later would key up on the wrong pair.
+    // The transmit gate is byte 0x18 bit 3; the transmit frequency is not it.
+    ...(txSplit === null ? {} : { txFreq: txSplit }),
+    mode: {
+      channelMode,
+      txForbid: ch.txAllowed ? 0 : 1,
+      power,
+      loneWorker: num('loneWorker', current.mode.loneWorker) & 0x01,
+    },
+    scan: {
+      bandwidth: ch.bandwidthHz >= 25_000 ? 1 : 0,
+      scanAdd: num('scanAdd', current.scan.scanAdd) & 0x01,
+      scanList: num('scanList', current.scan.scanList) & 0x0f,
+    },
+    digital: {
+      encryptEnable: num('encryptEnabled', current.digital.encryptEnable) ? 1 : 0,
+      timeSlot: Math.max(0, num('timeSlot', current.digital.timeSlot + 1) - 1) & 0x01,
+      colorCode: num('colorCode', current.digital.colorCode) & 0x0f,
+    },
+    // A digital channel has no analog tones; leaving the words alone keeps a
+    // channel that was switched to DMR from losing what it had if it is
+    // switched back.
+    ...(digital ? {} : { rxTone: encodeToneWord(ch.tone.rx), txTone: encodeToneWord(ch.tone.tx) }),
+    encryptionKeyId: num('encryptionKeyId', current.encryptionKeyId) & 0xff,
+    radioIdIndex: num('radioIdIndex', current.radioIdIndex) & 0xff,
+  })
 }
 
 export function decodeZones(image: RadioImage): Codeplug['zones'] {
@@ -682,6 +956,83 @@ function decodesToKey(block: Uint8Array, off: number): boolean {
   if (isKeySlotEmpty(block.subarray(off, off + DM32_KEY_SLOT.size))) return false
   const rec = DM32_KEY_SLOT.read(block, off)
   return (ENCRYPTION_TYPES[rec.type] ?? 'none') !== 'none'
+}
+
+
+/**
+ * Write the zone names back.
+ *
+ * Only the name is written. A zone's channel list is a set of indices into the
+ * channel array, and rewriting it means understanding what the radio does when
+ * a zone points at a slot that has since been emptied - which nothing here has
+ * established. The name is unambiguous and the membership is left exactly as
+ * the radio had it.
+ */
+export function encodeZones(image: RadioImage, zones: Codeplug['zones']): void {
+  const first = blockData(image, ZONE_BLOCK_FIRST)
+  if (!first) return
+  const total = first[0]!
+
+  let index = 0
+  let docIndex = 0
+  for (let blockId = ZONE_BLOCK_FIRST; blockId <= ZONE_BLOCK_LAST && index < total; blockId++) {
+    const data = blockData(image, blockId)
+    if (!data) continue
+    const base = blockId === ZONE_BLOCK_FIRST ? ZONE_HEADER : 0
+    const capacity = Math.floor((PAGE_SIZE - base - 1) / ZONE_SIZE)
+
+    for (let i = 0; i < capacity && index < total; i++, index++) {
+      // Mirror the decoder's skip. `decodeZones` walks every record up to the
+      // count but pushes only those with a name or channels, so the nth record
+      // is not the nth zone in the document. Advancing both counters together
+      // wrote zone 2's name onto record 3 the moment any record was empty.
+      const off = base + i * ZONE_SIZE
+      const rec = DM32_ZONE.read(data, off)
+      if (!rec.name.trimEnd() && Math.min(rec.channelCount, 64) === 0) continue
+
+      const zone = zones[docIndex]
+      docIndex++
+      if (!zone) continue
+      DM32_ZONE.write(data, off, { name: zone.name })
+    }
+  }
+}
+
+/**
+ * Write the talk group records back.
+ *
+ * Name, number and call type - the three fields the decoder reads. Everything
+ * else in the 24-byte record is left alone. The traversal mirrors the decoder's
+ * exactly, including its skip of empty slots, so the nth talk group in the
+ * document lands on the nth record the decoder produced.
+ */
+export function encodeTalkGroups(image: RadioImage, groups: Codeplug['talkGroups']): void {
+  let index = 0
+  for (let blockId = TALKGROUP_BLOCK_FIRST; blockId <= TALKGROUP_BLOCK_LAST; blockId++) {
+    const data = blockData(image, blockId)
+    if (!data) continue
+    for (let n = 1; ; n++) {
+      const off = talkgroupOffset(n)
+      if (off + DM32_TALKGROUP.size > PAGE_SIZE - 1) break
+      const rec = DM32_TALKGROUP.read(data, off)
+      if (!rec.name.trimEnd() && rec.number === 0) continue
+
+      const group = groups[index]
+      index++
+      if (!group) continue
+
+      DM32_TALKGROUP.write(data, off, {
+        name: group.name,
+        number: group.number,
+        callType:
+          group.callType === 'allCall'
+            ? CALL_TYPE_ALL
+            : group.callType === 'private'
+              ? CALL_TYPE_PRIVATE
+              : CALL_TYPE_GROUP,
+      })
+    }
+  }
 }
 
 export function encodeKeys(block: Uint8Array, keys: Codeplug['encryptionKeys']): void {
