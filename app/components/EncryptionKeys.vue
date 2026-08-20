@@ -21,7 +21,6 @@ import {
  * screenshot of this page should not hand them over wholesale. Revealing a
  * second slot hides the first, so at most one key is ever on screen.
  */
-const emit = defineEmits<{ lock: [] }>()
 
 const codeplug = useCodeplugStore()
 
@@ -198,18 +197,8 @@ const INPUT_STYLE =
         {{ schema?.vendor }} {{ schema?.model }} · {{ slots.slots }} slots
       </span>
 
-      <div class="ms-auto flex items-center gap-2">
-        <span
-          class="chip"
-          style="border: 1px solid var(--cnL); background: var(--cnB); color: var(--cn)"
-        >Part 90 declared</span>
-        <RiskAction risk="neutral" ghost size="sm" icon="i-lucide-lock" label="Lock" @click="emit('lock')" />
-      </div>
     </div>
 
-    <div style="margin-bottom: 11px">
-      <EncryptionWarning variant="bar" />
-    </div>
 
     <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; overflow: hidden">
       <div v-for="row in rows" :key="row.slot">

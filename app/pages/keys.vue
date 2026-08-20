@@ -1,12 +1,11 @@
 <script setup lang="ts">
 /**
- * The Keys screen: a gate, and behind it the key slots.
+ * The Keys screen: the notice, then the key slots.
  *
- * The screen has exactly one entrance. `EncryptionWarning` asks which service
- * the radio operates under and only a Part 90 answer opens the editor, so the
- * declaration is held here rather than in a store: it is per-visit by design.
- * Reloading, navigating away, or pressing Lock puts the gate back, because a
- * remembered "yes, I am licensed" is a gate that stopped asking.
+ * The notice states the rule and cites it, and the operator - who holds the
+ * licence and is responsible for what they transmit - decides. Making them
+ * declare a service first only taught people to click the answer that opened
+ * the screen.
  */
 useSeoMeta({ title: 'Encryption keys' })
 
@@ -14,22 +13,14 @@ const codeplug = useCodeplugStore()
 
 const encryption = computed(() => codeplug.schema?.features.encryption ?? null)
 
-/**
- * A radio with no key slots is not gated, it is answered.
- *
- * Making someone declare a Part 90 licence before being told the UV-K5 has no
- * encryption at all would be theatre, and theatre is what discredits the gate
- * on the radios that do have slots.
- */
-const nothingToUnlock = computed(() => codeplug.isOpen && !encryption.value)
-
-const unlocked = ref(false)
+/** A radio with no key slots gets told so, rather than shown an empty editor. */
+const noKeySlots = computed(() => codeplug.isOpen && !encryption.value)
 </script>
 
 <template>
   <div class="mx-auto" style="max-width: 840px; padding: 22px 16px 48px">
     <div
-      v-if="nothingToUnlock"
+      v-if="noKeySlots"
       style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; padding: 18px"
     >
       <div class="flex items-center gap-2.5" style="margin-bottom: 6px">
@@ -44,9 +35,12 @@ const unlocked = ref(false)
       </p>
     </div>
 
-    <EncryptionWarning v-else-if="!unlocked" @unlock="unlocked = true" />
-
-    <EncryptionKeys v-else-if="codeplug.isOpen" @lock="unlocked = false" />
+    <template v-else-if="codeplug.isOpen">
+      <div style="margin-bottom: 13px">
+        <EncryptionWarning />
+      </div>
+      <EncryptionKeys />
+    </template>
 
     <template v-else>
       <div class="flex items-center gap-2.5 flex-wrap" style="margin-bottom: 11px">
@@ -54,13 +48,6 @@ const unlocked = ref(false)
         <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">
           Encryption keys
         </h1>
-        <div class="ms-auto flex items-center gap-2">
-          <span
-            class="chip"
-            style="border: 1px solid var(--cnL); background: var(--cnB); color: var(--cn)"
-          >Part 90 declared</span>
-          <RiskAction risk="neutral" ghost size="sm" icon="i-lucide-lock" label="Lock" @click="unlocked = false" />
-        </div>
       </div>
 
       <div style="margin-bottom: 11px">
