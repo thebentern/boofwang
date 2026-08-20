@@ -22,6 +22,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   const doc = shallowRef<Codeplug | null>(null)
   const schema = shallowRef<RadioSchema | null>(null)
   const channels = shallowRef<readonly Channel[]>([])
+  const zones = shallowRef<readonly Codeplug['zones'][number][]>([])
+  const talkGroups = shallowRef<readonly Codeplug['talkGroups'][number][]>([])
   const diagnostics = shallowRef<readonly Diagnostic[]>([])
   const revision = ref(0)
   const dirty = ref(false)
@@ -45,6 +47,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     doc.value = markRaw(decoded)
     schema.value = markRaw(driver.schema)
     channels.value = Object.freeze(sortedChannels(decoded).map((c) => Object.freeze(c)))
+    zones.value = Object.freeze(decoded.zones.map((z) => Object.freeze(z)))
+    talkGroups.value = Object.freeze(decoded.talkGroups.map((g) => Object.freeze(g)))
     diagnostics.value = Object.freeze(driver.validate(decoded))
     revision.value++
     dirty.value = false
@@ -56,6 +60,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     doc.value = null
     schema.value = null
     channels.value = []
+    zones.value = []
+    talkGroups.value = []
     diagnostics.value = []
     dirty.value = false
     revision.value++
@@ -156,6 +162,40 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     return created
   }
 
+  /**
+   * Rename a zone.
+   *
+   * The name is the only part of a zone this build writes. A zone's channel
+   * list is a set of absolute channel numbers, and what the radio does with one
+   * pointing at a slot that has since been emptied has not been established -
+   * so membership is shown but not edited, rather than edited and silently
+   * dropped at encode time.
+   */
+  function renameZone(id: string, name: string) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.zones.findIndex((z) => z.id === id)
+    if (i < 0 || cp.zones[i]!.name === name) return
+    cp.zones[i] = { ...cp.zones[i]!, name }
+    zones.value = Object.freeze(cp.zones.map((z) => Object.freeze(z)))
+    revalidate()
+    revision.value++
+    dirty.value = true
+  }
+
+  /** Rename a talk group. Its number and call type come from the radio. */
+  function renameTalkGroup(id: string, name: string) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.talkGroups.findIndex((g) => g.id === id)
+    if (i < 0 || cp.talkGroups[i]!.name === name) return
+    cp.talkGroups[i] = { ...cp.talkGroups[i]!, name }
+    talkGroups.value = Object.freeze(cp.talkGroups.map((g) => Object.freeze(g)))
+    revalidate()
+    revision.value++
+    dirty.value = true
+  }
+
   function deleteChannel(index: number) {
     if (!doc.value?.channels.delete(index)) return
     channels.value = Object.freeze(channels.value.filter((c) => c.index !== index))
@@ -246,10 +286,14 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     pendingWrite,
     createChannel,
     deleteChannel,
+    renameZone,
+    renameTalkGroup,
     setEncryptionKey,
     removeEncryptionKey,
     revalidate,
     channels,
+    zones,
+    talkGroups,
     diagnostics,
     diagnosticsByChannel,
     revision,
