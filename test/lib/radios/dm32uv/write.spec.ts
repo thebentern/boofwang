@@ -16,6 +16,7 @@ import {
   CHANNEL_BLOCK_LAST,
   CHANNEL_HEADER,
   CHANNEL_SIZE,
+  channelSlot,
   KEY_AREA,
   KEY_BLOCK,
   KEY_SLOTS,
@@ -744,12 +745,51 @@ describe('adding and removing channels', () => {
     expect(writable.decode(out).channels.has(last)).toBe(false)
   })
 
-  it('refuses a slot number the radio has no room for', () => {
+  it('refuses a slot number past the end of the channel bank', () => {
     const img = image()
     const doc = writable.decode(img)
     const template = doc.channels.get([...doc.channels.keys()][0]!)!
     doc.channels.set(99_999, { ...template, index: 99_999, name: 'NOPE' })
-    expect(() => writable.encode(doc, img)).toThrow(/does not fit/)
+    expect(() => writable.encode(doc, img)).toThrow(/past the end/)
+  })
+
+  it('refuses a channel whose block the radio has not allocated', () => {
+    // Block ids are absolute. This radio has channel-bank blocks 0x12, 0x13,
+    // 0x14 and then 0x18 - so channel 255, which belongs in 0x15, has nowhere
+    // to go. Putting it in 0x18 instead would store it as channel 510 and
+    // silently break every zone entry pointing at either number.
+    const img = image()
+    const doc = writable.decode(img)
+    const template = doc.channels.get([...doc.channels.keys()][0]!)!
+    expect(channelSlot(255)!.blockId).toBe(0x15)
+    expect(img.regions.some((r) => r.start === logicalAddress(0x15)), 'fixture unexpectedly has 0x15').toBe(false)
+
+    doc.channels.set(255, { ...template, index: 255, name: 'NO BLOCK' })
+    expect(() => writable.encode(doc, img)).toThrow(/block 0x15, which this radio has not allocated/)
+  })
+
+  it('numbers channels by absolute block, not by the blocks that happen to exist', () => {
+    // The reference's entry-offset formula, checked at every boundary.
+    expect(channelSlot(1)).toEqual({ blockId: 0x12, offset: CHANNEL_HEADER })
+    expect(channelSlot(84)).toEqual({ blockId: 0x12, offset: CHANNEL_HEADER + 83 * CHANNEL_SIZE })
+    expect(channelSlot(85)).toEqual({ blockId: 0x13, offset: 0 })
+    expect(channelSlot(169)).toEqual({ blockId: 0x13, offset: 84 * CHANNEL_SIZE })
+    expect(channelSlot(170)).toEqual({ blockId: 0x14, offset: 0 })
+    expect(channelSlot(255)).toEqual({ blockId: 0x15, offset: 0 })
+    // 48 slots: 84 + 47 * 85.
+    expect(channelSlot(84 + 47 * 85)).toEqual({ blockId: CHANNEL_BLOCK_LAST, offset: 84 * CHANNEL_SIZE })
+    expect(channelSlot(84 + 47 * 85 + 1)).toBeNull()
+    expect(channelSlot(0)).toBeNull()
+  })
+
+  it('does not renumber the channels after a block the radio is missing', () => {
+    // A gap in the bank means those numbers are unusable, not that later
+    // channels shuffle down into them.
+    const img = image()
+    const doc = writable.decode(img)
+    const numbers = [...doc.channels.keys()].sort((x, y) => x - y)
+    expect(numbers[0]).toBe(1)
+    expect(numbers.at(-1)).toBeLessThanOrEqual(84)
   })
 
   it('claims the count word, and none of the header fill around it', () => {

@@ -37,20 +37,21 @@ import {
   DM32_TALKGROUP,
   DM32_ZONE,
   ENCRYPTION_TYPES,
+  KEY_AREA,
   KEY_BLOCK,
   KEY_SLOTS,
+  TALKGROUP_BLOCK_FIRST,
+  TALKGROUP_BLOCK_LAST,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
-  decodeToneWord,
-  encodeToneWord,
-  KEY_AREA,
   ZONE_HEADER,
   ZONE_SIZE,
+  channelSlot,
+  decodeToneWord,
+  encodeToneWord,
   isKeySlotEmpty,
   keySlotOffset,
   talkgroupOffset,
-  TALKGROUP_BLOCK_FIRST,
-  TALKGROUP_BLOCK_LAST,
 } from './layout.js'
 import { isAllocated, scanPageMap } from './pagemap.js'
 import {
@@ -654,45 +655,49 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       const channelBlock = (id: number) => out.regions.find((r) => r.start === logicalAddress(id))?.data
       const firstChannels = channelBlock(CHANNEL_BLOCK_FIRST)
       if (firstChannels) {
-        // Every physical channel slot, in the order the decoder walks them, so
-        // slot k is channel k+1 on both sides. Blocks the radio has not
-        // allocated are skipped by both without advancing the number.
-        const slots: { data: Uint8Array; offset: number }[] = []
-        for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) {
-          const data = channelBlock(id)
-          if (!data) continue
-          const from = id === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
-          const capacity = Math.floor((PAGE_SIZE - from - 1) / CHANNEL_SIZE)
-          for (let i = 0; i < capacity; i++) slots.push({ data, offset: from + i * CHANNEL_SIZE })
-        }
-
         const total = firstChannels[0]! | (firstChannels[1]! << 8)
         const highest = doc.channels.size === 0 ? 0 : Math.max(...doc.channels.keys())
-        if (highest > slots.length) {
-          throw new DriverError(
-            `Channel ${highest} does not fit: this radio has allocated ${slots.length} channel slots. ` +
-              'Use a lower slot number.',
-          )
+
+        // Refuse a channel the radio has no page for, rather than putting it in
+        // the next page that happens to exist. Block ids are absolute: this
+        // radio has channel-bank blocks 0x12-0x14 and then 0x18, so channels
+        // 255-509 have nowhere to live on it and saying so is the only honest
+        // answer.
+        for (const n of doc.channels.keys()) {
+          const slot = channelSlot(n)
+          if (!slot) {
+            throw new DriverError(`Channel ${n} is past the end of this radio's channel bank.`)
+          }
+          if (!channelBlock(slot.blockId)) {
+            throw new DriverError(
+              `Channel ${n} needs memory block 0x${slot.blockId.toString(16)}, which this radio has not ` +
+                'allocated. Programming it from the radio\'s own menu once will create the block.',
+            )
+          }
         }
+
         // Never shrink. Slots are positional on this radio - an empty one still
         // consumes a channel number - so deleting the last channel leaves a gap
         // rather than renumbering every zone and scan list entry that points
         // past it.
         const wanted = Math.max(total, highest)
 
-        for (let k = 0; k < wanted; k++) {
-          const slot = slots[k]!
-          const ch = doc.channels.get(k + 1)
+        for (let n = 1; n <= wanted; n++) {
+          const slot = channelSlot(n)
+          if (!slot) break
+          const data = channelBlock(slot.blockId)
+          if (!data) continue
+          const ch = doc.channels.get(n)
           if (ch) {
-            encodeChannel(slot.data, slot.offset, ch)
+            encodeChannel(data, slot.offset, ch)
             continue
           }
           // No channel here in the document. Erase the slot if it holds one the
           // user deleted, or if the count is about to reach past it; otherwise
           // leave it alone, because a slot the decoder already ignored may hold
           // bytes nobody has explained.
-          const held = decodeChannel(slot.data, slot.offset, k + 1) !== null
-          if (k >= total || held) slot.data.fill(ERASED, slot.offset, slot.offset + CHANNEL_SIZE)
+          const held = decodeChannel(data, slot.offset, n) !== null
+          if (n > total || held) data.fill(ERASED, slot.offset, slot.offset + CHANNEL_SIZE)
         }
 
         // The count is a 16-bit little-endian word at the top of the first
@@ -790,18 +795,15 @@ export function decodeChannels(image: RadioImage): Channel[] {
   const total = first[0]! | (first[1]! << 8)
   const out: Channel[] = []
 
-  let index = 0
-  for (let blockId = CHANNEL_BLOCK_FIRST; blockId <= CHANNEL_BLOCK_LAST && index < total; blockId++) {
-    const data = blockData(image, blockId)
+  for (let n = 1; n <= total; n++) {
+    const slot = channelSlot(n)
+    if (!slot) break
+    // A channel whose block the radio has not allocated simply is not there.
+    // Its number still belongs to it, so the ones after it do not move up.
+    const data = blockData(image, slot.blockId)
     if (!data) continue
-    // Only the first block is offset by a header.
-    const base = blockId === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
-    const capacity = Math.floor((PAGE_SIZE - base - 1) / CHANNEL_SIZE)
-
-    for (let i = 0; i < capacity && index < total; i++, index++) {
-      const ch = decodeChannel(data, base + i * CHANNEL_SIZE, index + 1)
-      if (ch) out.push(ch)
-    }
+    const ch = decodeChannel(data, slot.offset, n)
+    if (ch) out.push(ch)
   }
   return out
 }

@@ -260,6 +260,28 @@ header fill either side of it was untouched, the added channel read back, the
 deleted one did not, and the channel after the deletion kept its name — no
 renumbering. Restored to `224771c0…` afterwards.
 
+### Channel numbering is absolute
+
+Both the decoder and the encoder walked the channel-bank blocks the radio
+happened to have, skipping the absent ones without advancing the channel number.
+The reference's entry-offset formula (`05-DATA-STRUCTURES.md:53-58`) is absolute:
+
+```
+if N <= 84:   block = 0x12                              offset = 0x010 + (N - 1) * 48
+else:         block = 0x12 + 1 + floor((N - 85) / 85)   offset = ((N - 85) mod 85) * 48
+```
+
+This radio has channel-bank blocks `0x12`, `0x13`, `0x14`, then `0x18` — `0x15`
+through `0x17` are not allocated. Walking what exists put channel 255 in `0x18`,
+which the radio reads as channel 510. Nothing surfaced it because the encode
+loop stopped at the stored count of 45, all inside `0x12`; adding channels made
+it reachable.
+
+A gap in the bank means those channel numbers are unusable on that radio, not
+that the later ones shuffle down. Writing a channel into a block the radio has
+not allocated is refused by name, because a silently misplaced channel takes
+every zone and scan-list entry pointing at either number with it.
+
 ## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied

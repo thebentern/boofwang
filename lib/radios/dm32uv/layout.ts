@@ -18,6 +18,33 @@ export const CHANNEL_HEADER = 0x10
 export const CHANNEL_BLOCK_FIRST = 0x12
 export const CHANNEL_BLOCK_LAST = 0x41
 
+/** Records in the first channel block, which gives up 16 bytes to a header. */
+export const CHANNEL_SLOTS_FIRST = Math.floor((0x1000 - CHANNEL_HEADER - 1) / CHANNEL_SIZE)
+/** Records in every later channel block. */
+export const CHANNEL_SLOTS_REST = Math.floor((0x1000 - 1) / CHANNEL_SIZE)
+
+/**
+ * Where channel `n` (1-based) lives, or null if it is past the bank.
+ *
+ * The block id is absolute, straight from the reference's entry-offset formula
+ * (`05-DATA-STRUCTURES.md:53-58`), never "the next block that happens to
+ * exist". This radio has channel-bank blocks 0x12, 0x13, 0x14 and then 0x18 -
+ * 0x15 through 0x17 are not allocated - so walking the blocks it has would put
+ * channel 255 in 0x18, which the radio reads as channel 510. The gap is real
+ * and it means those channel numbers have nowhere to go, not that the ones
+ * after them shuffle down.
+ */
+export function channelSlot(n: number): { blockId: number; offset: number } | null {
+  if (!Number.isInteger(n) || n < 1) return null
+  if (n <= CHANNEL_SLOTS_FIRST) {
+    return { blockId: CHANNEL_BLOCK_FIRST, offset: CHANNEL_HEADER + (n - 1) * CHANNEL_SIZE }
+  }
+  const past = n - CHANNEL_SLOTS_FIRST - 1
+  const blockId = CHANNEL_BLOCK_FIRST + 1 + Math.floor(past / CHANNEL_SLOTS_REST)
+  if (blockId > CHANNEL_BLOCK_LAST) return null
+  return { blockId, offset: (past % CHANNEL_SLOTS_REST) * CHANNEL_SIZE }
+}
+
 export const ZONE_SIZE = 145
 export const ZONE_HEADER = 0x10
 export const ZONE_BLOCK_FIRST = 0x5c
