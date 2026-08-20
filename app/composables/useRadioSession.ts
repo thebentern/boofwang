@@ -347,10 +347,16 @@ export function useRadioSession() {
           signal,
           progress: (p) => transfer.report(p),
         })
-        codeplug.load(image, device.currentDriver())
-
-        // Persisted immediately and unprompted: the moment a codeplug is worth
-        // editing is the moment it is worth being able to get back.
+        // Persisted immediately and unprompted, and *before* the document is
+        // loaded: the moment a codeplug is worth editing is the moment it is
+        // worth being able to get back.
+        //
+        // The order is not cosmetic. Opening the codeplug is what tells the
+        // rest of the app a radio has been read, and the status bar answers
+        // "is there a way back" the instant it hears that. Loading first meant
+        // it always looked before the backup landed, so every read ended with
+        // a toast saying a backup had been saved next to a status bar saying
+        // to read the radio to get one.
         await db.putBackup(
           toStoredBackup(image, {
             id: crypto.randomUUID(),
@@ -360,6 +366,8 @@ export function useRadioSession() {
             label: `${image.variant} · read ${new Date().toLocaleString()}`,
           }),
         )
+
+        codeplug.load(image, device.currentDriver())
 
         toast.add({
           title: 'Codeplug read',
