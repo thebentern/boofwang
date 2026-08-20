@@ -14,6 +14,10 @@ import {
   RADIOID_SIZE,
   RXGROUP_BLOCK,
   RXGROUP_HEADER,
+  CONTACT_REGION_HEADER,
+  CONTACT_SIZE,
+  DM32_CONTACT,
+  contactSlot,
   SCANLIST_BLOCK,
   SCANLIST_HEADER,
   SCANLIST_SIZE,
@@ -376,5 +380,105 @@ describe('membership follows the channel bank', () => {
     const all = [...doc.channels.keys()].slice(0, 10)
     doc.zones[1] = { ...doc.zones[1]!, channels: all }
     expect(d.decode(d.encode(doc, img)).zones[1]!.channels).toEqual(all)
+  })
+})
+
+describe('the DMR address book', () => {
+  const START = 0x278000
+
+  /** A contacts region built to the reference's own hex, then extended. */
+  function withContacts(n: number): RadioImage {
+    const img = image()
+    const pages = Math.ceil((CONTACT_REGION_HEADER + n * CONTACT_SIZE) / PAGE_SIZE) || 1
+    const regions = [...img.regions]
+    for (let p = 0; p < pages; p++) {
+      regions.push({ start: START + p * PAGE_SIZE, data: new Uint8Array(PAGE_SIZE).fill(0xff), readOnly: true, label: '' })
+    }
+    const page = (i: number) => regions.find((r) => r.start === START + i * PAGE_SIZE)!.data
+    const head = page(0)
+    head[0] = n & 0xff
+    head[1] = (n >> 8) & 0xff
+    head[2] = (n >> 16) & 0xff
+    head[3] = 0
+
+    for (let i = 0; i < n; i++) {
+      const slot = contactSlot(i)
+      DM32_CONTACT.write(page(slot.page), slot.offset, {
+        name: `Contacts ${i + 1}`,
+        dmrId: i + 1,
+        callsign: i === 0 ? 'W1AW' : '',
+        city: '',
+        province: '',
+        country: '',
+        remark: '',
+      })
+    }
+    return { ...img, regions, meta: { ...img.meta, contactsStart: START, contactsEnd: START + 0x463fff } }
+  }
+
+  it('reads nothing when the image has no contacts region', () => {
+    expect(d.decode(image()).contacts).toEqual([])
+  })
+
+  it('decodes the reference’s own hardware sample', () => {
+    // 0x000: 01 00 00 00, 0x010: "Contacts 1\0", 0x020: 01 00 00 f0
+    const img = image()
+    const data = new Uint8Array(PAGE_SIZE).fill(0xff)
+    data.set([0x01, 0x00, 0x00, 0x00], 0)
+    data.set([...'Contacts 1'].map((c) => c.charCodeAt(0)), 0x10)
+    data[0x1a] = 0x00
+    data.set([0x01, 0x00, 0x00, 0xf0], 0x20)
+
+    const withRegion: RadioImage = {
+      ...img,
+      regions: [...img.regions, { start: START, data, readOnly: true, label: '' }],
+      meta: { ...img.meta, contactsStart: START, contactsEnd: START + 0x463fff },
+    }
+    const contacts = d.decode(withRegion).contacts
+    expect(contacts).toHaveLength(1)
+    expect(contacts[0]!.name).toBe('Contacts 1')
+    // The ID is 24-bit. Read as a uint32 the same bytes give 4,026,531,841,
+    // which is not a DMR ID; the 0xF0 at +0x13 is something else.
+    expect(contacts[0]!.dmrId).toBe(1)
+  })
+
+  it('walks past the first page without straddling it', () => {
+    // 44 entries per page, and the flat index*92 formula in circulation walks
+    // straight across the boundary and reads garbage from entry 44 on.
+    const contacts = d.decode(withContacts(90)).contacts
+    expect(contacts).toHaveLength(90)
+    expect(contacts[43]!.name).toBe('Contacts 44')
+    expect(contacts[44]!.name).toBe('Contacts 45')
+    expect(contacts[89]!.dmrId).toBe(90)
+  })
+
+  it('keeps the fields the radio stores alongside the number', () => {
+    const first = d.decode(withContacts(2)).contacts[0]!
+    expect(first.callsign).toBe('W1AW')
+    expect(first.city).toBe('')
+  })
+
+  it('is never a write target', () => {
+    // The region has no block id and no hardware sample past one entry.
+    const img = withContacts(50)
+    const out = d.encode(d.decode(img), img)
+    for (const region of out.regions) {
+      if (region.start < START) continue
+      const before = img.regions.find((r) => r.start === region.start)!
+      expect(equalBytes(region.data, before.data)).toBe(true)
+      expect(d.ownedRanges(region.start)).toEqual([])
+    }
+  })
+
+  it('survives a round trip untouched even when the codeplug is edited', () => {
+    const img = withContacts(50)
+    const doc = d.decode(img)
+    doc.settings.powerOnLine1 = 'EDITED'
+    doc.contacts[0] = { ...doc.contacts[0]!, name: 'IGNORED' }
+    const out = d.encode(doc, img)
+    for (const region of out.regions) {
+      if (region.start < START) continue
+      expect(equalBytes(region.data, img.regions.find((r) => r.start === region.start)!.data)).toBe(true)
+    }
   })
 })

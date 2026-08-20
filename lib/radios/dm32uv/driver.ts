@@ -32,7 +32,9 @@ import {
   CHANNEL_BLOCK_LAST,
   CHANNEL_HEADER,
   CHANNEL_SIZE,
+  CONTACT_SIZE,
   DM32_CHANNEL,
+  DM32_CONTACT,
   DM32_KEY_SLOT,
   DM32_RADIOID,
   DM32_RXGROUP,
@@ -71,6 +73,7 @@ import {
   ZONE_MAX_CHANNELS,
   ZONE_SIZE,
   channelSlot,
+  contactSlot,
   decodeToneWord,
   encodeToneWord,
   isKeySlotEmpty,
@@ -82,10 +85,15 @@ import {
   PAGE_SIZE,
   VFRAME_BUILD_DATE,
   VFRAME_CONFIG_RANGE,
+  VFRAME_CONTACTS_RANGE,
   VFRAME_FIRMWARE,
+  VFRAME_MAX_CONTACTS,
   enterProgrammingMode,
   handshake,
+  parseLE,
+  parseOptionalRange,
   parseRange,
+  readMemory,
   readPage,
   vframe,
   writePage,
@@ -293,6 +301,13 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // between units, and everything else is addressed relative to it.
       const config = parseRange(await vframe(t, VFRAME_CONFIG_RANGE, 0x00, opts))
 
+      // The address book lives outside the configuration region and is
+      // optional: a radio with the feature off answers with an empty range.
+      // Asked here rather than at read time because identify is the only place
+      // V-frames are safe to send.
+      const contacts = parseOptionalRange(await vframe(t, VFRAME_CONTACTS_RANGE, 0x00, opts))
+      const maxContacts = contacts ? parseLE(await vframe(t, VFRAME_MAX_CONTACTS, 0x00, opts)) : 0
+
       ctx.log?.info(`DM-32UV ${model} firmware ${firmware} (${buildDate}), config region 0x${config.start.toString(16)}-0x${config.end.toString(16)}`)
       ctx.progress?.({ phase: 'handshake', done: 1, total: 1, label: firmware })
 
@@ -312,7 +327,13 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           write: schema.capabilities.write,
         },
         identHash: await sha256Hex(new TextEncoder().encode(`dm32uv|${model}|${firmware}|${buildDate}`)),
-        meta: { model, buildDate, configStart: config.start, configEnd: config.end },
+        meta: {
+          model,
+          buildDate,
+          configStart: config.start,
+          configEnd: config.end,
+          ...(contacts ? { contactsStart: contacts.start, contactsEnd: contacts.end, maxContacts } : {}),
+        },
       }
     },
 
@@ -362,6 +383,37 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         })
       }
 
+      // The address book, if this radio has one and anything is in it.
+      //
+      // Read count-first and only as far as the count reaches. The region is
+      // 4.4 MiB - about seven minutes of serial time - and a radio with no
+      // contacts, like the one this was developed against, costs one four-byte
+      // read instead.
+      const contactsStart = ident.meta?.contactsStart as number | undefined
+      const contactsEnd = ident.meta?.contactsEnd as number | undefined
+      if (typeof contactsStart === 'number' && typeof contactsEnd === 'number') {
+        const head = await readMemory(t, contactsStart, 4, opts)
+        const count = parseLE(head)
+        const cap = Math.floor((contactsEnd - contactsStart + 1) / CONTACT_SIZE)
+
+        if (count > 0 && count <= cap) {
+          const pages = contactSlot(count - 1).page + 1
+          for (let i = 0; i < pages; i++) {
+            ctx.progress?.({ phase: 'read', done: i, total: pages, label: `contacts ${i + 1}/${pages}` })
+            const addr = contactsStart + i * PAGE_SIZE
+            // Not readPage: this region has no logical block id at 0xFFF, so
+            // there is no tail byte to check and that byte is real data.
+            const data = await readMemory(t, addr, PAGE_SIZE, opts)
+            if (data.length !== PAGE_SIZE) {
+              throw new DriverError(`Short contacts page at 0x${addr.toString(16)}`)
+            }
+            regions.push({ start: addr, data, readOnly: true, label: `contacts page ${i + 1}` })
+          }
+        } else if (count > cap) {
+          ctx.log?.info(`The radio reports ${count} contacts but its region holds ${cap}; not reading them.`)
+        }
+      }
+
       const flat = new Uint8Array(regions.length * PAGE_SIZE)
       regions.forEach((r, i) => flat.set(r.data, i * PAGE_SIZE))
 
@@ -379,6 +431,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           placements,
           freePages: map.free.length,
           supersededPages: map.superseded.length,
+          ...(typeof contactsStart === 'number' ? { contactsStart, contactsEnd } : {}),
         },
         sha256: await sha256Hex(flat),
       }
@@ -654,6 +707,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       cp.rxGroups = decodeRxGroups(image)
       cp.radioIds = decodeRadioIds(image)
       cp.encryptionKeys = decodeKeys(image)
+      cp.contacts = decodeContacts(image)
       cp.settings = decodeSettings(image)
       return cp
     },
@@ -1554,4 +1608,42 @@ export function encodeSettings(image: RadioImage, settings: Record<string, unkno
   }
 
   if (Object.keys(patch).length > 0) DM32_SETTINGS.write(data, 0, patch as never)
+}
+
+/**
+ * The DMR address book, if the image carries one.
+ *
+ * Read-only. The region has no logical block id, no flash translation layer and
+ * no hardware sample with more than one entry in it - the walk past the first
+ * page rests entirely on the reference implementation. Reading it is free;
+ * writing it would be a guess about 4.4 MiB of somebody's contacts.
+ */
+export function decodeContacts(image: RadioImage): Codeplug['contacts'] {
+  const start = (image.meta as { contactsStart?: number }).contactsStart
+  if (typeof start !== 'number') return []
+
+  const pageAt = (n: number) => image.regions.find((r) => r.start === start + n * PAGE_SIZE)?.data
+  const first = pageAt(0)
+  if (!first) return []
+
+  const count = first[0]! | (first[1]! << 8) | (first[2]! << 16) | first[3]! * 0x100_0000
+  const out: Codeplug['contacts'] = []
+
+  for (let n = 0; n < count; n++) {
+    const slot = contactSlot(n)
+    const data = pageAt(slot.page)
+    if (!data) break
+    const rec = DM32_CONTACT.read(data, slot.offset)
+    out.push({
+      id: `contact-${n + 1}`,
+      name: rec.name.trimEnd(),
+      dmrId: rec.dmrId,
+      callsign: rec.callsign.trimEnd(),
+      city: rec.city.trimEnd(),
+      province: rec.province.trimEnd(),
+      country: rec.country.trimEnd(),
+      remark: rec.remark.trimEnd(),
+    })
+  }
+  return out
 }

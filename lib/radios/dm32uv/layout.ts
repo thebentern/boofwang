@@ -471,3 +471,44 @@ export const DM32_KEY_FUNCTIONS = [
   'Call Alert', 'Man Down', 'Lone Worker', 'Privacy', 'Slot Switch', 'Colour Code',
   'Channel Up', 'Channel Down',
 ] as const
+
+// ----------------------------------------------------------------- contacts --
+
+/**
+ * The DMR address book.
+ *
+ * Not a block. It lives in a raw region of its own - roughly 4.4 MiB on this
+ * firmware - located per session by V-frame 0x0F, with no logical block id and
+ * no flash translation layer: these are real physical addresses that stay put.
+ *
+ * Three different things in this radio are called a contact and the reference
+ * warns about it explicitly: this address book, a talk group in block 0x44, and
+ * a 12-bit per-channel index into that block. Only the first is this.
+ */
+export const CONTACT_SIZE = 92
+/** Count word, then twelve bytes nobody has explained, then entry 0. */
+export const CONTACT_REGION_HEADER = 16
+/**
+ * Entries do not straddle a 4 KiB page: 44 x 92 = 4048, and the rest of the page
+ * is fill. The flat `index * 92` formula in circulation is wrong twice over -
+ * it omits the header and it walks straight across the page boundary.
+ */
+export const CONTACTS_PER_PAGE = 44
+
+export const DM32_CONTACT = defineStruct(CONTACT_SIZE, {
+  name: at(0x00, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
+  dmrId: at(0x10, u24le),
+  callsign: at(0x14, ascii(8, { pad: 0xff, terminators: [0x00, 0xff] })),
+  city: at(0x1c, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
+  province: at(0x2c, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
+  country: at(0x3c, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
+  remark: at(0x4c, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
+})
+
+/** Where contact `n` (0-based) sits: which page of the region, and where in it. */
+export function contactSlot(n: number): { page: number; offset: number } {
+  const page = Math.floor(n / CONTACTS_PER_PAGE)
+  const within = n % CONTACTS_PER_PAGE
+  // Only the first page gives up its first sixteen bytes to the header.
+  return { page, offset: (page === 0 ? CONTACT_REGION_HEADER : 0) + within * CONTACT_SIZE }
+}

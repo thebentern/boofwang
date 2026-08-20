@@ -200,6 +200,36 @@ export async function vframe(t: Transport, id: number, hint = 0x00, opts?: ReadO
 }
 
 /** Two little-endian uint32s: an inclusive address range. */
+/**
+ * A range the radio may legitimately report as absent.
+ *
+ * The contacts region is optional: a radio with the feature turned off answers
+ * `start == 0 && end == 0`, which {@link parseRange} correctly rejects as
+ * inverted. Rejecting it is right for the configuration region - a radio that
+ * cannot say where its codeplug lives is broken - and wrong for this one, where
+ * "there is no such region" is a real answer.
+ */
+export function parseOptionalRange(payload: Uint8Array): { start: number; end: number } | null {
+  if (payload.length < 8) return null
+  const rd = (o: number) => payload[o]! | (payload[o + 1]! << 8) | (payload[o + 2]! << 16) | payload[o + 3]! * 0x1000000
+  if (rd(0) === 0 && rd(4) === 0) return null
+  return parseRange(payload)
+}
+
+/**
+ * An integer of however many bytes the radio actually sent.
+ *
+ * The maximum-contacts frame answers with three bytes on this firmware
+ * (`50 c3 00` = 50,000). The reference implementation requires four, fails, and
+ * falls back to a hardcoded 50,000 that happens to be right here - which is the
+ * kind of luck that stops working on the next firmware.
+ */
+export function parseLE(payload: Uint8Array): number {
+  let out = 0
+  for (let i = 0; i < payload.length; i++) out += payload[i]! * 2 ** (8 * i)
+  return out
+}
+
 export function parseRange(payload: Uint8Array): { start: number; end: number } {
   if (payload.length < 8) throw new ProtocolError('V-frame range payload is too short', '8 bytes', hexDump(payload))
   const rd = (o: number) => payload[o]! | (payload[o + 1]! << 8) | (payload[o + 2]! << 16) | payload[o + 3]! * 0x1000000

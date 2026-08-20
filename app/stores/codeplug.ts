@@ -27,6 +27,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   const scanLists = shallowRef<readonly Codeplug['scanLists'][number][]>([])
   const rxGroups = shallowRef<readonly Codeplug['rxGroups'][number][]>([])
   const radioIds = shallowRef<readonly Codeplug['radioIds'][number][]>([])
+  const contacts = shallowRef<readonly Codeplug['contacts'][number][]>([])
   const settings = shallowRef<Readonly<Record<string, unknown>>>({})
   const diagnostics = shallowRef<readonly Diagnostic[]>([])
   const revision = ref(0)
@@ -56,6 +57,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     scanLists.value = Object.freeze(decoded.scanLists.map((l) => Object.freeze(l)))
     rxGroups.value = Object.freeze(decoded.rxGroups.map((g) => Object.freeze(g)))
     radioIds.value = Object.freeze(decoded.radioIds.map((r) => Object.freeze(r)))
+    contacts.value = Object.freeze(decoded.contacts.map((c) => Object.freeze(c)))
     settings.value = Object.freeze({ ...decoded.settings })
     diagnostics.value = Object.freeze(driver.validate(decoded))
     revision.value++
@@ -73,6 +75,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     scanLists.value = []
     rxGroups.value = []
     radioIds.value = []
+    contacts.value = []
     settings.value = {}
     diagnostics.value = []
     dirty.value = false
@@ -444,6 +447,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     scanLists,
     rxGroups,
     radioIds,
+    contacts,
     settings,
     diagnostics,
     diagnosticsByChannel,

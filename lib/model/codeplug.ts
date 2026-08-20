@@ -34,6 +34,24 @@ export interface ScanList {
   priority2?: number | null
 }
 
+/**
+ * An entry in the radio's DMR address book.
+ *
+ * Distinct from a talk group, and from the radio's own IDs. The DM-32UV keeps
+ * up to 50,000 of these in a memory region of their own, outside the
+ * configuration the rest of a codeplug comes from.
+ */
+export interface DmrContact {
+  id: string
+  name: string
+  dmrId: number
+  callsign: string
+  city: string
+  province: string
+  country: string
+  remark: string
+}
+
 export interface DmrRadioId {
   id: string
   name: string
@@ -78,6 +96,7 @@ export interface Codeplug {
   talkGroups: TalkGroup[]
   rxGroups: RxGroup[]
   radioIds: DmrRadioId[]
+  contacts: DmrContact[]
   encryptionKeys: EncryptionKey[]
   /** Radio settings, keyed by the setting ids declared in the RadioSchema. */
   settings: Record<string, unknown>
@@ -94,6 +113,7 @@ export function emptyCodeplug(radio: RadioId | null, now: string): Codeplug {
     talkGroups: [],
     rxGroups: [],
     radioIds: [],
+    contacts: [],
     encryptionKeys: [],
     settings: {},
   }

@@ -19,8 +19,15 @@ const hasTalkGroups = computed(() => !!features.value?.talkGroups)
 const hasScanLists = computed(() => !!features.value?.scanLists)
 const hasRxGroups = computed(() => !!features.value?.rxGroups)
 const hasRadioIds = computed(() => !!features.value?.radioIds)
+const hasContacts = computed(() => !!features.value?.contacts)
 const supported = computed(
-  () => hasZones.value || hasTalkGroups.value || hasScanLists.value || hasRxGroups.value || hasRadioIds.value,
+  () =>
+    hasZones.value ||
+    hasTalkGroups.value ||
+    hasScanLists.value ||
+    hasRxGroups.value ||
+    hasRadioIds.value ||
+    hasContacts.value,
 )
 
 const zoneNameLength = computed(() =>
@@ -135,7 +142,9 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
       </h1>
       <span v-if="codeplug.isOpen && supported" class="ms-auto" style="font-size: 12px; color: var(--mu)">
         {{ codeplug.zones.length }} zones · {{ codeplug.talkGroups.length }} talk groups ·
-        {{ codeplug.scanLists.length }} scan lists · {{ codeplug.rxGroups.length }} RX groups
+        {{ codeplug.scanLists.length }} scan lists · {{ codeplug.rxGroups.length }} RX groups<template
+          v-if="codeplug.contacts.length"
+        > · {{ codeplug.contacts.length.toLocaleString() }} contacts</template>
       </span>
     </div>
 
@@ -401,6 +410,44 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
         <p class="note">
           A DMR ID is 24 bits, so the largest this radio can store is 16,777,215. Channels point at these by
           position, so removing one renumbers the ones after it.
+        </p>
+      </section>
+
+      <!-- Contacts -->
+      <section v-if="hasContacts" style="margin-top: 18px">
+        <h2 class="sec">Contacts</h2>
+        <div class="card">
+          <p v-if="codeplug.contacts.length === 0" class="empty">
+            This radio's address book is empty. It lives in a memory region of its own, so reading it costs
+            nothing when there is nothing in it.
+          </p>
+          <template v-else>
+            <div
+              v-for="(contact, i) in codeplug.contacts.slice(0, 200)"
+              :key="contact.id"
+              class="flex items-center gap-3 flex-wrap"
+              :style="`padding: 9px 13px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+            >
+              <span class="idx">{{ i + 1 }}</span>
+              <span style="font-size: 13px; font-weight: 600; color: var(--tx)">{{ contact.name || '(unnamed)' }}</span>
+              <span v-if="contact.callsign" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+                {{ contact.callsign }}
+              </span>
+              <span class="ms-auto font-mono shrink-0" style="font-size: 12px; color: var(--tx)">{{ contact.dmrId }}</span>
+            </div>
+            <p
+              v-if="codeplug.contacts.length > 200"
+              style="font-size: 11.5px; color: var(--mu); padding: 10px 13px; border-top: 1px solid var(--ln)"
+            >
+              …and {{ (codeplug.contacts.length - 200).toLocaleString() }} more. All of them are in the
+              backup; only the first 200 are listed here.
+            </p>
+          </template>
+        </div>
+        <p class="note">
+          Read from the radio and never written back. The address book has no memory-block id and no
+          hardware capture with more than one entry in it, so boofwang can show you what is there but will
+          not write over 4 MB of somebody's contacts on the strength of that.
         </p>
       </section>
     </template>
