@@ -77,6 +77,8 @@ export interface IdentifyResult {
   readonly caps: { readonly read: boolean; readonly write: boolean; readonly reason?: string }
   /** Stable hash of this identification, for matching a backup to a radio. */
   readonly identHash: string
+  /** Driver-specific facts discovered during identification. */
+  readonly meta?: Readonly<Record<string, unknown>>
 }
 
 export interface WriteOperation {

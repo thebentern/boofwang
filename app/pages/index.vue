@@ -24,6 +24,14 @@ const radios = computed<RadioCardEntry[]>(() => [
       'Reading is verified against a real radio on stock firmware 2.01.32. Writing sends only the blocks that differ, reads each one back before sending the next, and refuses without a backup of the same radio. Calibration is captured in every backup but never written.',
   },
   {
+    id: 'uv82',
+    vendor: 'Baofeng',
+    model: 'UV-82',
+    summary: '128 channels · analog · 6.5 KB image',
+    notes:
+      'Reading is verified against a real radio on firmware N822413, cross-checked against CHIRP channel by channel. The classic UV-5R family protocol: 9600 baud, plain unobfuscated blocks, and an absolute transmit frequency per channel rather than a shift.',
+  },
+  {
     id: 'uv5rmini',
     vendor: 'Baofeng',
     model: 'UV-5R Mini',

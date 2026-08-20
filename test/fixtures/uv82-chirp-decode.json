@@ -1,0 +1,419 @@
+{
+"2": {
+"bw": 12500,
+"name": "FRS 1",
+"power": "High",
+"rx": 462562500,
+"rxtone": null,
+"skip": "none",
+"tx": 462562500,
+"txtone": null
+},
+"3": {
+"bw": 12500,
+"name": "FRS 2",
+"power": "High",
+"rx": 462587500,
+"rxtone": null,
+"skip": "none",
+"tx": 462587500,
+"txtone": null
+},
+"4": {
+"bw": 12500,
+"name": "FRS 3",
+"power": "High",
+"rx": 462612500,
+"rxtone": null,
+"skip": "none",
+"tx": 462612500,
+"txtone": null
+},
+"5": {
+"bw": 12500,
+"name": "FRS 4",
+"power": "High",
+"rx": 462637500,
+"rxtone": null,
+"skip": "none",
+"tx": 462637500,
+"txtone": null
+},
+"6": {
+"bw": 12500,
+"name": "FRS 5",
+"power": "High",
+"rx": 462662500,
+"rxtone": null,
+"skip": "none",
+"tx": 462662500,
+"txtone": null
+},
+"7": {
+"bw": 12500,
+"name": "FRS 6",
+"power": "High",
+"rx": 462687500,
+"rxtone": null,
+"skip": "none",
+"tx": 462687500,
+"txtone": null
+},
+"8": {
+"bw": 12500,
+"name": "FRS 7",
+"power": "High",
+"rx": 462712500,
+"rxtone": null,
+"skip": "none",
+"tx": 462712500,
+"txtone": null
+},
+"9": {
+"bw": 12500,
+"name": "FRS 8",
+"power": "High",
+"rx": 467562500,
+"rxtone": null,
+"skip": "none",
+"tx": 467562500,
+"txtone": null
+},
+"10": {
+"bw": 12500,
+"name": "FRS 9",
+"power": "High",
+"rx": 467587500,
+"rxtone": null,
+"skip": "none",
+"tx": 467587500,
+"txtone": null
+},
+"11": {
+"bw": 12500,
+"name": "FRS 10",
+"power": "High",
+"rx": 467612500,
+"rxtone": null,
+"skip": "none",
+"tx": 467612500,
+"txtone": null
+},
+"12": {
+"bw": 12500,
+"name": "FRS 11",
+"power": "High",
+"rx": 467637500,
+"rxtone": null,
+"skip": "none",
+"tx": 467637500,
+"txtone": null
+},
+"13": {
+"bw": 12500,
+"name": "FRS 12",
+"power": "High",
+"rx": 467662500,
+"rxtone": null,
+"skip": "none",
+"tx": 467662500,
+"txtone": null
+},
+"14": {
+"bw": 12500,
+"name": "FRS 13",
+"power": "High",
+"rx": 467687500,
+"rxtone": null,
+"skip": "none",
+"tx": 467687500,
+"txtone": null
+},
+"15": {
+"bw": 12500,
+"name": "FRS 14",
+"power": "High",
+"rx": 467712500,
+"rxtone": null,
+"skip": "none",
+"tx": 467712500,
+"txtone": null
+},
+"16": {
+"bw": 12500,
+"name": "FRS 15",
+"power": "High",
+"rx": 462550000,
+"rxtone": null,
+"skip": "none",
+"tx": 462550000,
+"txtone": null
+},
+"17": {
+"bw": 12500,
+"name": "FRS 16",
+"power": "High",
+"rx": 462575000,
+"rxtone": null,
+"skip": "none",
+"tx": 462575000,
+"txtone": null
+},
+"18": {
+"bw": 12500,
+"name": "FRS 17",
+"power": "High",
+"rx": 462600000,
+"rxtone": null,
+"skip": "none",
+"tx": 462600000,
+"txtone": null
+},
+"19": {
+"bw": 12500,
+"name": "FRS 18",
+"power": "High",
+"rx": 462625000,
+"rxtone": null,
+"skip": "none",
+"tx": 462625000,
+"txtone": null
+},
+"20": {
+"bw": 12500,
+"name": "FRS 19",
+"power": "High",
+"rx": 462650000,
+"rxtone": null,
+"skip": "none",
+"tx": 462650000,
+"txtone": null
+},
+"21": {
+"bw": 12500,
+"name": "FRS 20",
+"power": "High",
+"rx": 462675000,
+"rxtone": null,
+"skip": "none",
+"tx": 462675000,
+"txtone": null
+},
+"22": {
+"bw": 12500,
+"name": "FRS 21",
+"power": "High",
+"rx": 462700000,
+"rxtone": null,
+"skip": "none",
+"tx": 462700000,
+"txtone": null
+},
+"23": {
+"bw": 12500,
+"name": "FRS 22",
+"power": "High",
+"rx": 462725000,
+"rxtone": null,
+"skip": "none",
+"tx": 462725000,
+"txtone": null
+},
+"24": {
+"bw": 12500,
+"name": "MURS 1",
+"power": "High",
+"rx": 151820000,
+"rxtone": null,
+"skip": "none",
+"tx": 151820000,
+"txtone": null
+},
+"25": {
+"bw": 12500,
+"name": "MURS 2",
+"power": "High",
+"rx": 151880000,
+"rxtone": null,
+"skip": "none",
+"tx": 151880000,
+"txtone": null
+},
+"26": {
+"bw": 12500,
+"name": "MURS 3",
+"power": "High",
+"rx": 151940000,
+"rxtone": null,
+"skip": "none",
+"tx": 151940000,
+"txtone": null
+},
+"27": {
+"bw": 25000,
+"name": "Blue Do",
+"power": "High",
+"rx": 154570000,
+"rxtone": null,
+"skip": "none",
+"tx": 154570000,
+"txtone": null
+},
+"30": {
+"bw": 25000,
+"name": "Green D",
+"power": "High",
+"rx": 154600000,
+"rxtone": null,
+"skip": "none",
+"tx": 154600000,
+"txtone": null
+},
+"31": {
+"bw": 25000,
+"name": "N5AT",
+"power": "High",
+"rx": 145130000,
+"rxtone": null,
+"skip": "none",
+"tx": 144530000,
+"txtone": null
+},
+"32": {
+"bw": 25000,
+"name": "N5UFO",
+"power": "High",
+"rx": 145170000,
+"rxtone": null,
+"skip": "none",
+"tx": 144570000,
+"txtone": {
+"deciHz": 1622,
+"kind": "ctcss"
+}
+},
+"33": {
+"bw": 25000,
+"name": "NL7RQ",
+"power": "High",
+"rx": 145410000,
+"rxtone": null,
+"skip": "none",
+"tx": 144810000,
+"txtone": {
+"deciHz": 854,
+"kind": "ctcss"
+}
+},
+"34": {
+"bw": 25000,
+"name": "N5CG",
+"power": "High",
+"rx": 145490000,
+"rxtone": null,
+"skip": "none",
+"tx": 144890000,
+"txtone": {
+"deciHz": 1148,
+"kind": "ctcss"
+}
+},
+"35": {
+"bw": 25000,
+"name": "WA5PGB",
+"power": "High",
+"rx": 146730000,
+"rxtone": null,
+"skip": "none",
+"tx": 146130000,
+"txtone": {
+"deciHz": 1148,
+"kind": "ctcss"
+}
+},
+"36": {
+"bw": 25000,
+"name": "N5CG",
+"power": "High",
+"rx": 146775000,
+"rxtone": null,
+"skip": "none",
+"tx": 146175000,
+"txtone": {
+"deciHz": 1622,
+"kind": "ctcss"
+}
+},
+"37": {
+"bw": 25000,
+"name": "WA5LRU",
+"power": "High",
+"rx": 146850000,
+"rxtone": null,
+"skip": "none",
+"tx": 146250000,
+"txtone": null
+},
+"38": {
+"bw": 25000,
+"name": "W5DI",
+"power": "High",
+"rx": 146940000,
+"rxtone": null,
+"skip": "none",
+"tx": 146340000,
+"txtone": null
+},
+"39": {
+"bw": 25000,
+"name": "W5FD",
+"power": "High",
+"rx": 147060000,
+"rxtone": null,
+"skip": "none",
+"tx": 147660000,
+"txtone": {
+"deciHz": 1148,
+"kind": "ctcss"
+}
+},
+"40": {
+"bw": 25000,
+"name": "W5DI",
+"power": "High",
+"rx": 147135000,
+"rxtone": null,
+"skip": "none",
+"tx": 147735000,
+"txtone": {
+"deciHz": 1148,
+"kind": "ctcss"
+}
+},
+"41": {
+"bw": 25000,
+"name": "N1RQ",
+"power": "High",
+"rx": 147255000,
+"rxtone": null,
+"skip": "none",
+"tx": 147855000,
+"txtone": {
+"deciHz": 1148,
+"kind": "ctcss"
+}
+},
+"42": {
+"bw": 25000,
+"name": "W5DI",
+"power": "High",
+"rx": 147300000,
+"rxtone": null,
+"skip": "none",
+"tx": 147900000,
+"txtone": {
+"deciHz": 1148,
+"kind": "ctcss"
+}
+}
+}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { Channel } from './channel.js'
 
-export type RadioId = 'uvk5' | 'uv5rmini' | 'dm32uv'
+export type RadioId = 'uvk5' | 'uv82' | 'uv5rmini' | 'dm32uv'
 
 export type EncryptionType = 'none' | 'custom' | 'arc4' | 'aes128' | 'aes256'
 
