@@ -57,6 +57,7 @@ const canOfferWrite = computed(() => codeplug.isOpen && codeplug.schema?.capabil
           />
           <UButton icon="i-lucide-file-down" label="CHIRP CSV" size="sm" variant="subtle" color="neutral" @click="session.downloadCsv()" />
           <UButton icon="i-lucide-save" label="Codeplug (.bwp)" size="sm" variant="subtle" color="neutral" @click="session.downloadBwp()" />
+          <UButton icon="i-lucide-image" label="CHIRP (.img)" size="sm" variant="subtle" color="neutral" @click="session.downloadChirpImg()" />
           <UButton icon="i-lucide-binary" label="Raw (.bin)" size="sm" variant="subtle" color="neutral" @click="session.downloadRawBin()" />
         </div>
       </div>

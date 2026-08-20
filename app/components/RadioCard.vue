@@ -13,7 +13,7 @@ export interface RadioCardEntry {
 }
 
 defineProps<{ radio: RadioCardEntry; enabled: boolean; busy: boolean }>()
-const emit = defineEmits<{ read: [RadioId] }>()
+const emit = defineEmits<{ read: [RadioId]; write: [RadioId] }>()
 </script>
 
 <template>
@@ -51,7 +51,8 @@ const emit = defineEmits<{ read: [RadioId] }>()
         size="sm"
         color="neutral"
         variant="subtle"
-        :disabled="!enabled || !radio.canWrite"
+        :disabled="!enabled || !radio.canWrite || busy"
+        @click="emit('write', radio.id)"
       />
     </div>
 

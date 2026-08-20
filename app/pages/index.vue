@@ -9,6 +9,7 @@ const support = useSerialSupport()
 const session = useRadioSession()
 const transfer = useTransferStore()
 const codeplug = useCodeplugStore()
+const toast = useToast()
 
 /**
  * Capabilities come from the driver registry rather than being restated here,
@@ -61,6 +62,33 @@ async function read(id: RadioId) {
   await session.connectAndRead(id)
   if (codeplug.isOpen) await navigateTo('/channels')
 }
+
+/**
+ * Take the user to where a write can actually happen.
+ *
+ * This button used to be enabled and do nothing at all. Writing needs a
+ * codeplug, and there is no useful way to invent one - so if the open codeplug
+ * belongs to this radio the answer is the channels page, where the diff and the
+ * write gate live, and otherwise the answer is to say what is missing.
+ */
+async function write(id: RadioId) {
+  if (codeplug.isOpen && codeplug.doc?.radio === id) {
+    await navigateTo('/channels')
+    return
+  }
+
+  const name = radios.value.find((r) => r.id === id)?.model ?? id
+  toast.add({
+    title: codeplug.isOpen ? `The open codeplug is not for the ${name}` : `Nothing to write yet`,
+    description: codeplug.isOpen
+      ? `Read the ${name} first, or open a codeplug that came from one.`
+      : `Read the ${name} first, or open a codeplug file. A write always starts from a codeplug, ` +
+        'and reading also gives you the backup the write needs.',
+    icon: 'i-lucide-info',
+    color: 'info',
+    duration: 8000,
+  })
+}
 </script>
 
 <template>
@@ -88,6 +116,7 @@ async function read(id: RadioId) {
           :enabled="support.supported"
           :busy="transfer.active"
           @read="read"
+          @write="write"
         />
       </div>
     </section>

@@ -1,0 +1,91 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+# Baofeng UV-5R Mini — notes
+
+Offsets transcribed from CHIRP's `baofeng_uv17Pro.py` (GPL-3.0). See
+[../provenance.md](../provenance.md).
+
+## Two radios, near-identical names
+
+The single most important fact about this radio is that there are two of them,
+and CHIRP carries them as separate classes:
+
+| | CHIRP `UV5RMini` | CHIRP `BF5RM` |
+|---|---|---|
+| MODEL | `UV-5R Mini` | `5RM` (sold as UV-5RM) |
+| Ident magic | `PROGRAMCOLORPROU` | `PROGRAMBFNORMALU` |
+| Memory regions | 3 — `0x0000/0x8040`, `0x9000/0x0040`, `0xA000/0x01C0` | 4 — as left, plus `0xD000/0x0040`, and `0xA000` is `0x02C0` |
+| Total | `0x8240` | `0x8380` |
+| Channels | 999 | 1000 |
+| Power levels | High 5 W, Low 1 W | High 8 W, Low 1 W, **Medium 5 W** |
+
+5 W is "High" on one and "Medium" on the other, so reading one as the other
+mislabels every channel's power as well as asking for a region that is not
+there. boofwang tries both idents and lets the radio decide, which is what
+CHIRP's `_idents` list does.
+
+`UV-5RM Plus` is a third class again: different third magic, and obfuscation
+key 13 rather than 1. It is not supported here.
+
+## Transport
+
+115200 baud, 0x40-byte blocks. Frame is `cmd + 16-bit **big-endian** address +
+one length byte` — big-endian, unlike everything else in this codebase, because
+CHIRP builds it as `struct.pack(">i", addr)[2:]`.
+
+Handshake: ident magic → `0x06`, then three magics — `0x46`→16 bytes,
+`0x4d`→15 bytes, and a 25-byte one beginning `SEND`→1 byte.
+
+Read is `0x52`; the reply repeats the four-byte request header before the
+payload, and boofwang compares it rather than discarding it, which is what
+catches a read that has slipped a frame.
+
+Every payload passes through CHIRP's `_crypt` with table entry 1, `"CO 7"`: a
+rotating four-byte XOR that leaves a byte alone when the key byte is a space,
+or when the byte is `0x00`, `0xFF`, the key byte, or the key byte inverted.
+
+## Channel records
+
+32 bytes each from `0x0000`. `lbcd` frequencies in units of 10 Hz, absolute
+transmit frequency (the offset is derived), `ul16` tone words.
+
+Three traps, all confirmed against CHIRP:
+
+- **The bit called `wide` means narrow.** `MODES = ["NFM", "FM"]` and
+  `mem.mode = _mem.wide and MODES[0] or MODES[1]`, so a set bit selects
+  `MODES[0]`, which is NFM. The write side agrees: `_mem.wide = mem.mode ==
+  MODES[0]`.
+- **The DTCS table has 105 entries, not 104.** `DTCS_CODES =
+  tuple(sorted(chirp_common.DTCS_CODES + (645,)))`. The extra code lands at
+  index 93, shifting every code above it by one.
+- **A tone word is one flat number line, with no flag bit.** 0 and 0xFFFF mean
+  no tone; below 600 it is a 1-based DTCS index, offset by 106 for reversed
+  polarity; 600 and above it is CTCSS already in tenths of a hertz. The radio
+  writes 0 for "none" but blank memory reads 0xFF, so both have to be accepted
+  — treating only 0 as empty reports a 6553.5 Hz tone on every blank channel.
+
+A channel is unused when its **first byte alone** is 0xFF. Transmit is
+inhibited when all four transmit-frequency bytes are 0xFF **or** all four are
+0x00. AM is not stored anywhere: it is derived from the receive frequency
+falling in the air band.
+
+Names are 12 bytes at `+0x14`, padded with 0xFF. CHIRP maps both 0xFF and 0x00
+to spaces and then strips the trailing ones, rather than treating them as
+terminators, so a name containing one keeps everything after it.
+
+## Verified
+
+- Decode cross-checked against CHIRP's own `bitwise` parser on four
+  synthesised records (simplex, repeater shift, DTCS both polarities, CTCSS):
+  every field agrees — frequencies, tones, the inverted bandwidth bit, the
+  power index, scan and BCL flags, and names.
+
+## Not verified
+
+- **Anything against a real radio.** The UV-5R Mini connected during
+  development was unreachable: every byte sent came back byte-identical at all
+  four baud rates, which is a cable shorting transmit to receive rather than a
+  radio. The FTDI adapter was the same one that had read a DM-32UV minutes
+  earlier, so the fault was at the plug. Until a radio answers, the read path
+  is transcription plus a cross-check, not a tested driver.
+- Writing. `writeImage` and `encode` throw.
+- Which of the two variants any given retail box contains.

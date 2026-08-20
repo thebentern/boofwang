@@ -2,6 +2,7 @@
 import { createDriver, isImplemented } from '#core/radio/registry.js'
 import { toStoredBackup } from '#core/storage/db.js'
 import { encodeBwp, encodeRawBin } from '#core/io/bwp.js'
+import { encodeChirpImg } from '#core/io/chirp-img.js'
 import { exportChirpCsv, defaultHeader } from '#core/io/chirp-csv.js'
 import type { RadioId } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
@@ -438,6 +439,29 @@ export function useRadioSession() {
     await saveFile(encodeRawBin(image), `${baseName()}.bin`, 'application/octet-stream')
   }
 
+  /**
+   * A CHIRP-compatible `.img`.
+   *
+   * The point of the format is that CHIRP can open it, so this refuses radios
+   * CHIRP has no driver for rather than writing a file that looks importable
+   * and is not.
+   */
+  async function downloadChirpImg() {
+    const image = imageToSave()
+    if (!image) return
+    try {
+      await saveFile(await encodeChirpImg(image), `${baseName()}.img`, 'application/octet-stream')
+    } catch (e) {
+      toast.add({
+        title: 'Cannot save a CHIRP image for this radio',
+        description: e instanceof Error ? e.message : String(e),
+        icon: 'i-lucide-circle-alert',
+        color: 'error',
+        duration: 0,
+      })
+    }
+  }
+
   async function downloadCsv() {
     if (!codeplug.doc) return
     const text = exportChirpCsv(codeplug.doc, { header: defaultHeader(codeplug.doc) })
@@ -458,6 +482,7 @@ export function useRadioSession() {
     latestBackupForOpenCodeplug,
     downloadBwp,
     downloadRawBin,
+    downloadChirpImg,
     downloadCsv,
     downloadTrace,
   }
