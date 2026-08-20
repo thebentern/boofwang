@@ -2,7 +2,7 @@
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
 import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
-import { ctcss, NO_TONE, type TonePair } from '../../model/tones.js'
+import { NO_TONE, type TonePair } from '../../model/tones.js'
 import { hz } from '../../model/units.js'
 import {
   DEFAULT_DRIVER_TIMEOUT_MS,
@@ -39,6 +39,7 @@ import {
   KEY_SLOTS,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
+  decodeToneWord,
   KEY_AREA,
   ZONE_HEADER,
   ZONE_SIZE,
@@ -575,10 +576,13 @@ export function decodeChannel(data: Uint8Array, offset: number, index: number): 
 
   // Channel mode lives in the high nibble: 0/2 analog, 1/3 digital.
   const digital = raw.mode.channelMode === 1 || raw.mode.channelMode === 3
+  // Both directions. The transmit word was parsed by the layout and then never
+  // read, so every analog channel exported as receive-tone-only - which for a
+  // repeater channel means it will not key the repeater, and nothing says so.
+  const rxTone = digital ? null : decodeToneWord(raw.rxTone)
+  const txTone = digital ? null : decodeToneWord(raw.txTone)
   const tone: TonePair =
-    !digital && raw.rxTone !== 0 && raw.rxTone !== 0xffff
-      ? { rx: ctcss(raw.rxTone & 0x3fff), tx: null, rxInverted: false }
-      : NO_TONE
+    rxTone || txTone ? { rx: rxTone, tx: txTone, rxInverted: false } : NO_TONE
 
   const level = raw.mode.power ? DM32UV_SCHEMA.rf.powerLevels[1]! : DM32UV_SCHEMA.rf.powerLevels[0]!
 

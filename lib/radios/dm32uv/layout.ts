@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { ascii, bcdFreqLE, bytes, chirpBits, u8, u16le, u24le } from '../../codec/fields.js'
 import { at, defineStruct } from '../../codec/struct.js'
+import { ctcss, dtcs, type ToneSpec } from '../../model/tones.js'
 
 /**
  * DM-32UV record layouts.
@@ -143,6 +144,44 @@ export const DM32_KEY_SLOT = defineStruct(KEY_SIZE, {
   type: at(0x0b, u8),
   keyField: at(0x0c, bytes(32)),
 })
+
+/**
+ * Decode one of this radio's CTCSS/DCS tone words.
+ *
+ * Stored as two bytes `[low, high]`, read here as a little-endian u16, and the
+ * digits are **packed BCD** rather than a binary count of tenths of a hertz.
+ * Reading the word as deciHz - which is what this driver did until it was
+ * checked against the specification - turns 127.3 Hz into 472.3 Hz and D023
+ * into 3.5 Hz. Most such values fall outside CHIRP's valid tone range, so an
+ * exported channel is discarded on import; the ones that land inside it are
+ * worse, because they import as a plausible and wrong tone.
+ *
+ * `high >= 0x80` marks DCS, with `>= 0xC0` meaning the inverted polarity.
+ * Anything else is CTCSS. Both `FF FF` (what the radio writes) and `00 00`
+ * (what some other tools write) mean no tone.
+ *
+ * Layout and worked values from `reference/dm32/05-DATA-STRUCTURES.md`, whose
+ * one hardware-attested example is `44 07` = 74.4 Hz.
+ */
+export function decodeToneWord(word: number): ToneSpec | null {
+  if (word === 0x0000 || word === 0xffff) return null
+
+  const low = word & 0xff
+  const high = (word >> 8) & 0xff
+  const digit = (nibble: number) => nibble & 0x0f
+
+  if (high >= 0x80) {
+    const code = digit(high) * 100 + digit(low >> 4) * 10 + digit(low)
+    // The code is three BCD digits; anything else is not a tone word we know.
+    if (code === 0) return null
+    return dtcs(code, high >= 0xc0 ? 'R' : 'N')
+  }
+
+  const whole = digit(high >> 4) * 100 + digit(high) * 10 + digit(low >> 4)
+  const deciHz = whole * 10 + digit(low)
+  if (deciHz === 0) return null
+  return ctcss(deciHz)
+}
 
 export const keySlotOffset = (n: number) => KEY_BASE + (n - 1) * KEY_SIZE
 

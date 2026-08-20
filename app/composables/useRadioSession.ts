@@ -395,14 +395,47 @@ export function useRadioSession() {
     return `${codeplug.doc?.radio ?? 'radio'}-${v}-${stamp}`
   }
 
+  /**
+   * The image to save: what the user is looking at, not what was read.
+   *
+   * Both file exports used `codeplug.image`, which is the image as it came off
+   * the radio. Editing a channel and saving the codeplug therefore wrote the
+   * pre-edit bytes and said nothing, so the file quietly disagreed with the CSV
+   * export beside it - which has always used the edited document - and reopening
+   * it lost the work.
+   *
+   * When the edits cannot be encoded at all there is no honest image to write,
+   * so the save is refused with the reason rather than silently falling back to
+   * the stale one.
+   */
+  function imageToSave(): RadioImage | null {
+    if (!codeplug.image) return null
+    if (codeplug.encoded) return codeplug.encoded
+    if (codeplug.dirty) {
+      toast.add({
+        title: 'These edits cannot be saved as a codeplug image',
+        description:
+          `${codeplug.encodeError ?? 'The codeplug could not be encoded.'} ` +
+          'Export a CHIRP CSV instead, which keeps the edits.',
+        icon: 'i-lucide-triangle-alert',
+        color: 'error',
+        duration: 0,
+      })
+      return null
+    }
+    return codeplug.image
+  }
+
   async function downloadBwp() {
-    if (!codeplug.image) return
-    await saveFile(await encodeBwp(codeplug.image), `${baseName()}.bwp`, 'application/octet-stream')
+    const image = imageToSave()
+    if (!image) return
+    await saveFile(await encodeBwp(image), `${baseName()}.bwp`, 'application/octet-stream')
   }
 
   async function downloadRawBin() {
-    if (!codeplug.image) return
-    await saveFile(encodeRawBin(codeplug.image), `${baseName()}.bin`, 'application/octet-stream')
+    const image = imageToSave()
+    if (!image) return
+    await saveFile(encodeRawBin(image), `${baseName()}.bin`, 'application/octet-stream')
   }
 
   async function downloadCsv() {
