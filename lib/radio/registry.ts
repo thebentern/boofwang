@@ -33,8 +33,10 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // read, preserved and never sent back. See docs/protocols/dm32uv.md.
   dm32uv: () => createDm32uvDriver({ enableWrite: true }),
   // A UV-17 Pro family radio despite the name: 115200 baud, obfuscated 64-byte
-  // blocks. Writing covers the channel array only, sent as the blocks that
-  // differ from the image the radio was read from.
+  // blocks. Writing sends the WHOLE image every time - this radio erases a
+  // flash page before programming and writes back only the block it was handed,
+  // so a sparse write wipes everything sharing that page. It erased 19 channels
+  // on a real radio before that was understood. See docs/protocols/uv5rmini.md.
   uv5rmini: () => createUv5rMiniDriver({ enableWrite: true }),
 }
 

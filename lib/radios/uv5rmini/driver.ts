@@ -294,6 +294,8 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
               hexDump(b.data.subarray(at, at + 8), 8),
               hexDump(got.subarray(at, at + 8), 8),
               i + 1,
+              // This driver sends everything, then verifies.
+              true,
             )
           }
           ctx.progress?.({
@@ -450,6 +452,20 @@ export function encodeChannel(
     if (mem[addr] !== 0xff) mem[addr] = 0xff
     return
   }
+
+  /*
+   * A slot being programmed for the first time is cleared before it is filled.
+   *
+   * An erased record is 32 bytes of 0xFF, which means every bit this build does
+   * not model reads as set - scramble, FHSS, the squelch mode, and the unknown
+   * runs either side of them. A partial patch leaves all of that switched on, so
+   * a channel the user just created arrives with features they never asked for
+   * and cannot see. CHIRP pre-fills a new record the same way.
+   *
+   * Only on the empty-to-programmed transition: an existing channel keeps its
+   * unmodelled bytes, which is what makes the round trip byte-exact.
+   */
+  if (mem[addr] === 0xff) mem.fill(0x00, addr, addr + CHANNEL_SIZE)
 
   const record = mem.subarray(addr, addr + CHANNEL_SIZE)
   const alreadyInhibited =

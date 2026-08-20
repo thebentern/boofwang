@@ -297,13 +297,26 @@ export class WriteVerifyError extends DriverError {
     readonly addr: number,
     expected: string,
     received: string,
-    /** How many blocks had already been written and verified before this one. */
+    /** How many blocks had already been verified before this one. */
     readonly blocksCommitted: number,
+    /**
+     * Whether the whole image had already been sent before verification began.
+     *
+     * Two of the drivers write every block and then verify in a second pass, so
+     * telling their users "nothing after it was sent" would describe a failure
+     * they did not have - and on a radio that erases a flash page before
+     * programming, it would understate what is actually on the radio.
+     */
+    readonly verifiedAfterSending = false,
   ) {
     super(
       `The radio did not store what was sent at 0x${addr.toString(16).padStart(4, '0')}. ` +
-        `Writing stopped there: ${blocksCommitted} block(s) were written and verified before it, and nothing after ` +
-        `it was sent. The radio now holds a partly-updated codeplug, so restore your backup before using it.\n` +
+        (verifiedAfterSending
+          ? `The whole image had already been sent when this was found, and ${blocksCommitted} block(s) ` +
+            'verified before it.'
+          : `Writing stopped there: ${blocksCommitted} block(s) were written and verified before it, and ` +
+            'nothing after it was sent.') +
+        ' The radio now holds a partly-updated codeplug, so restore your backup before using it.\n' +
         `  sent:      ${expected}\n  read back: ${received}`,
     )
   }

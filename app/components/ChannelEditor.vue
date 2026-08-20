@@ -26,7 +26,21 @@ const duplex = ref<'simplex' | 'plus' | 'minus'>(
 const offsetText = ref(formatFreq(props.channel.tx.kind === 'offset' ? props.channel.tx.offset : hz(0)))
 const modulation = ref(props.channel.modulation)
 const bandwidthHz = ref(props.channel.bandwidthHz)
-const powerId = ref(schema.value.rf.powerLevels.find((l) => l.label === props.channel.power.label)?.id ?? 'high')
+/*
+ * Match the channel's power by its value, not its name.
+ *
+ * A driver labels a level from whatever table the radio it identified actually
+ * has - the UV-5R Mini calls 5 W "High" while the schema, which carries both
+ * variants, calls it "High (5 W)". Matching on the label found nothing, fell
+ * back to an id no schema defines, and made saving any High-power channel throw.
+ */
+const powerId = ref(
+  (
+    schema.value.rf.powerLevels.find((l) => l.mW === props.channel.power.mW) ??
+    schema.value.rf.powerLevels.find((l) => l.label === props.channel.power.label) ??
+    schema.value.rf.powerLevels[0]
+  )?.id ?? '',
+)
 const stepHz = ref(props.channel.tuningStep as number)
 
 type ToneKind = 'none' | 'ctcss' | 'dtcs'
@@ -99,7 +113,10 @@ function buildTone(kind: ToneKind, ctcssV: number, dtcsV: number): ToneSpec | nu
 function save() {
   if (!canSave.value) return
   const rxFreq = parseFreq(rxText.value)
-  const level = schema.value.rf.powerLevels.find((l) => l.id === powerId.value)!
+  // Falling back rather than asserting: an id that matches nothing should not
+  // take the whole save down with it.
+  const level =
+    schema.value.rf.powerLevels.find((l) => l.id === powerId.value) ?? schema.value.rf.powerLevels[0]!
 
   codeplug.updateChannel(props.channel.index, {
     name: name.value,

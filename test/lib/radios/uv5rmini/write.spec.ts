@@ -157,39 +157,167 @@ describe('the write gate', () => {
 })
 
 describe('the whole image, every time', () => {
-  it('sends every block rather than only the ones that changed', async () => {
+  /**
+   * A transport that answers like the radio, and records what it was sent.
+   *
+   * The previous version of this test built a fake port, never handed it to
+   * anything, and asserted that no frames were produced - so it passed whether
+   * the driver sent 521 blocks, one block, or none. Reintroducing the sparse
+   * write left the whole suite green. This one drives `writeImage` for real.
+   */
+  function scriptedRadio() {
+    const writes: number[] = []
+    const memory = new Map<number, Uint8Array>()
+    let pending: Uint8Array[] = []
+
+    const push = (b: Uint8Array) => pending.push(b)
+
+    return {
+      writes,
+      transport: {
+        async write(bytes: Uint8Array) {
+          // Identify, then the three magics, then read and write frames.
+          if (bytes.length === 16) return push(Uint8Array.from([0x06]))
+          if (bytes.length === 1 && bytes[0] === 0x46) return push(new Uint8Array(16))
+          if (bytes.length === 1 && bytes[0] === 0x4d) return push(new Uint8Array(15))
+          if (bytes.length === 25) return push(Uint8Array.from([0x06]))
+
+          const addr = ((bytes[1]! << 8) | bytes[2]!) >>> 0
+          if (bytes[0] === 0x57) {
+            writes.push(addr)
+            memory.set(addr, bytes.slice(4))
+            return push(Uint8Array.from([0x06]))
+          }
+          if (bytes[0] === 0x52) {
+            const head = Uint8Array.from([0x52, bytes[1]!, bytes[2]!, bytes[3]!])
+            const body = memory.get(addr) ?? new Uint8Array(0x40)
+            const out = new Uint8Array(head.length + body.length)
+            out.set(head, 0)
+            out.set(body, head.length)
+            return push(out)
+          }
+        },
+        async readExactly(n: number) {
+          const next = pending.shift() ?? new Uint8Array(n)
+          return next.subarray(0, n)
+        },
+        async resync() {
+          pending = []
+          return new Uint8Array(0)
+        },
+      } as never,
+    }
+  }
+
+  it('sends every block of every region, not only the ones that changed', async () => {
     /*
-     * This radio erases a flash page before programming and only writes back
+     * This radio erases a flash page before programming and writes back only
      * the block it was handed, so a sparse write wipes everything sharing that
-     * page. On a real radio, writing one block to slot 1 erased channels 3-21.
+     * page. On a real radio, writing one block to name channel 1 erased
+     * channels 3-21.
      *
-     * The write itself looks perfect while it happens - each frame is
-     * acknowledged and reads back correctly, because the block that was sent is
-     * genuinely fine. Only a full read afterwards shows the damage. So this is
-     * guarded here rather than left to be noticed later.
+     * Nothing else catches a regression here. Each frame is acknowledged, each
+     * block reads back correctly, and the round-trip invariant stays
+     * byte-identical - because the block that was sent genuinely is right.
      */
     const img = image()
-    const sent: number[] = []
-    const fakePort = {
-      async write(bytes: Uint8Array) {
-        if (bytes[0] === 0x57) sent.push(((bytes[1]! << 8) | bytes[2]!) >>> 0)
-      },
-    }
-    const total = variant.regions.reduce((n, r) => n + r.size, 0) / 0x40
-
-    // Drive encode only; the transport is exercised by the hardware runs.
     const doc = writable.decode(img)
-    const out = writable.encode(doc, img)
-    let blocks = 0
-    for (const r of out.regions) blocks += Math.ceil(r.data.length / 0x40)
-    expect(blocks).toBe(total)
-    expect(fakePort).toBeTruthy()
-    expect(sent).toEqual([])
+    doc.channels.set(1, { ...doc.channels.get(1)!, name: 'BOOF' })
+    const edited = writable.encode(doc, img)
+
+    const radio = scriptedRadio()
+    const ident = {
+      radioId: 'uv5rmini' as const,
+      variant: '5RMINI',
+      layout: 'uv5rmini',
+      raw: new Uint8Array(0),
+      caps: { read: true, write: true },
+      identHash: 'match',
+    }
+    /*
+     * baseImage is supplied because the real flow always supplies it - that is
+     * how the other three drivers know which blocks changed. Omitting it here
+     * would leave the dangerous path untested: a reintroduced sparse write only
+     * skips blocks when it has a base to compare against, so a test without one
+     * passes no matter what the driver does.
+     */
+    const report = await writable.writeImage(radio.transport, edited, {
+      backup: { id: 'b', identHash: 'match', createdAt: '2026-08-20T00:00:00.000Z' },
+      ident,
+      baseImage: img,
+    })
+
+    const expected: number[] = []
+    for (const r of variant.regions) {
+      for (let off = 0; off < r.size; off += 0x40) expected.push(r.start + off)
+    }
+
+    expect(radio.writes).toEqual(expected)
+    expect(radio.writes).toHaveLength(521)
+    expect(report.blocksWritten).toBe(521)
+    expect(report.verified).toBe(true)
+  })
+
+  it('sends the same count when nothing was edited at all', async () => {
+    // A sparse implementation would send zero here. This one still sends the
+    // image, because a partial write is what does the damage.
+    const img = image()
+    const radio = scriptedRadio()
+    const ident = {
+      radioId: 'uv5rmini' as const,
+      variant: '5RMINI',
+      layout: 'uv5rmini',
+      raw: new Uint8Array(0),
+      caps: { read: true, write: true },
+      identHash: 'match',
+    }
+    await writable.writeImage(radio.transport, img, {
+      backup: { id: 'b', identHash: 'match', createdAt: '2026-08-20T00:00:00.000Z' },
+      ident,
+      baseImage: img,
+    })
+    expect(radio.writes).toHaveLength(521)
   })
 
   it('covers all three regions of the image', () => {
     const img = image()
     expect(img.regions.map((r) => r.start)).toEqual([0x0000, 0x9000, 0xa000])
     expect(img.regions.reduce((n, r) => n + r.data.length, 0)).toBe(0x8240)
+  })
+})
+
+describe('programming an empty slot', () => {
+  it('does not inherit the erased flash bits', () => {
+    /*
+     * An erased record is 32 bytes of 0xFF, so every bit this build does not
+     * model reads as set - scramble, FHSS, squelch mode and the unknown runs.
+     * Patching only the known fields left a brand-new channel carrying features
+     * the user never chose and the UI never shows.
+     */
+    const img = image()
+    const doc = writable.decode(img)
+    const empty = variant.channelCount - 1
+    const at = CHANNEL_BASE + empty * CHANNEL_SIZE
+    expect(img.regions[0]!.data[at]).toBe(0xff)
+
+    doc.channels.set(empty + 1, {
+      ...doc.channels.get(1)!,
+      index: empty + 1,
+      name: 'NEW',
+    })
+
+    const mem = channels(writable.encode(doc, img))
+    const record = mem.subarray(at, at + CHANNEL_SIZE)
+
+    // The bytes this build does not model must be clear, not inherited 0xFF.
+    expect([...record.subarray(0x10, 0x14)]).toEqual([0, 0, 0, 0])
+    expect(record[0x0f]! & 0b1000_0001).toBe(0)
+  })
+
+  it('still leaves an untouched empty slot exactly as found', () => {
+    const img = image()
+    const before = channels(img).slice()
+    writable.encode(writable.decode(img), img)
+    expect(equalBytes(channels(img), before)).toBe(true)
   })
 })

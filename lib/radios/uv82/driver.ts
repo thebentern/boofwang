@@ -398,6 +398,8 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
               hexDump(b.data.subarray(at, at + 8), 8),
               hexDump(got.subarray(at, at + 8), 8),
               i + 1,
+              // This driver sends everything, then verifies.
+              true,
             )
           }
           ctx.progress?.({

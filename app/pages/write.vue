@@ -488,9 +488,17 @@ async function send() {
       </div>
     </div>
 
+    <!--
+      Deliberately not "before the next is sent". Two of the four drivers write
+      every block and then verify in a second pass, so promising a strict
+      write-verify-write order would describe a failure model the user does not
+      have: on those, a mismatch is found after everything was already sent.
+      What is true of all of them is that no write is called done until every
+      block has been read back.
+    -->
     <p style="margin-top: 14px; font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 74ch">
-      Every block is read back and compared before the next is sent. If a block fails verification the write stops
-      there and the radio keeps the blocks already confirmed — the backup above is what puts it back.
+      No write is finished until every block has been read back off the radio and compared. If any block does not
+      match, the write stops and says which one — the backup above is what puts the radio back.
     </p>
   </section>
 
@@ -524,7 +532,7 @@ async function send() {
       </div>
 
       <p style="font-size: 11.5px; line-height: 1.55; color: var(--fn)">
-        Each block is written, read back and compared. Leave the cable connected and the radio switched on.
+        Every block is read back and compared before the write is called done. Leave the cable connected and the radio switched on.
       </p>
     </div>
   </section>
