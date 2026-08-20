@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { EncryptionType } from '#core/model/codeplug.js'
-import { evaluateWriteGate } from '#core/radio/write-gate.js'
 import {
   KEY_BYTES,
   KEY_TYPE_LABELS,
@@ -11,62 +10,41 @@ import {
 } from '#core/model/encryption.js'
 
 /**
- * The eight key slots.
+ * The key slots, on the far side of the gate.
+ *
+ * Reached only after a Part 90 declaration, so this component never argues the
+ * law again - the citation bar restates it in one line and the gate owns the
+ * rest. What is left here is the handling of the material itself.
  *
  * Keys are masked by default and revealed one slot at a time, deliberately:
  * they are the most sensitive thing in a codeplug, and a screen-share or a
- * screenshot of this page should not hand them over wholesale.
+ * screenshot of this page should not hand them over wholesale. Revealing a
+ * second slot hides the first, so at most one key is ever on screen.
  */
+const emit = defineEmits<{ lock: [] }>()
+
 const codeplug = useCodeplugStore()
 
 const schema = computed(() => codeplug.schema)
-const slots = computed(() => schema.value?.features.encryption)
-
-const session = useRadioSession()
-const device = useDeviceStore()
-const writing = ref(false)
+const slots = computed(() => schema.value?.features.encryption || null)
 
 /**
- * The same gate the channel editor uses.
+ * The types this radio actually has, rather than every type the format knows.
  *
- * Writing from here used to bypass it entirely, which meant a key slot could be
- * cleared and sent while channels still referenced it - the validator had
- * already flagged every affected channel, and nothing consulted it.
+ * `none` is not an editable choice: a slot with no type is an empty slot, and
+ * emptying one is what Clear is for.
  */
-const backup = ref<{ identHash: string } | null>(null)
-onMounted(async () => {
-  backup.value = await session.latestBackupForOpenCodeplug()
-})
-
-const gate = computed(() =>
-  evaluateWriteGate({
-    schema: codeplug.schema!,
-    ident: device.ident,
-    imageVariant: codeplug.image?.variant ?? null,
-    imageRadioId: codeplug.image?.radioId ?? null,
-    backup: backup.value,
-    diagnostics: codeplug.diagnostics,
-    encodeError: codeplug.encodeError,
-    changedBytes: codeplug.pendingWrite?.changedBytes ?? 0,
-    unownedRanges: codeplug.pendingWrite?.unowned ?? [],
-    documentDirty: codeplug.dirty,
-  }),
+const types = computed<EncryptionType[]>(
+  () => (slots.value?.types ?? []).filter((t): t is EncryptionType => t !== 'none'),
 )
 
-async function writeKeys() {
-  writing.value = true
-  try {
-    await session.writeToRadio()
-  } finally {
-    writing.value = false
-  }
-}
-
-const revealed = ref<Set<number>>(new Set())
+/** At most one slot is unmasked at a time; null means everything is masked. */
+const revealed = ref<number | null>(null)
 const editing = ref<number | null>(null)
 const draftType = ref<EncryptionType>('aes256')
 const draftName = ref('')
 const draftHex = ref('')
+
 /**
  * The key already in the slot being edited, snapshotted when the editor opens.
  *
@@ -74,8 +52,6 @@ const draftHex = ref('')
  * user was actually shown, and so an empty key field can mean "leave it alone".
  */
 const editingExisting = ref<{ type: EncryptionType; keyHex: string } | null>(null)
-
-const TYPES: EncryptionType[] = ['aes256', 'aes128', 'arc4', 'custom']
 
 const rows = computed(() => {
   // `doc` is a shallowRef holding a markRaw'd object, and the key mutations
@@ -126,6 +102,13 @@ const resolution = computed(() =>
 )
 
 const keepsExistingKey = computed(() => resolution.value.ok && resolution.value.keptExisting)
+const canSave = computed(() => resolution.value.ok)
+
+/** The message under the key field: a bad key first, then why a blank one will not do. */
+const keyProblem = computed(() => {
+  if (draftHex.value.length > 0) return validation.value.ok ? null : validation.value.error ?? null
+  return resolution.value.ok ? null : resolution.value.error
+})
 
 /**
  * Every type except AES-256 is unverified against hardware.
@@ -139,7 +122,9 @@ const keepsExistingKey = computed(() => resolution.value.ok && resolution.value.
  * than implying equal confidence.
  */
 const shortTypeUnverified = computed(() => draftType.value !== 'aes256')
-const canSave = computed(() => resolution.value.ok)
+
+/** "an AES-128 key", "a Custom key" — the labels are read aloud, so the article has to match. */
+const draftArticle = computed(() => ('AEIOU'.includes(KEY_TYPE_LABELS[draftType.value][0]!) ? 'an' : 'a'))
 
 function save() {
   const decided = resolution.value
@@ -167,178 +152,263 @@ function cancelEdit() {
  *
  * A read, a restore or opening a file swaps the whole document. The snapshot in
  * `editingExisting` would then belong to the previous radio, and a blank save
- * would copy its key into the new one.
+ * would copy its key into the new one. The revealed slot is dropped for the
+ * same reason: slot 3 of the radio just read is not the key that was on screen.
  */
 watch(
   () => codeplug.doc,
   () => {
+    revealed.value = null
     if (editing.value !== null) cancelEdit()
   },
 )
 
 function clearSlot(slot: number) {
   codeplug.removeEncryptionKey(slot)
-  revealed.value.delete(slot)
+  if (revealed.value === slot) revealed.value = null
   // Close the editor if it was open on this slot. Leaving it open kept the
   // pre-clear snapshot in `editingExisting`, so a blank save - the gesture that
   // means "keep the current key" - wrote the deleted key straight back.
   if (editing.value === slot) cancelEdit()
 }
 
+/** Revealing a slot hides whichever one was already open. */
 function toggleReveal(slot: number) {
-  const next = new Set(revealed.value)
-  if (next.has(slot)) next.delete(slot)
-  else next.add(slot)
-  revealed.value = next
+  revealed.value = revealed.value === slot ? null : slot
 }
+
+/**
+ * How the key column reads for a row.
+ *
+ * A slot holding all zeros gets the same words as an empty one but a caution
+ * colour, because it is the more dangerous of the two: it looks programmed in
+ * every menu on the radio and will not decrypt anything.
+ */
+function keyText(row: { key: { keyHex: string } | undefined; blank: boolean; slot: number }) {
+  if (!row.key || row.blank) return 'no key material'
+  return revealed.value === row.slot ? row.key.keyHex : maskKey(row.key.keyHex)
+}
+
+const INPUT_STYLE =
+  'height: 29px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 12.5px'
 </script>
 
 <template>
-  <div v-if="slots" class="space-y-4">
-    <EncryptionWarning />
+  <div v-if="slots">
+    <div class="flex items-center gap-2.5 flex-wrap" style="margin-bottom: 11px">
+      <UIcon name="i-lucide-key-round" class="shrink-0" style="width: 17px; height: 17px; color: var(--cn)" />
+      <h1 style="font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">
+        Encryption keys
+      </h1>
+      <span style="font-size: 12px; color: var(--fn)">
+        {{ schema?.vendor }} {{ schema?.model }} · {{ slots.slots }} slots
+      </span>
 
-    <UAlert
-      v-if="!codeplug.schema?.capabilities.write"
-      icon="i-lucide-info"
-      color="neutral"
-      variant="subtle"
-      title="Keys can be edited here but not sent to this radio"
-      description="Writing is not enabled for this radio. Keys you enter are held in this codeplug and in files you save."
-    />
-
-    <div v-else-if="codeplug.dirty" class="space-y-3">
-      <UAlert
-        v-for="b in gate.blockers"
-        :key="b.code"
-        icon="i-lucide-shield-alert"
-        color="error"
-        variant="subtle"
-        :title="b.message"
-        :description="b.remedy"
-      />
-      <div class="flex items-center gap-3">
-        <UButton
-          icon="i-lucide-upload"
-          label="Write keys to radio"
-          color="warning"
-          :loading="writing"
-          :disabled="writing || !gate.allowed"
-          @click="writeKeys"
-        />
-        <span class="text-sm text-muted">
-          Only the eight key slots are sent. Everything else on the radio is left exactly as it is.
-        </span>
+      <div class="ms-auto flex items-center gap-2">
+        <span
+          class="chip"
+          style="border: 1px solid var(--cnL); background: var(--cnB); color: var(--cn)"
+        >Part 90 declared</span>
+        <RiskAction risk="neutral" ghost size="sm" icon="i-lucide-lock" label="Lock" @click="emit('lock')" />
       </div>
     </div>
 
-    <div class="rounded-md border border-default divide-y divide-default">
-      <div v-for="row in rows" :key="row.slot" class="p-3 space-y-2">
-        <div class="flex items-center gap-3">
-          <span class="tabular text-muted w-6 shrink-0">{{ row.slot }}</span>
+    <div style="margin-bottom: 11px">
+      <EncryptionWarning variant="bar" />
+    </div>
 
-          <template v-if="row.key">
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="font-medium truncate">{{ row.key.name || '(unnamed)' }}</span>
-                <UBadge :label="KEY_TYPE_LABELS[row.key.type]" color="neutral" variant="subtle" size="sm" />
-                <UBadge v-if="row.blank" label="no key material" color="warning" variant="subtle" size="sm" />
-              </div>
-              <code class="text-xs text-muted tabular break-all">
-                {{ revealed.has(row.slot) ? row.key.keyHex : maskKey(row.key.keyHex) }}
-              </code>
-            </div>
-            <UButton
-              :icon="revealed.has(row.slot) ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              :aria-label="`${revealed.has(row.slot) ? 'Hide' : 'Reveal'} key slot ${row.slot}`"
-              @click="toggleReveal(row.slot)"
-            />
-            <UButton
-              icon="i-lucide-pencil"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              :aria-label="`Edit key slot ${row.slot}`"
+    <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; overflow: hidden">
+      <div v-for="row in rows" :key="row.slot">
+        <!--
+          Wrapping rather than scrolling: the row's fixed columns cannot fit a
+          phone, and a horizontally scrolling table hides the Clear button
+          behind a gesture. The action group keeps `ms-auto`, so on a narrow
+          screen it drops to its own line still right-aligned.
+        -->
+        <div
+          class="flex items-center flex-wrap"
+          style="gap: 9px; padding: 9px 13px; border-bottom: 1px solid var(--ln)"
+        >
+          <span
+            class="font-mono tabular text-right shrink-0"
+            style="font-size: 11.5px; color: var(--fn); width: 18px"
+          >{{ row.slot }}</span>
+
+          <UIcon
+            :name="!row.key
+              ? 'i-lucide-circle-minus'
+              : revealed === row.slot ? 'i-lucide-unlock' : 'i-lucide-lock'"
+            class="shrink-0"
+            style="width: 13px; height: 13px"
+            :style="{ color: !row.key ? 'var(--ln2)' : revealed === row.slot ? 'var(--cn)' : 'var(--fn)' }"
+          />
+
+          <span
+            class="shrink-0 truncate"
+            style="font-size: 12.5px; width: 86px"
+            :style="row.key
+              ? { fontWeight: 600, color: 'var(--tx)' }
+              : { fontWeight: 400, color: 'var(--fn)' }"
+          >{{ row.key ? row.key.name || '(unnamed)' : 'Empty' }}</span>
+
+          <!--
+            AES-256 is the only type that has been round-tripped against a
+            radio, so it is the only one that gets a neutral chip. The rest
+            carry the caution colour wherever they appear.
+          -->
+          <span
+            v-if="row.key"
+            class="chip shrink-0"
+            :style="row.key.type === 'aes256'
+              ? { border: '1px solid var(--ln)', background: 'var(--pn2)', color: 'var(--mu)' }
+              : { border: '1px solid var(--cnL)', background: 'var(--cnB)', color: 'var(--cn)' }"
+          >{{ KEY_TYPE_LABELS[row.key.type] }}</span>
+
+          <!--
+            The masked form is one line and elides, because a row of bullets
+            carries no information past the first few. The revealed form wraps
+            instead: a key you have to scroll to finish reading is a key nobody
+            can check against the one on the paper in their hand, which is the
+            only reason to reveal it at all. One row growing is the cost, and
+            only one row can ever be open.
+          -->
+          <span
+            class="font-mono tabular"
+            :class="revealed === row.slot ? 'break-all' : 'truncate'"
+            style="font-size: 11px; min-width: 0"
+            :style="{
+              color: !row.key ? 'var(--ln2)' : row.blank ? 'var(--cn)' : revealed === row.slot ? 'var(--tx)' : 'var(--fn)',
+              letterSpacing: revealed === row.slot ? '0' : '0.5px',
+              lineHeight: revealed === row.slot ? '1.5' : 'normal',
+            }"
+          >{{ keyText(row) }}</span>
+
+          <div class="ms-auto flex shrink-0" style="gap: 5px">
+            <template v-if="row.key">
+              <RiskAction
+                v-if="!row.blank"
+                risk="neutral"
+                ghost
+                size="sm"
+                :icon="revealed === row.slot ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+                :label="revealed === row.slot ? 'Hide' : 'Reveal'"
+                @click="toggleReveal(row.slot)"
+              />
+              <RiskAction
+                risk="neutral"
+                ghost
+                size="sm"
+                icon="i-lucide-pencil"
+                label="Edit"
+                @click="startEdit(row.slot)"
+              />
+              <RiskAction
+                risk="destructive"
+                ghost
+                size="sm"
+                icon="i-lucide-trash-2"
+                label="Clear"
+                @click="clearSlot(row.slot)"
+              />
+            </template>
+            <RiskAction
+              v-else
+              risk="neutral"
+              ghost
+              size="sm"
+              icon="i-lucide-plus"
+              label="Set"
               @click="startEdit(row.slot)"
             />
-            <UButton
-              icon="i-lucide-trash-2"
-              size="xs"
-              color="error"
-              variant="ghost"
-              :aria-label="`Clear key slot ${row.slot}`"
-              @click="clearSlot(row.slot)"
-            />
-          </template>
-
-          <template v-else>
-            <span class="flex-1 text-sm text-muted">Empty</span>
-            <UButton icon="i-lucide-plus" size="xs" label="Set a key" variant="subtle" @click="startEdit(row.slot)" />
-          </template>
+          </div>
         </div>
 
-        <div v-if="editing === row.slot" class="pl-9 space-y-3 pb-1">
-          <div class="grid grid-cols-2 gap-3">
-            <UFormField label="Name">
-              <UInput v-model="draftName" :maxlength="slots.nameLength" class="w-full" />
-            </UFormField>
-            <UFormField
-              label="Type"
-              :description="
-                shortTypeUnverified
-                  ? `Where a ${KEY_TYPE_LABELS[draftType]} key sits inside the 32-byte field has not been confirmed against hardware — only AES-256 has. If the radio will not decrypt with it, that is the first thing to suspect.`
-                  : undefined
-              "
-            >
-              <USelect
+        <div
+          v-if="editing === row.slot"
+          style="background: var(--pn2); border-bottom: 1px solid var(--ln); padding: 13px 13px 14px 40px"
+        >
+          <div class="grid gap-3 sm:grid-cols-2" style="margin-bottom: 11px">
+            <label class="grid gap-1.5">
+              <span class="label-xs">Name</span>
+              <input
+                v-model="draftName"
+                type="text"
+                class="rounded-[6px] px-2.5 outline-none w-full"
+                :style="INPUT_STYLE"
+                :maxlength="slots.nameLength"
+                autocomplete="off"
+                spellcheck="false"
+              >
+            </label>
+
+            <label class="grid gap-1.5">
+              <span class="label-xs">Type</span>
+              <select
                 v-model="draftType"
-                class="w-full"
-                :items="TYPES.map((t) => ({ value: t, label: `${KEY_TYPE_LABELS[t]} (${KEY_BYTES[t]} bytes)` }))"
-              />
-            </UFormField>
+                class="rounded-[6px] px-2 outline-none w-full"
+                :style="INPUT_STYLE"
+              >
+                <option v-for="t in types" :key="t" :value="t">
+                  {{ KEY_TYPE_LABELS[t] }} ({{ KEY_BYTES[t] }} bytes)
+                </option>
+              </select>
+            </label>
           </div>
-          <UFormField
-            :label="`Key — ${KEY_BYTES[draftType] * 2} hex characters`"
-            :error="draftHex.length > 0 && !validation.ok ? validation.error : undefined"
-            :hint="keepsExistingKey ? 'leave blank to keep the current key' : undefined"
-            :description="
-              draftHex.length === 0 && !resolution.ok ? resolution.error : undefined
-            "
+
+          <p
+            v-if="shortTypeUnverified"
+            style="font-size: 11.5px; line-height: 1.55; color: var(--cn); max-width: 78ch; margin-bottom: 11px"
           >
-            <UInput
+            Where {{ draftArticle }} {{ KEY_TYPE_LABELS[draftType] }} key sits inside the 32-byte field has not
+            been confirmed against hardware — only AES-256 has. If the radio will not decrypt with it, that is
+            the first thing to suspect.
+          </p>
+
+          <label class="grid gap-1.5" style="margin-bottom: 11px">
+            <span class="flex items-baseline gap-2 flex-wrap">
+              <span class="label-xs">Key — {{ KEY_BYTES[draftType] * 2 }} hex characters</span>
+              <!-- Not part of the label: shouting the escape hatch makes it read as the instruction. -->
+              <span v-if="keepsExistingKey" style="font-size: 11.5px; color: var(--fn)">
+                leave blank to keep the current key
+              </span>
+            </span>
+            <input
               v-model="draftHex"
-              class="w-full font-mono"
-              :placeholder="
-                editingExisting
-                  ? 'leave blank to keep the current key, or paste a new one'
-                  : 'paste hex; spaces and colons are fine'
-              "
+              type="text"
+              class="font-mono tabular rounded-[6px] px-2.5 outline-none w-full"
+              :style="INPUT_STYLE"
+              :placeholder="editingExisting
+                ? 'leave blank to keep the current key, or paste a new one'
+                : 'paste hex; spaces and colons are fine'"
               autocomplete="off"
               spellcheck="false"
-            />
-          </UFormField>
+            >
+            <span v-if="keyProblem" style="font-size: 11.5px; color: var(--dg)">{{ keyProblem }}</span>
+          </label>
+
           <div class="flex items-center gap-2">
-            <UButton label="Save key" icon="i-lucide-circle-check" size="sm" :disabled="!canSave" @click="save" />
-            <UButton label="Cancel" size="sm" color="neutral" variant="ghost" @click="cancelEdit" />
+            <RiskAction
+              risk="neutral"
+              icon="i-lucide-circle-check"
+              label="Save key"
+              :disabled="!canSave"
+              @click="save"
+            />
+            <RiskAction risk="neutral" ghost label="Cancel" @click="cancelEdit" />
           </div>
         </div>
       </div>
     </div>
 
-    <p class="text-xs text-muted">
-      Keys are held in this browser and written into any codeplug file you save. Anyone with access to
-      that file or this browser profile can read them. boofwang has no server and sends them nowhere.
+    <p style="font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 78ch; margin-top: 11px">
+      Keys are held in this browser and written into any codeplug file you save. Anyone with access to that
+      file or this browser profile can read them. boofwang has no server and sends them nowhere.
+    </p>
+    <p style="font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 78ch; margin-top: 6px">
+      <strong style="color: var(--cn); font-weight: 600">Only AES-256 has been round-tripped against
+        hardware.</strong>
+      Where a shorter key sits inside the 32-byte field is unconfirmed, and a mis-placed key produces a slot
+      that looks programmed and cannot decrypt.
     </p>
   </div>
-
-  <UAlert
-    v-else
-    icon="i-lucide-info"
-    color="neutral"
-    variant="subtle"
-    title="This radio has no encryption"
-    description="Only the DM-32UV in this build supports encryption keys."
-  />
 </template>

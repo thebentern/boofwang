@@ -13,7 +13,6 @@
  * diagnostic exists, so the bar cannot invite an action the gate will refuse.
  */
 const codeplug = useCodeplugStore()
-const device = useDeviceStore()
 const session = useRadioSession()
 
 const backup = ref<{ identHash: string; createdAt?: string } | null>(null)

@@ -26,7 +26,7 @@ const props = withDefaults(
     size?: 'sm' | 'md' | 'lg'
     type?: 'button' | 'submit'
   }>(),
-  { risk: 'neutral', size: 'md', type: 'button' },
+  { risk: 'neutral', size: 'md', type: 'button', label: '', icon: undefined },
 )
 
 const emit = defineEmits<{ click: [MouseEvent] }>()

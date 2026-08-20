@@ -22,7 +22,7 @@ const props = withDefaults(
     loading?: boolean
     icon?: string
   }>(),
-  { risk: 'caution' },
+  { risk: 'caution', icon: undefined },
 )
 
 const emit = defineEmits<{ confirm: [] }>()

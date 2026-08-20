@@ -1,12 +1,33 @@
 <script setup lang="ts">
+/**
+ * The page that answers "who wrote this and what does it do with my data",
+ * plus the one place that asks for anything back.
+ *
+ * Prose column, 720px. Everything here is a claim someone can check, so the
+ * credits carry their licence and a link to the upstream work rather than a
+ * thank-you list - the GPL obliges anyone redistributing boofwang to be able to
+ * trace where its knowledge of each radio came from, and `docs/provenance.md`
+ * is the long form of this section.
+ */
 useSeoMeta({ title: 'About' })
+
+/**
+ * The section heading and body styles are named once because five headings that
+ * are meant to be identical will not stay identical if they are typed five times.
+ */
+const HEADING = 'font-size:12.5px;font-weight:600;letter-spacing:0.02em'
+const BODY = 'font-size:12.5px;line-height:1.65;color:var(--mu)'
+const ICON = 'width:13px;height:13px;color:var(--fn);flex-shrink:0'
+
+/** A link inside prose. Blue is the only unearned colour on this page. */
+const LINK = 'color:var(--in)'
 
 const credits = [
   {
     name: 'CHIRP',
     licence: 'GPL-3.0',
     url: 'https://chirpmyradio.com/',
-    what: 'Memory layouts and protocol details for the UV-K5 and the UV-5R Mini were transcribed from its drivers (uvk5.py, baofeng_uv17Pro.py), and its stock channel configurations are the source of the bundled FRS/GMRS/MURS/weather presets.',
+    what: 'Memory layouts and protocol details for the UV-K5 and UV-5R Mini were transcribed from its drivers, and its stock channel configurations are the source of the bundled FRS/GMRS/MURS/weather presets.',
   },
   {
     name: 'DM-32UV Protocol Specification',
@@ -24,66 +45,161 @@ const credits = [
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl px-4 py-10 space-y-10">
-    <section class="space-y-3">
-      <h1 class="text-3xl font-semibold tracking-tight">About boofwang</h1>
-      <p class="text-muted">
-        A codeplug editor and programmer that runs entirely in your browser. It speaks to radios over the
-        Web Serial API, so there is no desktop application to install and no account to create.
+  <div class="mx-auto" style="max-width: 720px; padding: 26px 16px 56px">
+    <div class="flex items-center gap-[9px]" style="margin-bottom: 8px">
+      <UIcon name="i-lucide-info" style="width: 17px; height: 17px; color: var(--tx)" />
+      <h1 style="font-size: 20px; font-weight: 600; letter-spacing: -0.02em">About boofwang</h1>
+    </div>
+
+    <p style="margin-bottom: 24px; font-size: 13px; line-height: 1.65; color: var(--mu)">
+      A codeplug editor and programmer that runs entirely in your browser, at
+      <a href="https://boofwa.ng" :style="LINK">boofwa.ng</a>. It speaks to radios over the Web Serial
+      API, so there is no desktop application to install and no account to create.
+    </p>
+
+    <section style="margin-bottom: 22px">
+      <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 6px">
+        <UIcon name="i-lucide-server" :style="ICON" />
+        Where your data goes
+      </h2>
+      <p :style="BODY">
+        Nowhere. boofwang is a static site: no backend, no analytics, no upload endpoint. Codeplugs you
+        read are held in your browser and in files you explicitly save. Encryption keys you enter are
+        treated the same way — which also means anyone with access to your browser profile or to an
+        exported file can read them.
       </p>
     </section>
 
-    <section class="space-y-3">
-      <h2 class="text-lg font-semibold tracking-tight">Where your data goes</h2>
-      <p class="text-sm text-muted">
-        Nowhere. boofwang is a static site: there is no backend, no analytics and no upload endpoint.
-        Codeplugs you read from a radio are held in your browser’s local storage and in files you
-        explicitly save. Encryption keys you enter are treated the same way — which also means that
-        anyone with access to your browser profile or to an exported file can read them.
-      </p>
-    </section>
-
-    <section class="space-y-3">
-      <h2 class="text-lg font-semibold tracking-tight">Licence</h2>
-      <p class="text-sm text-muted">
-        boofwang is free software licensed under the
+    <section style="margin-bottom: 22px">
+      <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 6px">
+        <UIcon name="i-lucide-scale" :style="ICON" />
+        Licence
+      </h2>
+      <p :style="BODY">
+        Free software under the
         <a
-          class="underline underline-offset-2"
           href="https://www.gnu.org/licenses/gpl-3.0.html"
           target="_blank"
           rel="noopener"
-          >GNU General Public License, version 3 or later</a
-        >. It comes with absolutely no warranty. Programming a radio incorrectly can render it unusable;
-        always keep a backup you have verified you can restore.
+          :style="LINK"
+        >GNU General Public License, version 3 or later</a>. It comes with absolutely no warranty.
+        Programming a radio incorrectly can render it unusable; always keep a backup you have verified
+        you can restore.
       </p>
     </section>
 
-    <section class="space-y-4">
-      <h2 class="text-lg font-semibold tracking-tight">Credits</h2>
-      <p class="text-sm text-muted">
-        boofwang would not exist without the people who reverse-engineered these radios and published what
-        they found.
+    <section style="margin-bottom: 22px">
+      <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 6px">
+        <UIcon name="i-lucide-info" :style="ICON" />
+        Not affiliated
+      </h2>
+      <p :style="BODY">
+        An independent project, not affiliated with, endorsed by, or supported by Baofeng, Quansheng, or
+        the CHIRP project. Radio model names identify the hardware each driver targets and nothing more.
       </p>
-      <div class="space-y-3">
-        <UCard v-for="c in credits" :key="c.name" :ui="{ body: 'space-y-1.5' }">
-          <div class="flex items-center gap-2">
-            <a class="font-medium underline underline-offset-2" :href="c.url" target="_blank" rel="noopener">
-              {{ c.name }}
+    </section>
+
+    <section style="margin-bottom: 22px">
+      <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 8px">
+        <UIcon name="i-lucide-heart" :style="ICON" />
+        Credits
+      </h2>
+      <p :style="BODY" style="margin-bottom: 10px">
+        boofwang would not exist without the people who reverse-engineered these radios and published
+        what they found.
+      </p>
+
+      <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px">
+        <div
+          v-for="(credit, index) in credits"
+          :key="credit.name"
+          style="padding: 11px 13px"
+          :style="index < credits.length - 1 ? { borderBottom: '1px solid var(--ln)' } : {}"
+        >
+          <div class="flex items-center gap-2" style="margin-bottom: 3px">
+            <a
+              :href="credit.url"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1.5"
+              style="font-size: 12.5px; font-weight: 600; color: var(--tx)"
+            >
+              {{ credit.name }}
+              <UIcon name="i-lucide-external-link" style="width: 11px; height: 11px; color: var(--fn)" />
             </a>
-            <UBadge :label="c.licence" color="neutral" variant="subtle" size="sm" />
+            <span
+              class="chip font-mono"
+              style="color: var(--fn); border: 1px solid var(--ln)"
+            >{{ credit.licence }}</span>
           </div>
-          <p class="text-sm text-muted">{{ c.what }}</p>
-        </UCard>
+          <p style="font-size: 12px; line-height: 1.55; color: var(--mu)">{{ credit.what }}</p>
+        </div>
       </div>
-    </section>
 
-    <section class="space-y-3">
-      <h2 class="text-lg font-semibold tracking-tight">Not affiliated</h2>
-      <p class="text-sm text-muted">
-        boofwang is an independent project. It is not affiliated with, endorsed by, or supported by
-        Baofeng, Quansheng, or the CHIRP project. Radio model names are used only to identify the hardware
-        each driver targets.
+      <p :style="BODY" style="margin-top: 10px">
+        The FRS, GMRS and MURS channel tables come from 47 CFR Part 95 at the eCFR, the weather channels
+        from NOAA/NWS, and the per-state public-safety frequencies from the FCC ULS bulk downloads — all
+        United States Government work, in the public domain.
+        <a
+          href="https://github.com/thebentern/boofwang/blob/main/docs/provenance.md"
+          target="_blank"
+          rel="noopener"
+          :style="LINK"
+        >docs/provenance.md</a>
+        records every source in full, and what boofwang deliberately does not use.
       </p>
     </section>
+
+    <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px; padding: 15px 16px">
+      <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 5px">
+        <UIcon name="i-lucide-git-branch" :style="ICON" />
+        Help it along
+      </h2>
+      <p style="margin-bottom: 12px; font-size: 12.5px; line-height: 1.6; color: var(--mu)">
+        Bug reports with a protocol log are worth more than anything else — especially from a radio
+        nobody here owns. Drivers are welcome too.
+      </p>
+
+      <div class="flex flex-wrap gap-[7px]">
+        <a
+          href="https://github.com/thebentern/boofwang/issues/new"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-[7px] rounded-[5px]"
+          style="height: 30px; padding: 0 12px; border: 1px solid var(--ln2); font-size: 12.5px; font-weight: 500; color: var(--tx)"
+        >
+          <UIcon name="i-lucide-bug" style="width: 13px; height: 13px" />
+          Report a bug
+        </a>
+
+        <a
+          href="https://github.com/thebentern/boofwang"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-[7px] rounded-[5px]"
+          style="height: 30px; padding: 0 12px; border: 1px solid var(--ln); font-size: 12.5px; color: var(--mu)"
+        >
+          <UIcon name="i-lucide-git-branch" style="width: 13px; height: 13px" />
+          Contribute a driver
+        </a>
+
+        <!--
+          This buymeacoffee URL was inferred from the GitHub handle in the design
+          handoff, not confirmed against a real account. Verify it resolves to the
+          maintainer's page before this ships - an advertised donation link that
+          lands on someone else's profile is worse than no link at all.
+        -->
+        <a
+          href="https://buymeacoffee.com/thebentern"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-[7px] rounded-[5px]"
+          style="height: 30px; padding: 0 12px; border: 1px solid var(--cnL); background: var(--cnB); font-size: 12.5px; font-weight: 500; color: var(--cn)"
+        >
+          <UIcon name="i-lucide-coffee" style="width: 13px; height: 13px" />
+          Buy me a coffee
+        </a>
+      </div>
+    </div>
   </div>
 </template>
