@@ -1,62 +1,113 @@
 <script setup lang="ts">
+/**
+ * Persistent chrome: a 44px nav, the status bar beneath it, and a footer.
+ *
+ * Nav order follows the task, not the sitemap: Connect first because that is
+ * what a returning user came to do, About last. The status bar sits directly
+ * under the nav so "what am I working on" never scrolls away.
+ */
 const nav = [
-  { label: 'Radios', to: '/', icon: 'i-lucide-radio' },
+  { label: 'Connect', to: '/', icon: 'i-lucide-usb' },
   { label: 'Channels', to: '/channels', icon: 'i-lucide-list' },
   { label: 'Presets', to: '/presets', icon: 'i-lucide-layers' },
-  { label: 'Keys', to: '/keys', icon: 'i-lucide-key' },
+  { label: 'Keys', to: '/keys', icon: 'i-lucide-key-round' },
   { label: 'Backups', to: '/backups', icon: 'i-lucide-history' },
   { label: 'About', to: '/about', icon: 'i-lucide-info' },
 ]
+
+const route = useRoute()
+
+/**
+ * The write and restore flows are steps inside a section, not sections.
+ * Keeping their parent lit stops the nav from implying the user has left.
+ */
+const activePath = computed(() => {
+  const p = route.path
+  if (p.startsWith('/write')) return '/channels'
+  if (p.startsWith('/restore')) return '/backups'
+  return p
+})
+
+const colorMode = useColorMode()
+const isDark = computed(() => colorMode.value === 'dark')
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col bg-default text-default">
-    <header class="border-b border-default sticky top-0 z-20 bg-default/85 backdrop-blur">
-      <div class="mx-auto max-w-7xl px-4 h-14 flex items-center gap-6">
-        <NuxtLink to="/" class="flex items-center gap-2 font-semibold tracking-tight shrink-0">
-          <UIcon name="i-lucide-radio-tower" class="size-5 text-primary" />
-          boofwang
+  <div class="min-h-screen flex flex-col" style="background: var(--bg); color: var(--tx)">
+    <header class="sticky top-0 z-20" style="background: var(--pn); border-bottom: 1px solid var(--ln)">
+      <div class="mx-auto max-w-[1400px] px-4 flex items-center gap-5" style="height: 44px">
+        <NuxtLink to="/" class="flex items-center gap-2 shrink-0">
+          <UIcon name="i-lucide-radio-tower" style="width: 15px; height: 15px; color: var(--tx)" />
+          <span style="font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em">boofwang</span>
         </NuxtLink>
 
-        <nav class="hidden sm:flex items-center gap-1">
-          <UButton
+        <nav class="hidden sm:flex items-center gap-0.5">
+          <NuxtLink
             v-for="item in nav"
             :key="item.to"
             :to="item.to"
-            :icon="item.icon"
-            :label="item.label"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            active-class="bg-elevated"
-          />
+            class="flex items-center gap-1.5 rounded-[5px] px-2.5 transition-colors"
+            style="height: 25px; font-size: 12.5px"
+            :style="activePath === item.to
+              ? { background: 'var(--pn3)', color: 'var(--tx)', fontWeight: 600 }
+              : { color: 'var(--mu)' }"
+          >
+            <UIcon :name="item.icon" style="width: 13px; height: 13px" />
+            {{ item.label }}
+          </NuxtLink>
         </nav>
 
-        <div class="ms-auto flex items-center gap-1">
-          <UButton
-            to="https://github.com/thebentern/boofwang"
+        <div class="ms-auto flex items-center gap-2">
+          <a
+            href="https://github.com/thebentern/boofwang/issues/new"
             target="_blank"
             rel="noopener"
-            icon="i-lucide-external-link"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            label="Source"
-          />
-          <UColorModeButton />
+            class="hidden md:flex items-center gap-1.5"
+            style="font-size: 11.5px; color: var(--fn)"
+          >
+            <UIcon name="i-lucide-bug" style="width: 12px; height: 12px" />
+            Report a bug
+          </a>
+          <button
+            type="button"
+            class="flex items-center justify-center rounded-[5px]"
+            style="width: 25px; height: 25px; color: var(--mu)"
+            :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+            @click="colorMode.preference = isDark ? 'light' : 'dark'"
+          >
+            <UIcon :name="isDark ? 'i-lucide-sun' : 'i-lucide-moon'" style="width: 13px; height: 13px" />
+          </button>
         </div>
       </div>
     </header>
+
+    <AppStatusBar />
 
     <main class="flex-1">
       <slot />
     </main>
 
-    <footer class="border-t border-default">
-      <div class="mx-auto max-w-7xl px-4 py-6 text-xs text-muted flex flex-wrap gap-x-4 gap-y-1">
-        <span>boofwang — free software under the GNU GPL v3 or later.</span>
+    <footer style="border-top: 1px solid var(--ln)">
+      <div
+        class="mx-auto max-w-[1400px] px-4 py-5 flex flex-wrap items-center gap-x-4 gap-y-1.5"
+        style="font-size: 11.5px; color: var(--fn)"
+      >
+        <span class="font-mono">boofwa.ng</span>
+        <span>GNU GPL v3 or later</span>
         <span>Everything runs in your browser. Nothing is uploaded anywhere.</span>
-        <NuxtLink to="/about" class="underline underline-offset-2 hover:text-default">Credits &amp; licensing</NuxtLink>
+        <a
+          href="https://github.com/thebentern/boofwang/issues/new"
+          target="_blank"
+          rel="noopener"
+          style="color: var(--in)"
+        >Report a bug</a>
+        <a
+          href="https://github.com/thebentern/boofwang"
+          target="_blank"
+          rel="noopener"
+          style="color: var(--in)"
+        >Contribute</a>
+        <NuxtLink to="/about" style="color: var(--in)">Credits &amp; licensing</NuxtLink>
       </div>
     </footer>
   </div>

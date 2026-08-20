@@ -1,16 +1,169 @@
 @import 'tailwindcss';
 @import '@nuxt/ui';
 
-/* Tailwind v4 is CSS-first: theme tokens live here, not in a tailwind.config.js. */
+/*
+ * Self-hosted, not Google Fonts: the site has no external asset hosts, and a
+ * radio gets programmed in places with no network. Only the weights the design
+ * actually uses are imported - 400, 500 and 600 - because every extra face is
+ * bytes a field laptop has to fetch once and cache forever.
+ */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/*
+ * Design tokens for the interface rework.
+ *
+ * Both themes are first-class: radios get programmed in dim rooms and in
+ * daylight. Values are the specification from the design handoff, not
+ * approximations - row heights, hairlines and tints were chosen together and
+ * drifting one of them shows.
+ *
+ * Semantic colours carry meaning and are spent sparingly. Each has a `B`
+ * background tint and an `L` border tint so a card can take a tone without a
+ * second hue appearing.
+ */
+
 @theme {
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
 }
 
 :root {
   --ui-radius: 0.375rem;
+
+  /* Surfaces */
+  --bg: #101315;
+  --pn: #171b1e;
+  --pn2: #1d2226;
+  --pn3: #252b30;
+
+  /* Lines */
+  --ln: #252b30;
+  --ln2: #333b41;
+
+  /* Text, in descending emphasis */
+  --tx: #e8ecee;
+  --mu: #96a0a7;
+  --fn: #69737a;
+
+  /*
+   * Semantic hues. Green is reserved for "verified" and is deliberately not a
+   * brand colour: an accent that also means safe cannot mean anything.
+   */
+  --ok: #57ab5a;
+  --cn: #d29922;
+  --dg: #e5534b;
+  --in: #539bf5;
+
+  --okB: #57ab5a1f;
+  --okL: #57ab5a52;
+  --cnB: #d299221f;
+  --cnL: #d2992252;
+  --dgB: #e5534b1f;
+  --dgL: #e5534b52;
+  --inB: #539bf51f;
+  --inL: #539bf552;
+
+  /* Solid button and its text */
+  --sd: #e8ecee;
+  --sdT: #101315;
+}
+
+:root.light,
+.light {
+  --bg: #f7f8f8;
+  --pn: #ffffff;
+  --pn2: #f0f2f3;
+  --pn3: #e7eaec;
+
+  --ln: #dfe3e6;
+  --ln2: #c6ced4;
+
+  --tx: #14191c;
+  --mu: #58646c;
+  --fn: #7d878e;
+
+  --ok: #1a7f37;
+  --cn: #7d5700;
+  --dg: #b3261e;
+  --in: #0a5cc0;
+
+  --okB: #1a7f3717;
+  --okL: #1a7f3747;
+  --cnB: #7d570017;
+  --cnL: #7d570047;
+  --dgB: #b3261e17;
+  --dgL: #b3261e47;
+  --inB: #0a5cc017;
+  --inL: #0a5cc047;
+
+  --sd: #1b2126;
+  --sdT: #ffffff;
+}
+
+/*
+ * Expose the tokens to Tailwind so components can say `bg-pn` and `text-mu`
+ * rather than repeating `var(--pn)` in arbitrary values.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-pn: var(--pn);
+  --color-pn2: var(--pn2);
+  --color-pn3: var(--pn3);
+  --color-ln: var(--ln);
+  --color-ln2: var(--ln2);
+  --color-tx: var(--tx);
+  --color-mu: var(--mu);
+  --color-fn: var(--fn);
+  --color-ok: var(--ok);
+  --color-okB: var(--okB);
+  --color-okL: var(--okL);
+  --color-cn: var(--cn);
+  --color-cnB: var(--cnB);
+  --color-cnL: var(--cnL);
+  --color-dg: var(--dg);
+  --color-dgB: var(--dgB);
+  --color-dgL: var(--dgL);
+  --color-in: var(--in);
+  --color-inB: var(--inB);
+  --color-inL: var(--inL);
+  --color-sd: var(--sd);
+  --color-sdT: var(--sdT);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--tx);
 }
 
 /* Hex dumps, byte diffs and frequency columns must not reflow or kern. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Uppercase tracked label, the smallest type in the system at 10.5px.
+ * Used for status-bar segments and section headings only.
+ */
+.label-xs {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fn);
+}
+
+/* Chip: 10.5px on a 4px radius, the one size used everywhere. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
 }
