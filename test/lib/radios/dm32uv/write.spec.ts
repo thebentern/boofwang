@@ -14,6 +14,7 @@ import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import {
   CHANNEL_BLOCK_FIRST,
   CHANNEL_BLOCK_LAST,
+  CHANNEL_HEADER,
   CHANNEL_SIZE,
   KEY_AREA,
   KEY_BLOCK,
@@ -668,5 +669,108 @@ describe('channel flag bytes, against the reference hex', () => {
     // The old code wrote the receive frequency here, so clearing the
     // receive-only flag later would have keyed up on the wrong pair.
     expect(equalBytes(m.slice(0x14, 0x18), before)).toBe(true)
+  })
+})
+
+describe('adding and removing channels', () => {
+  const countOf = (img: RadioImage) => {
+    const b = img.regions.find((r) => r.start === logicalAddress(CHANNEL_BLOCK_FIRST))!.data
+    return b[0]! | (b[1]! << 8)
+  }
+
+  it('leaves the count alone when nothing was added or removed', () => {
+    const img = image()
+    expect(countOf(writable.encode(writable.decode(img), img))).toBe(countOf(img))
+  })
+
+  it('raises the count and programs the slot when a channel is added', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const before = countOf(img)
+    const next = before + 1
+
+    const template = doc.channels.get([...doc.channels.keys()][0]!)!
+    doc.channels.set(next, { ...template, index: next, name: 'BRAND NEW' })
+
+    const out = writable.encode(doc, img)
+    expect(countOf(out)).toBe(next)
+
+    const back = writable.decode(out)
+    expect(back.channels.get(next)!.name).toBe('BRAND NEW')
+    // And it did not disturb the channel that was already there.
+    expect(back.channels.get(template.index)!.name).toBe(template.name)
+  })
+
+  it('fills the gap when a channel is added past the end', () => {
+    // Slots are positional: adding channel n+3 has to leave n+1 and n+2 as
+    // records the radio reads as empty, not as whatever the flash held.
+    const img = image()
+    const doc = writable.decode(img)
+    const before = countOf(img)
+    const target = before + 3
+
+    const template = doc.channels.get([...doc.channels.keys()][0]!)!
+    doc.channels.set(target, { ...template, index: target, name: 'FAR' })
+
+    const back = writable.decode(writable.encode(doc, img))
+    expect(countOf(writable.encode(doc, img))).toBe(target)
+    expect(back.channels.get(target)!.name).toBe('FAR')
+    expect(back.channels.has(before + 1)).toBe(false)
+    expect(back.channels.has(before + 2)).toBe(false)
+  })
+
+  it('erases the record when a channel is deleted', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const victim = [...doc.channels.keys()][3]!
+    const survivor = [...doc.channels.keys()][4]!
+    const survivorName = doc.channels.get(survivor)!.name
+    doc.channels.delete(victim)
+
+    const back = writable.decode(writable.encode(doc, img))
+    expect(back.channels.has(victim), 'the deleted channel came back').toBe(false)
+    // Deleting does not renumber: zone and scan-list entries hold absolute
+    // channel numbers, so the slot stays empty where it was.
+    expect(back.channels.get(survivor)!.name).toBe(survivorName)
+  })
+
+  it('does not shrink the count when the last channel is deleted', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const last = Math.max(...doc.channels.keys())
+    doc.channels.delete(last)
+    const out = writable.encode(doc, img)
+    expect(countOf(out)).toBe(countOf(img))
+    expect(writable.decode(out).channels.has(last)).toBe(false)
+  })
+
+  it('refuses a slot number the radio has no room for', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const template = doc.channels.get([...doc.channels.keys()][0]!)!
+    doc.channels.set(99_999, { ...template, index: 99_999, name: 'NOPE' })
+    expect(() => writable.encode(doc, img)).toThrow(/does not fit/)
+  })
+
+  it('claims the count word, and none of the header fill around it', () => {
+    const ranges = writable.ownedRanges(logicalAddress(CHANNEL_BLOCK_FIRST))
+    expect(ranges).toContainEqual([0, 2])
+    // Bytes 0x02-0x0F are fill in both hardware captures. Claiming them would
+    // let a write put our idea of "fill" over whatever the radio keeps there.
+    for (let i = 2; i < CHANNEL_HEADER; i++) {
+      expect(ranges.some(([from, to]) => i >= from && i < to), `byte 0x${i.toString(16)}`).toBe(false)
+    }
+  })
+
+  it('keeps the header fill untouched when the count changes', () => {
+    const img = image()
+    const doc = writable.decode(img)
+    const template = doc.channels.get([...doc.channels.keys()][0]!)!
+    const next = countOf(img) + 1
+    doc.channels.set(next, { ...template, index: next, name: 'X' })
+
+    const was = img.regions.find((r) => r.start === logicalAddress(CHANNEL_BLOCK_FIRST))!.data
+    const now = writable.encode(doc, img).regions.find((r) => r.start === logicalAddress(CHANNEL_BLOCK_FIRST))!.data
+    expect(equalBytes(now.subarray(2, CHANNEL_HEADER), was.subarray(2, CHANNEL_HEADER))).toBe(true)
   })
 })

@@ -26,8 +26,8 @@ the handshake selects between them. Only the UV-5R Mini has been tested on
 hardware.
 
 DM-32UV writes cover channel records, zone names, talk groups and the encryption
-key slots. Channels cannot be added or removed - the channel-count header is not
-written - and settings, contacts, RX groups and scan lists are not decoded. Its
+key slots. Channels can be added and removed; settings, contacts, RX groups and
+scan lists are not decoded, and zone membership is read but not written. Its
 pages relocate between sessions and 22 of its 59 allocated blocks are
 undocumented, so every other byte is read, preserved and never sent back.
 

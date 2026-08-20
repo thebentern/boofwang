@@ -68,6 +68,15 @@ import {
 import { DM32UV_SCHEMA, DM32UV_SERIAL } from './schema.js'
 
 /** Calibration. Factory-set per unit, never written, and the unit fingerprint. */
+/**
+ * What an unprogrammed channel record holds on this radio.
+ *
+ * Its own unused slots are 0xFF, and the reference calls an empty slot "all
+ * 0xFF and/or all 0x00" - so this is what the radio itself writes, not a
+ * convention invented here.
+ */
+const ERASED = 0xff
+
 const CALIBRATION_BLOCK = 0x02
 
 const dec = new TextDecoder()
@@ -645,18 +654,53 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       const channelBlock = (id: number) => out.regions.find((r) => r.start === logicalAddress(id))?.data
       const firstChannels = channelBlock(CHANNEL_BLOCK_FIRST)
       if (firstChannels) {
-        const total = firstChannels[0]! | (firstChannels[1]! << 8)
-        let index = 0
-        for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST && index < total; id++) {
+        // Every physical channel slot, in the order the decoder walks them, so
+        // slot k is channel k+1 on both sides. Blocks the radio has not
+        // allocated are skipped by both without advancing the number.
+        const slots: { data: Uint8Array; offset: number }[] = []
+        for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) {
           const data = channelBlock(id)
           if (!data) continue
-          const base2 = id === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
-          const capacity = Math.floor((PAGE_SIZE - base2 - 1) / CHANNEL_SIZE)
-          for (let i = 0; i < capacity && index < total; i++, index++) {
-            const ch = doc.channels.get(index + 1)
-            if (ch) encodeChannel(data, base2 + i * CHANNEL_SIZE, ch)
-          }
+          const from = id === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
+          const capacity = Math.floor((PAGE_SIZE - from - 1) / CHANNEL_SIZE)
+          for (let i = 0; i < capacity; i++) slots.push({ data, offset: from + i * CHANNEL_SIZE })
         }
+
+        const total = firstChannels[0]! | (firstChannels[1]! << 8)
+        const highest = doc.channels.size === 0 ? 0 : Math.max(...doc.channels.keys())
+        if (highest > slots.length) {
+          throw new DriverError(
+            `Channel ${highest} does not fit: this radio has allocated ${slots.length} channel slots. ` +
+              'Use a lower slot number.',
+          )
+        }
+        // Never shrink. Slots are positional on this radio - an empty one still
+        // consumes a channel number - so deleting the last channel leaves a gap
+        // rather than renumbering every zone and scan list entry that points
+        // past it.
+        const wanted = Math.max(total, highest)
+
+        for (let k = 0; k < wanted; k++) {
+          const slot = slots[k]!
+          const ch = doc.channels.get(k + 1)
+          if (ch) {
+            encodeChannel(slot.data, slot.offset, ch)
+            continue
+          }
+          // No channel here in the document. Erase the slot if it holds one the
+          // user deleted, or if the count is about to reach past it; otherwise
+          // leave it alone, because a slot the decoder already ignored may hold
+          // bytes nobody has explained.
+          const held = decodeChannel(slot.data, slot.offset, k + 1) !== null
+          if (k >= total || held) slot.data.fill(ERASED, slot.offset, slot.offset + CHANNEL_SIZE)
+        }
+
+        // The count is a 16-bit little-endian word at the top of the first
+        // channel block (reference :37, attested both ways by the read and OEM
+        // CPS write captures). Bytes 0x02-0x0F of that header are fill and are
+        // not ours to touch.
+        firstChannels[0] = wanted & 0xff
+        firstChannels[1] = (wanted >> 8) & 0xff
       }
 
       encodeZones(out, doc.zones)
@@ -713,8 +757,14 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
 
       const blockId = regionStart >>> 12
       if (blockId >= CHANNEL_BLOCK_FIRST && blockId <= CHANNEL_BLOCK_LAST) {
-        const base = blockId === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
-        return [[base, PAGE_SIZE - 1] as const]
+        if (blockId !== CHANNEL_BLOCK_FIRST) return [[0, PAGE_SIZE - 1] as const]
+        // The first two bytes are the channel count, which has to move for a
+        // channel to be added. Bytes 0x02-0x0F of that header are fill in both
+        // hardware captures and are deliberately left out.
+        return [
+          [0, 2] as const,
+          [CHANNEL_HEADER, PAGE_SIZE - 1] as const,
+        ]
       }
       if (blockId >= ZONE_BLOCK_FIRST && blockId <= ZONE_BLOCK_LAST) {
         const base = blockId === ZONE_BLOCK_FIRST ? ZONE_HEADER : 0

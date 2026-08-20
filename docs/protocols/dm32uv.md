@@ -232,11 +232,35 @@ mode: the radio resets when the port closes and needs `REOPEN_SETTLE_MS` before
 it will answer a handshake, so a read and a write in one session fails at the
 second `PROGRAM` with `0x90`.
 
-## Not verified
+## Adding and removing channels — verified session, 2026-08-20
 
-- **Adding or removing channels.** The channel-count header at the start of block
-  `0x12` is outside `ownedRanges()`, so existing records can be edited but the
-  count cannot change.
+The encode loop was bounded by the stored channel count and the count itself was
+not writable, so a channel created past the end was silently dropped and a
+deleted one silently stayed. The UI offered both actions on this radio and
+neither did anything.
+
+The count is a uint16 LE at `0x000`-`0x001` of block `0x12` (reference `:37`,
+attested both ways: the read capture's `19 00` = 25 and the OEM CPS write
+capture's `80 00` = 128 against exactly 128 records written). Bytes `0x002`-`0x00F`
+are fill — `0x00` in the read capture, `0xFF` in the CPS write capture — so
+`ownedRanges()` claims `[0, 2)` and `[0x10, 0xFFF)` and deliberately leaves the
+fourteen bytes between them alone.
+
+Slots are positional: an empty one still consumes a channel number. So a
+deletion erases the record to `0xFF` and leaves the count where it was, rather
+than re-packing. The reference implementation does re-pack, which renumbers every
+later channel while zone and scan-list entries go on pointing at absolute
+channel numbers — that is a codeplug corruption, not a tidy-up. Adding a channel
+past the end fills the intervening slots with `0xFF` so the radio reads them as
+empty rather than as whatever the flash happened to hold.
+
+Verified on the radio: channel 46 added on a 45-channel codeplug, one channel in
+the middle deleted, in the same write. The count word reached the radio, the
+header fill either side of it was untouched, the added channel read back, the
+deleted one did not, and the channel after the deletion kept its name — no
+renumbering. Restored to `224771c0…` afterwards.
+
+## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied
   slot has not been established.

@@ -122,6 +122,16 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       const keyWas = doc.encryptionKeys[0]!
       doc.encryptionKeys[0] = { ...keyWas, keyHex: '5A'.repeat(keyWas.keyHex.length / 2) }
 
+      // Add a channel past the end and delete one in the middle. Both were
+      // silently dropped before: the encode loop was bounded by the stored
+      // count, and the count itself was not writable.
+      const countWas = block(baseline, CHANNEL_BLOCK)[0]! | (block(baseline, CHANNEL_BLOCK)[1]! << 8)
+      const added = countWas + 1
+      doc.channels.set(added, { ...a, index: added, name: 'HW ADDED', txAllowed: true, tone: { rx: null, tx: null, rxInverted: false } })
+      const deleted = [...doc.channels.keys()].filter((k) => k !== a.index && k !== b.index && k !== forbidden!.index && k !== added)[2]!
+      const deletedName = doc.channels.get(deleted)!.name
+      doc.channels.delete(deleted)
+
       const report = await session((t) =>
         driver.writeImage(t, driver.encode(doc, baseline), { ident, backup, baseImage: baseline }),
       )
@@ -154,7 +164,18 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       expect(equalBytes(now(nA).subarray(0x14, 0x18), was(nA).subarray(0x14, 0x18)),
         'a receive-only channel had its transmit frequency rewritten').toBe(true)
 
+      // The count word moved, and the header fill around it did not.
+      expect(block(after, CHANNEL_BLOCK)[0]! | (block(after, CHANNEL_BLOCK)[1]! << 8),
+        'the channel count did not reach the radio').toBe(added)
+      expect(equalBytes(block(after, CHANNEL_BLOCK).subarray(2, HEADER), block(baseline, CHANNEL_BLOCK).subarray(2, HEADER)),
+        'the header fill either side of the count was rewritten').toBe(true)
+
       const back = driver.decode(after)
+      expect(back.channels.get(added)?.name, 'the added channel is not on the radio').toBe('HW ADDED')
+      expect(back.channels.has(deleted), `${deletedName} survived deletion`).toBe(false)
+      expect(back.channels.get(deleted + 1)?.name, 'deleting renumbered the channels after it')
+        .toBe(driver.decode(baseline).channels.get(deleted + 1)?.name)
+
       expect([...back.channels.values()].find((c) => c.name === 'HW CHECK A')).toBeTruthy()
       expect(back.zones[0]!.name).toBe('HW ZONE')
       expect(back.zones[0]!.channels, 'a zone rename moved its channel list').toEqual(doc.zones[0]!.channels)

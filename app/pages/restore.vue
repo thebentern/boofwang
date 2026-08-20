@@ -42,7 +42,8 @@ const canWrite = computed(() => hasDriver.value && schema.value?.capabilities.wr
  * What a write on this radio can actually reach, when it is not everything.
  *
  * The DM-32UV driver reaches channels, zone names, talk groups and key slots,
- * but not the twenty-odd blocks nothing has decoded; every other byte is read,
+ * but not zone membership or the twenty-odd blocks nothing has decoded; every
+ * other byte is read,
  * preserved and never written back. Calling that a restore without saying so
  * would leave someone believing their whole radio had been rolled back when
  * only part of it was.
