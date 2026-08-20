@@ -37,9 +37,27 @@ jobs:
 
       - name: Build
         env:
-          # `base_path` is e.g. /boofwang; Nuxt needs the trailing slash too.
-          NUXT_APP_BASE_URL: ${{ steps.pages.outputs.base_path }}/
+          # Served from the root of the custom domain, so the base is '/'.
+          #
+          # Deliberately not `${{ steps.pages.outputs.base_path }}/`: that
+          # reports the repository subpath until the custom domain is saved in
+          # the repository settings, and a build carrying /boofwang/ while the
+          # CNAME says boofwa.ng produces a site whose every asset 404s.
+          NUXT_APP_BASE_URL: /
         run: pnpm build
+
+      - name: Check the artifact is what Pages needs
+        run: |
+          set -eu
+          test -f .output/public/.nojekyll || { echo 'missing .nojekyll: Pages would strip /_nuxt/'; exit 1; }
+          test -f .output/public/index.html || { echo 'missing index.html'; exit 1; }
+          test -f .output/public/404.html   || { echo 'missing 404.html: deep links would break'; exit 1; }
+          test -f .output/public/CNAME      || { echo 'missing CNAME: the custom domain would be dropped'; exit 1; }
+          echo "CNAME: $(cat .output/public/CNAME)"
+          # Assets must be root-relative for a custom domain.
+          if grep -q '"/boofwang/_nuxt/' .output/public/index.html; then
+            echo 'index.html references /boofwang/_nuxt/, which will 404 on the custom domain'; exit 1
+          fi
 
       - uses: actions/upload-pages-artifact@v5
         with:

@@ -4,22 +4,40 @@ A codeplug editor and programmer that runs in your browser, talking to radios
 over the [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API).
 No install, no account, no server — a CHIRP alternative you open as a URL.
 
+Live at **[boofwa.ng](https://boofwa.ng)**.
+
 **Target radios**
 
-| Radio | Memory | Read | Write |
-|---|---|---|---|
-| Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Not yet |
-| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Not yet | Not yet |
-| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Not yet | Not yet |
+| Radio | Memory | Read | Write | Verified on hardware |
+|---|---|---|---|---|
+| Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write and restore |
+| Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | No | Read, cross-checked against CHIRP |
+| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | No | **No** — see below |
+| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Key slots only | Read, write and restore |
 
 CHIRP has no DM-32UV driver at all, and Baofeng's own CPS is Windows-only.
 
-> **Status.** boofwang can read a UV-K5, decode its channels, and export them as
-> CHIRP-compatible CSV, as a `.bwp` codeplug, or as a raw `.bin`. **No radio can
-> be written to yet** — `encode()` throws and every schema reports `write:
-> false`, so the upload button has nothing to bind to. The safety machinery
-> described below is built where it is stated as built and described as planned
-> where it is not; see the write-path note in that section.
+> **Status.** The UV-K5 and the DM-32UV have both been written to and restored,
+> verified by reading the radio back outside the app and comparing sha256. The
+> DM-32UV write is deliberately narrow: only its encryption key slots, because
+> its pages move between sessions and 22 of its 59 blocks have no documented
+> meaning.
+>
+> **The UV-5R Mini driver has never seen a radio.** It is transcribed from
+> CHIRP and cross-checked field by field against CHIRP's own struct parser,
+> which is real evidence but is not a hardware test. Note also that two
+> different radios are sold under near-identical names; both are supported and
+> the handshake decides which is on the cable. See
+> [docs/protocols/uv5rmini.md](docs/protocols/uv5rmini.md).
+
+**Files it reads and writes**
+
+| Format | Read | Write |
+|---|---|---|
+| `.bwp` — boofwang codeplug, says which radio it is | Yes | Yes |
+| CHIRP `.img` — opens in CHIRP, and CHIRP's images open here | Yes | Yes |
+| CHIRP CSV | Yes | Yes, byte-identical to CHIRP's own output |
+| Raw `.bin` | Yes | Yes |
 
 ## Development
 
@@ -63,7 +81,7 @@ socket instead of `navigator.serial`:
 ```bash
 pnpm bridge                       # in one terminal
 pnpm dev                          # in another
-# then open http://localhost:3000/boofwang/?bridge
+# then open http://localhost:3000/?bridge
 ```
 
 Everything below the `SerialPortLike` seam — transport framing, timeouts, the

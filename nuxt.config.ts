@@ -64,9 +64,18 @@ export default defineNuxtConfig({
   nitro: { preset: 'github-pages' },
 
   app: {
-    // Project pages are served from /boofwang/ - BOTH slashes are required.
-    // CI overrides this with the base_path reported by actions/configure-pages.
-    baseURL: process.env.NUXT_APP_BASE_URL || '/boofwang/',
+    /**
+     * Served from the root of boofwa.ng.
+     *
+     * A custom domain serves the site at `/`, not at `/<repo>/`. The CNAME file
+     * in `public/` is what tells GitHub Pages that, and it has to travel in the
+     * built artifact - which is why it lives in `public/` rather than being set
+     * only in the repository settings, where a redeploy can drop it.
+     *
+     * `NUXT_APP_BASE_URL` still overrides, so a build for the bare
+     * `<user>.github.io/boofwang/` URL is one environment variable away.
+     */
+    baseURL: process.env.NUXT_APP_BASE_URL || '/',
     head: {
       htmlAttrs: { lang: 'en' },
       meta: [
