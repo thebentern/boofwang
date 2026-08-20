@@ -56,51 +56,96 @@ function start(kind: Editing['kind'], id: string, field: Editing['field'], value
  * were shown. Anything unparseable is dropped here and anything out of range is
  * dropped by the encoder, which is the layer that knows the bank size.
  */
-function parseRuns(text: string): number[] {
+function parseRuns(text: string): { channels: number[]; bad: string[] } {
   const out: number[] = []
+  const bad: string[] = []
   for (const part of text.split(',')) {
     const piece = part.trim()
     if (!piece) continue
-    const dash = piece.match(/^(\d+)\s*-\s*(\d+)$/)
+
+    const dash = /^(\d+)\s*-\s*(\d+)$/.exec(piece)
     if (dash) {
-      const from = Number(dash[1])
-      const to = Number(dash[2])
-      if (from <= to && to - from < 1000) for (let n = from; n <= to; n++) out.push(n)
+      // A range typed backwards is what someone meant, not a mistake to throw
+      // away. Silently dropping it emptied the whole list and said nothing.
+      const a = Number(dash[1])
+      const b = Number(dash[2])
+      const from = Math.min(a, b)
+      const to = Math.max(a, b)
+      if (from < 1) {
+        bad.push(piece)
+        continue
+      }
+      for (let n = from; n <= to && out.length <= 4000; n++) out.push(n)
       continue
     }
-    const one = Number(piece)
-    if (Number.isInteger(one) && one > 0) out.push(one)
+
+    // Deliberately strict. Bare Number() reads "1e3" as 1000 and "0x10" as 16,
+    // which is not what anyone typing a channel list means.
+    if (!/^\d+$/.test(piece) || Number(piece) < 1) {
+      bad.push(piece)
+      continue
+    }
+    out.push(Number(piece))
   }
   // The radio stores a plain list; a duplicate is legal but pointless.
-  return [...new Set(out)]
+  return { channels: [...new Set(out)], bad }
 }
 
 /** Parse a comma-separated list of DMR numbers. */
-const parseIds = (text: string) =>
-  [...new Set(text.split(',').map((v) => Number(v.trim())).filter((v) => Number.isInteger(v) && v > 0))]
+const parseIds = (text: string) => {
+  const out: number[] = []
+  const bad: string[] = []
+  for (const part of text.split(',')) {
+    const piece = part.trim()
+    if (!piece) continue
+    if (!/^\d+$/.test(piece) || Number(piece) < 1) bad.push(piece)
+    else out.push(Number(piece))
+  }
+  return { ids: [...new Set(out)], bad }
+}
+
+/** Shown under the editor when part of what was typed could not be read. */
+const problem = ref('')
 
 function commitEdit() {
   const e = editing.value
   if (!e) return
   const text = draft.value.trim()
-  if (e.kind === 'zone') {
-    if (e.field === 'name') codeplug.renameZone(e.id, text)
-    else codeplug.setZoneChannels(e.id, parseRuns(text))
-  } else if (e.kind === 'talkgroup') {
-    codeplug.renameTalkGroup(e.id, text)
-  } else if (e.kind === 'scanlist') {
-    if (e.field === 'name') codeplug.renameScanList(e.id, text)
-    else codeplug.setScanListChannels(e.id, parseRuns(text))
-  } else {
-    if (e.field === 'name') codeplug.renameRxGroup(e.id, text)
-    else codeplug.setRxGroupIds(e.id, parseIds(text))
+  problem.value = ''
+
+  if (e.field === 'name') {
+    if (e.kind === 'zone') codeplug.renameZone(e.id, text)
+    else if (e.kind === 'talkgroup') codeplug.renameTalkGroup(e.id, text)
+    else if (e.kind === 'scanlist') codeplug.renameScanList(e.id, text)
+    else codeplug.renameRxGroup(e.id, text)
+    cancel()
+    return
   }
+
+  const parsed = e.kind === 'rxgroup' ? parseIds(text) : parseRuns(text)
+  const bad = parsed.bad
+  const values = 'ids' in parsed ? parsed.ids : parsed.channels
+
+  // Refuse rather than commit a list the user did not ask for. Typing something
+  // unreadable used to clear the list and say nothing at all.
+  if (bad.length > 0) {
+    problem.value = `Could not read ${bad.map((b) => `"${b}"`).join(', ')}.`
+    return
+  }
+  if (text !== '' && values.length === 0) {
+    problem.value = 'Nothing in that list could be used.'
+    return
+  }
+
+  if (e.kind === 'zone') codeplug.setZoneChannels(e.id, values)
+  else codeplug.setRxGroupIds(e.id, values)
   cancel()
 }
 
 function cancel() {
   editing.value = null
   draft.value = ''
+  problem.value = ''
 }
 
 const CALL_TYPE: Record<string, string> = {
@@ -207,6 +252,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 label="Edit channels"
                 placeholder="1-22, 30, 42-45"
                 hint="Channel numbers, as ranges or singly. Anything this radio has no channel for is dropped."
+                :problem="problem"
                 @edit="start('zone', zone.id, 'members', runs(zone.channels))"
                 @save="commitEdit"
                 @cancel="cancel"
@@ -279,25 +325,19 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 @save="commitEdit"
                 @cancel="cancel"
               />
-              <InlineEdit
-                v-model:draft="draft"
-                :editing="isEditing('scanlist', list.id, 'members')"
-                :value="runs(list.channels)"
-                label="Edit channels"
-                placeholder="1-9"
-                hint="This radio scans at most 16 channels per list; anything past that is dropped."
-                @edit="start('scanlist', list.id, 'members', runs(list.channels))"
-                @save="commitEdit"
-                @cancel="cancel"
-              >
-                <span class="meta">
-                  {{ list.channels.length }} channel{{ list.channels.length === 1 ? '' : 's' }}:
-                  {{ runs(list.channels) }}
-                </span>
-              </InlineEdit>
+              <span class="meta">
+                {{ list.channels.length }} channel{{ list.channels.length === 1 ? '' : 's' }}:
+                {{ runs(list.channels) }}
+              </span>
             </div>
           </div>
         </div>
+        <p class="note">
+          Which channels a scan list contains is read from the radio and written back unchanged. Two
+          readings of these bytes are one word apart — this radio's own count agrees with one, the
+          reference's capture of the vendor software with the other — and writing the wrong one would
+          shift every channel in the list, so the name is editable and the membership is not.
+        </p>
       </section>
 
       <!-- RX groups -->
@@ -330,6 +370,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 label="Edit members"
                 placeholder="3105, 310501"
                 hint="DMR talk group numbers, not slot numbers. Up to 32."
+                :problem="problem"
                 @edit="start('rxgroup', group.id, 'members', group.dmrIds.join(', '))"
                 @save="commitEdit"
                 @cancel="cancel"

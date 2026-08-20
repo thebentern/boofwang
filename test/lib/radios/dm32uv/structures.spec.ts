@@ -7,17 +7,19 @@ import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createDm32uvDriver, decodeTalkGroupIndex } from '#core/radios/dm32uv/driver.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
+import { DM32UV_SETTINGS_GROUPS as SCHEMA_SETTINGS } from '#core/radios/dm32uv/schema.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
 import {
+  CONTACT_REGION_HEADER,
+  CONTACT_SIZE,
+  DM32_CONTACT,
+  DM32_KEY_FUNCTIONS,
+  DM32_RADIOID,
   RADIOID_BLOCK,
   RADIOID_HEADER,
   RADIOID_SIZE,
   RXGROUP_BLOCK,
   RXGROUP_HEADER,
-  CONTACT_REGION_HEADER,
-  CONTACT_SIZE,
-  DM32_CONTACT,
-  contactSlot,
   SCANLIST_BLOCK,
   SCANLIST_HEADER,
   SCANLIST_SIZE,
@@ -25,6 +27,7 @@ import {
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
   ZONE_SIZE,
+  contactSlot,
 } from '#core/radios/dm32uv/layout.js'
 
 const BLOB = new Uint8Array(
@@ -81,20 +84,33 @@ describe('scan lists', () => {
     expect(back.channels).toEqual(before)
   })
 
-  it('writes a new member list and the count that bounds it', () => {
+  it('leaves membership exactly as the radio had it', () => {
+    // Two readings of these bytes sit one word apart and both have direct
+    // evidence: this radio's second list has a count of 9 and nine non-zero
+    // words from +0x18, while the reference's capture of the vendor software
+    // has 0x0000 at +0x18 on all nine of its lists. Writing the wrong one
+    // shifts every channel in the list, so neither is written.
     const img = image()
     const doc = d.decode(img)
     doc.scanLists[1] = { ...doc.scanLists[1]!, channels: [5, 10, 15] }
     const out = d.encode(doc, img)
-    expect(d.decode(out).scanLists[1]!.channels).toEqual([5, 10, 15])
-    expect(page(out, SCANLIST_BLOCK)[SCANLIST_HEADER + SCANLIST_SIZE + 0x0b]).toBe(3)
+    const from = SCANLIST_HEADER + SCANLIST_SIZE
+    expect(
+      equalBytes(
+        page(out, SCANLIST_BLOCK).subarray(from + 0x0b, from + SCANLIST_SIZE),
+        page(img, SCANLIST_BLOCK).subarray(from + 0x0b, from + SCANLIST_SIZE),
+      ),
+      'a membership edit reached the radio',
+    ).toBe(true)
   })
 
-  it('drops a member the channel bank cannot resolve', () => {
+  it('still writes the name, which is unambiguous', () => {
     const img = image()
     const doc = d.decode(img)
-    doc.scanLists[0] = { ...doc.scanLists[0]!, channels: [1, 9999, 2] }
-    expect(d.decode(d.encode(doc, img)).scanLists[0]!.channels).toEqual([1, 2])
+    doc.scanLists[0] = { ...doc.scanLists[0]!, name: 'RENAMED', channels: [9] }
+    const back = d.decode(d.encode(doc, img)).scanLists[0]!
+    expect(back.name).toBe('RENAMED')
+    expect(back.channels).toEqual(d.decode(img).scanLists[0]!.channels)
   })
 
   it('adds and removes lists by moving the count byte', () => {
@@ -367,13 +383,6 @@ describe('membership follows the channel bank', () => {
     expect(back).toEqual([1, 2])
   })
 
-  it('drops a scan list member the same way', () => {
-    const img = image()
-    const doc = d.decode(img)
-    doc.scanLists[0] = { ...doc.scanLists[0]!, channels: [1, 4000, 2] }
-    expect(d.decode(d.encode(doc, img)).scanLists[0]!.channels).toEqual([1, 2])
-  })
-
   it('keeps every member that does resolve', () => {
     const img = image()
     const doc = d.decode(img)
@@ -480,5 +489,106 @@ describe('the DMR address book', () => {
       if (region.start < START) continue
       expect(equalBytes(region.data, img.regions.find((r) => r.start === region.start)!.data)).toBe(true)
     }
+  })
+})
+
+describe('the key-function table, against the reference and this radio', () => {
+  // Pinned by index because the index IS the byte written to the radio: the
+  // schema builds the dropdown as map((label, value) => ({ value, label })).
+  // An earlier table claimed to be transcribed from the reference and was not -
+  // it agreed for fourteen entries and invented every one after, so choosing
+  // "Monitor" would have stored 16, which this radio reads as Zone Up.
+  it('matches reference/dm32/05-DATA-STRUCTURES.md value for value', () => {
+    expect(DM32_KEY_FUNCTIONS).toHaveLength(43)
+    for (const [value, label] of [
+      [0, 'None'],
+      [13, 'One Touch Call 5'],
+      [14, 'SMS'],
+      [15, 'CSV Contacts'],
+      [16, 'Zone Up'],
+      [17, 'Zone Down'],
+      [18, 'Scan'],
+      [25, 'Monitor'],
+      [28, 'Keypad Lock'],
+      [40, 'One Key Scan Freq'],
+      [42, 'Man Down Alarm'],
+    ] as const) {
+      expect(DM32_KEY_FUNCTIONS[value], `value ${value}`).toBe(label)
+    }
+  })
+
+  it('renders this radio’s own key bytes as a coherent set', () => {
+    // 0x088=0x1c, 0x089=0x19, 0x08d=0x11, 0x08f=0x10 - Keypad Lock, Monitor,
+    // Zone Down, Zone Up. The Zone Down / Zone Up pair on the two programmable
+    // keys is the tell: the old table called them "Squelch Off" and "Monitor".
+    const s = d.decode(image()).settings
+    const label = (v: unknown) => DM32_KEY_FUNCTIONS[Number(v)]
+    expect(page(image(), SETTINGS_BLOCK)[0x88]).toBe(0x1c)
+    expect(label(s.sk1Long)).toBe('Keypad Lock')
+    expect(label(s.sk2Short)).toBe('Monitor')
+    expect(label(s.p1Short)).toBe('Zone Down')
+    expect(label(s.p2Short)).toBe('Zone Up')
+  })
+
+  it('offers exactly the values it can name', () => {
+    const keys = SCHEMA_SETTINGS.find((g) => g.id === 'keys')!
+    const options = keys.fields.find((f) => f.key === 'sk1Short')!.options!
+    expect(options).toHaveLength(DM32_KEY_FUNCTIONS.length)
+    for (const opt of options) expect(DM32_KEY_FUNCTIONS[Number(opt.value)]).toBe(opt.label)
+  })
+})
+
+describe('radio IDs keep their slots', () => {
+  /** Put an entry in a slot the count does not reach, as the decoder allows. */
+  function withIdAt(slot: number, dmrId: number, name: string, count: number): RadioImage {
+    const img = image()
+    const data = page(img, RADIOID_BLOCK)
+    DM32_RADIOID.write(data, RADIOID_HEADER + slot * RADIOID_SIZE, { dmrId, name })
+    data[0] = count
+    return img
+  }
+
+  it('round-trips an image whose bank has a gap', () => {
+    // Channel byte 0x2B points at a radio ID by slot, so packing the bank
+    // densely would silently repoint every channel after the gap.
+    const img = withIdAt(4, 3_105_123, 'FIFTH', 5)
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, RADIOID_BLOCK), page(img, RADIOID_BLOCK))).toBe(true)
+  })
+
+  it('does not move an entry the count never reached', () => {
+    const img = withIdAt(5, 3_105_999, 'SIXTH', 1)
+    const back = d.decode(d.encode(d.decode(img), img))
+    const ids = back.radioIds
+    // Both the counted one and the uncounted one, each still in its own slot.
+    expect(ids.map((r) => r.id)).toEqual(['rid-1', 'rid-6'])
+    expect(ids[1]!.dmrId).toBe(3_105_999)
+  })
+
+  it('does not raise the count for an entry with no name and no number', () => {
+    // What the "Add" button produces before anything is typed into it. A count
+    // the record table does not back is a state this driver's own decoder
+    // refuses to read.
+    const img = image()
+    const doc = d.decode(img)
+    doc.radioIds.push({ id: 'rid-new-2', name: '', dmrId: 0 })
+    const out = d.encode(doc, img)
+    expect(page(out, RADIOID_BLOCK)[0]).toBe(page(img, RADIOID_BLOCK)[0])
+    expect(d.decode(out).radioIds).toHaveLength(1)
+  })
+
+  it('gives a genuinely new entry the lowest free slot', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.radioIds.push({ id: 'rid-new-2', name: 'SECOND', dmrId: 3_105_002 })
+    const out = d.encode(doc, img)
+    expect(page(out, RADIOID_BLOCK)[0]).toBe(2)
+    expect(d.decode(out).radioIds.map((r) => r.id)).toEqual(['rid-1', 'rid-2'])
+  })
+
+  it('counts to the highest occupied slot, not to how many there are', () => {
+    const img = withIdAt(5, 3_105_999, 'SIXTH', 6)
+    const out = d.encode(d.decode(img), img)
+    expect(page(out, RADIOID_BLOCK)[0], 'a gap still consumes its index').toBe(6)
   })
 })

@@ -12,6 +12,7 @@ defineProps<{
   maxlength?: number
   hint?: string
   label?: string
+  problem?: string
 }>()
 
 const model = defineModel<string>('draft', { required: true })
@@ -39,7 +40,14 @@ const INPUT_STYLE =
       <RiskAction risk="neutral" size="sm" icon="i-lucide-check" label="Save" @click="emit('save')" />
       <RiskAction risk="neutral" ghost size="sm" label="Cancel" @click="emit('cancel')" />
     </div>
-    <p v-if="hint" style="font-size: 13px; color: var(--mu); margin-top: 5px; line-height: 1.5">{{ hint }}</p>
+    <p
+      v-if="problem"
+      style="font-size: 13px; color: var(--dg); margin-top: 5px; line-height: 1.5"
+    >{{ problem }}</p>
+    <p
+      v-else-if="hint"
+      style="font-size: 13px; color: var(--mu); margin-top: 5px; line-height: 1.5"
+    >{{ hint }}</p>
   </div>
 
   <div v-else class="flex items-center gap-2 flex-wrap min-w-0">

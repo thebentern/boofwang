@@ -41,9 +41,10 @@ const canWrite = computed(() => hasDriver.value && schema.value?.capabilities.wr
 /**
  * What a write on this radio can actually reach, when it is not everything.
  *
- * The DM-32UV driver reaches channels, zone names, talk groups and key slots,
- * but not zone membership or the twenty-odd blocks nothing has decoded; every
- * other byte is read,
+ * The DM-32UV driver reaches channels, zones, talk groups, scan list names, RX
+ * groups, settings and key slots, but not the DMR address book, scan list
+ * membership or the twenty-odd blocks nothing has decoded; every other byte is
+ * read,
  * preserved and never written back. Calling that a restore without saying so
  * would leave someone believing their whole radio had been rolled back when
  * only part of it was.
@@ -199,10 +200,10 @@ async function confirmRestore() {
             <strong style="font-weight: 600; color: var(--tx)">
               The {{ schema?.model }} only accepts writes to its {{ writeScope }}.
             </strong>
-            Those are put back and nothing else. Radio settings, contacts, RX groups, scan lists and the
-            twenty-odd memory blocks nobody has decoded stay exactly as the radio has them now — as does which
-            channels each zone contains. The count at the end is of what was actually sent, so this is not the
-            full rollback the word restore usually promises.
+            Those are put back and nothing else. The DMR address book, the radio's own talk-group index,
+            which channels each scan list contains, and the twenty-odd memory blocks nobody has decoded stay
+            exactly as the radio has them now. The count at the end is of what was actually sent, so this is
+            not the full rollback the word restore usually promises.
           </p>
         </div>
 

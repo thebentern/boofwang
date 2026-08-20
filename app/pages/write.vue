@@ -383,8 +383,9 @@ async function send() {
           <p style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
             Nothing in the channel list changes. The
             <span class="font-mono tabular">{{ bytes.toLocaleString() }} bytes</span>
-            about to be sent are elsewhere in the codeplug — a zone or talk group name, or a key slot — and
-            boofwang has no line-by-line account of those yet.
+            about to be sent are elsewhere in the codeplug — a zone, talk group or scan list name, an RX
+            group, a radio ID, a setting or a key slot — and boofwang has no line-by-line account of those
+            yet.
           </p>
         </div>
       </div>

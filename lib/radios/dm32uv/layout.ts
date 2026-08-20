@@ -457,19 +457,29 @@ export const DM32_COLOURS = [
 /**
  * Side and programmable key functions, 0-42.
  *
- * Transcribed from the reference's button-function enum. An out-of-range value
- * is shown as its number rather than replaced, so a firmware that adds one is
- * visible instead of silently rewritten.
+ * Transcribed from `reference/dm32/05-DATA-STRUCTURES.md:2253-2271`, value by
+ * value. An earlier version of this table claimed the same provenance and did
+ * not have it: it was a plausible-looking DMR function list that agreed with the
+ * reference for the first fourteen entries and invented every one after. Because
+ * the schema builds the dropdown as `map((label, value) => ...)`, the index IS
+ * the byte written to the radio, so a wrong label here is a wrong byte - picking
+ * "Monitor" would have stored 16, which this radio reads as Zone Up.
+ *
+ * This radio's own bytes are the check: 0x088=0x1c, 0x089=0x19, 0x08d=0x11,
+ * 0x08f=0x10 read as Keypad Lock, Monitor, Zone Down, Zone Up - a coherent
+ * Zone Down/Zone Up pair on the two programmable keys, which the old table
+ * rendered as "Squelch Off" and "Monitor".
  */
 export const DM32_KEY_FUNCTIONS = [
-  'None', 'Power Select', 'Battery Voltage', 'Talkaround', 'Digital Encrypt', 'Call', 'VOX',
-  'V/M Switch', 'Alarm', 'One Touch Call 1', 'One Touch Call 2', 'One Touch Call 3',
-  'One Touch Call 4', 'One Touch Call 5', 'Zone Select', 'Scan', 'Monitor', 'Squelch Off',
-  'Backlight', 'Keypad Lock', 'FM Radio', 'Contacts', 'Messages', 'Roaming', 'GPS',
-  'Emergency On', 'Emergency Off', 'Record', 'Record Playback', 'Repeater Mode',
-  'Priority Zone', 'Radio Check', 'Radio Enable', 'Radio Disable', 'Remote Monitor',
-  'Call Alert', 'Man Down', 'Lone Worker', 'Privacy', 'Slot Switch', 'Colour Code',
-  'Channel Up', 'Channel Down',
+  'None', 'Power Select', 'Volt', 'Talkaround', 'Digital Encrypt', 'Call', 'VOX',
+  'V/M', 'Alarm', 'One Touch Call 1', 'One Touch Call 2', 'One Touch Call 3',
+  'One Touch Call 4', 'One Touch Call 5', 'SMS', 'CSV Contacts', 'Zone Up',
+  'Zone Down', 'Scan', 'Record Switch', 'Previous Record', 'Next Record',
+  'FM Radio', 'FM Search', 'GPS Information', 'Monitor', 'Switch Main Channel',
+  'Lone Work', 'Keypad Lock', 'Nuisance Channel Delete', 'TBST Send', 'APRS Send',
+  'Channel Type', 'Display Mode', 'CTC Scan', 'CTC Setting', 'Silent Tone',
+  'Roaming', 'Sub-PTT', 'Analog Scramble Switch', 'One Key Scan Freq',
+  'Flashlight', 'Man Down Alarm',
 ] as const
 
 // ----------------------------------------------------------------- contacts --

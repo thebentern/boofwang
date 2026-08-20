@@ -253,10 +253,10 @@ export function useRadioSession() {
       codeplug.load(image, device.currentDriver())
 
       // Say what was actually restored, not what was asked for. Some drivers
-      // write only part of an image on purpose - the DM-32UV can write
-      // channels, zone names, talk groups and key slots but not the twenty-odd
-      // blocks nothing has decoded - and calling that a full restore would
-      // leave someone believing their whole radio had been rolled back.
+      // write only part of an image on purpose - the DM-32UV cannot write its
+      // DMR address book, its own talk-group index, scan list membership or the
+      // twenty-odd blocks nothing has decoded - and calling that a full restore
+      // would leave someone believing their whole radio had been rolled back.
       const total = image.regions.length
       const scope = device.currentDriver().schema.capabilities.writeScope
       const partial = report.blocksWritten > 0 && report.blocksWritten < total

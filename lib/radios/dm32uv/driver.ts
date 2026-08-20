@@ -246,15 +246,15 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           ...DM32UV_SCHEMA.capabilities,
           write: true,
           /*
-           * Still a scope, just a wider one. The write now reaches channel
-           * records, zone names, talk groups and key slots - but not the
-           * channel-count header, so channels cannot be added or removed, and
-           * not settings, contacts, scan lists or RX groups, which this build
-           * has never decoded. Saying "read and write" without qualification
-           * would present a restore of four block ranges as a full rollback of
-           * a 59-block radio.
+           * Still a scope, just a much wider one. The write reaches channel
+           * records, zones with their channel lists, talk groups, scan list
+           * names, RX groups, radio settings and key slots. It does not reach
+           * the DMR address book, the talk-group quick index, or the twenty-odd
+           * blocks nothing has decoded - so a restore is still not the full
+           * rollback the word promises, and this is the field that says so.
            */
-          writeScope: 'channels, zone names, talk groups and encryption keys',
+          writeScope:
+            'channels, zones, talk groups, scan lists, RX groups, radio settings and encryption keys',
         },
       }
     : DM32UV_SCHEMA
@@ -803,7 +803,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
 
       encodeZones(out, doc.zones, live)
       encodeTalkGroups(out, doc.talkGroups)
-      encodeScanLists(out, doc.scanLists, live)
+      encodeScanLists(out, doc.scanLists)
       encodeRxGroups(out, doc.rxGroups)
       encodeRadioIds(out, doc.radioIds)
       encodeSettings(out, doc.settings)
@@ -1477,7 +1477,7 @@ export function decodeTalkGroupIndex(image: RadioImage): { live: number[]; byNam
  * data before metadata: a write interrupted midway then leaves the old, shorter,
  * still-valid count rather than one pointing into half-written slots.
  */
-export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists'], live: ReadonlySet<number>): void {
+export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists']): void {
   const data = blockData(image, SCANLIST_BLOCK)
   if (!data) return
   const was = data[0]!
@@ -1497,13 +1497,21 @@ export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists'],
       continue
     }
 
-    const members = list.channels.filter((c) => live.has(c)).slice(0, SCANLIST_MAX_MEMBERS)
-    const padded = [...members, ...new Array<number>(SCANLIST_MAX_MEMBERS - members.length).fill(0)]
-    DM32_SCANLIST.write(data, off, {
-      name: list.name,
-      memberCount: members.length,
-      members: padded,
-    })
+    // Name only. Membership is decoded but not written, and the reason is
+    // an unresolved disagreement about where the list even starts.
+    //
+    // This radio says the members begin at +0x18: its second list has a count
+    // of 9 and exactly nine non-zero words from there, where reading them from
+    // +0x1A gives eight. The reference says the opposite, and its evidence is
+    // just as direct - in its OEM CPS write capture all nine lists store 0x0000
+    // at +0x18 with their channels at +0x1A, which under this radio's reading
+    // would mean the vendor's own software wrote "channel 0" as the first
+    // member of every list.
+    //
+    // Two credible readings, one byte apart, and writing the wrong one silently
+    // shifts every channel in the list. Names are unambiguous; membership waits
+    // for a deliberate experiment on a radio rather than a coin toss.
+    DM32_SCANLIST.write(data, off, { name: list.name })
   }
   data[0] = lists.length & 0xff
 }
@@ -1544,33 +1552,73 @@ export function encodeRxGroups(image: RadioImage, groups: Codeplug['rxGroups']):
   data[3] = (mask >>> 24) & 0xff
 }
 
-/** Write the DMR radio IDs back. Count byte, then fixed-stride records. */
+/**
+ * Write the DMR radio IDs back.
+ *
+ * By physical slot, not by array position. A radio ID's index *is* its slot
+ * number, and channel byte 0x2B points at it - so packing the bank densely
+ * would silently repoint every channel that referenced a slot after a gap.
+ * `decodeRadioIds` deliberately keeps gaps visible; this mirrors it, the way
+ * `encodeZones` and `encodeTalkGroups` mirror theirs.
+ *
+ * An entry with neither a name nor a number is not written and does not count.
+ * Otherwise the "Add" button would raise the count byte with no record behind
+ * it, and this driver's own decoder would refuse to read back what it wrote.
+ */
 export function encodeRadioIds(image: RadioImage, ids: Codeplug['radioIds']): void {
   const data = blockData(image, RADIOID_BLOCK)
   if (!data) return
-  if (ids.length > RADIOID_SLOTS) {
-    throw new DriverError(`This radio holds ${RADIOID_SLOTS} radio IDs; the codeplug has ${ids.length}.`)
-  }
   const was = data[0]!
 
-  for (let n = 0; n < Math.max(was, ids.length, RADIOID_SLOTS); n++) {
-    const off = RADIOID_HEADER + n * RADIOID_SIZE
-    if (off + RADIOID_SIZE > PAGE_SIZE - 1) break
-    const entry = ids[n]
-    if (!entry) {
-      // Only erase a slot that used to be inside the count. Slots beyond it
-      // have never been ours and may hold bytes nobody has explained.
-      if (n < was) {
-        DM32_RADIOID.write(data, off, { dmrId: 0, name: '' })
-      }
-      continue
-    }
+  const live = ids.filter((e) => e.dmrId !== 0 || e.name.trimEnd() !== '')
+  for (const entry of live) {
     if (entry.dmrId < 0 || entry.dmrId > 0xff_ffff) {
       throw new DriverError(`DMR ID ${entry.dmrId} does not fit in the 24 bits this radio stores.`)
     }
-    DM32_RADIOID.write(data, off, { dmrId: entry.dmrId, name: entry.name })
   }
-  data[0] = ids.length & 0xff
+
+  // Where each entry goes: the slot it came from, or the lowest free one for
+  // an entry the user has just added.
+  const taken = new Set<number>()
+  const placed = new Map<number, Codeplug['radioIds'][number]>()
+  const fresh: Codeplug['radioIds'] = []
+  for (const entry of live) {
+    const match = /^rid-(\d+)$/.exec(entry.id)
+    const slot = match ? Number(match[1]) - 1 : -1
+    if (slot >= 0 && slot < RADIOID_SLOTS && !taken.has(slot)) {
+      taken.add(slot)
+      placed.set(slot, entry)
+    } else {
+      fresh.push(entry)
+    }
+  }
+  for (const entry of fresh) {
+    let slot = 0
+    while (slot < RADIOID_SLOTS && taken.has(slot)) slot++
+    if (slot >= RADIOID_SLOTS) {
+      throw new DriverError(`This radio holds ${RADIOID_SLOTS} radio IDs and every slot is taken.`)
+    }
+    taken.add(slot)
+    placed.set(slot, entry)
+  }
+
+  // The count has to cover the highest occupied slot, not how many there are:
+  // a gap still consumes its index.
+  const highest = taken.size === 0 ? 0 : Math.max(...taken) + 1
+
+  for (let n = 0; n < Math.max(was, highest); n++) {
+    const off = RADIOID_HEADER + n * RADIOID_SIZE
+    if (off + RADIOID_SIZE > PAGE_SIZE - 1) break
+    const entry = placed.get(n)
+    if (entry) {
+      DM32_RADIOID.write(data, off, { dmrId: entry.dmrId, name: entry.name })
+      continue
+    }
+    // Only clear a slot that used to be inside the count. Slots beyond it have
+    // never been ours and may hold bytes nobody has explained.
+    if (n < was) DM32_RADIOID.write(data, off, { dmrId: 0, name: '' })
+  }
+  data[0] = highest & 0xff
 }
 
 /**

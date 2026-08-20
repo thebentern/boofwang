@@ -180,7 +180,24 @@ export function peekBwpHeader(data: Uint8Array): BwpHeader | null {
  * cannot say so themselves.
  */
 export function encodeRawBin(image: RadioImage): Uint8Array {
-  return concatRegions(image.regions)
+  return concatRegions(image.regions.filter((r) => !isSidecarRegion(r.start)))
+}
+
+/**
+ * A region that a raw `.bin` has nowhere to record.
+ *
+ * The DM-32UV addresses its config pages by logical block id, `id << 12`, so
+ * every one of them starts below 0x100000. Its DMR address book is a different
+ * animal: a raw region at a real physical address around 0x278000, with no
+ * block id in the page and nothing in a flat `.bin` that could say where it
+ * came from. Re-importing such a file reads the address book's bytes as though
+ * they were config pages.
+ *
+ * A `.bwp` carries each region's declared start, so it keeps them. The `.bin`
+ * drops them rather than pretending.
+ */
+export function isSidecarRegion(start: number): boolean {
+  return start >>> 12 > 0xff
 }
 
 export interface RawBinLayout {

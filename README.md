@@ -25,11 +25,12 @@ ident string, region map, channel count and power table. Both are implemented;
 the handshake selects between them. Only the UV-5R Mini has been tested on
 hardware.
 
-DM-32UV writes cover channel records, zone names, talk groups and the encryption
-key slots. Channels can be added and removed; settings, contacts, RX groups and
-scan lists are not decoded, and zone membership is read but not written. Its
-pages relocate between sessions and 22 of its 59 allocated blocks are
-undocumented, so every other byte is read, preserved and never sent back.
+DM-32UV writes cover channel records, zones and their channel lists, talk
+groups, scan list names, RX groups, DMR radio IDs, radio settings and the
+encryption key slots. Channels can be added and removed. Its DMR address book is
+read but not written, and so is scan list membership; its pages relocate between
+sessions and 22 of its 59 allocated blocks are undocumented, so every other byte
+is read, preserved and never sent back.
 
 ## File formats
 
