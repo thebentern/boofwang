@@ -11,7 +11,7 @@ Live at [boofwa.ng](https://boofwa.ng).
 | Radio | Memory | Read | Write | Hardware-verified |
 |---|---|---|---|---|
 | Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write, restore |
-| Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | No | Read |
+| Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | Yes | Read, write, restore |
 | Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | No | Read |
 | Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Key slots only | Read, write, restore |
 
