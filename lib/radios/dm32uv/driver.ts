@@ -74,11 +74,12 @@ const dec = new TextDecoder()
 
 export interface Dm32uvDriverOptions {
   /**
-   * Allow this driver to write encryption keys.
+   * Allow this driver to write.
    *
    * A constructor option rather than a mutable flag, so the schema the UI
    * renders and the capability `writeImage` enforces cannot disagree. Even when
-   * enabled, only the key slots are writable - see KEY_AREA.
+   * enabled the reach is scoped - see `capabilities.writeScope` and
+   * `ownedRanges`.
    */
   enableWrite?: boolean
 }
@@ -616,10 +617,11 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
     /**
      * Serialise a codeplug onto a copy of the image it came from.
      *
-     * Only the encryption key slots are written; every other byte of every
-     * block comes through from the base untouched. That is not a limitation of
-     * the encoder so much as the whole safety argument for this radio - see
-     * KEY_AREA in layout.ts.
+     * Channel records, zone names, talk groups and key slots are written;
+     * every other byte of every block comes through from the base untouched,
+     * including the channel-count header and the 22 blocks nothing has
+     * decoded. That is not a limitation of the encoder so much as the whole
+     * safety argument for this radio - see `ownedRanges`.
      */
     encode(doc: Codeplug, base: RadioImage): RadioImage {
       if (base.radioId !== 'dm32uv') throw new DriverError(`Not a DM-32UV image: ${base.radioId}`)

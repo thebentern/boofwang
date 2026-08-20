@@ -27,10 +27,11 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // radio was read from. The two windows CHIRP has always skipped fall outside
   // both, so a diff-driven write cannot reach them. See docs/protocols/uv82.md.
   uv82: () => createUv82Driver({ enableWrite: true }),
-  // Writing is enabled, and deliberately narrow: only the encryption key slots
-  // in logical block 0x10. This radio's pages move between sessions and 22 of
-  // its 59 allocated blocks have no documented meaning, so every other byte is
-  // read, preserved and never sent back. See docs/protocols/dm32uv.md.
+  // Writing is enabled, and deliberately scoped: channel records, zone names,
+  // talk groups and the key slots, sent as whole 4 KiB pages. This radio's
+  // pages move between sessions and 22 of its 59 allocated blocks have no
+  // documented meaning, so every other byte is read, preserved and never sent
+  // back. See docs/protocols/dm32uv.md.
   dm32uv: () => createDm32uvDriver({ enableWrite: true }),
   // A UV-17 Pro family radio despite the name: 115200 baud, obfuscated 64-byte
   // blocks. Writing sends the WHOLE image every time - this radio erases a

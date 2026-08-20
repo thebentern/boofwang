@@ -112,7 +112,7 @@ four attempts, identical failure. The close is the reset. A DTR pulse on open
 was tested as an alternative explanation and ruled out: four sessions with and
 without it all succeeded.
 
-## Writing — verified session, 2026-08-20
+## Writing key slots — verified session, 2026-08-20
 
 The first bytes ever written to this radio by boofwang, and the restore that
 put them back. Both went through the browser and the development bridge, using
@@ -165,12 +165,84 @@ only `ownedRanges()` is merged onto it, and the page is read back and compared
 after sending. A relocation between the diff and the write is followed rather
 than assumed away.
 
+## Channels, zones and talk groups — verified session, 2026-08-20
+
+Baseline `224771c0a05098907be1dcf6418c90b24d61205a738840a6a91233442adc8bc4`
+(59 blocks, 241,664 bytes), taken and re-taken with a raw Python reader that
+shares no code with boofwang.
+
+`writeImage` resolved a single region — block `0x10` — while `encode()` had been
+widened to patch channel, zone and talk group records. Those bytes were produced
+and dropped, and the report still said "verified". It now walks every block the
+driver claims, least dangerous first: talk groups, zone names, channels, then
+key slots.
+
+Three of the channel bit maps were wrong, and the round-trip invariant could not
+see any of them because the decoder and the encoder shared the same wrong bits.
+
+| Byte | Was | Is | Attested by |
+|---|---|---|---|
+| `0x18` | forbid-TX bit 1, power bit 0 | forbid-TX bit 3, power bits 2-1, lone worker bit 0 | reference `:300-308`; this radio's `LR DMR` = `0x1c` |
+| `0x19` | whole byte, bandwidth bit 0 | bandwidth bit 7, scan add bit 6, scan list bits 5-2, bits 1-0 preserved | reference `:309-317` |
+| `0x1D` | timeslot bit 3, colour code 3 bits | timeslot bit 4, colour code low nibble | reference `:392-406`, OEM CPS `TS1`=`0x01` / `TS2`=`0x11` |
+
+The `0x18` fault was not cosmetic. This radio's `LR DMR`, `AR DMR`, `USA DMR` and
+`Test DMR` all hold `0x18 = 0x1c` — bit 3 set, transmit forbidden — and boofwang
+displayed all four as transmit-enabled. Marking a channel receive-only set bit 1,
+which the radio ignores, and moved the power level to an undefined value.
+
+Two write passes, each read back with the Python reader and diffed byte by byte:
+
+**Pass 1** — 3 blocks, 12,288 bytes sent, 40 bytes actually different:
+
+| Block | Bytes | Change |
+|---|---|---|
+| `0x12` | 15 | `MURS-1` → `HWTEST MURS`; `0x18` `0x04`→`0x02` (power High→Medium, forbid-TX untouched); `TAC 1` `0x1D` `0x00`→`0x1d` (colour code 13, timeslot 2) |
+| `0x5c` | 10 | zone 1 `Tactical` → `HWZONE`, channel list untouched |
+| `0x44` | 15 | talk group 1 renamed, its number and call type bytes preserved |
+
+**Pass 2** — the remaining writable fields:
+
+| Channel | Change | Bytes |
+|---|---|---|
+| `GMRS 1` | receive-only | `0x18` `0x00`→`0x08` — bit 3, power untouched |
+| `LR DMR` | transmit re-enabled | `0x18` `0x1c`→`0x14` — bit 3 cleared, power still 2 |
+| `GMRS 2` | 462.60000 MHz, 25 kHz | RX and TX BCD both moved; `0x19` `0x00`→`0x80`, scan bits still 0 |
+| `MURS-1` | CTCSS 127.3 both ways | `0x21-0x24` `ff ff ff ff` → `73 12 73 12` |
+| `Blue Dot` | DCS 754 inverted / 023 normal | `54 c7 23 80` — polarity in the high byte |
+| key slot 1 | AES-256 replaced | `0x30c-0x32b`, 32 bytes, nothing else in the page |
+
+No page relocated in either pass. No byte outside `ownedRanges()` moved. A
+receive-only channel kept the transmit pair the radio had stored — `txFrequency()`
+returns null for a receive-only channel, and the old `?? rxFreq` fallback had been
+overwriting the stored pair with the receive frequency.
+
+Restored from the baseline after each pass; an independent read returned
+`224771c0…` byte for byte both times, including the real AES-256 key.
+
+`test/hardware/dm32uv.spec.ts` runs this cycle self-restoring:
+
+```
+pnpm bridge
+BOOFWANG_HW=1 BOOFWANG_HW_PORT=/dev/cu.usbserial-XXXX pnpm vitest run --project hardware
+```
+
+Each operation is its own connection. There is no command to leave programming
+mode: the radio resets when the port closes and needs `REOPEN_SETTLE_MS` before
+it will answer a handshake, so a read and a write in one session fails at the
+second `PROGRAM` with `0x90`.
+
 ## Not verified
 
-- **Writing anything outside the key area.** Channels, zones, talk groups and
-  settings still encode to no-ops; `BLOCK_POLICY` leaves every other block
-  blocked, and block `0x02` (calibration) is blocked permanently.
+- **Adding or removing channels.** The channel-count header at the start of block
+  `0x12` is outside `ownedRanges()`, so existing records can be edited but the
+  count cannot change.
+- **Zone membership.** `encodeZones` writes the name only. A zone's channel list
+  is a set of indices, and what the radio does with one pointing at an emptied
+  slot has not been established.
+- Settings, contacts, RX groups, scan lists and radio IDs — never decoded.
 - The meaning of 22 allocated blocks.
-- Whether the alignment of a *short* key differs from a full one.
-- Writing key *material*. Only a slot name has been round-tripped; the key bytes
-  in every session so far were preserved unchanged rather than replaced.
+- Whether the alignment of a *short* key differs from a full one. Only AES-256,
+  which fills the whole 32-byte field, has been written.
+- The bandwidth polarity at `0x19` bit 7 is still `DERIVED` in the reference.
+  Every channel on this radio holds `0x19 = 0x00`, so it cannot settle it.

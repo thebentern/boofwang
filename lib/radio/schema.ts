@@ -82,10 +82,12 @@ export interface RadioSchema {
      * What a write can actually reach, in the user's words, when it is not
      * the whole codeplug.
      *
-     * The DM-32UV writes only its encryption key slots today. Without saying
-     * so, editing a channel on that radio looks like it worked - the table
-     * updates, the write button lights up - and the write then reports
-     * "nothing has changed", which is both false and unhelpful.
+     * The DM-32UV reaches channels, zone names, talk groups and key slots, but
+     * not the blocks nothing has decoded, and not the channel-count header.
+     * Without saying so, editing something outside that on that radio looks
+     * like it worked - the table updates, the write button lights up - and the
+     * write then reports "nothing has changed", which is both false and
+     * unhelpful.
      */
     readonly writeScope?: string
   }

@@ -26,6 +26,17 @@ export default defineConfig({
           include: ['test/app/**/*.spec.ts'],
         },
       },
+      {
+        resolve: { alias: { '#core': core } },
+        test: {
+          name: 'hardware',
+          environment: 'node',
+          // Needs a radio on a cable and `pnpm bridge` running. The specs skip
+          // themselves unless BOOFWANG_HW is set, so this is inert in CI.
+          include: ['test/hardware/**/*.spec.ts'],
+          testTimeout: 1_800_000,
+        },
+      },
     ],
     coverage: {
       provider: 'v8',
