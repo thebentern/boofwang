@@ -4,7 +4,6 @@ import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { NO_TONE, type TonePair } from '../../model/tones.js'
 import { hz } from '../../model/units.js'
-import { txFrequency } from '../../model/channel.js'
 import {
   DEFAULT_DRIVER_TIMEOUT_MS,
   BackupRequiredError,
@@ -26,7 +25,6 @@ import { blockData, blockIds, logicalAddress } from './image.js'
 import { cloneImage } from '../../radio/image.js'
 import {
   CALL_TYPE_ALL,
-  CALL_TYPE_GROUP,
   CALL_TYPE_PRIVATE,
   CHANNEL_BLOCK_FIRST,
   CHANNEL_BLOCK_LAST,
@@ -42,7 +40,6 @@ import {
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
   decodeToneWord,
-  encodeToneWord,
   KEY_AREA,
   ZONE_HEADER,
   ZONE_SIZE,
@@ -91,12 +88,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         capabilities: {
           ...DM32UV_SCHEMA.capabilities,
           write: true,
-          /*
-           * No writeScope any more: the write now reaches channels, zone names,
-           * talk groups and key slots, which is everything this build decodes.
-           * Leaving the old value would have the confirmation screen telling
-           * someone their channel edits could not be sent while sending them.
-           */
+          writeScope: 'encryption key slots',
         },
       }
     : DM32UV_SCHEMA
@@ -500,35 +492,6 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       if (!block) throw new DriverError('This image has no block 0x10, so it holds no encryption keys')
 
       encodeKeys(block.data, doc.encryptionKeys)
-
-      /*
-       * Channels, zone names and talk groups, each patched in place.
-       *
-       * Every one of these writes only the fields the decoder reads. The bytes
-       * nobody has modelled - and on this radio that is most of them, 22 of 59
-       * allocated blocks having no documented meaning - survive because they
-       * are never assigned, not because they are copied somewhere safe.
-       */
-      const channelBlock = (id: number) => out.regions.find((r) => r.start === logicalAddress(id))?.data
-      const firstChannels = channelBlock(CHANNEL_BLOCK_FIRST)
-      if (firstChannels) {
-        const total = firstChannels[0]! | (firstChannels[1]! << 8)
-        let index = 0
-        for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST && index < total; id++) {
-          const data = channelBlock(id)
-          if (!data) continue
-          const base2 = id === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
-          const capacity = Math.floor((PAGE_SIZE - base2 - 1) / CHANNEL_SIZE)
-          for (let i = 0; i < capacity && index < total; i++, index++) {
-            const ch = doc.channels.get(index + 1)
-            if (ch) encodeChannel(data, base2 + i * CHANNEL_SIZE, ch)
-          }
-        }
-      }
-
-      encodeZones(out, doc.zones)
-      encodeTalkGroups(out, doc.talkGroups)
-
       return { ...out, sha256: '' }
     },
 
@@ -566,32 +529,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
      * Everything outside this is read and preserved but never written, which is
      * what makes a stale or partly-understood image harmless.
      */
-    /**
-     * The bytes this driver claims to understand, per block.
-     *
-     * Deliberately per-block rather than one range: a DM-32UV image is 59
-     * pages, most of them undocumented, and claiming a span that crosses one
-     * would assert understanding of pages nobody has read. A change outside
-     * these is a defect in the encoder, and on this radio that is the only
-     * thing standing between a bug and 22 blocks of unrecoverable memory.
-     */
-    ownedRanges: (regionStart: number) => {
-      if (regionStart === logicalAddress(KEY_BLOCK)) return [KEY_AREA]
-
-      const blockId = regionStart >>> 12
-      if (blockId >= CHANNEL_BLOCK_FIRST && blockId <= CHANNEL_BLOCK_LAST) {
-        const base = blockId === CHANNEL_BLOCK_FIRST ? CHANNEL_HEADER : 0
-        return [[base, PAGE_SIZE - 1] as const]
-      }
-      if (blockId >= ZONE_BLOCK_FIRST && blockId <= ZONE_BLOCK_LAST) {
-        const base = blockId === ZONE_BLOCK_FIRST ? ZONE_HEADER : 0
-        return [[base, PAGE_SIZE - 1] as const]
-      }
-      if (blockId >= TALKGROUP_BLOCK_FIRST && blockId <= TALKGROUP_BLOCK_LAST) {
-        return [[0, PAGE_SIZE - 1] as const]
-      }
-      return []
-    },
+    ownedRanges: (regionStart: number) => (regionStart === logicalAddress(KEY_BLOCK) ? [KEY_AREA] : []),
   }
 
   return driver
@@ -674,57 +612,6 @@ export function decodeChannel(data: Uint8Array, offset: number, index: number): 
   }
 }
 
-
-/**
- * Write one channel record back, in place.
- *
- * The exact inverse of {@link decodeChannel}, and a partial patch: the four
- * unknown bits in the mode byte, the three in the digital byte, the contact
- * index, the scan-list membership and everything else this build does not model
- * keep whatever the radio had. That is what makes `encode(decode(image), image)`
- * byte-identical, and it is the only honest way to write to a radio where 22 of
- * 59 allocated blocks have no documented meaning.
- */
-export function encodeChannel(data: Uint8Array, offset: number, ch: Channel): void {
-  const digital = ch.modulation === 'DMR'
-  const current = DM32_CHANNEL.read(data, offset)
-
-  // Preserve whichever analog/digital spelling the radio already used: the mode
-  // nibble has two values for each, and normalising them would rewrite bytes to
-  // say what they already said.
-  const wasDigital = current.mode.channelMode === 1 || current.mode.channelMode === 3
-  const channelMode = wasDigital === digital ? current.mode.channelMode : digital ? 1 : 0
-
-  const vendor = ch.extras.vendor ?? {}
-  const num = (key: string, fallback: number) => {
-    const v = Number(vendor[key])
-    return Number.isFinite(v) ? v : fallback
-  }
-
-  DM32_CHANNEL.write(data, offset, {
-    name: ch.name,
-    rxFreq: ch.rxFreq,
-    txFreq: txFrequency(ch) ?? ch.rxFreq,
-    mode: {
-      channelMode,
-      txForbid: ch.txAllowed ? 0 : 1,
-      power: ch.power.mW >= DM32UV_SCHEMA.rf.powerLevels[1]!.mW ? 1 : 0,
-    },
-    bandwidth: ch.bandwidthHz >= 25_000 ? 1 : 0,
-    digital: {
-      encryptEnable: num('encryptEnabled', current.digital.encryptEnable) ? 1 : 0,
-      timeSlot: Math.max(0, num('timeSlot', current.digital.timeSlot + 1) - 1) & 0x01,
-      colorCode: num('colorCode', current.digital.colorCode) & 0x07,
-    },
-    // A digital channel has no analog tones; leaving the words alone keeps a
-    // channel that was switched to DMR from losing what it had if it is
-    // switched back.
-    ...(digital ? {} : { rxTone: encodeToneWord(ch.tone.rx), txTone: encodeToneWord(ch.tone.tx) }),
-    encryptionKeyId: num('encryptionKeyId', current.encryptionKeyId) & 0xff,
-    radioIdIndex: num('radioIdIndex', current.radioIdIndex) & 0xff,
-  })
-}
-
 export function decodeZones(image: RadioImage): Codeplug['zones'] {
   const first = blockData(image, ZONE_BLOCK_FIRST)
   if (!first) return []
@@ -795,73 +682,6 @@ function decodesToKey(block: Uint8Array, off: number): boolean {
   if (isKeySlotEmpty(block.subarray(off, off + DM32_KEY_SLOT.size))) return false
   const rec = DM32_KEY_SLOT.read(block, off)
   return (ENCRYPTION_TYPES[rec.type] ?? 'none') !== 'none'
-}
-
-
-/**
- * Write the zone names back.
- *
- * Only the name is written. A zone's channel list is a set of indices into the
- * channel array, and rewriting it means understanding what the radio does when
- * a zone points at a slot that has since been emptied - which nothing here has
- * established. The name is unambiguous and the membership is left exactly as
- * the radio had it.
- */
-export function encodeZones(image: RadioImage, zones: Codeplug['zones']): void {
-  const first = blockData(image, ZONE_BLOCK_FIRST)
-  if (!first) return
-  const total = first[0]!
-
-  let index = 0
-  for (let blockId = ZONE_BLOCK_FIRST; blockId <= ZONE_BLOCK_LAST && index < total; blockId++) {
-    const data = blockData(image, blockId)
-    if (!data) continue
-    const base = blockId === ZONE_BLOCK_FIRST ? ZONE_HEADER : 0
-    const capacity = Math.floor((PAGE_SIZE - base - 1) / ZONE_SIZE)
-
-    for (let i = 0; i < capacity && index < total; i++, index++) {
-      const zone = zones[index]
-      if (!zone) continue
-      DM32_ZONE.write(data, base + i * ZONE_SIZE, { name: zone.name })
-    }
-  }
-}
-
-/**
- * Write the talk group records back.
- *
- * Name, number and call type - the three fields the decoder reads. Everything
- * else in the 24-byte record is left alone. The traversal mirrors the decoder's
- * exactly, including its skip of empty slots, so the nth talk group in the
- * document lands on the nth record the decoder produced.
- */
-export function encodeTalkGroups(image: RadioImage, groups: Codeplug['talkGroups']): void {
-  let index = 0
-  for (let blockId = TALKGROUP_BLOCK_FIRST; blockId <= TALKGROUP_BLOCK_LAST; blockId++) {
-    const data = blockData(image, blockId)
-    if (!data) continue
-    for (let n = 1; ; n++) {
-      const off = talkgroupOffset(n)
-      if (off + DM32_TALKGROUP.size > PAGE_SIZE - 1) break
-      const rec = DM32_TALKGROUP.read(data, off)
-      if (!rec.name.trimEnd() && rec.number === 0) continue
-
-      const group = groups[index]
-      index++
-      if (!group) continue
-
-      DM32_TALKGROUP.write(data, off, {
-        name: group.name,
-        number: group.number,
-        callType:
-          group.callType === 'allCall'
-            ? CALL_TYPE_ALL
-            : group.callType === 'private'
-              ? CALL_TYPE_PRIVATE
-              : CALL_TYPE_GROUP,
-      })
-    }
-  }
 }
 
 export function encodeKeys(block: Uint8Array, keys: Codeplug['encryptionKeys']): void {
