@@ -17,13 +17,15 @@ const session = useRadioSession()
 
 const backup = ref<{ identHash: string } | null>(null)
 onMounted(async () => {
-  backup.value = await session.sessionBackup()
+  backup.value = await session.latestBackupForOpenCodeplug()
 })
 
 const gate = computed(() => {
   const pending = codeplug.pendingWrite
   return evaluateWriteGate({
     schema: codeplug.schema!,
+    // Null while disconnected, which is normal: the write flow connects when it
+    // runs, and the driver re-checks identity against the radio on the cable.
     ident: device.ident,
     imageVariant: codeplug.image?.variant ?? null,
     imageRadioId: codeplug.image?.radioId ?? null,

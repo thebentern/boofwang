@@ -27,9 +27,9 @@ const emit = defineEmits<{ read: [RadioId] }>()
         </div>
         <UBadge
           class="ms-auto shrink-0"
-          :color="radio.canRead ? 'info' : 'neutral'"
+          :color="radio.canWrite ? 'success' : radio.canRead ? 'info' : 'neutral'"
           variant="subtle"
-          :label="radio.canRead ? 'Read only' : 'Not yet implemented'"
+          :label="radio.canWrite ? 'Read and write' : radio.canRead ? 'Read only' : 'Not yet implemented'"
         />
       </div>
     </template>

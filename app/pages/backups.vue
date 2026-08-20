@@ -8,6 +8,7 @@ useSeoMeta({ title: 'Backups' })
 
 const db = useBoofwangDb()
 const codeplug = useCodeplugStore()
+const session = useRadioSession()
 const toast = useToast()
 
 const backups = ref<StoredBackup[]>([])
@@ -35,6 +36,24 @@ async function openBackup(b: StoredBackup) {
 
 async function download(b: StoredBackup) {
   await saveFile(await encodeBwp(fromStoredBackup(b)), `${b.label.replace(/[^\w.-]+/g, '_')}.bwp`, 'application/octet-stream')
+}
+
+/**
+ * Put a backup back on the radio.
+ *
+ * The one operation that has to keep working when everything else has gone
+ * wrong, so it is deliberately its own path: no diff against an edited
+ * codeplug, no "nothing to write" - just make the radio match this image again.
+ */
+const restoring = ref<string | null>(null)
+
+async function restore(b: StoredBackup) {
+  restoring.value = b.id
+  try {
+    await session.restoreToRadio(fromStoredBackup(b))
+  } finally {
+    restoring.value = null
+  }
 }
 
 async function remove(b: StoredBackup) {
@@ -100,6 +119,16 @@ const ORIGIN_LABEL = { download: 'Read from radio', 'pre-write': 'Taken before a
         <UBadge :label="ORIGIN_LABEL[b.origin]" color="neutral" variant="subtle" size="sm" class="shrink-0" />
         <div class="ms-auto flex items-center gap-2 shrink-0">
           <UButton size="sm" icon="i-lucide-pencil" label="Open" variant="subtle" @click="openBackup(b)" />
+          <UButton
+            size="sm"
+            icon="i-lucide-upload"
+            label="Restore"
+            variant="subtle"
+            color="warning"
+            :loading="restoring === b.id"
+            :disabled="restoring !== null"
+            @click="restore(b)"
+          />
           <UButton size="sm" icon="i-lucide-download" label="Save" variant="subtle" color="neutral" @click="download(b)" />
           <UButton size="sm" icon="i-lucide-trash-2" color="error" variant="ghost" @click="remove(b)" />
         </div>

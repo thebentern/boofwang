@@ -49,6 +49,40 @@ presets for 108–136 MHz **and** 136–174 MHz (slots 203–206) both have
 `enable_am` set. CHIRP's parse of the same bytes agrees. A decoder that
 "corrected" the 2 m preset to FM would be misreporting the radio.
 
+### 2026-08-19 — write, same radio and firmware
+
+The first write to a real radio, done through the app's own UI over the
+development serial bridge.
+
+| Step | Result |
+|---|---|
+| Read, backup saved automatically | 8 KB, sha256 `a0dfe2ab…6716a7c0` |
+| Rename channel 1 `CH001` → `BOOFWANG`, write | Dialog predicted **1 block, 8 bytes**; the radio received exactly that |
+| Independent read over raw serial | `0x0f50` = `42 4f 4f 46 57 41 4e 47` — NUL-padded, as the radio itself writes names |
+| Diff against the pre-write image | **Exactly 8 bytes changed**, all inside the channel-1 name record. Calibration, every channel record, settings, DTMF and the boot logo untouched |
+| Restore from backup | Radio returned to sha256 `a0dfe2ab…6716a7c0`, **zero bytes differing** |
+
+Traffic for the write, from the bridge: 1612 bytes out, 10348 in — two
+handshakes (one to connect, one inside `writeImage`), the 58-block pre-write
+read, one 128-byte write, one verify read, and the reset.
+
+Confirmed by this session:
+
+- Writing only the differing blocks works: a one-character name change moves one
+  block, not the whole radio.
+- Per-block read-back verification passes on real hardware.
+- The pre-write read is what makes restore possible at all — see below.
+- The reset leaves the radio out of programming mode; it operated normally
+  afterwards.
+
+**Restoring needs its own path.** `writeImage` normally refuses when the radio
+disagrees with the image an edit was based on, because that divergence is
+unintended. A restore is the opposite: the radio is *expected* to differ, and
+making it match again is the whole request. So the restore flow passes no base
+image, and the driver writes whichever blocks differ from what it reads off the
+radio. Without that, the safety check would have made recovery impossible — the
+one operation that has to work when everything else has gone wrong.
+
 ## Adapters
 
 The USB-serial chip matters more than anything else in the chain.

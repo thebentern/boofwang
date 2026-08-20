@@ -93,12 +93,16 @@ describe('evaluateWriteGate', () => {
     expect(codes(ok({ changedBytes: 0 }))).toContain('nothing-to-write')
   })
 
-  it('refuses when nothing is connected', () => {
-    expect(codes(ok({ ident: null }))).toContain('not-connected')
+  it('does not treat "not connected yet" as a problem', () => {
+    // Reading disconnects when it finishes, and the write flow reconnects when
+    // it runs. The driver re-identifies against the radio on the cable, which
+    // is where the check that matters lives.
+    const r = evaluateWriteGate(ok({ ident: null }))
+    expect(r.allowed).toBe(true)
   })
 
   it('reports every blocker at once rather than one at a time', () => {
-    const r = evaluateWriteGate(ok({ backup: null, ident: null, changedBytes: 0 }))
+    const r = evaluateWriteGate(ok({ backup: null, changedBytes: 0, encodeError: 'nope' }))
     expect(r.blockers.length).toBeGreaterThanOrEqual(3)
   })
 })

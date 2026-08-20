@@ -38,6 +38,15 @@ export interface Warning {
 
 export interface GateInput {
   schema: RadioSchema
+  /**
+   * The connected radio, or null when nothing is connected yet.
+   *
+   * Null is an ordinary state, not an error: reading disconnects when it
+   * finishes, and the write flow reconnects when it runs. So the checks that
+   * need a radio are simply skipped here - `writeImage` performs all of them
+   * against the radio actually on the cable, and it is the enforcement that
+   * matters. This function exists to explain the situation to a person.
+   */
   ident: IdentifyResult | null
   /** Variant recorded on the image being written. */
   imageVariant: string | null
@@ -58,10 +67,6 @@ export interface GateResult {
 export function evaluateWriteGate(input: GateInput): GateResult {
   const blockers: Blocker[] = []
   const warnings: Warning[] = []
-
-  if (!input.ident) {
-    blockers.push({ code: 'not-connected', message: 'No radio is connected.' })
-  }
 
   if (!input.schema.capabilities.write) {
     blockers.push({
@@ -85,12 +90,12 @@ export function evaluateWriteGate(input: GateInput): GateResult {
     })
   }
 
-  // A backup of *this* radio, taken this session. Not a checkbox: without one
-  // there is no way back from a bad write.
+  // A backup of *this* radio. Not a checkbox: without one there is no way back
+  // from a bad write, and the driver refuses too.
   if (!input.backup) {
     blockers.push({
       code: 'no-backup',
-      message: 'There is no backup of this radio from this session.',
+      message: 'There is no backup of this radio.',
       remedy: 'Read the radio first. The backup is saved automatically.',
     })
   } else if (input.ident && input.backup.identHash !== input.ident.identHash) {

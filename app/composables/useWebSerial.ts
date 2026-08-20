@@ -134,13 +134,36 @@ export async function saveFile(data: Uint8Array | string, filename: string, mime
  * only against a socket the bridge itself refuses to expose off-box.
  */
 const BRIDGE_DEFAULT_URL = 'ws://127.0.0.1:8765'
+const BRIDGE_KEY = 'boofwang:bridge'
 
+/**
+ * The bridge address, if this session is using one.
+ *
+ * Remembered in `sessionStorage` after it is first seen in the URL, because
+ * client-side navigation drops the query string: arriving at `/?bridge` and
+ * then following a link to `/channels` would otherwise silently turn the bridge
+ * off half way through a session. That failed quietly rather than loudly -
+ * `requestPort` treats a dismissed picker as "the user changed their mind", so
+ * the write button simply did nothing - which cost a while to track down.
+ *
+ * Scoped to the tab and cleared with `?bridge=off`.
+ */
 export function bridgeUrl(): string | null {
   if (!import.meta.dev) return null
   if (typeof window === 'undefined') return null
+
   const params = new URLSearchParams(window.location.search)
-  if (!params.has('bridge')) return null
-  return params.get('bridge') || BRIDGE_DEFAULT_URL
+  if (params.has('bridge')) {
+    const value = params.get('bridge')
+    if (value === 'off') {
+      sessionStorage.removeItem(BRIDGE_KEY)
+      return null
+    }
+    const url = value || BRIDGE_DEFAULT_URL
+    sessionStorage.setItem(BRIDGE_KEY, url)
+    return url
+  }
+  return sessionStorage.getItem(BRIDGE_KEY)
 }
 
 export function bridgeEnabled(): boolean {

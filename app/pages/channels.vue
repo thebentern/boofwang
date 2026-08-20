@@ -4,14 +4,20 @@ import type { Channel } from '#core/model/channel.js'
 useSeoMeta({ title: 'Channels' })
 
 const codeplug = useCodeplugStore()
-const device = useDeviceStore()
 const session = useRadioSession()
 
 const editing = ref<Channel | null>(null)
 const writeOpen = ref(false)
 
-/** Writing needs a live connection: the gate refuses without one anyway. */
-const canOfferWrite = computed(() => device.connected && codeplug.isOpen)
+/**
+ * Offered whenever there is a codeplug and the radio supports writing.
+ *
+ * Deliberately not conditional on a live connection: reading disconnects when
+ * it finishes, so requiring one would hide the button at exactly the moment
+ * someone has finished editing. The write flow reconnects, and the gate refuses
+ * for any real reason.
+ */
+const canOfferWrite = computed(() => codeplug.isOpen && codeplug.schema?.capabilities.write === true)
 </script>
 
 <template>
@@ -64,7 +70,7 @@ const canOfferWrite = computed(() => device.connected && codeplug.isOpen)
         :description="
           canOfferWrite
             ? 'They are held in this browser only. Use “Write to radio” to send them.'
-            : 'They are held in this browser only. Connect the radio to send them.'
+            : 'They are held in this browser only.'
         "
       />
 
