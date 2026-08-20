@@ -1,8 +1,17 @@
 <script setup lang="ts">
+import type { Channel } from '#core/model/channel.js'
+
 useSeoMeta({ title: 'Channels' })
 
 const codeplug = useCodeplugStore()
+const device = useDeviceStore()
 const session = useRadioSession()
+
+const editing = ref<Channel | null>(null)
+const writeOpen = ref(false)
+
+/** Writing needs a live connection: the gate refuses without one anyway. */
+const canOfferWrite = computed(() => device.connected && codeplug.isOpen)
 </script>
 
 <template>
@@ -31,15 +40,54 @@ const session = useRadioSession()
         </div>
 
         <div class="ms-auto flex flex-wrap items-center gap-2">
+          <UButton
+            v-if="canOfferWrite"
+            icon="i-lucide-upload"
+            label="Write to radio"
+            size="sm"
+            color="warning"
+            :disabled="!codeplug.dirty"
+            @click="writeOpen = true"
+          />
           <UButton icon="i-lucide-file-down" label="CHIRP CSV" size="sm" variant="subtle" color="neutral" @click="session.downloadCsv()" />
           <UButton icon="i-lucide-save" label="Codeplug (.bwp)" size="sm" variant="subtle" color="neutral" @click="session.downloadBwp()" />
           <UButton icon="i-lucide-binary" label="Raw (.bin)" size="sm" variant="subtle" color="neutral" @click="session.downloadRawBin()" />
         </div>
       </div>
 
+      <UAlert
+        v-if="codeplug.dirty"
+        icon="i-lucide-pencil"
+        color="info"
+        variant="subtle"
+        title="You have unsaved changes"
+        :description="
+          canOfferWrite
+            ? 'They are held in this browser only. Use “Write to radio” to send them.'
+            : 'They are held in this browser only. Connect the radio to send them.'
+        "
+      />
+
       <DiagnosticsSummary :diagnostics="codeplug.diagnostics" />
 
-      <ChannelTable />
+      <ChannelTable @edit="editing = $event" />
+
+      <UModal v-model:open="writeOpen" title="Write to radio" :ui="{ content: 'max-w-2xl' }">
+        <template #body>
+          <WriteToRadioDialog @close="writeOpen = false" />
+        </template>
+      </UModal>
+
+      <UModal
+        :open="editing !== null"
+        :title="editing ? `Channel ${editing.index}` : ''"
+        :ui="{ content: 'max-w-2xl' }"
+        @update:open="(v: boolean) => { if (!v) editing = null }"
+      >
+        <template #body>
+          <ChannelEditor v-if="editing" :key="editing.index" :channel="editing" @close="editing = null" />
+        </template>
+      </UModal>
     </template>
   </div>
 </template>

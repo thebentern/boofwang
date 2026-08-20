@@ -4,6 +4,8 @@ import { chirpMode, txFrequency, type Channel } from '#core/model/channel.js'
 import { describeTone } from '#core/model/tones.js'
 import { formatFreq, formatPower } from '#core/model/units.js'
 
+const emit = defineEmits<{ edit: [Channel] }>()
+
 const codeplug = useCodeplugStore()
 
 const query = ref('')
@@ -99,8 +101,10 @@ function txLabel(c: Channel): string {
           <div
             v-for="v in virtualRows"
             :key="rows[v.index]!.index"
-            class="grid items-center gap-2 px-3 text-sm border-b border-default/60 hover:bg-elevated/60"
+            class="grid items-center gap-2 px-3 text-sm border-b border-default/60 hover:bg-elevated/60 cursor-pointer"
             :class="rows[v.index]!.txAllowed ? '' : 'bg-warning/5'"
+            role="button"
+            :tabindex="0"
             :style="{
               gridTemplateColumns: COLUMNS,
               position: 'absolute',
@@ -110,6 +114,8 @@ function txLabel(c: Channel): string {
               height: `${v.size}px`,
               transform: `translateY(${v.start}px)`,
             }"
+            @click="emit('edit', rows[v.index]!)"
+            @keydown.enter="emit('edit', rows[v.index]!)"
           >
             <span class="tabular text-muted">{{ rows[v.index]!.index }}</span>
             <span class="truncate font-medium">{{ rows[v.index]!.name || '—' }}</span>

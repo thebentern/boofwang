@@ -182,7 +182,15 @@ export class SerialTransport implements Transport {
     if (this.#state !== 'open') return Promise.reject(new TransportClosedError(op))
 
     const signal = opts?.signal
-    if (signal?.aborted) return Promise.reject(new TransferAbortedError(op))
+    if (signal?.aborted) {
+      // Poison the line here too. A command may already be on the wire with its
+      // reply inbound, and leaving the transport 'open' means that reply lands
+      // unconsumed and satisfies the *next* read - the same frame-shift the
+      // desynced state exists to prevent. `resync` is also the only recovery
+      // the drivers attempt, and they only attempt it when the state says so.
+      this.#desync(op)
+      return Promise.reject(new TransferAbortedError(op))
+    }
 
     const timeoutMs = opts?.timeoutMs ?? DEFAULT_READ_TIMEOUT_MS
 
@@ -244,7 +252,10 @@ export class SerialTransport implements Transport {
     if (this.#state === 'desynced') throw new DesyncedError('write')
     if (this.#state === 'disconnected') throw new DeviceDisconnectedError()
     if (this.#state !== 'open' || !this.#writer) throw new TransportClosedError('write')
-    if (opts?.signal?.aborted) throw new TransferAbortedError('write')
+    if (opts?.signal?.aborted) {
+      this.#desync('write')
+      throw new TransferAbortedError('write')
+    }
 
     const chunk = this.#opts?.writeChunk ?? 0
     const gap = this.#opts?.writeGapMs ?? 0

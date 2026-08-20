@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { fromHex } from '#core/codec/checksum.js'
+import { bandForFreq, ATTR_BASE, CHANNEL_BASE, NAME_BASE, NAME_SIZE  } from '#core/radios/uvk5/layout.js'
 import { MEM_SIZE, PROG_SIZE } from '#core/radios/uvk5/protocol.js'
-import { ATTR_BASE, CHANNEL_BASE, NAME_BASE, NAME_SIZE } from '#core/radios/uvk5/layout.js'
 import type { RadioImage } from '#core/radio/image.js'
 
 /**
@@ -54,8 +54,18 @@ export interface FixtureChannel {
 export function buildEeprom(channels: FixtureChannel[], calibration?: Uint8Array): Uint8Array {
   const mem = new Uint8Array(MEM_SIZE).fill(0xff)
   for (const c of channels) {
-    mem.set(fromHex(c.record), CHANNEL_BASE + c.slot * 16)
-    if (c.attr !== undefined) mem[ATTR_BASE + c.slot] = c.attr
+    const record = fromHex(c.record)
+    mem.set(record, CHANNEL_BASE + c.slot * 16)
+    if (c.attr !== undefined) {
+      mem[ATTR_BASE + c.slot] = c.attr
+    } else if (c.slot < 200) {
+      // A real radio never leaves a programmed channel's attribute byte at
+      // 0xFF, which would claim the slot is free while its record is populated.
+      // Defaulting to a coherent byte keeps synthetic images shaped like ones a
+      // radio actually produces, so a round-trip over them means something.
+      const units = record[0]! | (record[1]! << 8) | (record[2]! << 16) | (record[3]! * 0x1000000)
+      mem[ATTR_BASE + c.slot] = bandForFreq(units * 10) & 0x07
+    }
     if (c.name !== undefined) {
       const bytes = new Uint8Array(NAME_SIZE).fill(0xff)
       for (let i = 0; i < Math.min(c.name.length, NAME_SIZE); i++) bytes[i] = c.name.charCodeAt(i)

@@ -190,11 +190,29 @@ describe('abort', () => {
   })
 
   it('rejects immediately when the signal is already aborted', async () => {
-    const { t } = await opened()
+    for (const op of ['read', 'write'] as const) {
+      const { t } = await opened()
+      const ac = new AbortController()
+      ac.abort()
+      const p = op === 'read' ? t.readExactly(1, { signal: ac.signal }) : t.write(b(1), { signal: ac.signal })
+      await expect(p).rejects.toBeInstanceOf(TransferAbortedError)
+      await t.close()
+    }
+  })
+
+  it('poisons the line even when the signal was already aborted on entry', async () => {
+    // A command may already be on the wire with its reply inbound. Leaving the
+    // transport 'open' would let that reply satisfy the *next* read and shift
+    // every frame after it - the exact failure the desynced state exists for.
+    // It is also the only condition under which the drivers attempt a resync.
+    const { port, t } = await opened()
     const ac = new AbortController()
     ac.abort()
     await expect(t.readExactly(1, { signal: ac.signal })).rejects.toBeInstanceOf(TransferAbortedError)
-    await expect(t.write(b(1), { signal: ac.signal })).rejects.toBeInstanceOf(TransferAbortedError)
+    expect(t.state).toBe('desynced')
+
+    port.push(b(0x1e, 0x05, 0x00, 0x00)) // the late reply turns up
+    await expect(t.readExactly(4)).rejects.toBeInstanceOf(DesyncedError)
     await t.close()
   })
 })

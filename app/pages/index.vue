@@ -21,7 +21,7 @@ const radios = computed<RadioCardEntry[]>(() => [
     model: 'UV-K5',
     summary: '200 channels · analog · 8 KB EEPROM',
     notes:
-      'Reading is verified against a real radio on stock firmware 2.01.32. Calibration data is captured in every backup but sits in a read-only region, and unrecognised firmware is read-only rather than refused.',
+      'Reading is verified against a real radio on stock firmware 2.01.32. Writing sends only the blocks that differ, reads each one back before sending the next, and refuses without a backup of the same radio. Calibration is captured in every backup but never written.',
   },
   {
     id: 'uv5rmini',

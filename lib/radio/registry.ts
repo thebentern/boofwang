@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { RadioId } from '../model/codeplug.js'
 import { createUvk5Driver } from '../radios/uvk5/driver.js'
-import { UVK5_SCHEMA } from '../radios/uvk5/schema.js'
 import type { RadioDriver } from './driver.js'
 import type { RadioSchema } from './schema.js'
 
@@ -14,7 +13,12 @@ import type { RadioSchema } from './schema.js'
  */
 
 export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
-  uvk5: createUvk5Driver,
+  // Writing is enabled. The encoder round-trips a real radio's EEPROM byte for
+  // byte, the write path survived an adversarial review, and every block is
+  // read back and compared before the next is sent - but see
+  // docs/protocols/uvk5.md for exactly which parts have been exercised against
+  // hardware and which have not.
+  uvk5: () => createUvk5Driver({ enableWrite: true }),
   // Planned. Listed so the UI can show them honestly as unimplemented rather
   // than pretending they do not exist.
   uv5rmini: null,
@@ -22,7 +26,8 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
 }
 
 export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
-  uvk5: UVK5_SCHEMA,
+  // The schema the UI renders must match what the driver enforces.
+  uvk5: createUvk5Driver({ enableWrite: true }).schema,
   uv5rmini: null,
   dm32uv: null,
 }

@@ -399,3 +399,29 @@ describe('fields this radio does not have', () => {
     }
   })
 })
+
+describe('the radio’s own VFO presets are not the user’s problem', () => {
+  /**
+   * Every stock UV-K5 ships with its F2 band preset on 108.250 MHz, transmit
+   * enabled, in the air band. An earlier version applied the transmit-permission
+   * rule there, so every radio showed two permanent errors about factory data,
+   * and the only remedy offered - "mark the channel receive-only" - would have
+   * written a minus shift and an offset into the radio's own band preset.
+   */
+  it('reports no errors at all on an untouched factory radio', () => {
+    const errors = createUvk5Driver()
+      .validate(createUvk5Driver().decode(realImage()))
+      .filter((d) => d.severity === 'error')
+    expect(errors).toEqual([])
+  })
+
+  it('still flags a memory channel that would transmit in the air band', () => {
+    const cp = createUvk5Driver().decode(realImage())
+    cp.channels.set(1, { ...cp.channels.get(1)!, rxFreq: 120_000_000 as never, txAllowed: true })
+    const errors = createUvk5Driver()
+      .validate(cp)
+      .filter((d) => d.ruleId === 'regulatory.band.tx-not-permitted')
+    expect(errors).toHaveLength(1)
+    expect(errors[0]!.channel).toBe(1)
+  })
+})

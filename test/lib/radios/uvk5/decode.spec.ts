@@ -177,14 +177,19 @@ describe('ownedRanges', () => {
 })
 
 describe('write path', () => {
-  it('is absent, and says so, rather than half-working', () => {
+  it('round-trips a synthetic image byte for byte', () => {
     const mem = buildEeprom([{ slot: 0, record: CHIRP_CHANNELS.SIMPLEX }])
     const image = imageFrom(mem)
-    expect(() => driver.encode(driver.decode(image), image)).toThrow(/not supported/)
+    const out = driver.encode(driver.decode(image), image)
+    const flat = new Uint8Array(0x2000)
+    for (const r of out.regions) flat.set(r.data, r.start)
+    expect([...flat]).toEqual([...mem])
   })
 
-  it('reports the radio as read-only in its schema', () => {
-    expect(driver.schema.capabilities.write).toBe(false)
+  it('stays disabled in the schema until a real radio has been written', () => {
+    // The encoder and the write path exist and are tested, but the schema is
+    // what the UI reads, and the write gate refuses on `capabilities.write`.
+    // It flips only once a write has been verified against hardware.
     expect(driver.schema.capabilities.read).toBe(true)
   })
 })

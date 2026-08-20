@@ -49,6 +49,15 @@ export interface DriverCtx {
    * counterfeit chips causes a disproportionate share of these failures.
    */
   adapter?: string | undefined
+  /**
+   * What the radio held before this edit.
+   *
+   * Supplied so a write can send only the blocks that actually differ. Fewer
+   * bytes in flight is fewer bytes at risk if the cable is pulled mid-write,
+   * and it makes the operation visibly proportional to the change rather than
+   * rewriting the whole radio to move one channel.
+   */
+  baseImage?: RadioImage | undefined
   progress?(p: Progress): void
   signal?: AbortSignal
   log?: Logger
@@ -228,6 +237,52 @@ export class WriteBlockedError extends DriverError {
   override readonly name = 'WriteBlockedError'
   constructor(what: string) {
     super(`Writing ${what} is not supported. This area of memory is not understood well enough to modify safely.`)
+  }
+}
+
+/**
+ * A block read back from the radio does not match what was sent.
+ *
+ * Always fatal. Continuing past this would mean writing further blocks on the
+ * assumption that earlier ones landed, and the honest response is to stop with
+ * the radio still in programming mode so a restore can follow immediately.
+ */
+export class WriteVerifyError extends DriverError {
+  override readonly name = 'WriteVerifyError'
+  constructor(
+    readonly addr: number,
+    expected: string,
+    received: string,
+    /** How many blocks had already been written and verified before this one. */
+    readonly blocksCommitted: number,
+  ) {
+    super(
+      `The radio did not store what was sent at 0x${addr.toString(16).padStart(4, '0')}. ` +
+        `Writing stopped there: ${blocksCommitted} block(s) were written and verified before it, and nothing after ` +
+        `it was sent. The radio now holds a partly-updated codeplug, so restore your backup before using it.\n` +
+        `  sent:      ${expected}\n  read back: ${received}`,
+    )
+  }
+}
+
+/**
+ * The radio's contents are not what the caller believed before the write.
+ *
+ * Raised when a fresh read disagrees with the image the edit was based on -
+ * because the radio was edited from its keypad since it was read, because a
+ * saved file from another session was opened, or because this is a different
+ * radio. Deciding which blocks to leave alone from a stale base is how a radio
+ * ends up holding a mixture of two codeplugs while the write reports success.
+ */
+export class RadioChangedError extends DriverError {
+  override readonly name = 'RadioChangedError'
+  constructor(readonly firstDifference: number) {
+    super(
+      'The radio no longer holds what it did when this codeplug was read ' +
+        `(the first difference is at 0x${firstDifference.toString(16).padStart(4, '0')}). ` +
+        'It may have been edited from its keypad, or this may be a different radio. ' +
+        'Read it again before writing, so nothing is lost.',
+    )
   }
 }
 

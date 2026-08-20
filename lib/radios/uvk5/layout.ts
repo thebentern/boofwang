@@ -17,6 +17,9 @@ import { MEM_SIZE, PROG_SIZE } from './protocol.js'
  * setter, so it round-trips instead of being zeroed.
  */
 
+/** One past the last programmable byte; everything above is calibration. */
+export const PROG_END = PROG_SIZE
+
 export const CHANNEL_BASE = 0x0000
 /** 200 real channels plus 14 VFO pseudo-channels. */
 export const CHANNEL_COUNT = 214
@@ -96,8 +99,19 @@ export const UVK5_ATTRIBUTES = defineStruct(1, {
   ),
 })
 
+/**
+ * Channel name, 16 bytes.
+ *
+ * Padded with NUL on write, which is what the radio itself does - a factory
+ * `CH001` is five characters followed by eleven `0x00`. (CHIRP writes
+ * `name.ljust(10)` plus six NULs, which reads back identically.) An erased slot
+ * is 0xFF filled, so 0xFF terminates on read too.
+ *
+ * The usable length is 10 even though the field is 16, matching CHIRP's
+ * `valid_name_length`.
+ */
 export const UVK5_NAME = defineStruct(NAME_SIZE, {
-  name: at(0x00, ascii(NAME_SIZE, { pad: 0xff, terminators: [0x00, 0xff] })),
+  name: at(0x00, ascii(NAME_SIZE, { pad: 0x00, terminators: [0x00, 0xff] })),
 })
 
 // ------------------------------------------------------------ field values --
