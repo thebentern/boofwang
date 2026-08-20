@@ -24,7 +24,7 @@ Confirmed by this session:
   sits at physical `0x001000` while `0x02` is at `0x0AA000`. Sorting blocks by
   id does not sort them by address. Nothing may be hardcoded.
 - Every allocated logical id appears exactly once across the 200 pages.
-- 45 channels, 4 zones, 6 talk groups and 8 encryption key slots decode
+- 45 channels, 4 zones, 6 talk groups and 22 encryption key slots decode
   correctly.
 - **22 of the 59 allocated blocks have no documented meaning.** They are read
   and preserved byte for byte regardless.
@@ -32,17 +32,37 @@ Confirmed by this session:
 ## Corrections to the specification
 
 The specification marks much of its record layout `DERIVED` from two captures of
-a single unit. Two claims did not survive contact with a second radio.
+a single unit. Three claims did not survive contact with a second radio.
 
 **The zone count is one byte, not two.** Reading a 16-bit word at the zone
 block's `+0x000` gives 1796 on a radio with four zones; the neighbouring byte is
 something else.
 
+**There are 22 key slots, not eight.** Block `0x10` holds 22 consecutive `0x2C`
+records at `+0x300`, ids 1–22, every one type `0x04` (AES-256) and named
+`Encrypt 1` … `Encrypt 22`, followed by zeroed records. The table occupies 968
+bytes, not 352.
+
+This one was expensive. `KEY_SLOTS = 8` was taken from the specification and
+never checked, and because both the fixture's redaction pass and the test that
+guards against checked-in key material derived their bounds from it, **fourteen
+real AES-256 keys were committed to this repository while a green test asserted
+that none were**. The guard is now written against the raw bytes of block `0x10`
+and knows nothing about the layout constants; a second check looks for any
+32-byte run of near-distinct bytes anywhere in the block. Nothing that reads key
+slots should assume a constant is right when hardware can be asked.
+
 **A full AES-256 key is not "right-aligned at +0x24".** The spec's sample shows
 eight key bytes at `+0x24`–`+0x2B`, which is where the vendor software puts a
-*short* key. On this radio all eight slots hold AES-256 keys occupying the whole
+*short* key. On this radio every slot holds an AES-256 key occupying the whole
 32-byte field from `+0x0C`. A decoder reading only the last eight bytes would
 silently truncate a real key, so the field is carried verbatim.
+
+**An unused slot is 44 zero bytes**, not the `0x00`-then-`0xFF` filler the
+erase pattern suggests. Records 23 onward in the key table are entirely zero.
+The encoder now leaves an already-empty slot untouched rather than writing any
+erase pattern over it, because fabricating those bytes would break
+`encode(decode(image)) === image` for every radio with a partly-used key table.
 
 The talk-group record formula in the spec is **correct** — 24 bytes each, the
 first at offset 1 and the rest at `25 + (N-2)*24`. An earlier failure to decode
@@ -63,6 +83,19 @@ programming-mode sequence is the exception: its three steps are 10 ms apart by
 design, and draining between them cost about two seconds, after which the radio
 had left the window and answered nothing at all.
 
+### Why this failed only in the browser
+
+The 10 ms programming-mode window is shorter than a browser timer. A background
+or hidden tab clamps `setTimeout` to roughly **1 Hz**, so a `setTimeout(10)`
+measured **999 ms** — long enough for the radio to leave the window and for the
+next heartbeat to arrive, producing `PASSSTA failed: 90 fe 98` on a sequence
+that was correct. The same code over a direct connection from Node was fine,
+which is exactly what made it look like a hardware or timing fault in the radio.
+
+The fix is `app/plugins/unthrottled-timers.client.ts`: sleeps are serviced by a
+dedicated Worker, whose timers are not clamped. The same `setTimeout(10)` then
+measures **12 ms**, and full 236 KiB reads through the browser are reliable.
+
 ## Recovery between sessions
 
 The radio has **no command to leave programming mode**; the specification's own
@@ -79,13 +112,65 @@ four attempts, identical failure. The close is the reset. A DTR pulse on open
 was tested as an alternative explanation and ruled out: four sessions with and
 without it all succeeded.
 
+## Writing — verified session, 2026-08-20
+
+The first bytes ever written to this radio by boofwang, and the restore that
+put them back. Both went through the browser and the development bridge, using
+the same `writeImage` a user gets.
+
+The change was deliberately the smallest one that still exercises the whole
+path: the **name** of AES key slot 8, `Encrypt 8` → `BOOFWANG` → `Encrypt 8`.
+Only the key area is writable today, and a name is the one field in it that can
+be checked byte for byte without handling key material.
+
+| step | result |
+|---|---|
+| pending diff, computed before sending | **9 bytes**, logical block `0x10` only, **0 unowned** |
+| sent | one 4 KiB page (`57` + 3-byte LE address + `00 10` + 4096 bytes) |
+| driver verdict | `1 block, 4096 bytes. Every block was read back and matched.` |
+| bridge traffic | 6570 bytes out, 15170 bytes in |
+| restore traffic | 6570 bytes out, 15170 bytes in — identical |
+
+Verified **outside the app**, with a raw Python serial read of all 59 blocks,
+against the pre-write capture:
+
+| | sha256 of the 59 concatenated blocks |
+|---|---|
+| before | `224771c0a05098907be1dcf6418c90b24d61205a738840a6a91233442adc8bc4` |
+| after the write | `dd22d3669314c77ed0006e5d41048f656a6cd56d63d0a684b14fae70ed2a5bf8` |
+| after the restore | `224771c0a05098907be1dcf6418c90b24d61205a738840a6a91233442adc8bc4` |
+
+Byte-level diff of the write: **exactly 9 bytes changed**, all of them at block
+`0x10` offsets `0x435–0x43D` — slot 8's name field, `Encrypt 8` → `BOOFWANG\x00`.
+All 58 other blocks were byte-identical, and every slot's key material was
+untouched. The restore returned all 59 blocks to their original bytes with
+**zero** differences.
+
+The whole cycle was run again after an adversarial review changed the write
+path substantially — the key table grew from 8 slots to 22, the backup became
+bound to the physical unit, and the handshake stopped waiting for eight bytes
+before checking for an echoing cable. Same result: 9 bytes, one block, and the
+radio back to `224771c0…` afterwards.
+
+Two things this establishes beyond "the write worked":
+
+- **The read-modify-write merge does what it claims.** A 9-byte edit inside a
+  4 KiB page left the other 4087 bytes alone, including bytes in blocks whose
+  meaning is still unknown.
+- **Recovery works.** The radio can be put back, which is the property that
+  makes the rest of it safe to use.
+
+Still true of every write: the page is re-read live, its tail id is re-checked,
+only `ownedRanges()` is merged onto it, and the page is read back and compared
+after sending. A relocation between the diff and the write is followed rather
+than assumed away.
+
 ## Not verified
 
-- **Writing anything.** `writeImage` and `encode` throw. Nothing has been sent
-  to this radio beyond the handshake, V-frame queries and `0x52` reads.
+- **Writing anything outside the key area.** Channels, zones, talk groups and
+  settings still encode to no-ops; `BLOCK_POLICY` leaves every other block
+  blocked, and block `0x02` (calibration) is blocked permanently.
 - The meaning of 22 allocated blocks.
 - Whether the alignment of a *short* key differs from a full one.
-- End-to-end read through the browser: the handshake, V-frames and PROGRAM entry
-  all succeed there, but the Mode 02 step still collides with the heartbeat
-  because the development bridge adds about a second per round trip. Reading
-  over a direct serial connection is reliable.
+- Writing key *material*. Only a slot name has been round-tripped; the key bytes
+  in every session so far were preserved unchanged rather than replaced.

@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
-import { encryptionLegality, isBlankKey, maskKey, validateKeyHex, KEY_BYTES } from '#core/model/encryption.js'
+import {
+  encryptionLegality,
+  isBlankKey,
+  maskKey,
+  resolveKeyEdit,
+  validateKeyHex,
+  KEY_BYTES,
+} from '#core/model/encryption.js'
 
 describe('validateKeyHex', () => {
   it('accepts a full AES-256 key and normalises it', () => {
@@ -45,6 +52,27 @@ describe('maskKey', () => {
     expect(masked.endsWith('EEFF')).toBe(true)
     expect(masked).not.toContain('2233')
   })
+
+  it('never reveals more than a quarter of a key', () => {
+    for (const type of ['arc4', 'custom', 'aes128', 'aes256'] as const) {
+      const hex = 'A'.repeat(KEY_BYTES[type] * 2)
+      const shown = [...maskKey(hex)].filter((c) => c !== '•').length
+      expect(shown, `${type} reveals ${shown} of ${hex.length}`).toBeLessThanOrEqual(hex.length / 4)
+    }
+  })
+
+  it('hides a short key completely', () => {
+    // A fixed four-either-end budget showed eight of an ARC4 key's ten
+    // characters. Short slots are told apart by their names instead.
+    expect(maskKey('A'.repeat(KEY_BYTES.arc4 * 2))).toBe('•'.repeat(10))
+    expect(maskKey('A'.repeat(KEY_BYTES.custom * 2))).toBe('•'.repeat(14))
+  })
+
+  it('keeps the masked string the same length as the key', () => {
+    for (const n of [0, 1, 8, 10, 14, 32, 64]) {
+      expect(maskKey('A'.repeat(n))).toHaveLength(n)
+    }
+  })
 })
 
 describe('isBlankKey', () => {
@@ -79,5 +107,67 @@ describe('encryptionLegality', () => {
     expect(r.allowed).toBe(true)
     expect(r.reason).toMatch(/Part 90 land-mobile|licence that authorises/)
     expect(r.reason).toMatch(/You are responsible/)
+  })
+})
+
+describe('resolveKeyEdit', () => {
+  const AES256 = 'A'.repeat(64)
+  const stored = { type: 'aes256', keyHex: AES256 } as const
+
+  it('keeps the stored key when the field is left blank, so a slot can be renamed', () => {
+    const r = resolveKeyEdit({ type: 'aes256', hex: '' }, stored)
+    expect(r).toEqual({ ok: true, keyHex: AES256, keptExisting: true })
+  })
+
+  it('treats a field of only separators as blank rather than as a malformed key', () => {
+    // Selecting the masked key and typing over it can leave stray spacing
+    // behind; that is still "I did not enter a key", not a bad key.
+    const r = resolveKeyEdit({ type: 'aes256', hex: '  : - ' }, stored)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.keptExisting).toBe(true)
+  })
+
+  it('replaces the key when one is actually entered', () => {
+    const fresh = 'b'.repeat(64)
+    const r = resolveKeyEdit({ type: 'aes256', hex: fresh }, stored)
+    expect(r).toEqual({ ok: true, keyHex: 'B'.repeat(64), keptExisting: false })
+  })
+
+  it('refuses to reinterpret stored bytes as a different type', () => {
+    // 32 stored bytes are not a 5-byte ARC4 key, and silently truncating them
+    // would produce a slot that looks configured and cannot decrypt.
+    const r = resolveKeyEdit({ type: 'arc4', hex: '' }, stored)
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.error).toMatch(/needs a new key/)
+      expect(r.error).toContain('32 bytes')
+      expect(r.error).toContain('5')
+    }
+  })
+
+  it('still requires a key for a slot that has none', () => {
+    const r = resolveKeyEdit({ type: 'aes256', hex: '' }, null)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toMatch(/Enter a key/)
+  })
+
+  it('rejects a short key rather than padding it', () => {
+    const r = resolveKeyEdit({ type: 'aes256', hex: 'AA' }, stored)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toMatch(/exactly 32 bytes/)
+  })
+
+  it('rejects non-hex input', () => {
+    const r = resolveKeyEdit({ type: 'aes256', hex: 'Z'.repeat(64) }, stored)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toMatch(/hexadecimal/)
+  })
+
+  it('keeps a blank stored key blank rather than inventing material', () => {
+    // A slot read from a radio can legitimately hold all zeros. Renaming it
+    // must not conjure a key, and must not be blocked either.
+    const blank = { type: 'aes256', keyHex: '0'.repeat(64) } as const
+    const r = resolveKeyEdit({ type: 'aes256', hex: '' }, blank)
+    expect(r).toEqual({ ok: true, keyHex: '0'.repeat(64), keptExisting: true })
   })
 })

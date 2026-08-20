@@ -107,6 +107,18 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
     // The UV-K5 has a reset command, so an aborted transfer can be tidied up
     // rather than leaving the radio stuck in programming mode.
     abortPolicy: 'reset-command',
+    writeBlockBytes: MEM_BLOCK,
+
+    /**
+     * Nothing on this radio distinguishes one unit from another.
+     *
+     * Its calibration is not exposed as a separate readable region, and the
+     * identify reply carries only firmware. Null means "cannot tell", which
+     * callers must not read as a match.
+     */
+    async unitFingerprint(): Promise<string | null> {
+      return null
+    },
 
     match(info) {
       // UV-K5 programming cables ship with several different USB-serial chips:
@@ -249,7 +261,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       }
       const payload = source.data
 
-      const ident = await driver.identify(t, ctx)
+      const ident = ctx.ident ?? (await driver.identify(t, ctx))
       if (ctx.backup && ctx.backup.identHash !== ident.identHash) {
         throw new BackupRequiredError('uvk5')
       }

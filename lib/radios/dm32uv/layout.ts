@@ -30,7 +30,23 @@ export const TALKGROUP_BLOCK_LAST = 0x48
 export const KEY_BLOCK = 0x10
 export const KEY_BASE = 0x300
 export const KEY_SIZE = 0x2c
-export const KEY_SLOTS = 8
+/**
+ * How many encryption key slots this radio really has.
+ *
+ * The specification says eight. A real DM-32UV has **22**: block 0x10 holds 22
+ * consecutive 0x2C records, ids 1-22, each type 0x04 (AES-256) and named
+ * "Encrypt 1" through "Encrypt 22", followed by zeroed records. Eight was taken
+ * from the specification and never checked against hardware.
+ *
+ * That mistake was not cosmetic. It scoped `KEY_AREA` to the first 352 bytes,
+ * hid 14 of the radio's key slots from the UI, and - because the fixture
+ * redaction pass and the test that guards against checked-in key material both
+ * derived their bounds from this constant - let fourteen real AES-256 keys into
+ * a fixture while a green test asserted none were there. Anything that reads
+ * key slots must not assume this number is right; the guard test now scans the
+ * whole block independently of it.
+ */
+export const KEY_SLOTS = 22
 
 export const DM32_CHANNEL = defineStruct(CHANNEL_SIZE, {
   name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
@@ -129,6 +145,22 @@ export const DM32_KEY_SLOT = defineStruct(KEY_SIZE, {
 })
 
 export const keySlotOffset = (n: number) => KEY_BASE + (n - 1) * KEY_SIZE
+
+/**
+ * The only bytes this driver will write, and why they are the only ones.
+ *
+ * The 22 key slots occupy a contiguous 968 bytes inside block 0x10. Everything
+ * else in that block - the emergency settings before it, and the roughly 2.4 KB
+ * after it that nothing has ever explained - is read, preserved and never
+ * touched.
+ *
+ * Writing is scoped this narrowly on purpose. This radio's pages move between
+ * sessions, 22 of its 59 allocated blocks have no documented meaning, and a bad
+ * write is not recoverable from the radio's own state. Each additional region
+ * should be added the same way: documented, exercised against hardware, and
+ * verified by read-back.
+ */
+export const KEY_AREA: readonly [number, number] = [KEY_BASE, KEY_BASE + KEY_SLOTS * KEY_SIZE]
 
 /** An erased slot reads as 0x00 then 0xFF filler, so both count as empty. */
 export function isKeySlotEmpty(slot: Uint8Array): boolean {

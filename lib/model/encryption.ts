@@ -66,10 +66,65 @@ export function validateKeyHex(type: EncryptionType, input: string): KeyValidati
   return { ok: true, normalised: cleaned }
 }
 
-/** A key rendered for display, revealing only enough to tell slots apart. */
+/** The key already stored in a slot, as far as an edit is concerned. */
+export interface StoredKey {
+  type: EncryptionType
+  keyHex: string
+}
+
+export type KeyEditResolution =
+  | { ok: true; keyHex: string; keptExisting: boolean }
+  | { ok: false; error: string }
+
+/**
+ * Decide what key material an edit should commit.
+ *
+ * A blank key field means "leave the stored key alone", which is what makes it
+ * possible to correct a slot's name without retyping 64 hex characters nobody
+ * has memorised. The alternative - demanding the key back before any edit -
+ * looks safer and is not: it turns every rename into an opportunity to mistype
+ * a working key into a broken one, and the damage only shows up later, as a
+ * call that will not decrypt.
+ *
+ * Keeping the stored key requires the type to be unchanged. Each type has its
+ * own key length, so there is no honest way to reinterpret 32 stored bytes as a
+ * 5-byte ARC4 key; the caller is told to supply a new one instead.
+ */
+export function resolveKeyEdit(
+  draft: { type: EncryptionType; hex: string },
+  existing: StoredKey | null,
+): KeyEditResolution {
+  const blank = draft.hex.replace(/0x/gi, '').replace(/[\s:_-]/g, '').length === 0
+
+  if (blank && existing) {
+    if (existing.type === draft.type) return { ok: true, keyHex: existing.keyHex, keptExisting: true }
+    return {
+      ok: false,
+      error:
+        `Changing the type to ${KEY_TYPE_LABELS[draft.type]} needs a new key: the stored one is ` +
+        `${KEY_BYTES[existing.type]} bytes, not ${KEY_BYTES[draft.type]}.`,
+    }
+  }
+
+  const validation = validateKeyHex(draft.type, draft.hex)
+  if (!validation.ok) return { ok: false, error: validation.error ?? 'Enter a key.' }
+  return { ok: true, keyHex: validation.normalised, keptExisting: false }
+}
+
+/**
+ * A key rendered for display, revealing only enough to tell slots apart.
+ *
+ * The visible budget scales with the key, because a fixed one is only discreet
+ * for long keys. Showing four characters at each end of a 64-character AES-256
+ * key discloses an eighth of it; doing the same to a 10-character ARC4 key
+ * discloses eight characters of ten, which is not a mask at all. Anything short
+ * enough for that to matter is hidden completely - those slots are told apart
+ * by their names.
+ */
 export function maskKey(hex: string): string {
-  if (hex.length <= 8) return '•'.repeat(hex.length)
-  return `${hex.slice(0, 4)}${'•'.repeat(Math.max(0, hex.length - 8))}${hex.slice(-4)}`
+  const budget = Math.min(4, Math.floor(hex.length / 8))
+  if (budget < 2) return '•'.repeat(hex.length)
+  return `${hex.slice(0, budget)}${'•'.repeat(hex.length - budget * 2)}${hex.slice(-budget)}`
 }
 
 /** True when every byte is zero — a slot that has been cleared or redacted. */

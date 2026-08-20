@@ -15,7 +15,24 @@ const codeplug = useCodeplugStore()
 const device = useDeviceStore()
 const session = useRadioSession()
 
-const backup = ref<{ identHash: string } | null>(null)
+const backup = ref<{ identHash: string; createdAt?: string } | null>(null)
+
+/**
+ * How old the way back actually is.
+ *
+ * This used to assert the backup was "from this session", which was never
+ * checked and often untrue - the newest stored backup of this radio wins,
+ * whenever it was taken. Anything the radio has been told by other software
+ * since then is not in it, so the age is the part worth showing.
+ */
+const backupAge = computed(() => {
+  const at = backup.value?.createdAt
+  if (!at) return 'A backup of this radio is on file.'
+  const days = Math.floor((Date.now() - new Date(at).getTime()) / 86_400_000)
+  if (days < 1) return 'A backup of this radio, taken today, is on file.'
+  if (days === 1) return 'The newest backup of this radio is from yesterday.'
+  return `The newest backup of this radio is ${days} days old — anything changed on the radio since then is not in it.`
+})
 onMounted(async () => {
   backup.value = await session.latestBackupForOpenCodeplug()
 })
@@ -113,8 +130,8 @@ async function write() {
       />
 
       <p class="text-xs text-muted">
-        A backup of this radio from this session is on file, and every block is read back and compared
-        after writing. Leave the cable connected and the radio switched on until it finishes.
+        {{ backupAge }} Every block is read back and compared after writing. Leave the cable connected
+        and the radio switched on until it finishes.
       </p>
     </template>
 

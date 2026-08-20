@@ -35,6 +35,14 @@ export interface StoredBackup {
   createdAt: string
   /** Hash of the identify result, so a backup can be matched to a radio. */
   identHash: string
+  /**
+   * Fingerprint of the physical unit, when the driver can produce one.
+   *
+   * `identHash` only identifies the firmware, so two identical radios share it.
+   * This is what distinguishes them. Absent on backups taken before the check
+   * existed, which the write path treats as "cannot confirm", not "matches".
+   */
+  unitHash?: string | null
   sha256: string
   label: string
   byteLength: number
@@ -51,7 +59,7 @@ export interface StoredSession {
 
 export function toStoredBackup(
   image: RadioImage,
-  opts: { id: string; origin: BackupOrigin; identHash: string; label?: string },
+  opts: { id: string; origin: BackupOrigin; identHash: string; label?: string; unitHash?: string | null },
 ): StoredBackup {
   return {
     id: opts.id,
@@ -61,6 +69,7 @@ export function toStoredBackup(
     origin: opts.origin,
     createdAt: image.createdAt,
     identHash: opts.identHash,
+    unitHash: opts.unitHash ?? null,
     sha256: image.sha256,
     label: opts.label ?? `${image.radioId} ${image.variant}`,
     byteLength: image.regions.reduce((n, r) => n + r.data.length, 0),

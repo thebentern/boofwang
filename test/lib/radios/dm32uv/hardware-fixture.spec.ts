@@ -8,7 +8,8 @@ import type { RadioImage } from '#core/radio/image.js'
 import { createDm32uvDriver } from '#core/radios/dm32uv/driver.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import { DM32_CHANNEL, DM32_ZONE, talkgroupOffset } from '#core/radios/dm32uv/layout.js'
-import { PAGE_SIZE, handshake } from '#core/radios/dm32uv/protocol.js'
+import { PAGE_SIZE, handshake, parseRange } from '#core/radios/dm32uv/protocol.js'
+import { LoopbackDetectedError } from '#core/radio/driver.js'
 import { FakeSerialPort } from '#core/transport/fake-serial-port.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { describeBlock, isAllocated } from '#core/radios/dm32uv/pagemap.js'
@@ -18,9 +19,15 @@ import { describeBlock, isAllocated } from '#core/radios/dm32uv/pagemap.js'
  * DP570UV on firmware DM32.01.01.040, 59 allocated 4 KiB pages out of 200.
  *
  * **The encryption key material has been redacted** - the 32-byte key field of
- * every slot is zeroed. The slot ids, names and types are real, so the
- * structure is still exercised, but nobody's AES-256 keys live in this
- * repository.
+ * every record position in block 0x10 is zeroed, not merely the first
+ * `KEY_SLOTS` of them. The slot ids, names and types are real, so the structure
+ * is still exercised, but nobody's AES-256 keys live in this repository.
+ *
+ * The first redaction pass derived its bounds from `KEY_SLOTS`, which was 8
+ * when the radio actually has 22, so it zeroed eight slots and left fourteen
+ * real AES-256 keys in the file - and the test below passed anyway, because it
+ * asked the decoder, which stopped at the same wrong number. The guard is now
+ * written against the raw bytes and knows nothing about the layout constants.
  */
 const BLOB = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../../../fixtures/images/dm32uv-DM32.01.01.040.blocks.bin', import.meta.url))),
@@ -165,11 +172,17 @@ describe('talk groups', () => {
 describe('encryption keys', () => {
   const cp = driver.decode(image())
 
-  it('finds all eight slots with their names and types', () => {
-    expect(cp.encryptionKeys).toHaveLength(8)
-    expect(cp.encryptionKeys.map((k) => k.slot)).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+  it('finds all twenty-two slots with their names and types', () => {
+    // Twenty-two, not the eight the specification claims. Counted off the
+    // radio: ids 1-22, every one AES-256, named "Encrypt 1".."Encrypt 22",
+    // followed by zeroed records.
+    expect(cp.encryptionKeys).toHaveLength(22)
+    expect(cp.encryptionKeys.map((k) => k.slot)).toEqual(
+      Array.from({ length: 22 }, (_, i) => i + 1),
+    )
     expect(cp.encryptionKeys.every((k) => k.type === 'aes256')).toBe(true)
     expect(cp.encryptionKeys[0]!.name).toBe('Encrypt 1')
+    expect(cp.encryptionKeys[21]!.name).toBe('Encrypt 22')
   })
 
   it('carries the whole 32-byte field rather than trimming it', () => {
@@ -184,6 +197,31 @@ describe('encryption keys', () => {
     // Real keys were read from the radio and zeroed before the fixture was
     // committed. If this ever fails, someone has checked in key material.
     expect(cp.encryptionKeys.every((k) => /^0+$/.test(k.keyHex))).toBe(true)
+  })
+
+  it('has no key material anywhere in block 0x10, whatever the layout says', () => {
+    // Deliberately does not use KEY_SLOTS, KEY_BASE or the decoder. The
+    // previous version of this guard asked the decoder how many slots there
+    // were, the decoder said eight, and fourteen real keys sat in the file
+    // underneath a green test. Walk every record position the block can hold.
+    const block = image().regions.find((r) => r.start === logicalAddress(0x10))!.data
+    const nonZero: string[] = []
+    for (let off = 0x300; off + 0x2c <= block.length; off += 0x2c) {
+      const field = block.subarray(off + 0x0c, off + 0x2c)
+      if (field.some((b) => b !== 0)) nonZero.push(`0x${off.toString(16)}`)
+    }
+    expect(nonZero).toEqual([])
+  })
+
+  it('has no 32-byte run of distinct high-entropy bytes in the key table', () => {
+    // A second, layout-blind net: real AES-256 keys are 32 bytes with almost no
+    // repeats. Structured codeplug data is not.
+    const block = image().regions.find((r) => r.start === logicalAddress(0x10))!.data
+    let worst = 0
+    for (let i = 0x300; i + 32 <= block.length; i++) {
+      worst = Math.max(worst, new Set(block.subarray(i, i + 32)).size)
+    }
+    expect(worst).toBeLessThan(28)
   })
 })
 
@@ -227,13 +265,13 @@ describe('the round-trip invariant, on real radio bytes', () => {
 })
 
 describe('writing', () => {
-  it('is refused, and the driver says why', () => {
-    expect(() => driver.encode(driver.decode(image()), image())).toThrow(/DM-32UV/)
+  it('is off by default, so the schema the UI reads says so', () => {
     expect(driver.schema.capabilities.write).toBe(false)
   })
 
-  it('claims to own nothing, so nothing can be written', () => {
+  it('claims nothing outside the key block, whatever else is enabled', () => {
     expect(driver.ownedRanges(0)).toEqual([])
+    expect(driver.ownedRanges(logicalAddress(0x12))).toEqual([])
   })
 
   it('requires a power cycle after an interrupted session', () => {
@@ -325,5 +363,60 @@ describe('a radio that is not ready', () => {
     expect(err.message).toMatch(/answered PSEARCH but not PASSSTA/)
     expect(err.message).toMatch(/90 fe 98/)
     await t.close()
+  })
+})
+
+describe('the reported memory range', () => {
+  const le32 = (n: number) => [n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff]
+
+  it('accepts the range this radio actually reports', () => {
+    const payload = Uint8Array.from([...le32(0x001000), ...le32(0x0c8fff)])
+    expect(parseRange(payload)).toEqual({ start: 0x001000, end: 0x0c8fff })
+  })
+
+  it('refuses a range that ends before it starts', () => {
+    // A V-frame shifted by an idle heartbeat parses cleanly into nonsense.
+    // Accepting it produced an image with no regions - an empty "backup" that
+    // still satisfied the requirement to have one before writing.
+    const payload = Uint8Array.from([...le32(0x0c8fff), ...le32(0x001000)])
+    expect(() => parseRange(payload)).toThrow(/ends before it starts/)
+  })
+
+  it('refuses a range smaller than a single page', () => {
+    const payload = Uint8Array.from([...le32(0x001000), ...le32(0x001800)])
+    expect(() => parseRange(payload)).toThrow(/smaller than one page/)
+  })
+
+  it('refuses a range past the end of the address space', () => {
+    // The read command carries a 3-byte address; nothing above 0xFFFFFF can be
+    // asked for, so a range claiming otherwise did not come from this radio.
+    const payload = Uint8Array.from([...le32(0x001000), ...le32(0x1000_0000)])
+    expect(() => parseRange(payload)).toThrow(/past the end/)
+  })
+
+  it('still refuses a payload too short to hold a range', () => {
+    expect(() => parseRange(Uint8Array.from([1, 2, 3]))).toThrow(/too short/)
+  })
+})
+
+describe('an echoing adapter', () => {
+  it('is named as the cause, rather than blamed on the radio', () => {
+    // A counterfeit adapter that shorts TX to RX echoes the seven bytes of
+    // "PSEARCH" and nothing more. Waiting for eight bytes before inspecting any
+    // of them turned that into "the radio did not answer at all" plus advice to
+    // wait and retry - advice that can never work, and precisely the
+    // misdiagnosis this error type was added to stop.
+    return expect(
+      (async () => {
+        const port = new FakeSerialPort({ respond: (w) => w })
+        const t = new SerialTransport(port)
+        await t.open({ baudRate: 115_200 })
+        try {
+          await handshake(t, { timeoutMs: 600 })
+        } finally {
+          await t.close().catch(() => {})
+        }
+      })(),
+    ).rejects.toThrow(LoopbackDetectedError)
   })
 })

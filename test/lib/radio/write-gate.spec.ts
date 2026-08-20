@@ -106,3 +106,24 @@ describe('evaluateWriteGate', () => {
     expect(r.blockers.length).toBeGreaterThanOrEqual(3)
   })
 })
+
+describe('a codeplug from different firmware', () => {
+  it('warns, and does not block', () => {
+    // Whether two firmware strings share a layout is the driver's call - some
+    // UV-K5 builds are interchangeable and some are not. Blocking here would
+    // refuse writes that are perfectly safe, so the gate only says so.
+    const r = evaluateWriteGate(ok({ imageVariant: '2.01.31' }))
+    expect(r.allowed).toBe(true)
+    expect(r.warnings.map((w) => w.code)).toContain('variant-differs')
+    expect(r.warnings.find((w) => w.code === 'variant-differs')!.message).toContain('2.01.31')
+  })
+
+  it('says nothing when the firmware matches', () => {
+    expect(evaluateWriteGate(ok()).warnings.map((w) => w.code)).not.toContain('variant-differs')
+  })
+
+  it('says nothing when no radio is connected to compare against', () => {
+    const r = evaluateWriteGate(ok({ ident: null, imageVariant: '9.99.99' }))
+    expect(r.warnings.map((w) => w.code)).not.toContain('variant-differs')
+  })
+})

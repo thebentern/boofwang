@@ -48,7 +48,15 @@ export interface GateInput {
    * matters. This function exists to explain the situation to a person.
    */
   ident: IdentifyResult | null
-  /** Variant recorded on the image being written. */
+  /**
+   * Variant recorded on the image being written, compared against the radio's.
+   *
+   * Reported as a warning, never a blocker. Whether two firmware strings share
+   * a memory layout is the driver's question - the UV-K5 has whole families of
+   * builds that are interchangeable, and one that is not - so `writeImage`
+   * makes the binding decision. Repeating a cruder version of that test here
+   * would refuse writes that are perfectly safe.
+   */
   imageVariant: string | null
   imageRadioId: string | null
   backup: { identHash: string } | null
@@ -87,6 +95,15 @@ export function evaluateWriteGate(input: GateInput): GateResult {
     blockers.push({
       code: 'image-radio-mismatch',
       message: `This codeplug came from a ${input.imageRadioId}, not a ${input.schema.model}.`,
+    })
+  }
+
+  if (input.ident && input.imageVariant !== null && input.imageVariant !== input.ident.variant) {
+    warnings.push({
+      code: 'variant-differs',
+      message:
+        `This codeplug was read from firmware ${input.imageVariant}; the radio is running ` +
+        `${input.ident.variant}. The driver will refuse if the two layouts are incompatible.`,
     })
   }
 

@@ -2,6 +2,7 @@
 import { hz, mW } from '../../model/units.js'
 import { CTCSS_DECIHZ, DTCS_CODES } from '../../model/tones.js'
 import type { RadioSchema } from '../../radio/schema.js'
+import { KEY_SLOTS } from './layout.js'
 import { BAUD_RATE, OPEN_SETTLE_MS } from './protocol.js'
 
 export const DM32UV_SCHEMA: RadioSchema = {
@@ -56,7 +57,7 @@ export const DM32UV_SCHEMA: RadioSchema = {
     rxGroups: { max: 32 },
     scanLists: { max: 32, channelsPer: 15 },
     radioIds: { max: 250 },
-    encryption: { slots: 8, types: ['none', 'custom', 'arc4', 'aes128', 'aes256'], nameLength: 10 },
+    encryption: { slots: KEY_SLOTS, types: ['none', 'custom', 'arc4', 'aes128', 'aes256'], nameLength: 10 },
   },
 
   extraFields: [
@@ -71,7 +72,7 @@ export const DM32UV_SCHEMA: RadioSchema = {
       ],
       icon: 'lucide:layers',
     },
-    { key: 'encryptionKeyId', label: 'Encryption key', type: 'int', min: 0, max: 8, icon: 'lucide:key' },
+    { key: 'encryptionKeyId', label: 'Encryption key', type: 'int', min: 0, max: KEY_SLOTS, icon: 'lucide:key' },
   ],
 
   settings: [],

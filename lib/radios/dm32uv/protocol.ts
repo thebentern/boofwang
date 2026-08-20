@@ -25,6 +25,15 @@ export const PAGE_SIZE = 0x1000
 export const PAGE_TAIL = PAGE_SIZE - 1
 
 /**
+ * The largest address this radio can be asked about.
+ *
+ * A read command carries a 3-byte little-endian address, so nothing above this
+ * is even expressible on the wire. Used to reject a reported memory range that
+ * cannot be real.
+ */
+export const MAX_ADDRESS = 0xff_ffff
+
+/**
  * Settling time between opening the port and the first byte.
  *
  * Not decoration. The reference implementation found ~800 ms is required in
@@ -97,10 +106,22 @@ export async function handshake(t: Transport, opts?: ReadOpts): Promise<Handshak
   await t.write(CMD_PSEARCH, opts)
   await delay(PSEARCH_READ_DELAY_MS, opts?.signal)
 
-  const reply = await t.readExactly(8, opts).catch(() => null)
-  if (reply === null) throw notReady('the radio did not answer at all')
-  if (reply[0] === CMD_PSEARCH[0]) throw new LoopbackDetectedError('while identifying the radio')
-  if (reply[0] !== ACK) throw notReady(`it answered ${hexDump(reply, 8)}`)
+  // Read the first byte on its own, then decide.
+  //
+  // A real reply is ACK followed by seven ASCII bytes of model. An echoing
+  // adapter sends back the seven bytes of "PSEARCH" and nothing more, so
+  // waiting for eight before looking at any of them meant the echo case always
+  // timed out and was reported as "the radio did not answer at all" - the
+  // adapter misdiagnosis this check exists to prevent, delivered by the check
+  // itself. One byte is enough to tell ACK (0x06) from 'P' (0x50).
+  const head = await t.readExactly(1, opts).catch(() => null)
+  if (head === null) throw notReady('the radio did not answer at all')
+  if (head[0] === CMD_PSEARCH[0]) throw new LoopbackDetectedError('while identifying the radio')
+  if (head[0] !== ACK) throw notReady(`it answered ${hexDump(head, 1)}`)
+
+  const rest = await t.readExactly(7, opts).catch(() => null)
+  if (rest === null) throw notReady('it acknowledged but sent no model')
+  const reply = Uint8Array.from([head[0]!, ...rest])
 
   const model = new TextDecoder()
     .decode(reply.subarray(1, 8))
@@ -182,7 +203,41 @@ export async function vframe(t: Transport, id: number, hint = 0x00, opts?: ReadO
 export function parseRange(payload: Uint8Array): { start: number; end: number } {
   if (payload.length < 8) throw new ProtocolError('V-frame range payload is too short', '8 bytes', hexDump(payload))
   const rd = (o: number) => payload[o]! | (payload[o + 1]! << 8) | (payload[o + 2]! << 16) | payload[o + 3]! * 0x1000000
-  return { start: rd(0), end: rd(4) }
+  const start = rd(0)
+  const end = rd(4)
+
+  // Sanity-check the range rather than trusting it.
+  //
+  // These four bytes decide how much of the radio a backup covers. A frame that
+  // arrives shifted by an idle heartbeat, or answered by a radio in the wrong
+  // state, parses perfectly well into a range that is inverted or absurd - and
+  // the read that follows then produces an image with no regions at all. That
+  // empty image is still a well-formed backup as far as everything downstream
+  // is concerned, which is how a "backup" that contains nothing could come to
+  // satisfy the requirement to have one before writing.
+  if (end <= start) {
+    throw new ProtocolError(
+      'the radio reported a memory range that ends before it starts',
+      'end > start',
+      `start 0x${start.toString(16)}, end 0x${end.toString(16)}`,
+    )
+  }
+  if (end - start < PAGE_SIZE) {
+    throw new ProtocolError(
+      'the radio reported a memory range smaller than one page',
+      `at least ${PAGE_SIZE} bytes`,
+      `${end - start} bytes`,
+    )
+  }
+  if (end > MAX_ADDRESS) {
+    throw new ProtocolError(
+      'the radio reported a memory range past the end of its address space',
+      `at most 0x${MAX_ADDRESS.toString(16)}`,
+      `0x${end.toString(16)}`,
+    )
+  }
+
+  return { start, end }
 }
 
 export const VFRAME_FIRMWARE = 0x01
@@ -263,6 +318,47 @@ export async function readMemory(t: Transport, addr: number, length: number, opt
     )
   }
   return t.readExactly(got, opts)
+}
+
+/**
+ * Write one 4 KiB page.
+ *
+ * `57 <addr:3 LE> <len:2 LE> <4096 bytes>` - 4102 bytes on the wire - answered
+ * with a single `0x06`. The payload's last byte is the logical block id, the
+ * same byte a 1-byte probe reads at `base + 0xFFF`; it is part of the data, not
+ * a trailer.
+ */
+/**
+ * How long to wait for a write acknowledgement.
+ *
+ * The specification allows 5000 ms, and the wait is a flash page programming
+ * rather than a round trip. Giving up early would close the port mid-program,
+ * which on this radio is also the only thing that resets it.
+ */
+export const WRITE_ACK_TIMEOUT_MS = 5000
+
+export async function writePage(t: Transport, base: number, data: Uint8Array, opts?: ReadOpts): Promise<void> {
+  if (data.length !== PAGE_SIZE) {
+    throw new ProtocolError(`A page write must be exactly ${PAGE_SIZE} bytes, not ${data.length}`)
+  }
+  const frame = new Uint8Array(6 + PAGE_SIZE)
+  frame[0] = 0x57
+  frame[1] = base & 0xff
+  frame[2] = (base >> 8) & 0xff
+  frame[3] = (base >> 16) & 0xff
+  frame[4] = PAGE_SIZE & 0xff
+  frame[5] = (PAGE_SIZE >> 8) & 0xff
+  frame.set(data, 6)
+
+  await t.write(frame, opts)
+  const ack = await t.readExactly(1, { ...opts, timeoutMs: Math.max(opts?.timeoutMs ?? 0, WRITE_ACK_TIMEOUT_MS) })
+  if (ack[0] !== ACK) {
+    throw new ProtocolError(
+      `The radio refused the write at 0x${base.toString(16).padStart(6, '0')}`,
+      '06',
+      hexDump(ack),
+    )
+  }
 }
 
 /** Read one 4 KiB page and confirm its tail byte is the id we expected. */

@@ -71,17 +71,40 @@ export interface SerialPortLike {
 
 export const DEFAULT_READ_TIMEOUT_MS = 3000
 
+/**
+ * How `delay` actually sleeps.
+ *
+ * Replaceable because `setTimeout` is not dependable where it matters. A
+ * browser clamps timers to roughly 1 Hz in a hidden tab: measured here,
+ * `setTimeout(10)` took 999 ms while the page was backgrounded. Protocol steps
+ * that must be 10 ms apart then land seconds apart, and on the DM-32UV that is
+ * the difference between entering programming mode and the radio having closed
+ * the window.
+ *
+ * The app installs a Web Worker-backed implementation, whose timers are not
+ * clamped the same way - the same measurement gives 12 ms and 154 ms while
+ * hidden. Node and the tests keep the plain one.
+ */
+export type SleepFn = (ms: number) => Promise<void>
+
+let sleepImpl: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+export function setSleepImplementation(fn: SleepFn): void {
+  sleepImpl = fn
+}
+
 export function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason as Error)
-    const t = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
+    let cancelled = false
     const onAbort = () => {
-      clearTimeout(t)
+      cancelled = true
       reject(signal!.reason as Error)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+    void sleepImpl(ms).then(() => {
+      signal?.removeEventListener('abort', onAbort)
+      if (!cancelled) resolve()
+    })
   })
 }

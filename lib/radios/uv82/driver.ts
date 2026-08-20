@@ -94,6 +94,18 @@ export function createUv82Driver(): RadioDriver {
     // No reset command exists in this protocol; the radio leaves clone mode
     // when the port closes, and the UI says so.
     abortPolicy: 'power-cycle',
+    writeBlockBytes: BLOCK_SIZE,
+
+    /**
+     * Nothing on this radio distinguishes one unit from another.
+     *
+     * Its calibration is not exposed as a separate readable region, and the
+     * identify reply carries only firmware. Null means "cannot tell", which
+     * callers must not read as a match.
+     */
+    async unitFingerprint(): Promise<string | null> {
+      return null
+    },
 
     match(info) {
       const KNOWN_BRIDGES = [0x1a86, 0x067b, 0x10c4, 0x0403]

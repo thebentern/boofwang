@@ -28,6 +28,18 @@ export interface BackupRef {
   /** Hash of the identify result, so a backup of a different radio does not count. */
   readonly identHash: string
   readonly createdAt: string
+  /**
+   * Fingerprint of the physical unit this backup came from, when the driver can
+   * produce one.
+   *
+   * `identHash` covers model, firmware and build date - all properties of the
+   * firmware. Two radios of the same model on the same firmware hash
+   * identically, so on its own it cannot tell whether the backup on file came
+   * from the radio on the cable. Without this, a user with two identical radios
+   * could write one while the only backup in existence belonged to the other,
+   * and a restore after a bad write would push the wrong radio's codeplug.
+   */
+  readonly unitHash?: string | null
 }
 
 export interface DriverCtx {
@@ -58,6 +70,15 @@ export interface DriverCtx {
    * rewriting the whole radio to move one channel.
    */
   baseImage?: RadioImage | undefined
+  /**
+   * The identification from the current session, when one has already happened.
+   *
+   * Supplied so a driver does not repeat a handshake that cannot be repeated.
+   * The DM-32UV's is stateful: a second `PSEARCH` on an already-handshaken port
+   * gets no reply at all, so re-identifying inside `writeImage` broke every
+   * write while looking exactly like a radio that was not ready.
+   */
+  ident?: IdentifyResult | undefined
   progress?(p: Progress): void
   signal?: AbortSignal
   log?: Logger
@@ -119,6 +140,27 @@ export interface RadioDriver {
    * command at all, so the UI has to tell the user to power-cycle.
    */
   readonly abortPolicy: 'reset-command' | 'power-cycle'
+
+  /**
+   * The unit this radio is written in, in bytes.
+   *
+   * Used to tell the user how much will be sent before they agree to it. The
+   * unit differs by an order of magnitude between radios - 128 bytes on the
+   * UV-K5, a 4 KiB page on the DM-32UV - and a count of "blocks" means nothing
+   * without it. Changing one byte of a DM-32UV key slot really does send 4096
+   * bytes, and the confirmation should say so.
+   */
+  readonly writeBlockBytes: number
+
+  /**
+   * A fingerprint of the physical unit an image came from, or null.
+   *
+   * Derived from factory-set per-unit data - calibration, on radios that expose
+   * it - rather than anything about the firmware. Drivers that have nothing
+   * unit-specific to hash return null, and callers must treat that as "cannot
+   * tell", never as "matches".
+   */
+  unitFingerprint(image: RadioImage): Promise<string | null>
 
   /** Confidence that a USB device is this radio's cable, from its VID/PID. */
   match(info: { usbVendorId?: number; usbProductId?: number }): 'likely' | 'possible' | 'no'

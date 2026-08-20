@@ -4,7 +4,7 @@ import type { Channel } from '#core/model/channel.js'
 import type { Codeplug } from '#core/model/codeplug.js'
 import { sortedChannels } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
-import { diffRanges, rangesContain } from '#core/codec/struct.js'
+import { diffImages } from '#core/radio/diff.js'
 import type { Diagnostic, RadioDriver } from '#core/radio/driver.js'
 import type { RadioSchema } from '#core/radio/schema.js'
 
@@ -166,27 +166,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     const next = encoded.value
     if (!d || !base || !next) return null
 
-    const baseRegion = base.regions.find((r) => !r.readOnly)
-    const nextRegion = next.regions.find((r) => !r.readOnly)
-    if (!baseRegion || !nextRegion) return null
-
-    const ranges = diffRanges(baseRegion.data, nextRegion.data)
-    const owned = d.ownedRanges(baseRegion.start)
-    const unowned = ranges.filter((r) => !rangesContain(owned, r))
-
-    const blocks = new Set<number>()
-    let bytes = 0
-    for (const [s, e] of ranges) {
-      bytes += e - s
-      for (let a = Math.floor(s / 0x80) * 0x80; a < e; a += 0x80) blocks.add(a)
-    }
-
-    return {
-      ranges,
-      unowned,
-      changedBytes: bytes,
-      changedBlocks: [...blocks].sort((a, b) => a - b),
-    }
+    return diffImages(base, next, d)
   })
 
   const diagnosticsByChannel = computed(() => {
