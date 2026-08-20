@@ -34,17 +34,41 @@ import {
   CHANNEL_SIZE,
   DM32_CHANNEL,
   DM32_KEY_SLOT,
+  DM32_RADIOID,
+  DM32_RXGROUP,
+  DM32_SCANLIST,
+  DM32_SETTINGS,
   DM32_TALKGROUP,
   DM32_ZONE,
   ENCRYPTION_TYPES,
   KEY_AREA,
   KEY_BLOCK,
   KEY_SLOTS,
+  RADIOID_BLOCK,
+  RADIOID_HEADER,
+  RADIOID_SIZE,
+  RADIOID_SLOTS,
+  RXGROUP_BLOCK,
+  RXGROUP_HEADER,
+  RXGROUP_MAX_MEMBERS,
+  RXGROUP_SIZE,
+  RXGROUP_SLOTS,
+  SCANLIST_BLOCK,
+  SCANLIST_HEADER,
+  SCANLIST_MAX_MEMBERS,
+  SCANLIST_SIZE,
+  SETTINGS_BLOCK,
   TALKGROUP_BLOCK_FIRST,
   TALKGROUP_BLOCK_LAST,
+  TG_INDEX_BITMASK,
+  TG_INDEX_BLOCK,
+  TG_INDEX_SLOTS,
+  TG_INDEX_TABLE_BY_NAME,
+  TG_INDEX_TABLE_BY_NUMBER,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
   ZONE_HEADER,
+  ZONE_MAX_CHANNELS,
   ZONE_SIZE,
   channelSlot,
   decodeToneWord,
@@ -120,12 +144,18 @@ function writeTargets(image: RadioImage): WriteTarget[] {
     if (region) out.push({ blockId, desired: region, label })
   }
 
+  add(RADIOID_BLOCK, `block 0x${RADIOID_BLOCK.toString(16)} (radio IDs)`)
+  add(RXGROUP_BLOCK, `block 0x${RXGROUP_BLOCK.toString(16)} (RX groups)`)
   for (let id = TALKGROUP_BLOCK_FIRST; id <= TALKGROUP_BLOCK_LAST; id++) {
     add(id, `block 0x${id.toString(16)} (talk groups)`)
   }
   for (let id = ZONE_BLOCK_FIRST; id <= ZONE_BLOCK_LAST; id++) {
     add(id, `block 0x${id.toString(16)} (zones)`)
   }
+  add(SCANLIST_BLOCK, `block 0x${SCANLIST_BLOCK.toString(16)} (scan lists)`)
+  // Settings decide how the radio behaves rather than what it can hear, so they
+  // go after the lists but before anything that keys a transmitter.
+  add(SETTINGS_BLOCK, `block 0x${SETTINGS_BLOCK.toString(16)} (settings)`)
   for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) {
     add(id, `block 0x${id.toString(16)} (channels)`)
   }
@@ -620,7 +650,11 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       for (const ch of decodeChannels(image)) cp.channels.set(ch.index, ch)
       cp.zones = decodeZones(image)
       cp.talkGroups = decodeTalkGroups(image)
+      cp.scanLists = decodeScanLists(image)
+      cp.rxGroups = decodeRxGroups(image)
+      cp.radioIds = decodeRadioIds(image)
       cp.encryptionKeys = decodeKeys(image)
+      cp.settings = decodeSettings(image)
       return cp
     },
 
@@ -708,8 +742,16 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         firstChannels[1] = (wanted >> 8) & 0xff
       }
 
-      encodeZones(out, doc.zones)
+      // The bank size bounds every membership list: a zone or scan list may
+      // only point at a channel that exists.
+      const channelCount = firstChannels ? (firstChannels[0]! | (firstChannels[1]! << 8)) : 0
+
+      encodeZones(out, doc.zones, channelCount)
       encodeTalkGroups(out, doc.talkGroups)
+      encodeScanLists(out, doc.scanLists, channelCount)
+      encodeRxGroups(out, doc.rxGroups)
+      encodeRadioIds(out, doc.radioIds)
+      encodeSettings(out, doc.settings)
 
       return { ...out, sha256: '' }
     },
@@ -778,6 +820,27 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       if (blockId >= TALKGROUP_BLOCK_FIRST && blockId <= TALKGROUP_BLOCK_LAST) {
         return [[0, PAGE_SIZE - 1] as const]
       }
+      // The scan-list count is the whole page header, so the claim is the page.
+      if (blockId === SCANLIST_BLOCK) return [[0, PAGE_SIZE - 1] as const]
+      // The RX group occupancy bitmask, then the records. Bytes 0x04-0x10 are a
+      // header tail that differs between every capture and stays untouched.
+      if (blockId === RXGROUP_BLOCK) {
+        return [
+          [0, 4] as const,
+          [RXGROUP_HEADER, PAGE_SIZE - 1] as const,
+        ]
+      }
+      // The radio-ID count, then the records. Bytes 0x01-0x0F are unexplained.
+      if (blockId === RADIOID_BLOCK) {
+        return [
+          [0, 1] as const,
+          [RADIOID_HEADER, PAGE_SIZE - 1] as const,
+        ]
+      }
+      // Settings are scattered through a 4 KiB page, most of which has no
+      // established meaning. The claim is exactly the fields that are modelled,
+      // taken from the struct rather than restated here.
+      if (blockId === SETTINGS_BLOCK) return DM32_SETTINGS.ranges()
       return []
     },
   }
@@ -1014,15 +1077,30 @@ function decodesToKey(block: Uint8Array, off: number): boolean {
 
 
 /**
- * Write the zone names back.
+ * Write the zone names and their channel lists back.
  *
- * Only the name is written. A zone's channel list is a set of indices into the
- * channel array, and rewriting it means understanding what the radio does when
- * a zone points at a slot that has since been emptied - which nothing here has
- * established. The name is unambiguous and the membership is left exactly as
- * the radio had it.
+ * Membership was held back for a long time on the grounds that nobody had
+ * established what the radio does when a zone points at an emptied slot. This
+ * radio answered it: `Tactical` has been carrying stale pointers to channels
+ * 43-48 past its count for as long as it has been a 14-channel zone, three of
+ * those channels do not exist in a 45-channel bank, and the radio shows 14
+ * channels. The count byte alone bounds the list.
+ *
+ * So the rules, each earned:
+ *
+ * - Entries are absolute 1-based channel numbers. Confirmed by resolving all 45
+ *   of this radio's zone entries to named channels.
+ * - The tail past the count is left exactly as found. That is what the radio's
+ *   own firmware does, and it is the smallest possible diff.
+ * - A zero is never written as a terminator. The reference records a hardware
+ *   regression from doing so - the radio showed null slots and lost channels.
+ * - Entries are written before the count, so an interrupted write leaves the
+ *   old shorter count rather than one pointing at half-written slots.
+ * - A member outside the channel bank is dropped rather than written, because
+ *   the one case still unproven is an in-count entry pointing at a blank record
+ *   and the writer can simply never create one.
  */
-export function encodeZones(image: RadioImage, zones: Codeplug['zones']): void {
+export function encodeZones(image: RadioImage, zones: Codeplug['zones'], channelCount = 0): void {
   const first = blockData(image, ZONE_BLOCK_FIRST)
   if (!first) return
   const total = first[0]!
@@ -1047,6 +1125,25 @@ export function encodeZones(image: RadioImage, zones: Codeplug['zones']): void {
       const zone = zones[docIndex]
       docIndex++
       if (!zone) continue
+
+      // Drop anything the radio could not resolve. `channelCount` of 0 means
+      // the caller did not supply the bank size, in which case membership is
+      // left alone rather than guessed at.
+      if (channelCount > 0) {
+        const members = zone.channels
+          .filter((c) => Number.isInteger(c) && c >= 1 && c <= channelCount)
+          .slice(0, ZONE_MAX_CHANNELS)
+        const entries = rec.channels.slice()
+        for (let i = 0; i < members.length; i++) {
+          entries[i * 2] = members[i]! & 0xff
+          entries[i * 2 + 1] = (members[i]! >> 8) & 0xff
+        }
+        DM32_ZONE.write(data, off, { name: zone.name, channels: entries })
+        // The count last, and only after the entries are in place.
+        DM32_ZONE.write(data, off, { channelCount: members.length })
+        continue
+      }
+
       DM32_ZONE.write(data, off, { name: zone.name })
     }
   }
@@ -1171,3 +1268,287 @@ export function decodeKeys(image: RadioImage): Codeplug['encryptionKeys'] {
 }
 
 export { blockIds, isAllocated }
+
+/**
+ * Scan lists, block 0x11.
+ *
+ * Bounded by the count byte rather than by scanning for an empty record. This
+ * radio's records 3-7 are initialised blank templates - name of eleven 0xFF,
+ * hang time 1 - so "stop at the first empty record" and "stop at the count"
+ * happen to agree here, but only the count is correct in general.
+ */
+export function decodeScanLists(image: RadioImage): Codeplug['scanLists'] {
+  const data = blockData(image, SCANLIST_BLOCK)
+  if (!data) return []
+  const total = data[0]!
+  const out: Codeplug['scanLists'] = []
+
+  for (let n = 0; n < total; n++) {
+    const off = SCANLIST_HEADER + n * SCANLIST_SIZE
+    if (off + SCANLIST_SIZE > PAGE_SIZE - 1) break
+    const rec = DM32_SCANLIST.read(data, off)
+    const count = Math.min(rec.memberCount, SCANLIST_MAX_MEMBERS)
+    const channels: number[] = []
+    for (let i = 0; i < count; i++) {
+      const ch = rec.members[i]!
+      // Slots past the end hold residue, not a terminator, so the count is the
+      // only bound. A zero inside the count is still a real slot the radio
+      // ignores; carrying it would show the user a channel 0.
+      if (ch !== 0 && ch !== 0xffff) channels.push(ch)
+    }
+    out.push({
+      id: `scan-${n + 1}`,
+      name: rec.name.trimEnd(),
+      channels,
+      priority1: (rec.priorityTypes & 0x0f) === 0 ? null : rec.priorityChannel1,
+      priority2: (rec.priorityTypes >> 4) === 0 ? null : rec.priorityChannel2,
+    })
+  }
+  return out
+}
+
+/**
+ * RX groups, block 0x0F.
+ *
+ * The first four bytes are a bitmask of which slots are in use, not a count.
+ * Read as an integer it says 31 on this radio, which is five groups misreported
+ * as thirty-one - the same class of mistake as reading the zone count as 16-bit.
+ */
+export function decodeRxGroups(image: RadioImage): Codeplug['rxGroups'] {
+  const data = blockData(image, RXGROUP_BLOCK)
+  if (!data) return []
+  const mask = data[0]! | (data[1]! << 8) | (data[2]! << 16) | (data[3]! << 24)
+  const out: Codeplug['rxGroups'] = []
+
+  for (let n = 0; n < RXGROUP_SLOTS; n++) {
+    if (!((mask >>> n) & 1)) continue
+    const off = RXGROUP_HEADER + n * RXGROUP_SIZE
+    if (off + RXGROUP_SIZE > PAGE_SIZE - 1) break
+    const rec = DM32_RXGROUP.read(data, off)
+    // These are raw DMR contact numbers, not talk-group indices - which is why
+    // the model calls the field dmrIds.
+    const dmrIds = rec.members.filter((v) => v !== 0 && v !== 0xffffff)
+    out.push({ id: `rxg-${n + 1}`, name: rec.name.trimEnd(), dmrIds })
+  }
+  return out
+}
+
+/**
+ * DMR radio IDs, block 0x67.
+ *
+ * The count byte is a lower bound, not the whole story: a slot can hold a name
+ * with no number or a number with no name. Every slot is walked and anything
+ * carrying either is kept, so an ID the count forgot is still shown.
+ */
+export function decodeRadioIds(image: RadioImage): Codeplug['radioIds'] {
+  const data = blockData(image, RADIOID_BLOCK)
+  if (!data) return []
+  const out: Codeplug['radioIds'] = []
+
+  for (let n = 0; n < RADIOID_SLOTS; n++) {
+    const off = RADIOID_HEADER + n * RADIOID_SIZE
+    if (off + RADIOID_SIZE > PAGE_SIZE - 1) break
+    const rec = DM32_RADIOID.read(data, off)
+    const name = rec.name.trimEnd()
+    if (rec.dmrId === 0 && !name) continue
+    out.push({ id: `rid-${n + 1}`, name, dmrId: rec.dmrId })
+  }
+  return out
+}
+
+/**
+ * Radio settings, block 0x04.
+ *
+ * Flattened to the `Record<string, unknown>` the document carries, with the
+ * bitfields spread into their named bits so the settings form can offer one
+ * control per bit rather than a number nobody can interpret.
+ */
+export function decodeSettings(image: RadioImage): Record<string, unknown> {
+  const data = blockData(image, SETTINGS_BLOCK)
+  if (!data) return {}
+  const raw = DM32_SETTINGS.read(data, 0)
+
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'object' && value !== null) {
+      for (const [bit, v] of Object.entries(value as Record<string, number>)) {
+        if (bit === 'reserved') continue
+        out[`${key}.${bit}`] = v
+      }
+      continue
+    }
+    out[key] = typeof value === 'string' ? value.trimEnd() : value
+  }
+  return out
+}
+
+/**
+ * Which talk-group slots block 0x0B says are live, in the order the radio lists
+ * them by name.
+ *
+ * Read-only, and used only to check the talk-group bank against the radio's own
+ * idea of it. Regenerating this index is a separate job with its own hazards -
+ * five interdependent parts that no observed radio has ever had out of step.
+ */
+export function decodeTalkGroupIndex(image: RadioImage): { live: number[]; byName: number[] } | null {
+  const data = blockData(image, TG_INDEX_BLOCK)
+  if (!data) return null
+
+  const live: number[] = []
+  for (let i = 0; i < TG_INDEX_SLOTS; i++) {
+    // A cleared bit means the slot is in use. The radio stores it that way
+    // because an erased page is all ones.
+    if (!((data[TG_INDEX_BITMASK + (i >> 3)]! >> (i & 7)) & 1)) live.push(i + 1)
+  }
+
+  const byName: number[] = []
+  for (let off = TG_INDEX_TABLE_BY_NAME; off + 2 <= TG_INDEX_TABLE_BY_NUMBER; off += 2) {
+    if (data[off] === 0xff && data[off + 1] === 0xff) break
+    byName.push(data[off]!)
+  }
+  return { live, byName }
+}
+
+/**
+ * Write the scan lists back.
+ *
+ * The count byte is the only header, so adding and removing lists is just a
+ * matter of writing it - unlike the zone and channel banks, whose headers carry
+ * fifteen bytes nobody has explained.
+ *
+ * Members are written before the count for the same reason a filesystem writes
+ * data before metadata: a write interrupted midway then leaves the old, shorter,
+ * still-valid count rather than one pointing into half-written slots.
+ */
+export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists'], channelCount: number): void {
+  const data = blockData(image, SCANLIST_BLOCK)
+  if (!data) return
+  const was = data[0]!
+  const capacity = Math.floor((PAGE_SIZE - 1 - SCANLIST_HEADER) / SCANLIST_SIZE)
+  if (lists.length > capacity) {
+    throw new DriverError(`This radio holds ${capacity} scan lists; the codeplug has ${lists.length}.`)
+  }
+
+  for (let n = 0; n < Math.max(was, lists.length); n++) {
+    const off = SCANLIST_HEADER + n * SCANLIST_SIZE
+    if (off + SCANLIST_SIZE > PAGE_SIZE - 1) break
+    const list = lists[n]
+    if (!list) {
+      // Past the new count. Erase the record so a later list cannot inherit
+      // half of a deleted one's channels.
+      if (n < was) data.fill(ERASED, off, off + SCANLIST_SIZE)
+      continue
+    }
+
+    const members = list.channels.filter((c) => c >= 1 && c <= channelCount).slice(0, SCANLIST_MAX_MEMBERS)
+    const padded = [...members, ...new Array<number>(SCANLIST_MAX_MEMBERS - members.length).fill(0)]
+    DM32_SCANLIST.write(data, off, {
+      name: list.name,
+      memberCount: members.length,
+      members: padded,
+    })
+  }
+  data[0] = lists.length & 0xff
+}
+
+/**
+ * Write the RX groups back.
+ *
+ * The first four bytes are the occupancy bitmask and it is the record of truth:
+ * a group is present because its bit is set, not because its record has a name.
+ * Bit and record are written together or not at all.
+ */
+export function encodeRxGroups(image: RadioImage, groups: Codeplug['rxGroups']): void {
+  const data = blockData(image, RXGROUP_BLOCK)
+  if (!data) return
+  if (groups.length > RXGROUP_SLOTS) {
+    throw new DriverError(`This radio holds ${RXGROUP_SLOTS} RX groups; the codeplug has ${groups.length}.`)
+  }
+
+  let mask = 0
+  for (let n = 0; n < RXGROUP_SLOTS; n++) {
+    const off = RXGROUP_HEADER + n * RXGROUP_SIZE
+    if (off + RXGROUP_SIZE > PAGE_SIZE - 1) break
+    const group = groups[n]
+    if (!group) {
+      data.fill(0x00, off, off + RXGROUP_SIZE)
+      continue
+    }
+    mask |= 1 << n
+
+    const ids = group.dmrIds.filter((v) => v > 0 && v <= 0xff_ffff).slice(0, RXGROUP_MAX_MEMBERS)
+    const padded = [...ids, ...new Array<number>(RXGROUP_MAX_MEMBERS - ids.length).fill(0)]
+    DM32_RXGROUP.write(data, off, { name: group.name, members: padded })
+  }
+
+  data[0] = mask & 0xff
+  data[1] = (mask >>> 8) & 0xff
+  data[2] = (mask >>> 16) & 0xff
+  data[3] = (mask >>> 24) & 0xff
+}
+
+/** Write the DMR radio IDs back. Count byte, then fixed-stride records. */
+export function encodeRadioIds(image: RadioImage, ids: Codeplug['radioIds']): void {
+  const data = blockData(image, RADIOID_BLOCK)
+  if (!data) return
+  if (ids.length > RADIOID_SLOTS) {
+    throw new DriverError(`This radio holds ${RADIOID_SLOTS} radio IDs; the codeplug has ${ids.length}.`)
+  }
+  const was = data[0]!
+
+  for (let n = 0; n < Math.max(was, ids.length, RADIOID_SLOTS); n++) {
+    const off = RADIOID_HEADER + n * RADIOID_SIZE
+    if (off + RADIOID_SIZE > PAGE_SIZE - 1) break
+    const entry = ids[n]
+    if (!entry) {
+      // Only erase a slot that used to be inside the count. Slots beyond it
+      // have never been ours and may hold bytes nobody has explained.
+      if (n < was) {
+        DM32_RADIOID.write(data, off, { dmrId: 0, name: '' })
+      }
+      continue
+    }
+    if (entry.dmrId < 0 || entry.dmrId > 0xff_ffff) {
+      throw new DriverError(`DMR ID ${entry.dmrId} does not fit in the 24 bits this radio stores.`)
+    }
+    DM32_RADIOID.write(data, off, { dmrId: entry.dmrId, name: entry.name })
+  }
+  data[0] = ids.length & 0xff
+}
+
+/**
+ * Write the radio settings back.
+ *
+ * A partial patch of a partial model: only keys the document actually carries
+ * are written, and only fields this build models exist to be written. The ~3.8
+ * KiB of block 0x04 that nobody has named is never assigned, so it comes
+ * through untouched.
+ */
+export function encodeSettings(image: RadioImage, settings: Record<string, unknown>): void {
+  const data = blockData(image, SETTINGS_BLOCK)
+  if (!data) return
+
+  const current = DM32_SETTINGS.read(data, 0) as Record<string, unknown>
+  const patch: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(settings)) {
+    if (value === undefined || value === null) continue
+    const dot = key.indexOf('.')
+    if (dot < 0) {
+      if (!(key in current)) continue
+      patch[key] = typeof current[key] === 'string' ? String(value) : Number(value)
+      continue
+    }
+    // A bitfield member: merge it into whatever the record already holds so the
+    // bits this build does not name keep their values.
+    const owner = key.slice(0, dot)
+    const bit = key.slice(dot + 1)
+    const group = current[owner]
+    if (typeof group !== 'object' || group === null || !(bit in group)) continue
+    const merged = (patch[owner] as Record<string, number>) ?? {}
+    merged[bit] = Number(value)
+    patch[owner] = merged
+  }
+
+  if (Object.keys(patch).length > 0) DM32_SETTINGS.write(data, 0, patch as never)
+}

@@ -2,8 +2,149 @@
 import { hz, mW } from '../../model/units.js'
 import { CTCSS_DECIHZ, DTCS_CODES } from '../../model/tones.js'
 import type { RadioSchema } from '../../radio/schema.js'
-import { KEY_SLOTS } from './layout.js'
+import { DM32_COLOURS, DM32_KEY_FUNCTIONS, KEY_SLOTS } from './layout.js'
 import { BAUD_RATE, OPEN_SETTLE_MS } from './protocol.js'
+
+const COLOUR_OPTIONS = DM32_COLOURS.map((label, value) => ({ value, label }))
+const KEY_OPTIONS = DM32_KEY_FUNCTIONS.map((label, value) => ({ value, label }))
+const ON_OFF = [
+  { value: 0, label: 'Off' },
+  { value: 1, label: 'On' },
+]
+
+/**
+ * The settings this build is prepared to change.
+ *
+ * Deliberately a subset. Block 0x04 is 4 KiB and the reference names perhaps a
+ * tenth of it with confidence; the rest is decoded where it can be, round-tripped
+ * everywhere, and offered nowhere. A control for a byte whose meaning is a guess
+ * is worse than no control, because the user cannot tell the difference.
+ */
+export const DM32UV_SETTINGS_GROUPS = [
+  {
+    id: 'display',
+    label: 'Display',
+    description: 'What the radio shows when it powers on and how it is lit.',
+    fields: [
+      {
+        key: 'powerOnInterface',
+        label: 'Power-on screen',
+        type: 'enum',
+        options: [
+          { value: 0, label: 'Picture' },
+          { value: 1, label: 'Custom message' },
+          { value: 2, label: 'Battery voltage' },
+        ],
+        icon: 'lucide:monitor',
+      },
+      { key: 'powerOnLine1', label: 'Power-on line 1', type: 'string', maxLength: 13 },
+      { key: 'powerOnLine2', label: 'Power-on line 2', type: 'string', maxLength: 13 },
+      {
+        key: 'backlightBrightness',
+        label: 'Backlight brightness',
+        help: 'Stored 0-5; the radio shows it as 1-6.',
+        type: 'int',
+        min: 0,
+        max: 5,
+      },
+      { key: 'autoBacklightDuration', label: 'Backlight timeout', type: 'int', min: 0, max: 5, help: '0 is 5 seconds, each step adds 5.' },
+    ],
+  },
+  {
+    id: 'colours',
+    label: 'Colours',
+    description: 'The six display colours the radio stores, one nibble each.',
+    fields: [
+      { key: 'callsignColour.colour', label: 'Callsign', type: 'enum', options: COLOUR_OPTIONS },
+      { key: 'standbyTextColour.colour', label: 'Standby text', type: 'enum', options: COLOUR_OPTIONS },
+      { key: 'channelAColour.colour', label: 'Channel A', type: 'enum', options: COLOUR_OPTIONS },
+      { key: 'channelBColour.colour', label: 'Channel B', type: 'enum', options: COLOUR_OPTIONS },
+      { key: 'zoneAColour.colour', label: 'Zone A', type: 'enum', options: COLOUR_OPTIONS },
+      { key: 'zoneBColour.colour', label: 'Zone B', type: 'enum', options: COLOUR_OPTIONS },
+    ],
+  },
+  {
+    id: 'keys',
+    label: 'Keys',
+    description: 'What the side and programmable keys do. The radio offers the same list for every one.',
+    fields: [
+      { key: 'sk1Short', label: 'SK1 short press', type: 'enum', options: KEY_OPTIONS, icon: 'lucide:square-mouse-pointer' },
+      { key: 'sk1Long', label: 'SK1 long press', type: 'enum', options: KEY_OPTIONS },
+      { key: 'sk2Short', label: 'SK2 short press', type: 'enum', options: KEY_OPTIONS },
+      { key: 'sk2Long', label: 'SK2 long press', type: 'enum', options: KEY_OPTIONS },
+      { key: 'p1Short', label: 'P1 short press', type: 'enum', options: KEY_OPTIONS },
+      { key: 'p1Long', label: 'P1 long press', type: 'enum', options: KEY_OPTIONS },
+      { key: 'p2Short', label: 'P2 short press', type: 'enum', options: KEY_OPTIONS },
+      { key: 'p2Long', label: 'P2 long press', type: 'enum', options: KEY_OPTIONS },
+      { key: 'longPressTime', label: 'Long press time', type: 'int', min: 0, max: 4, help: 'Stored 0-4; the radio shows it as 1-5.' },
+      { key: 'keyLockFlags.lockKey', label: 'Keypad lock', type: 'enum', options: [{ value: 0, label: 'Manual' }, { value: 1, label: 'Automatic' }] },
+      { key: 'keyLockFlags.knobLock', label: 'Lock the knob', type: 'bool' },
+      { key: 'keyLockFlags.sideKeyLock', label: 'Lock the side keys', type: 'bool' },
+      { key: 'autoKeypadLockDelay', label: 'Auto lock after', type: 'int', min: 0, max: 60, help: 'Seconds.' },
+    ],
+  },
+  {
+    id: 'dmr',
+    label: 'DMR',
+    fields: [
+      { key: 'digitalDecodeFlags.privateCallMatch', label: 'Match private calls', type: 'bool' },
+      { key: 'digitalDecodeFlags.groupCallMatch', label: 'Match group calls', type: 'bool' },
+      { key: 'callHoldTime', label: 'Call hold time', type: 'int', min: 0, max: 61, help: 'Seconds.' },
+      { key: 'activeRetriesTime', label: 'Active retries', type: 'int', min: 1, max: 8 },
+    ],
+  },
+  {
+    id: 'gps',
+    label: 'GPS',
+    description: 'This radio has a receiver; the position below is where it last had a fix or was told it was.',
+    fields: [
+      { key: 'gpsFlags.gpsSwitch', label: 'GPS', type: 'enum', options: ON_OFF, icon: 'lucide:satellite' },
+      {
+        key: 'gpsFlags.gpsMode',
+        label: 'Constellation',
+        type: 'enum',
+        options: [
+          { value: 0, label: 'GPS' },
+          { value: 1, label: 'BeiDou' },
+          { value: 2, label: 'GPS + BeiDou' },
+        ],
+      },
+      { key: 'gpsFlags.distanceUnit', label: 'Distance', type: 'enum', options: [{ value: 0, label: 'Metric' }, { value: 1, label: 'Imperial' }] },
+      {
+        key: 'gpsFlags.speedUnit',
+        label: 'Speed',
+        type: 'enum',
+        options: [
+          { value: 0, label: 'km/h' },
+          { value: 1, label: 'mph' },
+          { value: 2, label: 'knots' },
+        ],
+      },
+      { key: 'gpsFlags.gpsDisplayFormat', label: 'Position format', type: 'enum', options: [{ value: 0, label: 'Degrees' }, { value: 1, label: 'Degrees, minutes, seconds' }] },
+      { key: 'gpsReportInterval', label: 'Report interval', type: 'int', min: 5, max: 255, help: 'Seconds.' },
+    ],
+  },
+  {
+    id: 'power',
+    label: 'Power',
+    fields: [
+      {
+        key: 'autoPowerOff',
+        label: 'Automatic power off',
+        type: 'enum',
+        options: [
+          { value: 0, label: 'Off' },
+          { value: 1, label: '30 minutes' },
+          { value: 2, label: '60 minutes' },
+          { value: 3, label: '120 minutes' },
+          { value: 4, label: '240 minutes' },
+          { value: 5, label: '480 minutes' },
+        ],
+        icon: 'lucide:power',
+      },
+    ],
+  },
+] as const satisfies RadioSchema['settings']
 
 export const DM32UV_SCHEMA: RadioSchema = {
   id: 'dm32uv',
@@ -78,7 +219,7 @@ export const DM32UV_SCHEMA: RadioSchema = {
     { key: 'encryptionKeyId', label: 'Encryption key', type: 'int', min: 0, max: KEY_SLOTS, icon: 'lucide:key' },
   ],
 
-  settings: [],
+  settings: DM32UV_SETTINGS_GROUPS,
 }
 
 export const DM32UV_SERIAL = {

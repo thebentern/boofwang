@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { describe, expect, it } from 'vitest'
+import { SCHEMAS } from '#core/radio/registry.js'
 
 const require = createRequire(import.meta.url)
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -41,6 +42,42 @@ describe('icon bundle coverage', () => {
 
   it('has no duplicates', () => {
     expect(declared.length).toBe(new Set(declared).size)
+  })
+
+  it('every icon a RadioSchema names is declared in nuxt.config', () => {
+    // This is the case the bundle scanner cannot see. A FieldSpec's icon
+    // arrives as data, not as a string literal in a template, so `scan: true`
+    // never finds it and `fallbackToApi: false` renders it as a gap - on a
+    // settings form where the gap looks like a missing control.
+    const used = new Set<string>()
+    for (const schema of Object.values(SCHEMAS)) {
+      if (!schema) continue
+      for (const f of schema.extraFields) if (f.icon) used.add(f.icon)
+      for (const group of schema.settings) for (const f of group.fields) if (f.icon) used.add(f.icon)
+    }
+    expect(used.size, 'no schema declares an icon; this test would pass vacuously').toBeGreaterThan(3)
+
+    const undeclared = [...used].filter((name) => !declared.includes(name))
+    expect(
+      undeclared,
+      `these icons come from schema data, which the scanner cannot see, and are not in ` +
+        `nuxt.config's SCHEMA_ICONS - they would render blank: ${undeclared.join(', ')}`,
+    ).toEqual([])
+  })
+
+  it('every icon a RadioSchema names is spelled the way the config declares them', () => {
+    // Two spellings work in a template (`i-lucide-x` and `lucide:x`) but only
+    // one matches the config list, so a mixed convention silently defeats the
+    // check above.
+    const wrong: string[] = []
+    for (const schema of Object.values(SCHEMAS)) {
+      if (!schema) continue
+      for (const f of schema.extraFields) if (f.icon?.startsWith('i-')) wrong.push(`${schema.id}: ${f.icon}`)
+      for (const group of schema.settings) {
+        for (const f of group.fields) if (f.icon?.startsWith('i-')) wrong.push(`${schema.id}: ${f.icon}`)
+      }
+    }
+    expect(wrong, `schema icons must be written as 'lucide:name': ${wrong.join(', ')}`).toEqual([])
   })
 
   it('every i-lucide-* used in a template exists too', () => {

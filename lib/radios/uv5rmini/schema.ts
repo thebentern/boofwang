@@ -8,6 +8,101 @@ import { BAUD_RATE } from './protocol.js'
 /** `UV17Pro` name charset: upper case, digits and a little punctuation. */
 const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -/'
 
+const OFF_ON = [
+  { value: 0, label: 'Off' },
+  { value: 1, label: 'On' },
+]
+const range = (n: number, label: (i: number) => string) =>
+  Array.from({ length: n }, (_, i) => ({ value: i, label: label(i) }))
+
+/**
+ * Labels transcribed from CHIRP's `baofeng_uv17Pro.py`, which is the driver for
+ * this radio family and is GPL-3.0, so compatible.
+ *
+ * Only the fields `UV5RM_SETTINGS` actually models are offered. The struct maps
+ * 32 named bytes of a 64-byte region; the rest is round-tripped and not shown.
+ */
+export const UV5RMINI_SETTINGS_GROUPS = [
+  {
+    id: 'radio',
+    label: 'Radio',
+    fields: [
+      { key: 'squelch', label: 'Squelch', type: 'int', min: 0, max: 9, icon: 'lucide:volume-2' },
+      { key: 'timeout', label: 'Transmit timeout', type: 'enum', options: [{ value: 0, label: 'Off' }, ...range(12, (i) => `${(i + 1) * 15} sec`).map((o) => ({ value: o.value + 1, label: o.label }))] },
+      { key: 'saveMode', label: 'Battery save', type: 'enum', options: OFF_ON },
+      { key: 'dualStandby', label: 'Dual standby', type: 'enum', options: OFF_ON },
+      { key: 'busyChannelLockout', label: 'Busy channel lockout', type: 'enum', options: OFF_ON },
+      { key: 'fmRadio', label: 'FM radio', type: 'enum', options: OFF_ON },
+      { key: 'bluetooth', label: 'Bluetooth', type: 'enum', options: OFF_ON },
+    ],
+  },
+  {
+    id: 'audio',
+    label: 'Audio',
+    fields: [
+      { key: 'beep', label: 'Key beep', type: 'enum', options: OFF_ON },
+      { key: 'voiceSwitch', label: 'Voice prompts', type: 'enum', options: OFF_ON },
+      { key: 'voice', label: 'Voice language', type: 'enum', options: [{ value: 0, label: 'English' }, { value: 1, label: 'Chinese' }] },
+      {
+        key: 'sideTone',
+        label: 'Side tone',
+        type: 'enum',
+        options: [
+          { value: 0, label: 'Off' },
+          { value: 1, label: 'Keypad' },
+          { value: 2, label: 'ANI' },
+          { value: 3, label: 'Keypad + ANI' },
+        ],
+      },
+      { key: 'roger', label: 'Roger beep', type: 'enum', options: OFF_ON },
+      { key: 'tone', label: 'Pilot tone', type: 'enum', options: [1000, 1450, 1750, 2100].map((hzv, i) => ({ value: i, label: `${hzv} Hz` })) },
+    ],
+  },
+  {
+    id: 'vox',
+    label: 'VOX',
+    fields: [
+      { key: 'vox', label: 'VOX level', type: 'enum', options: [{ value: 0, label: 'Off' }, ...range(9, (i) => `${i + 1}`).map((o) => ({ value: o.value + 1, label: o.label }))], icon: 'lucide:mic' },
+      { key: 'voxDelay', label: 'VOX delay', type: 'enum', options: range(16, (i) => `${500 + i * 100} ms`) },
+    ],
+  },
+  {
+    id: 'display',
+    label: 'Display',
+    fields: [
+      { key: 'backlight', label: 'Backlight', type: 'int', min: 0, max: 10 },
+      { key: 'chADisplayType', label: 'Channel A shows', type: 'enum', options: [{ value: 0, label: 'Name' }, { value: 1, label: 'Frequency' }, { value: 2, label: 'Channel number' }] },
+      { key: 'chBDisplayType', label: 'Channel B shows', type: 'enum', options: [{ value: 0, label: 'Name' }, { value: 1, label: 'Frequency' }, { value: 2, label: 'Channel number' }] },
+      { key: 'powerOnDisplayType', label: 'Power-on screen', type: 'enum', options: [{ value: 0, label: 'Logo' }, { value: 1, label: 'Battery voltage' }] },
+      { key: 'displayAni', label: 'Show ANI', type: 'enum', options: OFF_ON },
+      { key: 'menuQuitTime', label: 'Menu timeout', type: 'int', min: 0, max: 60, help: 'Seconds.' },
+      { key: 'activeVfo', label: 'Active VFO', type: 'enum', options: [{ value: 0, label: 'A' }, { value: 1, label: 'B' }] },
+    ],
+  },
+  {
+    id: 'keys',
+    label: 'Keys and scanning',
+    fields: [
+      { key: 'autoLock', label: 'Automatic keypad lock', type: 'enum', options: OFF_ON },
+      { key: 'keyLock', label: 'Keypad lock', type: 'enum', options: OFF_ON },
+      { key: 'scanMode', label: 'Scan resumes on', type: 'enum', options: [{ value: 0, label: 'Time' }, { value: 1, label: 'Carrier' }, { value: 2, label: 'Search' }] },
+      { key: 'pttId', label: 'PTT ID', type: 'enum', options: [{ value: 0, label: 'Off' }, { value: 1, label: 'Start of transmission' }, { value: 2, label: 'End of transmission' }, { value: 3, label: 'Both' }] },
+      { key: 'pttDelay', label: 'PTT delay', type: 'int', min: 0, max: 30 },
+    ],
+  },
+  {
+    id: 'repeater',
+    label: 'Repeater and alarm',
+    fields: [
+      { key: 'tailClear', label: 'Squelch tail eliminate', type: 'enum', options: OFF_ON },
+      { key: 'repeaterTailClear', label: 'Repeater tail eliminate', type: 'enum', options: range(11, (i) => (i === 0 ? 'Off' : `${i * 100} ms`)) },
+      { key: 'repeaterTailDetect', label: 'Repeater tail detect', type: 'enum', options: OFF_ON },
+      { key: 'alarmMode', label: 'Alarm mode', type: 'enum', options: [{ value: 0, label: 'Local' }, { value: 1, label: 'Send tone' }, { value: 2, label: 'Send code' }] },
+      { key: 'alarmTone', label: 'Alarm tone', type: 'enum', options: OFF_ON },
+    ],
+  },
+] as const satisfies RadioSchema['settings']
+
 export const UV5RMINI_SCHEMA: RadioSchema = {
   id: 'uv5rmini',
   vendor: 'Baofeng',
@@ -115,7 +210,7 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
     { key: 'scode', label: 'PTT ID code', type: 'int', min: 0, max: 15, icon: 'lucide:hash' },
   ],
 
-  settings: [],
+  settings: UV5RMINI_SETTINGS_GROUPS,
 }
 
 export const UV5RMINI_SERIAL = {

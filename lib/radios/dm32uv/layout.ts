@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { ascii, bcdFreqLE, bytes, chirpBits, u8, u16le, u24le } from '../../codec/fields.js'
+import { array, ascii, bcdFreqLE, bits, bytes, chirpBits, u8, u16le, u24le } from '../../codec/fields.js'
 import { at, defineStruct } from '../../codec/struct.js'
 import { ctcss, dtcs, type ToneSpec } from '../../model/tones.js'
 
@@ -306,3 +306,168 @@ export function encodeToneWord(tone: ToneSpec | null): number {
   const low = (ones << 4) | tenths
   return low | (high << 8)
 }
+
+// --------------------------------------------------------------- scan lists --
+
+export const SCANLIST_BLOCK = 0x11
+export const SCANLIST_SIZE = 57
+/**
+ * One byte, not two.
+ *
+ * Offset 0x001 is already the first character of the first name - `S` of
+ * "Scan List 1" on this radio - so a 16-bit read here would swallow it and
+ * report 21,250 scan lists. The same correction the zone count needed.
+ */
+export const SCANLIST_HEADER = 1
+export const SCANLIST_MAX_MEMBERS = 16
+
+export const DM32_SCANLIST = defineStruct(SCANLIST_SIZE, {
+  name: at(0x00, ascii(11, { pad: 0x00, terminators: [0x00, 0xff] })),
+  memberCount: at(0x0b, u8),
+  /** Priority 1 and 2 kinds, a nibble each. 0 = none. */
+  priorityTypes: at(0x0e, u8),
+  priorityChannel1: at(0x0f, u16le),
+  priorityChannel2: at(0x13, u16le),
+  members: at(0x18, array(SCANLIST_MAX_MEMBERS, u16le)),
+})
+
+// ---------------------------------------------------------------- rx groups --
+
+export const RXGROUP_BLOCK = 0x0f
+export const RXGROUP_SIZE = 109
+export const RXGROUP_HEADER = 17
+export const RXGROUP_MAX_MEMBERS = 32
+/** The bitmask is 32 bits wide, which is the only evidence for the slot cap. */
+export const RXGROUP_SLOTS = 32
+
+export const DM32_RXGROUP = defineStruct(RXGROUP_SIZE, {
+  name: at(0x00, ascii(11, { pad: 0x00, terminators: [0x00, 0xff] })),
+  /** 32 slots of 24-bit DMR contact numbers. A slot of 0 is unused. */
+  members: at(0x0b, array(RXGROUP_MAX_MEMBERS, u24le)),
+})
+
+// ---------------------------------------------------------------- radio IDs --
+
+export const RADIOID_BLOCK = 0x67
+export const RADIOID_SIZE = 16
+export const RADIOID_HEADER = 16
+/** The reference implementation's own cap. 254 would physically fit. */
+export const RADIOID_SLOTS = 250
+
+export const DM32_RADIOID = defineStruct(RADIOID_SIZE, {
+  dmrId: at(0x00, u24le),
+  name: at(0x03, ascii(12, { pad: 0x00, terminators: [0x00, 0xff] })),
+})
+
+// ------------------------------------------------- talk group quick index --
+
+/**
+ * Block 0x0B, the radio's own index of which talk-group slots are live and in
+ * what order it lists them.
+ *
+ * Named "Quick Access Contact List" by the reference, which invites the wrong
+ * conclusion: it is not an address book. It holds two sorted index tables into
+ * the talk-group bank - one by name, one by DMR number - plus a bitmask of
+ * which slots are occupied. Decoded here so that a gap in the talk-group bank
+ * is visible rather than silently renumbered; deliberately never written.
+ */
+export const TG_INDEX_BLOCK = 0x0b
+export const TG_INDEX_BITMASK = 0x010
+export const TG_INDEX_TABLE_BY_NAME = 0x100
+export const TG_INDEX_TABLE_BY_NUMBER = 0x740
+export const TG_INDEX_SLOTS = 128
+
+// ----------------------------------------------------------------- settings --
+
+export const SETTINGS_BLOCK = 0x04
+
+/**
+ * Radio settings, block 0x04.
+ *
+ * One flat struct rather than a record array. Only the fields the reference
+ * establishes are modelled; the ~3.8 KiB of the page nobody has named is never
+ * assigned, so it survives a write by never being touched.
+ *
+ * Confidence is not uniform and the driver treats it that way - the schema only
+ * offers the fields below that the reference marks CONFIRMED, plus the handful
+ * of DERIVED ones whose meaning this radio's own bytes corroborate. Fields
+ * modelled but not offered are still round-tripped.
+ */
+export const DM32_SETTINGS = defineStruct(0x600, {
+  powerOnInterface: at(0x00, u8),
+  powerOnLine1: at(0x01, ascii(14, { pad: 0x00, terminators: [0x00] })),
+  powerOnLine2: at(0x0f, ascii(14, { pad: 0x00, terminators: [0x00] })),
+  autoPowerOff: at(0x1e, u8),
+  backlightBrightness: at(0x30, u8),
+  autoBacklightDuration: at(0x31, u8),
+  callsignColour: at(0x34, bits(1, { colour: [0, 4], reserved: [4, 4] })),
+  standbyTextColour: at(0x35, bits(1, { colour: [0, 4], reserved: [4, 4] })),
+  channelAColour: at(0x38, bits(1, { colour: [0, 4], reserved: [4, 4] })),
+  channelBColour: at(0x39, bits(1, { colour: [0, 4], reserved: [4, 4] })),
+  zoneAColour: at(0x3a, bits(1, { colour: [0, 4], reserved: [4, 4] })),
+  zoneBColour: at(0x3b, bits(1, { colour: [0, 4], reserved: [4, 4] })),
+  gpsFlags: at(
+    0x40,
+    bits(1, {
+      gpsSwitch: [0, 1],
+      distanceUnit: [1, 1],
+      gpsMode: [2, 2],
+      speedUnit: [4, 2],
+      gpsDisplayFormat: [6, 1],
+      reserved: [7, 1],
+    }),
+  ),
+  gpsReportInterval: at(0x42, u8),
+  digitalDecodeFlags: at(0x60, bits(1, { privateCallMatch: [0, 1], groupCallMatch: [1, 1], reserved: [2, 6] })),
+  callHoldTime: at(0x61, u8),
+  activeRetriesTime: at(0x63, u8),
+  keyLockFlags: at(0x85, bits(1, { lockKey: [0, 1], knobLock: [1, 1], sideKeyLock: [2, 1], reserved: [3, 5] })),
+  autoKeypadLockDelay: at(0x86, u8),
+  sk1Short: at(0x87, u8),
+  sk1Long: at(0x88, u8),
+  sk2Short: at(0x89, u8),
+  sk2Long: at(0x8a, u8),
+  p1Short: at(0x8d, u8),
+  p1Long: at(0x8e, u8),
+  p2Short: at(0x8f, u8),
+  p2Long: at(0x90, u8),
+  longPressTime: at(0x93, u8),
+  latitude: at(0x306, ascii(9, { pad: 0x00, terminators: [0x00] })),
+  latitudeDirection: at(0x30f, ascii(1, { pad: 0x00, terminators: [] })),
+  longitude: at(0x310, ascii(9, { pad: 0x00, terminators: [0x00] })),
+  longitudeDirection: at(0x319, ascii(1, { pad: 0x00, terminators: [] })),
+})
+
+/**
+ * The colour enum shared by all six colour bytes.
+ *
+ * Values 8-15 are storable in the nibble but the reference names none of them.
+ */
+export const DM32_COLOURS = [
+  'White',
+  'Black',
+  'Orange',
+  'Red',
+  'Yellow',
+  'Green',
+  'Cyan',
+  'Blue',
+] as const
+
+/**
+ * Side and programmable key functions, 0-42.
+ *
+ * Transcribed from the reference's button-function enum. An out-of-range value
+ * is shown as its number rather than replaced, so a firmware that adds one is
+ * visible instead of silently rewritten.
+ */
+export const DM32_KEY_FUNCTIONS = [
+  'None', 'Power Select', 'Battery Voltage', 'Talkaround', 'Digital Encrypt', 'Call', 'VOX',
+  'V/M Switch', 'Alarm', 'One Touch Call 1', 'One Touch Call 2', 'One Touch Call 3',
+  'One Touch Call 4', 'One Touch Call 5', 'Zone Select', 'Scan', 'Monitor', 'Squelch Off',
+  'Backlight', 'Keypad Lock', 'FM Radio', 'Contacts', 'Messages', 'Roaming', 'GPS',
+  'Emergency On', 'Emergency Off', 'Record', 'Record Playback', 'Repeater Mode',
+  'Priority Zone', 'Radio Check', 'Radio Enable', 'Radio Disable', 'Remote Monitor',
+  'Call Alert', 'Man Down', 'Lone Worker', 'Privacy', 'Slot Switch', 'Colour Code',
+  'Channel Up', 'Channel Down',
+] as const
