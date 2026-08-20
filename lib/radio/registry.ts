@@ -2,7 +2,6 @@
 import type { RadioId } from '../model/codeplug.js'
 import { createDm32uvDriver } from '../radios/dm32uv/driver.js'
 import { createUv82Driver } from '../radios/uv82/driver.js'
-import { UV82_SCHEMA } from '../radios/uv82/schema.js'
 import { createUv5rMiniDriver } from '../radios/uv5rmini/driver.js'
 import { createUvk5Driver } from '../radios/uvk5/driver.js'
 import type { RadioDriver } from './driver.js'
@@ -24,9 +23,11 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // docs/protocols/uvk5.md for exactly which parts have been exercised against
   // hardware and which have not.
   uvk5: () => createUvk5Driver({ enableWrite: true }),
-  // Read and decode are verified against a real radio; writing is not
-  // implemented yet, following the same order the UV-K5 was brought up in.
-  uv82: createUv82Driver,
+  // Writing is enabled and deliberately narrow: only the channel records and
+  // the name table, sent as the 16-byte blocks that differ from the image the
+  // radio was read from. The two windows CHIRP has always skipped fall outside
+  // both, so a diff-driven write cannot reach them. See docs/protocols/uv82.md.
+  uv82: () => createUv82Driver({ enableWrite: true }),
   // Writing is enabled, and deliberately narrow: only the encryption key slots
   // in logical block 0x10. This radio's pages move between sessions and 22 of
   // its 59 allocated blocks have no documented meaning, so every other byte is
@@ -41,7 +42,7 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
 export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
   // The schema the UI renders must match what the driver enforces.
   uvk5: createUvk5Driver({ enableWrite: true }).schema,
-  uv82: UV82_SCHEMA,
+  uv82: createUv82Driver({ enableWrite: true }).schema,
   dm32uv: createDm32uvDriver({ enableWrite: true }).schema,
   uv5rmini: UV5RMINI_SCHEMA,
 }

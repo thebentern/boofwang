@@ -407,15 +407,8 @@ function stage() {
           <span class="label-xs" style="letter-spacing: 0.07em">Library</span>
         </div>
 
-        <div v-for="group in setsByGroup" :key="group.id">
+        <div v-for="group in setsByGroup.filter((g) => g.items.length > 0)" :key="group.id">
           <div class="label-xs" style="padding: 8px 12px 4px; font-weight: 400">{{ group.label }}</div>
-
-          <p
-            v-if="group.items.length === 0"
-            style="margin: 0; padding: 0 12px 8px; font-size: 11px; line-height: 1.45; color: var(--fn)"
-          >
-            Nothing saved yet. Saving a set from the channel table is not built.
-          </p>
 
           <button
             v-for="set in group.items"
@@ -451,29 +444,6 @@ function stage() {
           </button>
         </div>
 
-        <div style="border-top: 1px solid var(--ln); padding: 9px 12px" class="grid gap-1.5">
-          <button
-            type="button"
-            disabled
-            class="flex items-center gap-[7px] text-left disabled:cursor-not-allowed"
-            style="font-size: 11.5px; color: var(--fn)"
-          >
-            <UIcon name="i-lucide-external-link" style="width: 12px; height: 12px" />
-            Import from RepeaterBook…
-          </button>
-          <button
-            type="button"
-            disabled
-            class="flex items-center gap-[7px] text-left disabled:cursor-not-allowed"
-            style="font-size: 11.5px; color: var(--fn)"
-          >
-            <UIcon name="i-lucide-file-down" style="width: 12px; height: 12px" />
-            Open a shared preset…
-          </button>
-          <span style="font-size: 11px; line-height: 1.45; color: var(--fn)">
-            Neither route is built yet.
-          </span>
-        </div>
       </div>
 
       <!-- Contents -->

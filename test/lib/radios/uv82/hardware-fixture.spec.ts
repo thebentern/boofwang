@@ -227,8 +227,16 @@ describe('what the driver claims to own', () => {
 })
 
 describe('writing', () => {
-  it('is not implemented, and says so', async () => {
-    expect(() => driver.encode(driver.decode(image()), image())).toThrow(/not supported|UV-82/)
+  it('encodes even when the driver cannot write', () => {
+    // Encoding is needed for the diff and for saving a file, both of which are
+    // useful on a build that will not send anything. The refusal belongs on
+    // writeImage, which is the only thing that reaches a radio.
+    expect(() => driver.encode(driver.decode(image()), image())).not.toThrow()
+  })
+
+  it('stays disabled unless the build asks for it', () => {
+    // The registry turns writing on. A driver built for a test or a file import
+    // cannot reach a radio at all.
     expect(driver.schema.capabilities.write).toBe(false)
   })
 })

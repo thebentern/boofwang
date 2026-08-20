@@ -34,10 +34,10 @@ type ChipTone = 'ok' | 'cn' | 'dg' | 'neutral'
  */
 function statusOf(id: RadioId, schema: RadioSchema | null): { tone: ChipTone; icon: string; label: string } {
   if (!schema || !isImplemented(id)) {
-    return { tone: 'dg', icon: 'i-lucide-triangle-alert', label: 'Untested on hardware' }
+    return { tone: 'neutral', icon: 'i-lucide-circle-minus', label: 'Not supported yet' }
   }
   if (schema.status === 'planned' || !schema.capabilities.read) {
-    return { tone: 'dg', icon: 'i-lucide-triangle-alert', label: 'Untested on hardware' }
+    return { tone: 'neutral', icon: 'i-lucide-circle-minus', label: 'Not supported yet' }
   }
   const scope = schema.capabilities.writeScope
   if (schema.capabilities.write && scope) {

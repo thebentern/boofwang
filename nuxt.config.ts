@@ -116,8 +116,28 @@ export default defineNuxtConfig({
         {
           name: 'description',
           content:
-            'Browser-based codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-5R Mini and Baofeng DM-32UV. Runs entirely in your browser over Web Serial.',
+            'Browser-based codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-82, Baofeng UV-5R Mini and Baofeng DM-32UV. Runs entirely in your browser over Web Serial.',
         },
+        // Tints the browser chrome on mobile to match the app's own surface.
+        { name: 'theme-color', content: '#101315', media: '(prefers-color-scheme: dark)' },
+        { name: 'theme-color', content: '#f7f8f8', media: '(prefers-color-scheme: light)' },
+      ],
+      /*
+       * Icons are served from the site root.
+       *
+       * Nuxt does not prefix head hrefs with `app.baseURL`, so these are only
+       * correct while the site is served from the root of its own domain -
+       * which the CNAME and the pinned NUXT_APP_BASE_URL together guarantee.
+       * A build for a repository subpath would need these prefixed too.
+       *
+       * The SVG carries both themes and is what modern browsers use; the .ico
+       * is a three-size fallback and is also what gets requested at /favicon.ico
+       * whether or not it is declared.
+       */
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'icon', type: 'image/x-icon', sizes: '16x16 32x32 48x48', href: '/favicon.ico' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
       ],
     },
   },

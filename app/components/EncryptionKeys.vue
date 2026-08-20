@@ -110,21 +110,15 @@ const keyProblem = computed(() => {
   return resolution.value.ok ? null : resolution.value.error
 })
 
-/**
- * Every type except AES-256 is unverified against hardware.
+/*
+ * A note for whoever maintains this, not for the screen.
  *
- * Only AES-256 has been round-tripped, because that is what all 22 slots on the
- * radio this was developed against hold. The specification says a short key
- * sits at one end of the 32-byte field and a full one at the other - and it was
- * demonstrably wrong about AES-256, which occupies the whole field from +0x0C.
- * There is no reason to extend it more credit for the rest, and a mis-placed
- * key produces a slot that looks programmed and cannot decrypt. Say so rather
- * than implying equal confidence.
+ * Only AES-256 has been round-tripped against a radio; the specification's
+ * placement rules for the shorter types were demonstrably wrong about AES-256,
+ * so they are not trusted for the rest either. If a short key turns out to be
+ * mis-placed that is a bug to fix in the layout, not a disclaimer to show
+ * someone who is trying to enter a key.
  */
-const shortTypeUnverified = computed(() => draftType.value !== 'aes256')
-
-/** "an AES-128 key", "a Custom key" — the labels are read aloud, so the article has to match. */
-const draftArticle = computed(() => ('AEIOU'.includes(KEY_TYPE_LABELS[draftType.value][0]!) ? 'an' : 'a'))
 
 function save() {
   const decided = resolution.value
@@ -251,11 +245,6 @@ const INPUT_STYLE =
               : { fontWeight: 400, color: 'var(--fn)' }"
           >{{ row.key ? row.key.name || '(unnamed)' : 'Empty' }}</span>
 
-          <!--
-            AES-256 is the only type that has been round-tripped against a
-            radio, so it is the only one that gets a neutral chip. The rest
-            carry the caution colour wherever they appear.
-          -->
           <span
             v-if="row.key"
             class="chip shrink-0"
@@ -355,15 +344,6 @@ const INPUT_STYLE =
             </label>
           </div>
 
-          <p
-            v-if="shortTypeUnverified"
-            style="font-size: 11.5px; line-height: 1.55; color: var(--cn); max-width: 78ch; margin-bottom: 11px"
-          >
-            Where {{ draftArticle }} {{ KEY_TYPE_LABELS[draftType] }} key sits inside the 32-byte field has not
-            been confirmed against hardware — only AES-256 has. If the radio will not decrypt with it, that is
-            the first thing to suspect.
-          </p>
-
           <label class="grid gap-1.5" style="margin-bottom: 11px">
             <span class="flex items-baseline gap-2 flex-wrap">
               <span class="label-xs">Key — {{ KEY_BYTES[draftType] * 2 }} hex characters</span>
@@ -403,12 +383,6 @@ const INPUT_STYLE =
     <p style="font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 78ch; margin-top: 11px">
       Keys are held in this browser and written into any codeplug file you save. Anyone with access to that
       file or this browser profile can read them. boofwang has no server and sends them nowhere.
-    </p>
-    <p style="font-size: 11.5px; line-height: 1.6; color: var(--fn); max-width: 78ch; margin-top: 6px">
-      <strong style="color: var(--cn); font-weight: 600">Only AES-256 has been round-tripped against
-        hardware.</strong>
-      Where a shorter key sits inside the 32-byte field is unconfirmed, and a mis-placed key produces a slot
-      that looks programmed and cannot decrypt.
     </p>
   </div>
 </template>

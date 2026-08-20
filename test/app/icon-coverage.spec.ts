@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -46,12 +46,20 @@ describe('icon bundle coverage', () => {
   it('every i-lucide-* used in a template exists too', () => {
     // Statically written names are found by the scanner, but a typo still
     // renders blank, so they are worth checking all the same.
-    const sources = ['app/pages/index.vue', 'app/pages/about.vue', 'app/layouts/default.vue', 'app/components/RadioCard.vue', 'app/components/SerialSupportNotice.vue']
+    // Every template under app/, found rather than listed. The list this
+    // replaced named five files and went stale the moment one was deleted,
+    // which is the wrong way round for a test whose job is catching drift.
     const used = new Set<string>()
-    for (const rel of sources) {
-      const src = readFileSync(join(root, rel), 'utf8')
-      for (const m of src.matchAll(/i-lucide-([a-z0-9-]+)/g)) used.add(m[1]!)
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) walk(full)
+        else if (entry.name.endsWith('.vue')) {
+          for (const m of readFileSync(full, 'utf8').matchAll(/i-lucide-([a-z0-9-]+)/g)) used.add(m[1]!)
+        }
+      }
     }
+    walk(join(root, 'app'))
     expect(used.size).toBeGreaterThan(5)
     const missing = [...used].filter((k) => !(k in lucide.icons) && !(lucide.aliases && k in lucide.aliases))
     expect(missing, `unknown lucide icons referenced in templates: ${missing.join(', ')}`).toEqual([])

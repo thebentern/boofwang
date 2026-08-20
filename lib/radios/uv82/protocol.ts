@@ -183,3 +183,71 @@ export async function readFirmware(t: Transport, opts?: ReadOpts): Promise<Firmw
 
   return { version, droppedByte: block2[15] === 0xff }
 }
+
+/**
+ * The unit a write is sent in.
+ *
+ * Reads come back in 0x40 blocks but writes go out in 0x10 ones - CHIRP's
+ * `_send_block` is called with `mmap[i:i+0x10]`, and the radio does not accept
+ * a larger frame. Getting this wrong looks like a radio that refuses the first
+ * block for no reason.
+ */
+export const WRITE_BLOCK_SIZE = 0x10
+
+/**
+ * Image offsets that must never be sent, even though they sit inside the main
+ * block.
+ *
+ * CHIRP skips these two sixteen-byte windows on every upload and has done for
+ * years. Nothing documents what lives there, which is exactly why they are left
+ * alone: the cost of writing them is unknown and the benefit is zero, because
+ * boofwang does not model anything in that part of memory.
+ *
+ * They fall outside both ranges this driver claims to own, so a diff-driven
+ * write cannot reach them anyway. They are declared so that stays true by
+ * construction rather than by coincidence.
+ */
+export const NEVER_WRITE: readonly (readonly [number, number])[] = [
+  [0x0cf8, 0x0d08],
+  [0x0df8, 0x0e08],
+]
+
+/**
+ * Send one block and wait for the radio to accept it.
+ *
+ * `addr` is the **radio** address, which is the image offset less the eight
+ * ident bytes that prefix the image but do not exist on the radio. Confusing
+ * the two writes every block one notch off and is not recoverable by reading
+ * back, because the read would be shifted the same way.
+ */
+export async function writeBlock(
+  t: Transport,
+  addr: number,
+  data: Uint8Array,
+  opts?: ReadOpts,
+): Promise<void> {
+  if (data.length !== WRITE_BLOCK_SIZE) {
+    throw new ProtocolError(
+      `A UV-82 write block is ${WRITE_BLOCK_SIZE} bytes`,
+      String(WRITE_BLOCK_SIZE),
+      String(data.length),
+    )
+  }
+
+  const frame = new Uint8Array(4 + data.length)
+  frame[0] = 0x58 // 'X'
+  frame[1] = (addr >> 8) & 0xff
+  frame[2] = addr & 0xff
+  frame[3] = data.length
+  frame.set(data, 4)
+
+  await t.write(frame, opts)
+  const ack = await t.readExactly(1, opts)
+  if (ack[0] !== ACK) {
+    throw new ProtocolError(
+      `The radio refused the block at 0x${addr.toString(16).padStart(4, '0')}`,
+      '06',
+      hexDump(ack),
+    )
+  }
+}
