@@ -67,6 +67,16 @@ export interface RadioSchema {
     readonly write: boolean
     /** Non-empty when writing needs an explicit per-feature unlock. */
     readonly writeRequiresUnlock?: string
+    /**
+     * What a write can actually reach, in the user's words, when it is not
+     * the whole codeplug.
+     *
+     * The DM-32UV writes only its encryption key slots today. Without saying
+     * so, editing a channel on that radio looks like it worked - the table
+     * updates, the write button lights up - and the write then reports
+     * "nothing has changed", which is both false and unhelpful.
+     */
+    readonly writeScope?: string
   }
 
   readonly memory: {

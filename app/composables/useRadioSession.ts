@@ -132,6 +132,7 @@ export function useRadioSession() {
       encodeError: codeplug.encodeError,
       changedBytes: codeplug.pendingWrite?.changedBytes ?? 0,
       unownedRanges: codeplug.pendingWrite?.unowned ?? [],
+      documentDirty: codeplug.dirty,
     })
     if (!gate.allowed) {
       toast.add({

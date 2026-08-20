@@ -25,6 +25,7 @@ const ok = (over: Partial<GateInput> = {}): GateInput => ({
   encodeError: null,
   changedBytes: 128,
   unownedRanges: [],
+  documentDirty: true,
   ...over,
 })
 
@@ -90,7 +91,9 @@ describe('evaluateWriteGate', () => {
   })
 
   it('refuses a no-op write', () => {
-    expect(codes(ok({ changedBytes: 0 }))).toContain('nothing-to-write')
+    // Explicitly not dirty: an unedited document is the "nothing has changed"
+    // case. A dirty one that encodes to nothing is a different message.
+    expect(codes(ok({ changedBytes: 0, documentDirty: false }))).toContain('nothing-to-write')
   })
 
   it('does not treat "not connected yet" as a problem', () => {
@@ -125,5 +128,45 @@ describe('a codeplug from different firmware', () => {
   it('says nothing when no radio is connected to compare against', () => {
     const r = evaluateWriteGate(ok({ ident: null, imageVariant: '9.99.99' }))
     expect(r.warnings.map((w) => w.code)).not.toContain('variant-differs')
+  })
+})
+
+describe('edits that this radio cannot write', () => {
+  // A DM-32UV writes only its key slots today. Renaming a channel there updates
+  // the table and enables the write button, then encodes to nothing - and the
+  // gate used to explain that as "nothing has changed", which is false and
+  // sends the user looking for a bug in their own edit.
+  const SCOPED = {
+    ...WRITABLE_SCHEMA,
+    model: 'DM-32UV',
+    capabilities: { read: true, write: true, writeScope: 'encryption key slots' },
+  }
+
+  it('says what can be written, rather than claiming nothing changed', () => {
+    const r = evaluateWriteGate(ok({ schema: SCOPED, changedBytes: 0, documentDirty: true }))
+    expect(r.allowed).toBe(false)
+    expect(codes(ok({ schema: SCOPED, changedBytes: 0, documentDirty: true }))).toContain('edits-not-writable')
+    const b = r.blockers.find((x) => x.code === 'edits-not-writable')!
+    expect(b.message).toContain('encryption key slots')
+    expect(b.message).not.toMatch(/Nothing has changed/)
+    expect(b.remedy).toContain('encryption key slots')
+  })
+
+  it('still says "nothing has changed" when nothing has', () => {
+    const r = evaluateWriteGate(ok({ schema: SCOPED, changedBytes: 0, documentDirty: false }))
+    expect(codes(ok({ schema: SCOPED, changedBytes: 0, documentDirty: false }))).toContain('nothing-to-write')
+    expect(r.blockers.find((b) => b.code === 'nothing-to-write')!.message).toMatch(/Nothing has changed/)
+  })
+
+  it('asks for a report when a dirty document encodes to nothing on a whole-codeplug radio', () => {
+    // No writeScope means the radio should have been able to store the edit,
+    // so encoding it to nothing is a defect rather than a limitation.
+    const r = evaluateWriteGate(ok({ changedBytes: 0, documentDirty: true }))
+    const b = r.blockers.find((x) => x.code === 'edits-not-writable')!
+    expect(b.remedy).toMatch(/report/i)
+  })
+
+  it('does not fire when there are bytes to send', () => {
+    expect(codes(ok({ schema: SCOPED, changedBytes: 9, documentDirty: true }))).not.toContain('edits-not-writable')
   })
 })

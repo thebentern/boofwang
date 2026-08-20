@@ -49,6 +49,7 @@ const gate = computed(() =>
     encodeError: codeplug.encodeError,
     changedBytes: codeplug.pendingWrite?.changedBytes ?? 0,
     unownedRanges: codeplug.pendingWrite?.unowned ?? [],
+    documentDirty: codeplug.dirty,
   }),
 )
 

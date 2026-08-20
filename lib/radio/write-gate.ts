@@ -17,6 +17,7 @@ export type BlockerCode =
   | 'backup-other-radio'
   | 'not-connected'
   | 'nothing-to-write'
+  | 'edits-not-writable'
   | 'write-unsupported'
   | 'firmware-unknown'
   | 'image-radio-mismatch'
@@ -64,6 +65,15 @@ export interface GateInput {
   encodeError: string | null
   changedBytes: number
   unownedRanges: readonly (readonly [number, number])[]
+  /**
+   * Whether the document has been edited since it was read or opened.
+   *
+   * Distinguishes "you have changed nothing" from "you have changed something
+   * this radio cannot write". Both encode to zero changed bytes, and telling
+   * someone who just renamed a channel that nothing has changed is worse than
+   * saying nothing at all.
+   */
+  documentDirty: boolean
 }
 
 export interface GateResult {
@@ -157,10 +167,27 @@ export function evaluateWriteGate(input: GateInput): GateResult {
   }
 
   if (input.changedBytes === 0) {
-    blockers.push({
-      code: 'nothing-to-write',
-      message: 'Nothing has changed, so there is nothing to write.',
-    })
+    const scope = input.schema.capabilities.writeScope
+    if (input.documentDirty && scope) {
+      blockers.push({
+        code: 'edits-not-writable',
+        message:
+          `Your edits cannot be sent to the ${input.schema.model}: this build writes only its ${scope}, ` +
+          'and nothing you have changed falls inside that.',
+        remedy: `Edit the ${scope} instead, or export the codeplug to a file to keep the changes.`,
+      })
+    } else if (input.documentDirty) {
+      blockers.push({
+        code: 'edits-not-writable',
+        message: `Your edits encode to no change on the ${input.schema.model}, so there is nothing to send.`,
+        remedy: 'This may mean the change is not one this build knows how to store. Please report it.',
+      })
+    } else {
+      blockers.push({
+        code: 'nothing-to-write',
+        message: 'Nothing has changed, so there is nothing to write.',
+      })
+    }
   }
 
   for (const d of input.diagnostics) {

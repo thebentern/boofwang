@@ -81,7 +81,15 @@ export interface Dm32uvDriverOptions {
 
 export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriver {
   const schema: RadioSchema = options.enableWrite
-    ? { ...DM32UV_SCHEMA, status: 'beta', capabilities: { ...DM32UV_SCHEMA.capabilities, write: true } }
+    ? {
+        ...DM32UV_SCHEMA,
+        status: 'beta',
+        capabilities: {
+          ...DM32UV_SCHEMA.capabilities,
+          write: true,
+          writeScope: 'encryption key slots',
+        },
+      }
     : DM32UV_SCHEMA
 
   const driver: RadioDriver = {
