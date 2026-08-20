@@ -183,12 +183,6 @@ const credits = [
           Contribute a driver
         </a>
 
-        <!--
-          This buymeacoffee URL was inferred from the GitHub handle in the design
-          handoff, not confirmed against a real account. Verify it resolves to the
-          maintainer's page before this ships - an advertised donation link that
-          lands on someone else's profile is worse than no link at all.
-        -->
         <a
           href="https://buymeacoffee.com/thebentern"
           target="_blank"
