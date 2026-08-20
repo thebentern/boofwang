@@ -742,13 +742,14 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         firstChannels[1] = (wanted >> 8) & 0xff
       }
 
-      // The bank size bounds every membership list: a zone or scan list may
-      // only point at a channel that exists.
-      const channelCount = firstChannels ? (firstChannels[0]! | (firstChannels[1]! << 8)) : 0
+      // Every membership list may only point at a channel that is actually
+      // there. Taken from the document rather than from the count, so a slot
+      // inside the count that holds no channel is excluded too.
+      const live: ReadonlySet<number> = new Set(doc.channels.keys())
 
-      encodeZones(out, doc.zones, channelCount)
+      encodeZones(out, doc.zones, live)
       encodeTalkGroups(out, doc.talkGroups)
-      encodeScanLists(out, doc.scanLists, channelCount)
+      encodeScanLists(out, doc.scanLists, live)
       encodeRxGroups(out, doc.rxGroups)
       encodeRadioIds(out, doc.radioIds)
       encodeSettings(out, doc.settings)
@@ -1100,7 +1101,7 @@ function decodesToKey(block: Uint8Array, off: number): boolean {
  *   the one case still unproven is an in-count entry pointing at a blank record
  *   and the writer can simply never create one.
  */
-export function encodeZones(image: RadioImage, zones: Codeplug['zones'], channelCount = 0): void {
+export function encodeZones(image: RadioImage, zones: Codeplug['zones'], live?: ReadonlySet<number>): void {
   const first = blockData(image, ZONE_BLOCK_FIRST)
   if (!first) return
   const total = first[0]!
@@ -1126,13 +1127,15 @@ export function encodeZones(image: RadioImage, zones: Codeplug['zones'], channel
       docIndex++
       if (!zone) continue
 
-      // Drop anything the radio could not resolve. `channelCount` of 0 means
-      // the caller did not supply the bank size, in which case membership is
-      // left alone rather than guessed at.
-      if (channelCount > 0) {
-        const members = zone.channels
-          .filter((c) => Number.isInteger(c) && c >= 1 && c <= channelCount)
-          .slice(0, ZONE_MAX_CHANNELS)
+      // Drop anything the radio could not resolve. No set means the caller did
+      // not supply the channel bank, in which case membership is left alone
+      // rather than guessed at.
+      //
+      // The test is "is there a channel there", not "is the number in range".
+      // A number inside the bank count whose record is blank is the one case
+      // this radio could not settle, and the writer can simply never create it.
+      if (live) {
+        const members = zone.channels.filter((c) => live.has(c)).slice(0, ZONE_MAX_CHANNELS)
         const entries = rec.channels.slice()
         for (let i = 0; i < members.length; i++) {
           entries[i * 2] = members[i]! & 0xff
@@ -1420,7 +1423,7 @@ export function decodeTalkGroupIndex(image: RadioImage): { live: number[]; byNam
  * data before metadata: a write interrupted midway then leaves the old, shorter,
  * still-valid count rather than one pointing into half-written slots.
  */
-export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists'], channelCount: number): void {
+export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists'], live: ReadonlySet<number>): void {
   const data = blockData(image, SCANLIST_BLOCK)
   if (!data) return
   const was = data[0]!
@@ -1440,7 +1443,7 @@ export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists'],
       continue
     }
 
-    const members = list.channels.filter((c) => c >= 1 && c <= channelCount).slice(0, SCANLIST_MAX_MEMBERS)
+    const members = list.channels.filter((c) => live.has(c)).slice(0, SCANLIST_MAX_MEMBERS)
     const padded = [...members, ...new Array<number>(SCANLIST_MAX_MEMBERS - members.length).fill(0)]
     DM32_SCANLIST.write(data, off, {
       name: list.name,

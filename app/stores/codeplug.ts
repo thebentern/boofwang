@@ -24,6 +24,10 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   const channels = shallowRef<readonly Channel[]>([])
   const zones = shallowRef<readonly Codeplug['zones'][number][]>([])
   const talkGroups = shallowRef<readonly Codeplug['talkGroups'][number][]>([])
+  const scanLists = shallowRef<readonly Codeplug['scanLists'][number][]>([])
+  const rxGroups = shallowRef<readonly Codeplug['rxGroups'][number][]>([])
+  const radioIds = shallowRef<readonly Codeplug['radioIds'][number][]>([])
+  const settings = shallowRef<Readonly<Record<string, unknown>>>({})
   const diagnostics = shallowRef<readonly Diagnostic[]>([])
   const revision = ref(0)
   const dirty = ref(false)
@@ -49,6 +53,10 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     channels.value = Object.freeze(sortedChannels(decoded).map((c) => Object.freeze(c)))
     zones.value = Object.freeze(decoded.zones.map((z) => Object.freeze(z)))
     talkGroups.value = Object.freeze(decoded.talkGroups.map((g) => Object.freeze(g)))
+    scanLists.value = Object.freeze(decoded.scanLists.map((l) => Object.freeze(l)))
+    rxGroups.value = Object.freeze(decoded.rxGroups.map((g) => Object.freeze(g)))
+    radioIds.value = Object.freeze(decoded.radioIds.map((r) => Object.freeze(r)))
+    settings.value = Object.freeze({ ...decoded.settings })
     diagnostics.value = Object.freeze(driver.validate(decoded))
     revision.value++
     dirty.value = false
@@ -62,6 +70,10 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     channels.value = []
     zones.value = []
     talkGroups.value = []
+    scanLists.value = []
+    rxGroups.value = []
+    radioIds.value = []
+    settings.value = {}
     diagnostics.value = []
     dirty.value = false
     revision.value++
@@ -196,12 +208,138 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     dirty.value = true
   }
 
-  function deleteChannel(index: number) {
-    if (!doc.value?.channels.delete(index)) return
-    channels.value = Object.freeze(channels.value.filter((c) => c.index !== index))
+  /**
+   * Re-publish one list after mutating the document behind it.
+   *
+   * The document holds plain arrays that the driver encodes from; the store
+   * holds frozen copies that Vue renders from. Every mutation below changes the
+   * first and then republishes the second, so a component never sees a
+   * half-updated list and `:key` identity changes for exactly the rows that
+   * moved.
+   */
+  function republish() {
+    const cp = doc.value
+    if (!cp) return
+    zones.value = Object.freeze(cp.zones.map((z) => Object.freeze(z)))
+    talkGroups.value = Object.freeze(cp.talkGroups.map((g) => Object.freeze(g)))
+    scanLists.value = Object.freeze(cp.scanLists.map((l) => Object.freeze(l)))
+    rxGroups.value = Object.freeze(cp.rxGroups.map((g) => Object.freeze(g)))
+    radioIds.value = Object.freeze(cp.radioIds.map((r) => Object.freeze(r)))
+    settings.value = Object.freeze({ ...cp.settings })
     revalidate()
     revision.value++
     dirty.value = true
+  }
+
+  /**
+   * Only the channels that are actually there.
+   *
+   * The encoder drops a member it cannot resolve, so keeping one in the
+   * document would show a list the radio will not receive - "3 channels:
+   * 1-2, 9999" for a write that stores two.
+   */
+  function liveChannels(cp: Codeplug, wanted: number[]): number[] {
+    return wanted.filter((c) => cp.channels.has(c))
+  }
+
+  /** Replace which channels a zone contains. Numbers are absolute channel slots. */
+  function setZoneChannels(id: string, channels: number[]) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.zones.findIndex((z) => z.id === id)
+    if (i < 0) return
+    cp.zones[i] = { ...cp.zones[i]!, channels: liveChannels(cp, channels) }
+    republish()
+  }
+
+  function renameScanList(id: string, name: string) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.scanLists.findIndex((l) => l.id === id)
+    if (i < 0 || cp.scanLists[i]!.name === name) return
+    cp.scanLists[i] = { ...cp.scanLists[i]!, name }
+    republish()
+  }
+
+  function setScanListChannels(id: string, channels: number[]) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.scanLists.findIndex((l) => l.id === id)
+    if (i < 0) return
+    cp.scanLists[i] = { ...cp.scanLists[i]!, channels: liveChannels(cp, channels) }
+    republish()
+  }
+
+  function renameRxGroup(id: string, name: string) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.rxGroups.findIndex((g) => g.id === id)
+    if (i < 0 || cp.rxGroups[i]!.name === name) return
+    cp.rxGroups[i] = { ...cp.rxGroups[i]!, name }
+    republish()
+  }
+
+  function setRxGroupIds(id: string, dmrIds: number[]) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.rxGroups.findIndex((g) => g.id === id)
+    if (i < 0) return
+    cp.rxGroups[i] = { ...cp.rxGroups[i]!, dmrIds: [...dmrIds] }
+    republish()
+  }
+
+  function updateRadioId(id: string, patch: { name?: string; dmrId?: number }) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.radioIds.findIndex((r) => r.id === id)
+    if (i < 0) return
+    cp.radioIds[i] = { ...cp.radioIds[i]!, ...patch }
+    republish()
+  }
+
+  function addRadioId() {
+    const cp = doc.value
+    if (!cp) return
+    cp.radioIds.push({ id: `rid-new-${cp.radioIds.length + 1}`, name: '', dmrId: 0 })
+    republish()
+  }
+
+  function removeRadioId(id: string) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.radioIds.findIndex((r) => r.id === id)
+    if (i < 0) return
+    cp.radioIds.splice(i, 1)
+    republish()
+  }
+
+  /** Change one radio setting. The key is the one the schema's FieldSpec names. */
+  function setSetting(key: string, value: unknown) {
+    const cp = doc.value
+    if (!cp || cp.settings[key] === value) return
+    cp.settings[key] = value
+    republish()
+  }
+
+  function deleteChannel(index: number) {
+    const cp = doc.value
+    if (!cp?.channels.delete(index)) return
+    channels.value = Object.freeze(channels.value.filter((c) => c.index !== index))
+
+    // Take it out of everything that points at it, in the same edit.
+    //
+    // Channel numbers are absolute and deleting one deliberately does not
+    // renumber the rest, so every other membership entry stays valid. But a
+    // zone still pointing at the emptied slot is the one case this radio's
+    // bytes could not settle, and the cheapest way to never rely on the answer
+    // is to never create it.
+    cp.zones = cp.zones.map((z) =>
+      z.channels.includes(index) ? { ...z, channels: z.channels.filter((c) => c !== index) } : z,
+    )
+    cp.scanLists = cp.scanLists.map((l) =>
+      l.channels.includes(index) ? { ...l, channels: l.channels.filter((c) => c !== index) } : l,
+    )
+    republish()
   }
 
   function revalidate() {
@@ -288,12 +426,25 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     deleteChannel,
     renameZone,
     renameTalkGroup,
+    setZoneChannels,
+    renameScanList,
+    setScanListChannels,
+    renameRxGroup,
+    setRxGroupIds,
+    updateRadioId,
+    addRadioId,
+    removeRadioId,
+    setSetting,
     setEncryptionKey,
     removeEncryptionKey,
     revalidate,
     channels,
     zones,
     talkGroups,
+    scanLists,
+    rxGroups,
+    radioIds,
+    settings,
     diagnostics,
     diagnosticsByChannel,
     revision,

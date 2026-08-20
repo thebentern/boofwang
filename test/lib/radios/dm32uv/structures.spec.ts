@@ -349,3 +349,32 @@ describe('everything together', () => {
     expect(diffImages(img, d.encode(doc, img), d).unowned).toEqual([])
   })
 })
+
+describe('membership follows the channel bank', () => {
+  it('drops a zone member whose slot holds no channel, not merely one out of range', () => {
+    // The bank count is 45 here, so 44 is "in range". If nothing is programmed
+    // there it is still not a channel, and pointing a zone at it is the one
+    // case this radio's own bytes could not settle.
+    const img = image()
+    const doc = d.decode(img)
+    const missing = [...Array(45).keys()].map((n) => n + 1).find((n) => !doc.channels.has(n))
+    doc.zones[0] = { ...doc.zones[0]!, channels: missing ? [1, missing, 2] : [1, 2] }
+    const back = d.decode(d.encode(doc, img)).zones[0]!.channels
+    expect(back).toEqual([1, 2])
+  })
+
+  it('drops a scan list member the same way', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.scanLists[0] = { ...doc.scanLists[0]!, channels: [1, 4000, 2] }
+    expect(d.decode(d.encode(doc, img)).scanLists[0]!.channels).toEqual([1, 2])
+  })
+
+  it('keeps every member that does resolve', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const all = [...doc.channels.keys()].slice(0, 10)
+    doc.zones[1] = { ...doc.zones[1]!, channels: all }
+    expect(d.decode(d.encode(doc, img)).zones[1]!.channels).toEqual(all)
+  })
+})
