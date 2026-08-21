@@ -3,6 +3,7 @@ import type { Channel, TxSpec } from '../model/channel.js'
 import type { TonePair } from '../model/tones.js'
 import { NO_TONE, ctcss } from '../model/tones.js'
 import { kHz, mHz, mW, watts, type Hz, type Milliwatts } from '../model/units.js'
+import { clampChannel, type ClampChange, type ClampRefusal } from '../radio/translate.js'
 import { clampPower, type RadioSchema } from '../radio/schema.js'
 
 /**
@@ -360,5 +361,34 @@ export function presetToChannel(
     comment: '',
     extras: {},
     provenance: { sourceId: set.id, attribution: set.attribution, importedAt },
+  }
+}
+
+/**
+ * A preset placed onto a particular radio, run through the shared clamp pipeline.
+ *
+ * `presetToChannel` clamps power and name length, which is what it needed when
+ * the only presets were FRS and NOAA and every radio could hold them. It does
+ * not check bands, and staging a preset the radio cannot receive is not a
+ * clamp, it is a channel that does nothing. Nor does it snap bandwidth or
+ * filter tones against the target's tables.
+ *
+ * Returns null when the pipeline refuses the row, so the caller can leave it
+ * out and say so rather than programming a slot with something unusable.
+ */
+export function presetToClampedChannel(
+  source: PresetChannel,
+  set: PresetSet,
+  index: number,
+  schema: RadioSchema,
+  importedAt: string,
+): { channel: Channel | null; changes: readonly ClampChange[]; refusal: ClampRefusal | null } {
+  const base = presetToChannel(source, set, index, schema, importedAt)
+  const clamped = clampChannel(base, schema)
+  return {
+    // The slot is the caller's decision, not the pipeline's.
+    channel: clamped.channel === null ? null : { ...clamped.channel, index },
+    changes: clamped.changes,
+    refusal: clamped.refusal,
   }
 }

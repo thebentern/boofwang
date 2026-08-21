@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
-import { PRESET_SETS, presetToChannel } from '#core/io/preset-data.js'
+import { PRESET_SETS, presetToChannel, presetToClampedChannel } from '#core/io/preset-data.js'
+import { SCHEMAS } from '#core/radio/registry.js'
+import { hz } from '#core/model/units.js'
 
 /**
  * The bundled sets are the one place boofwang puts frequencies into a radio
@@ -78,5 +80,43 @@ describe('bundled presets', () => {
     expect(b.channels[0]!.rxFreq).toBe(446_000_000)
     expect(b.channels.every((c) => c.rxFreq >= 446_000_000 && c.rxFreq <= 446_175_000)).toBe(true)
     expect(b.channels.every((c) => c.txAllowed)).toBe(true)
+  })
+})
+
+/**
+ * Presets placed onto a particular radio.
+ *
+ * `presetToChannel` clamps power and name length, which was enough when every
+ * preset was FRS or NOAA and every radio could hold them. It never checked
+ * bands, and staging a preset the radio cannot receive is not a clamp: it is a
+ * slot programmed with something that does nothing.
+ */
+describe('presetToClampedChannel', () => {
+  const SCHEMA = SCHEMAS.uv82!
+
+  it('refuses a preset the radio cannot receive, rather than staging it', () => {
+    const marine = { ...PRESET_SETS[0]!.channels[0]!, name: 'HF', rxFreq: hz(3_500_000) }
+    const out = presetToClampedChannel(marine, PRESET_SETS[0]!, 1, SCHEMA, WHEN)
+    expect(out.channel).toBeNull()
+    expect(out.refusal?.rule).toBe('rx-band')
+  })
+
+  it('keeps the slot the caller chose rather than the one the pipeline saw', () => {
+    const p = PRESET_SETS.flatMap((s) => s.channels).find((c) => c.rxFreq > 144_000_000 && c.rxFreq < 148_000_000)
+    if (!p) return
+    const out = presetToClampedChannel(p, PRESET_SETS[0]!, 57, SCHEMA, WHEN)
+    expect(out.channel?.index).toBe(57)
+  })
+
+  it('never makes a receive-only preset transmit', () => {
+    // The whole reason the bundled sets carry the flag. A clamp that flipped it
+    // would put a transmit-capable NOAA channel in somebody's radio.
+    for (const set of PRESET_SETS) {
+      for (const p of set.channels.filter((c) => !c.txAllowed)) {
+        const out = presetToClampedChannel(p, set, 1, SCHEMA, WHEN)
+        if (out.channel === null) continue
+        expect(out.channel.txAllowed, `${set.id} ${p.name}`).toBe(false)
+      }
+    }
   })
 })

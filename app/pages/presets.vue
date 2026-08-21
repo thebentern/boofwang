@@ -6,6 +6,7 @@ import {
   PRESET_SETS,
   presetLine,
   presetToChannel,
+  presetToClampedChannel,
   type PresetChannel,
   type PresetSet,
 } from '#core/io/preset-data.js'
@@ -420,6 +421,7 @@ function stage() {
 
   const stagedAt = new Date().toISOString()
 
+  const refused: string[] = []
   codeplug.transact('preset stage', () => {
     // Highest slot first: a channel moving from 12 to 22 must not land on 22
     // before whatever is already at 22 has itself moved out.
@@ -431,12 +433,35 @@ function stage() {
     }
 
     for (const place of p.placements) {
-      codeplug.setChannelRecord(
-        place.slot,
-        Object.freeze(presetToChannel(place.source, p.set, place.slot, codeplug.schema, stagedAt)),
-      )
+      // Through the shared clamp pipeline when there is a radio to clamp to.
+      // Power and name length were checked before; bands were not, and staging
+      // a preset the radio cannot receive is not a clamp - it is a slot
+      // programmed with something that does nothing.
+      if (!codeplug.schema) {
+        codeplug.setChannelRecord(
+          place.slot,
+          Object.freeze(presetToChannel(place.source, p.set, place.slot, null, stagedAt)),
+        )
+        continue
+      }
+      const out = presetToClampedChannel(place.source, p.set, place.slot, codeplug.schema, stagedAt)
+      if (out.channel === null) {
+        refused.push(`${place.source.name}: ${out.refusal?.why ?? 'this radio cannot hold it'}`)
+        continue
+      }
+      codeplug.setChannelRecord(place.slot, Object.freeze(out.channel))
     }
   })
+
+  if (refused.length > 0) {
+    toast.add({
+      title: `${refused.length} preset(s) were left out`,
+      description: refused.slice(0, 3).join('; ') + (refused.length > 3 ? `; and ${refused.length - 3} more.` : ''),
+      icon: 'i-lucide-triangle-alert',
+      color: 'warning',
+      duration: 14_000,
+    })
+  }
 
   void navigateTo('/channels')
 }
