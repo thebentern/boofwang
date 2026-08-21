@@ -9,6 +9,7 @@ const SCHEMA_ICONS = [
   'lucide:antenna',
   'lucide:arrow-right',
   'lucide:arrow-up-down',
+  'lucide:arrow-up-right',
   'lucide:binary',
   'lucide:box',
   'lucide:bug',

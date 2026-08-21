@@ -181,6 +181,7 @@ function commitEdit() {
   }
 
   if (e.kind === 'zone') codeplug.setZoneChannels(e.id, values)
+  else if (e.kind === 'scanlist') codeplug.setScanListChannels(e.id, values)
   else codeplug.setRxGroupIds(e.id, values)
   cancel()
 }
@@ -386,18 +387,29 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 @save="commitEdit"
                 @cancel="cancel"
               />
-              <span class="meta">
-                {{ list.channels.length }} channel{{ list.channels.length === 1 ? '' : 's' }}:
-                {{ runs(list.channels) }}
-              </span>
+              <InlineEdit
+                v-model:draft="draft"
+                :editing="isEditing('scanlist', list.id, 'members')"
+                :value="runs(list.channels)"
+                label="Edit channels"
+                placeholder="1-9"
+                hint="This radio scans at most 16 channels per list; anything past that is dropped."
+                :problem="problem"
+                @edit="start('scanlist', list.id, 'members', runs(list.channels))"
+                @save="commitEdit"
+                @cancel="cancel"
+              >
+                <span class="meta">
+                  {{ list.channels.length }} channel{{ list.channels.length === 1 ? '' : 's' }}:
+                  {{ runs(list.channels) }}
+                </span>
+              </InlineEdit>
             </div>
           </div>
         </div>
         <p class="note">
-          Which channels a scan list contains is read from the radio and written back unchanged. Two
-          readings of these bytes are one word apart — this radio's own count agrees with one, the
-          reference's capture of the vendor software with the other — and writing the wrong one would
-          shift every channel in the list, so the name is editable and the membership is not.
+          A scan list holds at most 16 channels. Anything past that, or that this radio has no channel
+          for, is dropped rather than stored.
         </p>
       </section>
 

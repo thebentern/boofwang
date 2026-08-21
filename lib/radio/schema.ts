@@ -91,6 +91,17 @@ export interface RadioSchema {
      * unhelpful.
      */
     readonly writeScope?: string
+    /**
+     * What a write does *not* reach, in the user's words.
+     *
+     * The complement of `writeScope`, and worth having separately because the
+     * two grow in opposite directions: as a driver matures its scope becomes a
+     * long list and its exclusions become a short one. The connect screen's
+     * one-line chip wants the short one - "Read · channels, zones, talk groups,
+     * scan lists, RX groups, contacts, radio settings and encryption keys only"
+     * both reads as read-only and squeezes the radio's name off the row.
+     */
+    readonly writeExcept?: string
   }
 
   readonly memory: {

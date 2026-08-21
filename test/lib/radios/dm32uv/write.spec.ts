@@ -15,6 +15,7 @@ import {
   CHANNEL_BLOCK_FIRST,
   CHANNEL_BLOCK_LAST,
   RADIOID_BLOCK,
+  TXCONTACT_BLOCK_LOW,
   RXGROUP_BLOCK,
   SCANLIST_BLOCK,
   SETTINGS_BLOCK,
@@ -124,7 +125,14 @@ describe('what a key write touches', () => {
     // in a test only proves the test agrees with itself. The zone blocks are
     // 0x5c-0x64 and the talk group blocks 0x44-0x48, which is not the tidy
     // ordering a guess would produce.
-    const decoded = new Set<number>([KEY_BLOCK, SCANLIST_BLOCK, RXGROUP_BLOCK, RADIOID_BLOCK, SETTINGS_BLOCK])
+    const decoded = new Set<number>([
+      KEY_BLOCK,
+      SCANLIST_BLOCK,
+      RXGROUP_BLOCK,
+      RADIOID_BLOCK,
+      SETTINGS_BLOCK,
+      TXCONTACT_BLOCK_LOW,
+    ])
     for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) decoded.add(id)
     for (let id = ZONE_BLOCK_FIRST; id <= ZONE_BLOCK_LAST; id++) decoded.add(id)
     for (let id = TALKGROUP_BLOCK_FIRST; id <= TALKGROUP_BLOCK_LAST; id++) decoded.add(id)

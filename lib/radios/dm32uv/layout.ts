@@ -535,3 +535,46 @@ export function contactSlot(n: number): { page: number; offset: number } {
   // Only the first page gives up its first sixteen bytes to the header.
   return { page, offset: (page === 0 ? CONTACT_REGION_HEADER : 0) + within * CONTACT_SIZE }
 }
+
+// ------------------------------------------------ per-channel TX contact --
+
+/**
+ * Which talk group a channel transmits to.
+ *
+ * The channel record does not carry it. Byte 0x2B of a channel is the DMR
+ * *radio ID* index, not a contact - a distinction the reference calls out
+ * because three different things in this radio are called a contact. The TX
+ * contact lives in two dedicated blocks, two bytes per channel.
+ *
+ * Only 0x42 is written. It covers channels 1-2047, which is every channel any
+ * observed radio has; 0x43 is decoded but left alone, because on the
+ * development radio its tail holds "Zone 1" strings rather than contact data
+ * and nothing explains why.
+ */
+export const TXCONTACT_BLOCK_LOW = 0x42
+export const TXCONTACT_BLOCK_HIGH = 0x43
+/** Channel 2048's entry is at offset 0 of 0x43, so the split is 2047/2048. */
+export const TXCONTACT_SPLIT = 2047
+
+/** Where channel `n` (1-based) keeps its TX contact, or null if it has nowhere. */
+export function txContactSlot(n: number): { blockId: number; offset: number } | null {
+  if (!Number.isInteger(n) || n < 1) return null
+  if (n <= TXCONTACT_SPLIT) return { blockId: TXCONTACT_BLOCK_LOW, offset: (n - 1) * 2 }
+  if (n > 4000) return null
+  return { blockId: TXCONTACT_BLOCK_HIGH, offset: (n & 0x7ff) * 2 }
+}
+
+/**
+ * A TX contact entry: a 12-bit talk-group slot split across two bytes, plus a
+ * digital flag in the low bit of the first.
+ *
+ * Bits 3-1 of byte 0 are unexplained and are preserved rather than cleared.
+ */
+export function decodeTxContact(b0: number, b1: number): { slot: number; digital: boolean } {
+  return { slot: ((b0 >> 4) << 8) | b1, digital: (b0 & 1) === 1 }
+}
+
+export function encodeTxContact(slot: number, digital: boolean, previous: number): [number, number] {
+  const keep = previous & 0b0000_1110 // bits 3-1, meaning unestablished
+  return [((slot >> 8) << 4) | keep | (digital ? 1 : 0), slot & 0xff]
+}

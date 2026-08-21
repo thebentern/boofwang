@@ -34,8 +34,8 @@ import {
   CHANNEL_SIZE,
   CONTACTS_PER_PAGE,
   CONTACT_REGION_HEADER,
-  CONTACT_UNKNOWN_13,
   CONTACT_SIZE,
+  CONTACT_UNKNOWN_13,
   DM32_CHANNEL,
   DM32_CONTACT,
   DM32_KEY_SLOT,
@@ -70,6 +70,8 @@ import {
   TG_INDEX_SLOTS,
   TG_INDEX_TABLE_BY_NAME,
   TG_INDEX_TABLE_BY_NUMBER,
+  TXCONTACT_BLOCK_HIGH,
+  TXCONTACT_BLOCK_LOW,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
   ZONE_HEADER,
@@ -78,10 +80,13 @@ import {
   channelSlot,
   contactSlot,
   decodeToneWord,
+  decodeTxContact,
   encodeToneWord,
+  encodeTxContact,
   isKeySlotEmpty,
   keySlotOffset,
   talkgroupOffset,
+  txContactSlot,
 } from './layout.js'
 import { isAllocated, scanPageMap } from './pagemap.js'
 import {
@@ -168,6 +173,7 @@ function writeTargets(image: RadioImage): WriteTarget[] {
     add(id, `block 0x${id.toString(16)} (zones)`)
   }
   add(SCANLIST_BLOCK, `block 0x${SCANLIST_BLOCK.toString(16)} (scan lists)`)
+  add(TXCONTACT_BLOCK_LOW, `block 0x${TXCONTACT_BLOCK_LOW.toString(16)} (channel talk groups)`)
   // Settings decide how the radio behaves rather than what it can hear, so they
   // go after the lists but before anything that keys a transmitter.
   add(SETTINGS_BLOCK, `block 0x${SETTINGS_BLOCK.toString(16)} (settings)`)
@@ -275,6 +281,9 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
            */
           writeScope:
             'channels, zones, talk groups, scan lists, RX groups, contacts, radio settings and encryption keys',
+          // Everything the driver decodes is written now bar one derived index,
+          // so the exclusions are the short half and the chip uses them.
+          writeExcept: 'the radio’s own talk-group ordering',
         },
       }
     : DM32UV_SCHEMA
@@ -756,7 +765,14 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       cp.meta.title = 'DM-32UV codeplug'
       cp.meta.variant = image.variant
 
-      for (const ch of decodeChannels(image)) cp.channels.set(ch.index, ch)
+      const txContacts = decodeTxContacts(image)
+      for (const ch of decodeChannels(image)) {
+        const tx = txContacts.get(ch.index)
+        cp.channels.set(
+          ch.index,
+          tx ? { ...ch, extras: { ...ch.extras, vendor: { ...ch.extras.vendor, txContact: String(tx.slot) } } } : ch,
+        )
+      }
       cp.zones = decodeZones(image)
       cp.talkGroups = decodeTalkGroups(image)
       cp.scanLists = decodeScanLists(image)
@@ -859,11 +875,12 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
 
       encodeZones(out, doc.zones, live)
       encodeTalkGroups(out, doc.talkGroups)
-      encodeScanLists(out, doc.scanLists)
+      encodeScanLists(out, doc.scanLists, live)
       encodeRxGroups(out, doc.rxGroups)
       encodeRadioIds(out, doc.radioIds)
       encodeSettings(out, doc.settings)
       encodeContacts(out, doc.contacts)
+      encodeTxContacts(out, doc)
 
       return { ...out, sha256: '' }
     },
@@ -932,6 +949,10 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       if (blockId >= TALKGROUP_BLOCK_FIRST && blockId <= TALKGROUP_BLOCK_LAST) {
         return [[0, PAGE_SIZE - 1] as const]
       }
+      // Every entry in the low TX-contact block is two bytes of the same kind,
+      // so the whole page bar its id byte is understood. The high block is read
+      // and never written - see encodeTxContacts.
+      if (blockId === TXCONTACT_BLOCK_LOW) return [[0, PAGE_SIZE - 1] as const]
       // The scan-list count is the whole page header, so the claim is the page.
       if (blockId === SCANLIST_BLOCK) return [[0, PAGE_SIZE - 1] as const]
       // The RX group occupancy bitmask, then the records. Bytes 0x04-0x10 are a
@@ -1548,7 +1569,7 @@ export function decodeTalkGroupIndex(image: RadioImage): { live: number[]; byNam
  * data before metadata: a write interrupted midway then leaves the old, shorter,
  * still-valid count rather than one pointing into half-written slots.
  */
-export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists']): void {
+export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists'], live: ReadonlySet<number>): void {
   const data = blockData(image, SCANLIST_BLOCK)
   if (!data) return
   const was = data[0]!
@@ -1568,21 +1589,30 @@ export function encodeScanLists(image: RadioImage, lists: Codeplug['scanLists'])
       continue
     }
 
-    // Name only. Membership is decoded but not written, and the reason is
-    // an unresolved disagreement about where the list even starts.
+    // Members begin at +0x18, sixteen of them, and the count at +0x0B bounds
+    // them. That was disputed: the reference reads the list from +0x1A with
+    // fifteen slots and says +0x18-0x19 is an opaque word to preserve, on the
+    // evidence that its OEM CPS capture stores 0x0000 there on all nine of its
+    // lists.
     //
-    // This radio says the members begin at +0x18: its second list has a count
-    // of 9 and exactly nine non-zero words from there, where reading them from
-    // +0x1A gives eight. The reference says the opposite, and its evidence is
-    // just as direct - in its OEM CPS write capture all nine lists store 0x0000
-    // at +0x18 with their channels at +0x1A, which under this radio's reading
-    // would mean the vendor's own software wrote "channel 0" as the first
-    // member of every list.
+    // This radio settles it, and not by a preference. Its first list has a
+    // count of 16, and fifteen slots cannot hold sixteen members - the reading
+    // is arithmetically impossible here, whatever the capture shows. Both lists
+    // are then exactly consistent with +0x18: counts of 16 and 9 against
+    // sixteen and nine non-zero words from there, where reading from +0x1A
+    // gives fifteen and eight. Two independent records, both off by exactly one
+    // under the other reading.
     //
-    // Two credible readings, one byte apart, and writing the wrong one silently
-    // shifts every channel in the list. Names are unambiguous; membership waits
-    // for a deliberate experiment on a radio rather than a coin toss.
-    DM32_SCANLIST.write(data, off, { name: list.name })
+    // What the OEM capture means is still unexplained - a different firmware,
+    // or lists that were empty with residue further in - so this is recorded as
+    // true of this firmware rather than of the radio in general.
+    const members = list.channels.filter((c) => live.has(c)).slice(0, SCANLIST_MAX_MEMBERS)
+    const padded = [...members, ...new Array<number>(SCANLIST_MAX_MEMBERS - members.length).fill(0)]
+
+    // Entries before the count, so a write interrupted midway leaves the old
+    // shorter count rather than one reaching into half-written slots.
+    DM32_SCANLIST.write(data, off, { name: list.name, members: padded })
+    DM32_SCANLIST.write(data, off, { memberCount: members.length })
   }
   data[0] = lists.length & 0xff
 }
@@ -1855,4 +1885,69 @@ export function contactPageRanges(pageIndex: number): ReadonlyArray<readonly [nu
   // neither is the tail past the last one - including 0xFFF, which in this
   // region is data rather than a block id.
   return pageIndex === 0 ? [[0, 4] as const, entries] : [entries]
+}
+
+/**
+ * Which talk group each channel transmits to.
+ *
+ * Returned as a map rather than folded into the channel records, because the
+ * radio keeps it that way and because a channel's entry survives the channel
+ * being emptied - this radio has entries for channels 46-49, which do not exist.
+ */
+export function decodeTxContacts(image: RadioImage): Map<number, { slot: number; digital: boolean }> {
+  const out = new Map<number, { slot: number; digital: boolean }>()
+  const pages = new Map<number, Uint8Array>()
+  for (const id of [TXCONTACT_BLOCK_LOW, TXCONTACT_BLOCK_HIGH]) {
+    const data = blockData(image, id)
+    if (data) pages.set(id, data)
+  }
+  if (pages.size === 0) return out
+
+  for (const index of decodeChannels(image).map((c) => c.index)) {
+    const at = txContactSlot(index)
+    if (!at) continue
+    const data = pages.get(at.blockId)
+    if (!data) continue
+    const entry = decodeTxContact(data[at.offset]!, data[at.offset + 1]!)
+    if (entry.slot === 0 && !entry.digital) continue
+    out.set(index, entry)
+  }
+  return out
+}
+
+/**
+ * Write the per-channel TX contact back.
+ *
+ * Only block 0x42, which covers channels 1-2047 - every channel any observed
+ * radio has. Block 0x43 is decoded and never written: on the development radio
+ * its tail holds two "Zone 1" strings rather than contact data, and writing a
+ * page whose contents contradict its documented purpose is not a guess worth
+ * making for channel numbers nobody has.
+ */
+export function encodeTxContacts(image: RadioImage, doc: Codeplug): void {
+  const data = blockData(image, TXCONTACT_BLOCK_LOW)
+  if (!data) return
+
+  for (const channel of doc.channels.values()) {
+    const raw = channel.extras.vendor?.txContact
+    if (raw === undefined) continue
+    const slot = Number(raw)
+    if (!Number.isInteger(slot) || slot < 0 || slot > 0xfff) {
+      throw new DriverError(`Talk group slot ${raw} is outside the 12 bits this radio stores.`)
+    }
+
+    const at = txContactSlot(channel.index)
+    if (!at) continue
+    if (at.blockId !== TXCONTACT_BLOCK_LOW) {
+      throw new DriverError(
+        `Channel ${channel.index} keeps its talk group in memory block 0x43, which this build reads ` +
+          'but does not write.',
+      )
+    }
+    if (at.offset + 2 > PAGE_SIZE - 1) continue
+
+    const [b0, b1] = encodeTxContact(slot, channel.modulation === 'DMR', data[at.offset]!)
+    data[at.offset] = b0
+    data[at.offset + 1] = b1
+  }
 }

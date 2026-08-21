@@ -6,6 +6,7 @@ import { equalBytes } from '#core/codec/struct.js'
 import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createDm32uvDriver, decodeTalkGroupIndex } from '#core/radios/dm32uv/driver.js'
+import { decodeTxContact, encodeTxContact, txContactSlot } from '#core/radios/dm32uv/layout.js'
 import { contactPages, contactsBase, logicalAddress } from '#core/radios/dm32uv/image.js'
 import { DM32UV_SETTINGS_GROUPS as SCHEMA_SETTINGS } from '#core/radios/dm32uv/schema.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
@@ -84,33 +85,64 @@ describe('scan lists', () => {
     expect(back.channels).toEqual(before)
   })
 
-  it('leaves membership exactly as the radio had it', () => {
-    // Two readings of these bytes sit one word apart and both have direct
-    // evidence: this radio's second list has a count of 9 and nine non-zero
-    // words from +0x18, while the reference's capture of the vendor software
-    // has 0x0000 at +0x18 on all nine of its lists. Writing the wrong one
-    // shifts every channel in the list, so neither is written.
-    const img = image()
-    const doc = d.decode(img)
-    doc.scanLists[1] = { ...doc.scanLists[1]!, channels: [5, 10, 15] }
-    const out = d.encode(doc, img)
-    const from = SCANLIST_HEADER + SCANLIST_SIZE
-    expect(
-      equalBytes(
-        page(out, SCANLIST_BLOCK).subarray(from + 0x0b, from + SCANLIST_SIZE),
-        page(img, SCANLIST_BLOCK).subarray(from + 0x0b, from + SCANLIST_SIZE),
-      ),
-      'a membership edit reached the radio',
-    ).toBe(true)
+  it('reads the members from +0x18, which is the only reading that fits', () => {
+    // The reference reads them from +0x1A with fifteen slots and calls
+    // +0x18-0x19 an opaque word. This radio's first list has a count of 16, and
+    // fifteen slots cannot hold sixteen members - so that reading is
+    // arithmetically impossible here whatever the vendor capture shows.
+    const data = page(image(), SCANLIST_BLOCK)
+    const rec = SCANLIST_HEADER
+    expect(data[rec + 0x0b], 'the count this all turns on').toBe(16)
+
+    const word = (at: number) => data[at]! | (data[at + 1]! << 8)
+    const from18 = Array.from({ length: 16 }, (_, i) => word(rec + 0x18 + 2 * i))
+    const from1a = Array.from({ length: 15 }, (_, i) => word(rec + 0x1a + 2 * i))
+    expect(from18.filter((v) => v !== 0 && v !== 0xffff)).toHaveLength(16)
+    expect(from1a.filter((v) => v !== 0 && v !== 0xffff)).toHaveLength(15)
+
+    // And the second record is off by exactly one the same way.
+    const rec2 = SCANLIST_HEADER + SCANLIST_SIZE
+    expect(data[rec2 + 0x0b]).toBe(9)
+    const second18 = Array.from({ length: 16 }, (_, i) => word(rec2 + 0x18 + 2 * i))
+    expect(second18.filter((v) => v !== 0 && v !== 0xffff)).toHaveLength(9)
   })
 
-  it('still writes the name, which is unambiguous', () => {
+  it('writes a new member list and the count that bounds it', () => {
     const img = image()
     const doc = d.decode(img)
-    doc.scanLists[0] = { ...doc.scanLists[0]!, name: 'RENAMED', channels: [9] }
-    const back = d.decode(d.encode(doc, img)).scanLists[0]!
-    expect(back.name).toBe('RENAMED')
-    expect(back.channels).toEqual(d.decode(img).scanLists[0]!.channels)
+    doc.scanLists[1] = { ...doc.scanLists[1]!, channels: [23, 24, 25] }
+    const out = d.encode(doc, img)
+    expect(d.decode(out).scanLists[1]!.channels).toEqual([23, 24, 25])
+
+    const rec = SCANLIST_HEADER + SCANLIST_SIZE
+    const data = page(out, SCANLIST_BLOCK)
+    expect(data[rec + 0x0b], 'the count').toBe(3)
+    expect(data[rec + 0x18]! | (data[rec + 0x19]! << 8), 'the first member sits at +0x18').toBe(23)
+  })
+
+  it('leaves the bytes before the members alone', () => {
+    // 0x15-0x17 carry data on hardware and the reference marks them preserve.
+    const img = image()
+    const doc = d.decode(img)
+    doc.scanLists[0] = { ...doc.scanLists[0]!, channels: [1] }
+    const out = d.encode(doc, img)
+    const from = SCANLIST_HEADER + 0x0c
+    const to = SCANLIST_HEADER + 0x18
+    expect(equalBytes(page(out, SCANLIST_BLOCK).subarray(from, to), page(img, SCANLIST_BLOCK).subarray(from, to))).toBe(true)
+  })
+
+  it('drops a member the channel bank cannot resolve', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.scanLists[0] = { ...doc.scanLists[0]!, channels: [1, 9999, 2] }
+    expect(d.decode(d.encode(doc, img)).scanLists[0]!.channels).toEqual([1, 2])
+  })
+
+  it('caps a list at the sixteen slots a record holds', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.scanLists[0] = { ...doc.scanLists[0]!, channels: [...Array(40).keys()].map((n) => n + 1) }
+    expect(d.decode(d.encode(doc, img)).scanLists[0]!.channels).toHaveLength(16)
   })
 
   it('adds and removes lists by moving the count byte', () => {
@@ -751,5 +783,100 @@ describe('the write gate sees a contact edit', () => {
     const doc = d.decode(img)
     doc.contacts[0] = { ...doc.contacts[0]!, city: 'North Little Roc' }
     expect(d.decode(d.encode(doc, img)).contacts[0]!.city).toBe('North Little Roc')
+  })
+})
+
+describe('which talk group a channel transmits to', () => {
+  it('decodes this radio’s channels to the talk groups their names describe', () => {
+    // The strongest confirmation available without a second radio: the user
+    // named their channels after the talk groups they key, and the indices
+    // resolve to exactly those.
+    const cp = d.decode(image())
+    const byName = new Map(cp.talkGroups.map((g, i) => [i + 1, g.name]))
+    void byName
+
+    const slotOf = (name: string) => Number(
+      [...cp.channels.values()].find((c) => c.name === name)?.extras.vendor?.txContact,
+    )
+    // Physical talk group slots on this radio: 1 LITTLE ROCK METR, 3 ARKANSAS,
+    // 4 TAC Chan, 6 USA, 7 Test.
+    expect(slotOf('LR DMR')).toBe(1)
+    expect(slotOf('AR DMR')).toBe(3)
+    expect(slotOf('USA DMR')).toBe(6)
+    expect(slotOf('Test DMR')).toBe(7)
+    for (let n = 1; n <= 14; n++) expect(slotOf(`TAC ${n}`), `TAC ${n}`).toBe(4)
+  })
+
+  it('leaves an analog channel without one', () => {
+    const cp = d.decode(image())
+    expect([...cp.channels.values()].find((c) => c.name === 'MURS-1')?.extras.vendor?.txContact).toBeUndefined()
+  })
+
+  it('splits the two blocks at 2047/2048', () => {
+    expect(txContactSlot(1)).toEqual({ blockId: 0x42, offset: 0 })
+    expect(txContactSlot(2047)).toEqual({ blockId: 0x42, offset: 4092 })
+    expect(txContactSlot(2048)).toEqual({ blockId: 0x43, offset: 0 })
+    expect(txContactSlot(2049)).toEqual({ blockId: 0x43, offset: 2 })
+    expect(txContactSlot(0)).toBeNull()
+    // 2047 * 2 + 2 = 4094, so the last entry stops clear of the block id byte.
+    expect(txContactSlot(2047)!.offset + 2).toBeLessThan(PAGE_SIZE - 1)
+  })
+
+  it('packs the index across two bytes with the digital flag', () => {
+    // This radio's TAC channels read 01 04: index 4, digital.
+    expect(decodeTxContact(0x01, 0x04)).toEqual({ slot: 4, digital: true })
+    expect(decodeTxContact(0x00, 0x01)).toEqual({ slot: 1, digital: false })
+    // A 12-bit index really does use the high nibble of byte 0.
+    expect(decodeTxContact(0x31, 0x02)).toEqual({ slot: 0x302, digital: true })
+    expect(encodeTxContact(0x302, true, 0)).toEqual([0x31, 0x02])
+  })
+
+  it('preserves the three bits of byte 0 that nobody has explained', () => {
+    // Bits 3-1 were once called "Reserved", which the reference retracts.
+    expect(encodeTxContact(4, true, 0b0000_1110)).toEqual([0b0000_1111, 4])
+    expect(encodeTxContact(4, false, 0b0000_1010)).toEqual([0b0000_1010, 4])
+  })
+
+  it('round-trips every channel unchanged', () => {
+    const img = image()
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, 0x42), page(img, 0x42))).toBe(true)
+  })
+
+  it('writes a changed talk group and only that entry', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const lr = [...doc.channels.values()].find((c) => c.name === 'LR DMR')!
+    doc.channels.set(lr.index, {
+      ...lr,
+      extras: { ...lr.extras, vendor: { ...lr.extras.vendor, txContact: '7' } },
+    })
+    const out = d.encode(doc, img)
+    expect(Number(d.decode(out).channels.get(lr.index)!.extras.vendor!.txContact)).toBe(7)
+
+    const before = page(img, 0x42)
+    const after = page(out, 0x42)
+    const moved = [...after.keys()].filter((i) => after[i] !== before[i])
+    expect(moved).toEqual([(lr.index - 1) * 2 + 1])
+  })
+
+  it('never writes the high block, whose contents contradict its purpose', () => {
+    // On this radio block 0x43's tail holds two "Zone 1" strings rather than
+    // contact data, and nothing explains why.
+    expect(d.ownedRanges(logicalAddress(0x43))).toEqual([])
+    const img = image()
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, 0x43), page(img, 0x43))).toBe(true)
+  })
+
+  it('refuses a talk group slot wider than the twelve bits stored', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const lr = [...doc.channels.values()].find((c) => c.name === 'LR DMR')!
+    doc.channels.set(lr.index, {
+      ...lr,
+      extras: { ...lr.extras, vendor: { ...lr.extras.vendor, txContact: '5000' } },
+    })
+    expect(() => d.encode(doc, img)).toThrow(/12 bits/)
   })
 })

@@ -110,6 +110,16 @@ const isDark = computed(() => colorMode.value === 'dark')
           style="color: var(--in)"
         >Contribute</a>
         <NuxtLink to="/about" style="color: var(--in)">Credits &amp; licensing</NuxtLink>
+        <a
+          href="https://buymeacoffee.com/thebentern"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-1.5"
+          style="color: var(--in)"
+        >
+          <UIcon name="i-lucide-coffee" class="shrink-0" style="width: 14px; height: 14px" />
+          Buy me a coffee
+        </a>
       </div>
     </footer>
   </div>

@@ -265,11 +265,6 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     republish()
   }
 
-  /**
-   * Not reachable from the UI today: the driver writes scan list names and
-   * leaves membership alone, pending an experiment that settles where the
-   * member list actually starts. Kept because import paths build documents too.
-   */
   function setScanListChannels(id: string, channels: number[]) {
     const cp = doc.value
     if (!cp) return

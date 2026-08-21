@@ -94,6 +94,31 @@ const supportsEncryption = computed(() => schema.value.features.encryption !== f
 const availableKeys = computed(() => codeplug.doc?.encryptionKeys ?? [])
 const encKeyId = ref(Number(props.channel.extras.vendor?.encryptionKeyId ?? '0'))
 
+/**
+ * Which talk group this channel transmits to.
+ *
+ * Kept in two blocks of its own rather than in the channel record - the channel
+ * byte people reach for, 0x2B, is the radio ID index, not this - and identified
+ * by the talk group's physical slot, so a gap in the bank does not shift it.
+ */
+const supportsTalkGroups = computed(() => schema.value.features.talkGroups !== false)
+const talkGroups = computed(() => codeplug.doc?.talkGroups ?? [])
+const txContact = ref(Number(props.channel.extras.vendor?.txContact ?? '0'))
+
+/**
+ * A talk group's physical slot, which is what the channel stores.
+ *
+ * Not its position in the list: this radio's bank has gaps - slots 2, 5, 8 and
+ * 9 are wiped records - and the decoder keeps them visible for exactly this
+ * reason. The id carries the slot, as `tg-<block>-<n>`.
+ */
+function slotOf(id: string): number {
+  const m = /^tg-[0-9a-fx]+-(\d+)$/.exec(id)
+  return m ? Number(m[1]) : 0
+}
+/** Only a digital channel keys a talk group. */
+const isDigital = computed(() => modulation.value === 'DMR')
+
 const legality = computed(() => {
   try {
     return encryptionLegality(parseFreq(rxText.value))
@@ -140,7 +165,11 @@ function save() {
       ? {
           extras: {
             ...props.channel.extras,
-            vendor: { ...props.channel.extras.vendor, encryptionKeyId: String(encKeyId.value) },
+            vendor: {
+              ...props.channel.extras.vendor,
+              encryptionKeyId: String(encKeyId.value),
+              ...(supportsTalkGroups.value ? { txContact: String(txContact.value) } : {}),
+            },
           },
         }
       : {}),
@@ -243,6 +272,25 @@ function remove() {
         </div>
       </UFormField>
     </div>
+
+    <template v-if="supportsTalkGroups && isDigital">
+      <USeparator />
+      <UFormField label="Transmit talk group">
+        <USelect
+          v-model="txContact"
+          class="w-full"
+          :items="[
+            { value: 0, label: 'None' },
+            ...talkGroups.map((g) => ({ value: slotOf(g.id), label: `${g.name || 'unnamed'} — ${g.number}` })),
+          ]"
+        />
+        <template #help>
+          <span class="text-muted">
+            Where this channel transmits. Analog channels do not have one.
+          </span>
+        </template>
+      </UFormField>
+    </template>
 
     <template v-if="supportsEncryption">
       <USeparator />

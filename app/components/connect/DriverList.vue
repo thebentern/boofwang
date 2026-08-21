@@ -39,11 +39,16 @@ function statusOf(id: RadioId, schema: RadioSchema | null): { tone: ChipTone; ic
   if (schema.status === 'planned' || !schema.capabilities.read) {
     return { tone: 'neutral', icon: 'i-lucide-circle-minus', label: 'Not supported yet' }
   }
-  const scope = schema.capabilities.writeScope
-  if (schema.capabilities.write && scope) {
-    return { tone: 'cn', icon: 'i-lucide-circle-dot', label: `Read · ${scope.replace(/^encryption /, '')} only` }
+  const { write, writeScope, writeExcept } = schema.capabilities
+  if (write && writeExcept) {
+    // A driver that writes nearly everything says what it misses, not what it
+    // covers: the covering list runs to nine items and reads as read-only.
+    return { tone: 'ok', icon: 'i-lucide-circle-check', label: `Read and write · except ${writeExcept}` }
   }
-  if (schema.capabilities.write) {
+  if (write && writeScope) {
+    return { tone: 'cn', icon: 'i-lucide-circle-dot', label: `Read · ${writeScope.replace(/^encryption /, '')} only` }
+  }
+  if (write) {
     return { tone: 'ok', icon: 'i-lucide-circle-check', label: 'Read and write' }
   }
   return { tone: 'neutral', icon: 'i-lucide-circle-minus', label: 'Read only' }
@@ -91,7 +96,7 @@ const rows = computed(() =>
     <div v-for="row in rows" :key="row.id">
       <div
         class="w-full flex items-center gap-3"
-        style="height: 38px; padding: 0 13px; border-bottom: 1px solid var(--ln)"
+        style="height: 44px; padding: 0 15px; border-bottom: 1px solid var(--ln)"
         :style="{ background: row.id === activeRadio ? 'var(--okB)' : 'transparent' }"
       >
         <span
@@ -115,5 +120,24 @@ const rows = computed(() =>
         </span>
       </div>
     </div>
+
+    <!--
+      Every list of supported hardware is also a list of hardware someone owns
+      and cannot use. Saying where to ask costs one row.
+    -->
+    <a
+      href="https://github.com/thebentern/boofwang/issues/new?title=Radio%20support%3A%20&body=Which%20radio%2C%20and%20what%20programming%20software%20it%20uses%20today%3A"
+      target="_blank"
+      rel="noopener"
+      class="w-full flex items-center gap-3"
+      style="height: 44px; padding: 0 15px; color: var(--in)"
+    >
+      <UIcon name="i-lucide-plus" class="shrink-0" style="width: 14px; height: 14px" />
+      <span style="font-size: 14px; font-weight: 600">Add support for your radio</span>
+      <span class="hidden sm:inline" style="font-size: 13px; color: var(--fn)">
+        Tell us which one, on GitHub
+      </span>
+      <UIcon name="i-lucide-arrow-up-right" class="ms-auto shrink-0" style="width: 14px; height: 14px" />
+    </a>
   </div>
 </template>
