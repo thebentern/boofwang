@@ -67,12 +67,58 @@ def log(*a):
     print(*a, flush=True)
 
 
+class Discovery:
+    """A rolling view of what is advertising nearby.
+
+    Scanning on demand does not work here. The client gives a port list two
+    seconds - fine for enumerating serial devices, which is a directory read -
+    but a BLE scan needs several seconds of listening to be reliable, so an
+    on-demand scan times out before it can answer. That failure looks exactly
+    like a bridge that is not running.
+
+    So the scanner runs for the life of the process and `list` answers from
+    what it has already seen, which is both instant and a better model of a
+    medium where devices come and go rather than being plugged in.
+    """
+
+    def __init__(self, args):
+        self.args = args
+        self.seen: dict[str, dict] = {}
+        self._scanner: BleakScanner | None = None
+
+    def _on_detect(self, device, adv):
+        uuids = [u.lower() for u in (adv.service_uuids or [])]
+        if not self.args.all and SERVICE not in uuids:
+            return
+        name = device.name or adv.local_name
+        if device.address not in self.seen:
+            log(f"saw {name or '(unnamed)'} at {device.address}")
+        self.seen[device.address] = {
+            "path": device.address,
+            "manufacturer": name,
+            "serialNumber": None,
+            "vendorId": None,
+            "productId": None,
+            # The whole reason this field exists: a driver that varies on the
+            # carrier has to be told, not left to guess.
+            "kind": "bluetooth",
+        }
+
+    async def start(self):
+        self._scanner = BleakScanner(detection_callback=self._on_detect)
+        await self._scanner.start()
+
+    def ports(self):
+        return sorted(self.seen.values(), key=lambda p: p["path"])
+
+
 class Bridge:
     """One browser tab, holding at most one radio."""
 
-    def __init__(self, ws, args):
+    def __init__(self, ws, args, discovery):
         self.ws = ws
         self.args = args
+        self.discovery = discovery
         self.client: BleakClient | None = None
         self.rx = 0
         self.tx = 0
@@ -88,30 +134,8 @@ class Bridge:
             pass
 
     async def scan(self):
-        """Advertising radios, shaped like the serial bridge's port list.
-
-        Filtered to devices advertising the CPS service where the platform
-        reports one, because a raw scan in a populated room is mostly other
-        people's headphones.
-        """
-        found = await BleakScanner.discover(timeout=self.args.scan_seconds, return_adv=True)
-        ports = []
-        for address, (device, adv) in found.items():
-            uuids = [u.lower() for u in (adv.service_uuids or [])]
-            if not self.args.all and SERVICE not in uuids:
-                continue
-            ports.append({
-                "path": address,
-                "manufacturer": device.name or adv.local_name,
-                "serialNumber": None,
-                "vendorId": None,
-                "productId": None,
-                # The whole reason this field exists: a driver that varies on
-                # the carrier has to be told, not left to guess.
-                "kind": "bluetooth",
-            })
-        ports.sort(key=lambda p: p["path"])
-        return ports
+        """Whatever the rolling scanner has seen, answered immediately."""
+        return self.discovery.ports()
 
     async def open(self, msg):
         if self.client is not None:
@@ -182,6 +206,9 @@ class Bridge:
 
 
 async def serve(args):
+    discovery = Discovery(args)
+    await discovery.start()
+
     async def connection(ws):
         origin = getattr(ws, "request", None) and ws.request.headers.get("Origin")
         if origin and not any(origin.startswith(o) for o in ALLOWED_ORIGINS):
@@ -189,7 +216,7 @@ async def serve(args):
             await ws.close(code=1008, reason="origin not allowed")
             return
         log(f"client connected{f' from {origin}' if origin else ''}")
-        bridge = Bridge(ws, args)
+        bridge = Bridge(ws, args, discovery)
         try:
             async for raw in ws:
                 await bridge.handle(raw)
@@ -203,13 +230,13 @@ async def serve(args):
         log(f"boofwang bluetooth bridge listening on ws://{HOST}:{args.port}")
         log("development only: not part of the built app, and nothing starts it automatically")
         log(f"filtering the scan on {SERVICE}" + ("  (--all to see everything)" if not args.all else ""))
+        log("scanning continuously; a port list is answered from what has been seen")
         await asyncio.Future()
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--port", type=int, default=PORT, help=f"websocket port (default {PORT})")
-    p.add_argument("--scan-seconds", type=float, default=6.0, help="how long to scan for radios")
     p.add_argument("--all", action="store_true", help="list every device, not just ones advertising the CPS service")
     args = p.parse_args()
     try:

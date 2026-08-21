@@ -210,6 +210,12 @@ export async function requestBridgePort(): Promise<PortChoice | null> {
     info: {
       ...(chosen.vendorId === null ? {} : { usbVendorId: chosen.vendorId }),
       ...(chosen.productId === null ? {} : { usbProductId: chosen.productId }),
+      // A Bluetooth bridge has no USB identity to derive one from, so it says
+      // what it is rather than letting `describeAdapter` call a radio over the
+      // air "an unidentified serial port" - wrong, and read as a fault.
+      ...(chosen.kind === 'bluetooth'
+        ? { label: chosen.manufacturer ? `${chosen.manufacturer} over Bluetooth` : 'a radio over Bluetooth' }
+        : {}),
     },
   }
 }
