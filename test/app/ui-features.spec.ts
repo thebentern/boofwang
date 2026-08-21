@@ -36,7 +36,13 @@ describe('every DMR panel is gated on a schema feature', () => {
   })
 
   it('gates on the schema or on decoded data, never on nothing', () => {
-    const bad = gates.filter((g) => !/features\.value|codeplug\.\w+\.length|codeplug\.\w+ !== null/.test(g.body))
+    // Two legitimate shapes: a schema feature, or the presence of something
+    // actually decoded from this radio. `codeplug.doc?.x` counts as the second
+    // - it is false when the field is absent - while `codeplug.isOpen` does
+    // not, because it is true for every radio.
+    const onSchema = /features\.value/
+    const onData = /codeplug\.\w+\.length|codeplug\.\w+ !== null|codeplug\.doc\?\.\w+/
+    const bad = gates.filter((g) => !onSchema.test(g.body) && !onData.test(g.body))
     expect(bad.map((g) => `${g.name}: ${g.body}`)).toEqual([])
   })
 })

@@ -633,6 +633,49 @@ The alert-tone group carries its provenance in its own description: the bit
 positions come from the reference implementation's interface rather than from a
 capture.
 
+## The 22 undocumented blocks — what they are not, 2026-08-21
+
+Called "allocated pages, never touched" by the reference and left at that. They
+are not empty, and it is worth writing down what they actually are before the
+next person assumes the same thing.
+
+Every one of them is **full**. Counting bytes that are neither `0x00` nor
+`0xFF`, block `0x51` has 4095 of 4096, `0x6E` has 4083, `0x4B` has 4056. Only
+`0x07` and `0x09` are genuinely blank.
+
+Several are visibly structured. Block `0x69` is a 20-byte record array:
+
+```
+f7 d5 fb 32 00 00 00 00 55 b6 ce c8 fd bc b6 be b2 d4 eb b5
+f7 d5 fb 33 00 00 00 00 55 b6 ce c8 fd bc b6 be b2 d4 eb b5
+f7 d5 fb 34 00 00 00 00 55 b6 ce c8 fd bc b6 be b2 d4 eb b5
+f7 d5 fb 35 00 00 00 00 56 b6 ce be c5 bc b6 be b2 d4 eb b5
+```
+
+Byte 3 cycles through ASCII `2 3 4 5 1`, byte 8 through `0x55`/`0x56`, and the
+rest repeats. Block `0x56` is a 2-byte array with a rising high byte, `0x6B`
+starts with eight repeats of `5e 3d`.
+
+What has been ruled out:
+
+- **Not text.** GB2312, GBK and Big5 all fail to decode the byte pairs in the
+  GB2312 range, and no run of five printable ASCII characters appears anywhere
+  that is not coincidence.
+- **Not live state.** All 22 are **byte-identical** between the fixture capture
+  and a capture taken hours later, across many writes to the radio in between.
+  Whatever they are, nothing in normal use changes them.
+- **Not touched by either CPS.** The reference establishes the OEM software
+  never reads or writes them, and boofwang claims nothing in any of them.
+
+Static, structured, and unattributable from one radio. Naming a field in here
+would be inventing a label, which is the failure this project has already had
+to correct once — a key-function table that claimed to be transcribed and was
+not. The evidence stops here, and so does the decoding.
+
+To take it further you would need a second unit to diff against, or a way to
+change one of these bytes deliberately and see what moved. Neither is available
+from a single radio and a read command.
+
 ## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied

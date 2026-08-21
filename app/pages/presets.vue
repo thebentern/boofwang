@@ -33,7 +33,7 @@ const codeplug = useCodeplugStore()
 type Policy = 'shift' | 'over' | 'gaps'
 type Tone = 'ok' | 'cn' | 'dg' | 'in' | 'neutral'
 
-const CONTENT_COLUMNS = '26px 26px minmax(90px,1fr) 84px 52px 50px 96px'
+const CONTENT_COLUMNS = '26px 26px minmax(90px,1fr) 90px 56px 56px'
 
 const TONES: Record<Tone, { color: string, bg: string, border: string }> = {
   ok: { color: 'var(--ok)', bg: 'var(--okB)', border: 'var(--okL)' },
@@ -548,6 +548,28 @@ function stage() {
           <p style="margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--mu); max-width: 72ch">
             {{ selectedSet.description }}
           </p>
+
+          <!--
+            What it takes to be allowed to transmit here, stated once and not
+            enforced. A per-row "allowed" chip said nothing useful - it was
+            "allowed" on every row of every set - while the thing that actually
+            varies is the licence, and that is not something a codeplug editor
+            can check or should pretend to police.
+          -->
+          <div
+            class="flex items-start gap-2"
+            style="margin-top: 11px; padding: 9px 11px; border-radius: 6px; background: var(--pn2); border: 1px solid var(--ln)"
+          >
+            <UIcon
+              name="i-lucide-badge-check"
+              class="shrink-0"
+              style="width: 14px; height: 14px; color: var(--fn); margin-top: 1px"
+            />
+            <p style="margin: 0; font-size: 13px; line-height: 1.55; color: var(--mu); max-width: 72ch">
+              {{ selectedSet.licence }}
+              <span style="color: var(--fn)"> You are responsible for what you transmit.</span>
+            </p>
+          </div>
         </div>
 
         <div
@@ -567,7 +589,6 @@ function stage() {
           <span class="text-right">Receive</span>
           <span>Tone</span>
           <span class="text-right">Power</span>
-          <span>Transmit</span>
         </div>
 
         <div style="max-height: 396px; overflow: auto">
@@ -612,13 +633,6 @@ function stage() {
             </span>
             <span class="font-mono tabular text-right" style="font-size: 13.5px; color: var(--fn)">
               {{ channel.txAllowed ? formatPower(channel.powerMW) : '—' }}
-            </span>
-            <span class="chip justify-self-start" :style="chipStyle(channel.txAllowed ? 'neutral' : 'cn')">
-              <UIcon
-                :name="channel.txAllowed ? 'i-lucide-circle-check' : 'i-lucide-lock'"
-                style="width: 10px; height: 10px"
-              />
-              {{ channel.txAllowed ? 'allowed' : 'receive-only' }}
             </span>
           </div>
         </div>

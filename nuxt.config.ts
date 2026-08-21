@@ -10,6 +10,7 @@ const SCHEMA_ICONS = [
   'lucide:arrow-right',
   'lucide:arrow-up-down',
   'lucide:arrow-up-right',
+  'lucide:badge-check',
   'lucide:binary',
   'lucide:box',
   'lucide:bug',
