@@ -12,10 +12,15 @@ Live at [boofwa.ng](https://boofwa.ng).
 |---|---|---|---|---|
 | Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write, restore |
 | Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | Yes | Read, write, restore |
-| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | Yes | Read, write, restore |
+| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | Yes | Read, write, restore; read also over Bluetooth |
 | Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Key slots only | Read, write, restore |
 
 CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
+
+The UV-5R Mini can also be read over Bluetooth, with no cable at all — the
+radio's wireless CPS mode speaks the same protocol over a GATT characteristic.
+Browser support is narrower than Web Serial: Chrome and Edge on desktop and
+Android, and nothing on Safari, Firefox or iOS.
 
 Per-radio protocol notes, including exactly what has and has not been exercised
 against hardware, are in [`docs/protocols/`](docs/protocols/).

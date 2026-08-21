@@ -268,3 +268,67 @@ only the named keys, so the fields this build cannot name keep whatever the
 radio had - which is why the round trip is still byte-exact when nothing was
 edited. Exposing them in the interface is
 [issue #2](https://github.com/thebentern/boofwang/issues/2).
+
+## Bluetooth, verified 2026-08-21
+
+The radio can be read over Bluetooth Low Energy instead of the cable, and has
+been.
+
+| | |
+|---|---|
+| Service | `0000ffe0-…` — HM-10 style transparent serial |
+| Write | `0000ffe1-…` |
+| Notify | `0000ffe1-…`, the same characteristic |
+| Identify | `PROGRAMCOLORPROU`, acknowledged `06` |
+| Read | 33,344 bytes in 35.9 s, about 928 B/s |
+
+The protocol is unchanged. Same identify string, same three magics, same `0x52`
+block reads, same `CO 7` obfuscation — only the carrier differs, which is why
+the driver needed no Bluetooth-specific code above the port.
+
+### How the profile was established
+
+By asking the radio, not by reasoning from convention. A GATT enumeration listed
+three vendor services — `AE30`, `AE3A` and `FFE0` — and **no Nordic UART**,
+which the first implementation had assumed. Sending the identify magic on each
+writable characteristic and watching for the acknowledgement settled it: `FFE0`
+replied `06` and nothing else did.
+
+`AE30` is worth knowing about. Writing to `ae01` returns the bytes just written,
+unchanged — it is a loopback, not a protocol channel. A driver pointed at it
+sees its own frames come back, which is the echo failure this project has
+already misdiagnosed twice on physical cables. It is kept in the profile table,
+never tried automatically, so the next person to enumerate this radio and find
+`AE30` first has something to read.
+
+`PROGRAMBFNORMALU` got no reply, which independently agrees with the variant
+detection: this is the UV-5R Mini rather than the 5RM that shares its name.
+
+### What the two reads prove
+
+`uv5rmini-5RMINI-ble.bin` is the same radio as `uv5rmini-5RMINI.bin`, read over
+Bluetooth. 33,341 of 33,344 bytes are identical, including every one of the 999
+channel records. The three that differ are all in the 64-byte `0x9000` settings
+block:
+
+| Address | Field | Cable | BLE |
+|---|---|---|---|
+| `0x9018` | `activeVfo` | 0 | 1 |
+| `0x901A` | not modelled | 0x11 | 0x01 |
+| `0x9022` | `bluetooth` | 0 | 1 |
+
+Those are the radio's own state, not the transport's doing: the `bluetooth` flag
+is set in precisely the read taken with the radio in wireless CPS mode. A
+standing test decodes both images and compares them channel by channel, so a
+transport that ever drops or duplicates a fragment fails CI rather than
+producing a plausible codeplug.
+
+### Still not verified
+
+- **Writing over Bluetooth.** Not implemented and not offered. Read first, prove
+  the round trip, then write — the order every other radio here followed.
+- The `0x80` upload block size and its `0xFF` padding are transcribed from
+  CHIRP and exercised against a fake. No radio has been written to over BLE.
+- Throughput is about a fortieth of the cable's. The transport's timeouts were
+  tuned for 115200 baud and survived a full read, but a slower link or a busier
+  adapter has not been tried.

@@ -1,0 +1,13 @@
+{
+ "transport": "bluetooth-le",
+ "profile": {
+  "service": "0000ffe0-0000-1000-8000-00805f9b34fb",
+  "write": "0000ffe1-0000-1000-8000-00805f9b34fb",
+  "notify": "0000ffe1-0000-1000-8000-00805f9b34fb"
+ },
+ "ident4d": "5RMINI  +L00000",
+ "sha256": "840b7af0e21389699cb3ebfdaf5a7a555665fc06e4052b590875e357f452f21e",
+ "bytes": 33344,
+ "throughputBytesPerSecond": 928,
+ "note": "The same radio as uv5rmini-5RMINI.bin, read over Bluetooth instead of the cable. Every channel byte matches the cable read; the two images differ only in three bytes of the 0x9000 settings block - activeVfo, an unmodelled byte at 0x901A, and the bluetooth flag itself, which is set precisely because the radio was in wireless CPS mode for this read and on a cable for the other. Nothing personal in it: the printable-string scan over all 33,344 bytes finds no run of four characters."
+}
