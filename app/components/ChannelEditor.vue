@@ -16,6 +16,14 @@ const emit = defineEmits<{ close: [] }>()
 
 const codeplug = useCodeplugStore()
 const schema = computed(() => codeplug.schema!)
+/**
+ * What this firmware can do, which is not always what the schema declares.
+ *
+ * The bands, the modulations and the tuning steps all differ between a stock
+ * UV-K5 and an egzumer one, and reading them off the schema meant a decoded
+ * egzumer channel could not be edited or even renamed.
+ */
+const rf = computed(() => codeplug.rf ?? schema.value.rf)
 
 const name = ref(props.channel.name)
 const rxText = ref(formatFreq(props.channel.rxFreq))
@@ -67,7 +75,11 @@ const toneKindOptions = [
 const rxError = computed(() => {
   try {
     const f = parseFreq(rxText.value)
-    const band = schema.value.rf.bands.find((b) => f >= b.loHz && f <= b.hiHz)
+    // The firmware's bands, not the schema's: an egzumer build with wide
+    // receive legitimately reaches frequencies the stock table does not list,
+    // and refusing those made a decoded channel unsavable - not even
+    // renameable.
+    const band = rf.value.bands.find((b) => f >= b.loHz && f <= b.hiHz)
     if (!band) return 'Outside every band this radio covers'
     if (!band.txAllowed && txAllowed.value) return `${band.label} is receive-only on this radio`
     return null
@@ -225,7 +237,7 @@ function remove() {
         <USelect
           v-model="modulation"
           class="w-full"
-          :items="schema.rf.modulations.map((m) => ({ value: m, label: m }))"
+          :items="rf.modulations.map((m) => ({ value: m, label: m }))"
         />
       </UFormField>
       <UFormField label="Bandwidth">
@@ -332,7 +344,7 @@ function remove() {
       <USelect
         v-model="stepHz"
         class="w-full"
-        :items="schema.rf.tuningSteps.map((s) => ({ value: s as number, label: `${(s as number) / 1000} kHz` }))"
+        :items="rf.tuningSteps.map((s) => ({ value: s as number, label: `${(s as number) / 1000} kHz` }))"
       />
     </UFormField>
 

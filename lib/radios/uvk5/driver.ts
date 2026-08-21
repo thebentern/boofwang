@@ -53,6 +53,7 @@ import {
   EGZUMER_BANDS_STANDARD_HZ,
   EGZUMER_BANDS_WIDE_HZ,
   egzumerOwnedRanges,
+  EGZUMER_STEPS_HZ,
 } from './egzumer-layout.js'
 import {
   decodeEgzumerChannel,
@@ -505,6 +506,26 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       // The hash describes bytes that have changed, so it is recomputed when
       // the image is persisted rather than carried over from the base.
       return { ...out, sha256: '' }
+    },
+
+    /**
+     * Bands, modulations and steps as the firmware on this image has them.
+     *
+     * `bandsFor` already existed for validation. The editor needs the same
+     * answer, plus the two lists that also differ: egzumer decodes single
+     * sideband and twenty-four steps, and offering stock's six against a
+     * channel that holds one of the other eighteen leaves the control with no
+     * matching option.
+     */
+    rfFor(doc: Codeplug): RadioSchema['rf'] {
+      const bands = bandsFor(doc)
+      if (doc.settings.buildWideRx === undefined) return { ...UVK5_SCHEMA.rf, bands }
+      return {
+        ...UVK5_SCHEMA.rf,
+        bands,
+        modulations: ['FM', 'AM', 'USB'],
+        tuningSteps: EGZUMER_STEPS_HZ.map((step: number) => hz(step)),
+      }
     },
 
     validate(doc: Codeplug): Diagnostic[] {

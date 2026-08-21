@@ -17,7 +17,8 @@ import {
 } from '#core/radios/uvk5/egzumer-layout.js'
 import { ATTR_BASE, NAMED_CHANNEL_COUNT } from '#core/radios/uvk5/layout.js'
 import { readBuildOptions } from '#core/radios/uvk5/egzumer.js'
-import { MEM_SIZE, buildFrame, xorArray } from '#core/radios/uvk5/protocol.js'
+import { MEM_SIZE, PROG_SIZE, buildFrame, xorArray } from '#core/radios/uvk5/protocol.js'
+import { UVK5_SCHEMA } from '#core/radios/uvk5/schema.js'
 import { classifyFirmware, variantsCompatible } from '#core/radios/uvk5/variants.js'
 import { FakeSerialPort } from '#core/transport/fake-serial-port.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
@@ -570,5 +571,69 @@ describe('writing is still refused', () => {
     await t2.close()
 
     expect(b.identHash).toBe(a.identHash)
+  })
+})
+
+/**
+ * What the editor is allowed to offer.
+ *
+ * `validate` was layout-aware from the start and the editor was not, so a
+ * channel this build decodes perfectly well could not be edited - not even
+ * renamed. The driver answers with the profile that applies to the document
+ * rather than the one the schema declares, and the editor asks.
+ */
+describe('the RF profile that actually applies', () => {
+  const driver = createUvk5Driver({ enableWrite: true })
+
+  /** The stock radio, for the side of the comparison that must not change. */
+  const STOCK = new Uint8Array(
+    readFileSync(fileURLToPath(new URL('../../../fixtures/images/uvk5-2.01.32.bin', import.meta.url))),
+  )
+  const stockImage = (): RadioImage => ({
+    radioId: 'uvk5', variant: '2.01.32', layout: 'stock', createdAt: '2026-08-21T00:00:00.000Z',
+    regions: [
+      { start: 0, data: STOCK.slice(0, PROG_SIZE), label: 'programmable' },
+      { start: PROG_SIZE, data: STOCK.slice(PROG_SIZE), label: 'calibration', readOnly: true },
+    ],
+    meta: {}, sha256: '',
+  })
+
+  it('gives a stock codeplug the schema’s own lists', () => {
+    const doc = driver.decode(stockImage())
+    expect(doc.settings.buildWideRx).toBeUndefined()
+    const rf = driver.rfFor!(doc)
+    expect(rf.modulations).toEqual(UVK5_SCHEMA.rf.modulations)
+    expect(rf.tuningSteps).toEqual(UVK5_SCHEMA.rf.tuningSteps)
+    expect(rf.bands).toEqual(UVK5_SCHEMA.rf.bands)
+  })
+
+  it('gives an egzumer codeplug single sideband, which stock does not have', () => {
+    const rf = driver.rfFor!(driver.decode(image()))
+    expect(UVK5_SCHEMA.rf.modulations).not.toContain('USB')
+    expect(rf.modulations).toContain('USB')
+  })
+
+  it('gives it all twenty-four tuning steps rather than stock’s six', () => {
+    const rf = driver.rfFor!(driver.decode(image()))
+    expect(UVK5_SCHEMA.rf.tuningSteps).toHaveLength(6)
+    expect(rf.tuningSteps).toHaveLength(24)
+    expect(rf.tuningSteps).toContain(8_330)
+  })
+
+  it('covers the channels it decoded, so they can be edited', () => {
+    // The bug, stated as the user hits it: channels outside stock's band plan
+    // decode and validate fine, and the editor refused to save them because it
+    // was checking a different table.
+    const doc = driver.decode(image())
+    const rf = driver.rfFor!(doc)
+    const covered = (f: number) => rf.bands.some((b) => f >= b.loHz && f <= b.hiHz)
+
+    for (const ch of doc.channels.values()) {
+      expect(covered(ch.rxFreq), `${(ch.rxFreq / 1e6).toFixed(4)} MHz decoded but is uneditable`).toBe(true)
+    }
+    // And at least one of them really is outside what the schema declares, so
+    // this is not passing by the two tables happening to agree.
+    const stockCovers = (f: number) => UVK5_SCHEMA.rf.bands.some((b) => f >= b.loHz && f <= b.hiHz)
+    expect([...doc.channels.values()].some((c) => !stockCovers(c.rxFreq))).toBe(true)
   })
 })

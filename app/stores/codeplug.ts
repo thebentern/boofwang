@@ -994,10 +994,28 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     return map
   })
 
+  /**
+   * The RF profile that applies to what is open, not what the schema declares.
+   *
+   * One radio can have more than one firmware: an egzumer UV-K5 receives where
+   * stock does not, has single sideband, and has twenty-four tuning steps
+   * against stock's six. The driver knew that already - `validate` used it -
+   * but the editor read `schema.rf` and so refused to save a channel this build
+   * decodes perfectly well. Same shape as `settingsForLayout`: ask what applies
+   * rather than what is declared.
+   */
+  const rf = computed(() => {
+    const d = driverRef.value
+    const cp = doc.value
+    if (d && cp && d.rfFor) return d.rfFor(cp)
+    return schema.value?.rf ?? null
+  })
+
   return {
     image,
     doc,
     schema,
+    rf,
     driverRef,
     encoded,
     encodeError,

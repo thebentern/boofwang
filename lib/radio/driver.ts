@@ -131,6 +131,22 @@ export interface Diagnostic {
 export interface RadioDriver {
   readonly id: RadioId
   readonly schema: RadioSchema
+
+  /**
+   * The RF profile that actually applies to this document.
+   *
+   * `schema.rf` describes the radio as the schema declares it, which is not the
+   * whole truth when one radio has more than one firmware: an egzumer UV-K5
+   * receives on frequencies stock does not, offers single sideband where stock
+   * has only FM and AM, and has twenty-four tuning steps against stock's six.
+   * The driver already had to know this to validate a channel; without a way to
+   * ask, the editor did not, so a channel this build decodes perfectly well
+   * could not be edited or even renamed.
+   *
+   * Optional. A radio with one layout has nothing to vary and the caller falls
+   * back to `schema.rf`.
+   */
+  rfFor?(doc: Codeplug): RadioSchema['rf']
   readonly serial: SerialOpenOptions
   /**
    * What to do when a transfer is aborted partway.
