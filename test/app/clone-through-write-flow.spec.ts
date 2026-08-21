@@ -29,6 +29,18 @@ describe('applying a donor codeplug', () => {
     expect(SOURCE).not.toMatch(/restoreToRadio\(/)
   })
 
+  it('will not apply a merge the encoder has already refused', () => {
+    // The merge always succeeds; rendering it onto your image can fail, and a
+    // donor address book bigger than your radio's read brought back is the
+    // ordinary way. Finding that out on the write page means the whole clone is
+    // in the document, the history is gone and the gate is blocking, so the
+    // same call the write page makes has to run before Apply is offered.
+    const apply = SOURCE.slice(SOURCE.indexOf('async function applyToOpen'))
+    const body = apply.slice(0, apply.indexOf('\n}') + 1)
+    expect(body).toMatch(/cannotWrite\.value !== null/)
+    expect(SOURCE).toMatch(/v-if="!cannotWrite"/)
+  })
+
   it('hands the merge to the write page', () => {
     const apply = SOURCE.slice(SOURCE.indexOf('async function applyToOpen'))
     const body = apply.slice(0, apply.indexOf('\n}') + 1)

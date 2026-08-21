@@ -70,6 +70,31 @@ function build(radioIds: boolean, keys: boolean): TransplantResult | null {
 const preview = computed(() => build(copyRadioIds.value, copyKeys.value))
 
 /**
+ * Why this merge could not be written, asked before it is applied rather than after.
+ *
+ * The merge itself always succeeds - it is list assignment - but the encoder
+ * that has to render it onto your image can refuse, and a codeplug carrying an
+ * address book bigger than your radio's read brought back is the ordinary way
+ * that happens. Applying anyway used to leave the write page blocking on
+ * `encode-failed` with the whole clone in the document and no undo, which is
+ * the worst place to find out. So the same call the write page makes runs here
+ * first, and the dialog refuses with the encoder's own words. Nothing else can
+ * tell: capacity is a property of the image, and only the driver knows it.
+ */
+const cannotWrite = computed<string | null>(() => {
+  const result = preview.value
+  const base = codeplug.image
+  const d = donor.value?.driver
+  if (!result || !base || !d) return null
+  try {
+    d.encode(result.codeplug, base)
+    return null
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e)
+  }
+})
+
+/**
  * The same merge with both opt-ins off.
  *
  * The reasons for holding something back come from the merge itself, so the
@@ -170,7 +195,7 @@ async function openInstead({ image, note }: OpenedImage, driver: RadioDriver) {
  */
 async function applyToOpen() {
   const result = build(copyRadioIds.value, copyKeys.value)
-  if (!result) return
+  if (!result || cannotWrite.value !== null) return
 
   const moved = result.copied.map((c) => `${c.count} ${c.label}`).join(', ')
   const kept = result.skipped.map((s) => s.label).join(', ')
@@ -296,6 +321,19 @@ async function applyToOpen() {
           </div>
         </div>
 
+        <div
+          v-if="cannotWrite"
+          class="mt-3 rounded-[7px]"
+          style="border: 1px solid var(--dg); background: var(--dgB); padding: 12px 14px"
+        >
+          <div class="label-xs" style="color: var(--dg); letter-spacing: 0.08em; margin-bottom: 6px">
+            This one cannot go onto your radio
+          </div>
+          <p style="font-size: 13px; line-height: 1.6; color: var(--tx); max-width: 74ch">
+            {{ cannotWrite }}
+          </p>
+        </div>
+
         <p class="mt-3" style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
           Applying this sends nothing. It becomes an unsaved edit, and goes to the radio through the same write
           page as any other, with the backup check, the line-by-line diff and the typed confirmation.
@@ -307,6 +345,7 @@ async function applyToOpen() {
       <template #footer>
         <div class="flex flex-wrap items-center" style="gap: 8px">
           <RiskAction
+            v-if="!cannotWrite"
             risk="caution"
             icon="i-lucide-layers"
             label="Apply to the radio I have open"
