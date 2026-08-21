@@ -40,6 +40,10 @@ import {
   NAME_LENGTH,
   ownedRanges as uv82OwnedRanges,
   REGIONS,
+  POWERON_MSG_BASE,
+  SETTINGS_BASE,
+  UV82_POWERON_MSG,
+  UV82_SETTINGS,
 } from './layout.js'
 import {
   AUX_END,
@@ -285,7 +289,15 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
         live.set(next.subarray(0, IDENT_SIZE), 0)
         for (let addr = 0; addr < MAIN_SIZE; addr += BLOCK_SIZE) {
           ctx.signal?.throwIfAborted()
-          live.set(await readBlock(t, addr, BLOCK_SIZE, addr === 0, opts), IDENT_SIZE + addr)
+          // `false` for every block, the first included. The `first` flag
+          // skips the leading ACK, and there is exactly one place that is
+          // right: the block `readFirmware` sends immediately after the
+          // handshake, which has already taken the ACK. By the time this loop
+          // runs the session is long past that, so skipping it left a stray
+          // 0x06 in front of the header and the read failed on block zero every
+          // time - which is the whole restore path, since a restore is the case
+          // that has no base image to diff against.
+          live.set(await readBlock(t, addr, BLOCK_SIZE, false, opts), IDENT_SIZE + addr)
           ctx.progress?.({
             phase: 'read',
             done: addr + BLOCK_SIZE,
@@ -436,6 +448,7 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
         const ch = decodeChannel(mem, i)
         if (ch) cp.channels.set(ch.index, ch)
       }
+      cp.settings = decodeSettings(mem)
       return cp
     },
 
@@ -454,6 +467,7 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
       for (let i = 0; i < CHANNEL_COUNT; i++) {
         encodeChannel(mem, i, doc.channels.get(i + 1) ?? null)
       }
+      encodeSettings(mem, doc.settings)
 
       return {
         ...base,
@@ -475,6 +489,38 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
             message: `${(ch.rxFreq / 1e6).toFixed(5)} MHz is outside both bands this radio covers.`,
           })
         }
+        /*
+         * Where it transmits, not only where it listens.
+         *
+         * This radio checked the receive frequency and stopped, so a channel
+         * with a repeater shift that dragged transmit out of band was an error
+         * on the UV-K5 and silent here - the same illegal channel, two answers,
+         * depending on which radio happened to be plugged in. `txFrequency`
+         * resolves the shift, so a minus offset that lands below the band edge
+         * is caught where reading `rxFreq` alone cannot see it.
+         */
+        const txHz = ch.txAllowed ? txFrequency(ch) : null
+        if (txHz !== null) {
+          const txBand = UV82_SCHEMA.rf.bands.find((b) => txHz >= b.loHz && txHz <= b.hiHz)
+          if (!txBand) {
+            out.push({
+              severity: 'error',
+              ruleId: 'radio.band.tx-out-of-range',
+              channel: ch.index,
+              field: 'tx',
+              message: `This channel transmits on ${(txHz / 1e6).toFixed(5)} MHz, which is outside both bands this radio covers.`,
+            })
+          } else if (!txBand.txAllowed) {
+            out.push({
+              severity: 'error',
+              ruleId: 'regulatory.band.tx-not-permitted',
+              channel: ch.index,
+              field: 'tx',
+              message: `This channel transmits on ${(txHz / 1e6).toFixed(5)} MHz, in a band marked receive-only.`,
+            })
+          }
+        }
+
         if (ch.name.length > UV82_SCHEMA.memory.nameLength) {
           out.push({
             severity: 'warning',
@@ -505,6 +551,81 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
  * the only reason it is safe to send bytes to a radio whose memory map is only
  * partly understood.
  */
+/**
+ * The settings the radio's own menus expose, flattened into one map.
+ *
+ * Bit groups become dotted keys - `f2a.fmradio` - so the schema form can name a
+ * single bit without knowing it shares a byte with six others. The `unknown`
+ * runs are decoded too, and deliberately: they are not offered as controls, but
+ * having them in the map is what lets a test compare every field against
+ * CHIRP's parser instead of only the ones somebody remembered to check.
+ */
+export function decodeSettings(mem: Uint8Array): Record<string, unknown> {
+  if (mem.length < SETTINGS_BASE + UV82_SETTINGS.size) return {}
+
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(UV82_SETTINGS.read(mem, SETTINGS_BASE))) {
+    if (value instanceof Uint8Array) continue
+    if (typeof value === 'object' && value !== null) {
+      for (const [bit, v] of Object.entries(value as Record<string, number>)) out[`${key}.${bit}`] = v
+      continue
+    }
+    out[key] = value
+  }
+
+  if (mem.length >= POWERON_MSG_BASE + UV82_POWERON_MSG.size) {
+    for (const [key, value] of Object.entries(UV82_POWERON_MSG.read(mem, POWERON_MSG_BASE))) {
+      out[`poweronMsg.${key}`] = typeof value === 'string' ? value.trimEnd() : value
+    }
+  }
+  return out
+}
+
+/**
+ * Patch the settings back, and only where they differ.
+ *
+ * Written as a partial patch for the same reason the channel records are: the
+ * bits and bytes this build does not name keep whatever the radio had, which is
+ * what makes `encode(decode(image), image)` byte-identical. Values that are not
+ * of the type their field expects are dropped rather than coerced - a settings
+ * map can come from an imported file, and a string where a byte belongs should
+ * not become a zero.
+ */
+export function encodeSettings(mem: Uint8Array, settings: Codeplug['settings']): void {
+  if (mem.length < SETTINGS_BASE + UV82_SETTINGS.size) return
+
+  const current = UV82_SETTINGS.read(mem, SETTINGS_BASE) as Record<string, unknown>
+  const patch: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(settings)) {
+    const dot = key.indexOf('.')
+    if (dot < 0) {
+      if (typeof value !== 'number') continue
+      if (!(key in current) || typeof current[key] !== 'number') continue
+      if (current[key] === value) continue
+      patch[key] = value
+      continue
+    }
+
+    const group = key.slice(0, dot)
+    const bit = key.slice(dot + 1)
+    const held = current[group]
+    if (typeof value !== 'number') continue
+    if (typeof held !== 'object' || held === null || !(bit in held)) continue
+    if ((held as Record<string, number>)[bit] === value) continue
+    const merged = (patch[group] as Record<string, number> | undefined) ?? {}
+    merged[bit] = value
+    patch[group] = merged
+  }
+
+  if (Object.keys(patch).length > 0) UV82_SETTINGS.write(mem, SETTINGS_BASE, patch)
+
+  // `poweronMsg.*` is decoded but deliberately not written back. It lives at
+  // 0x1828, past the end of the main block, and this driver's write path sends
+  // the main block only - so writing it here would change bytes that never
+  // reach the radio while the diff insisted something had.
+}
+
 export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): void {
   const addr = channelAddr(i)
 

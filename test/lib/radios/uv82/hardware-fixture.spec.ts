@@ -10,6 +10,8 @@ import { createUv82Driver, decodeChannel, decodeToneWord } from '#core/radios/uv
 import {
   CHANNEL_COUNT,
   NAME_BASE,
+  SETTINGS_BASE,
+  SETTINGS_CLAIM,
   UV82_CHANNEL,
   UV82_DTCS,
   UV82_NAME,
@@ -215,10 +217,14 @@ describe('the round-trip invariant, on real radio bytes', () => {
 })
 
 describe('what the driver claims to own', () => {
-  it('claims the channel and name tables, and not the ident block', () => {
+  it('claims the channel table, the settings block and the names, and not the ident block', () => {
     const owned = driver.ownedRanges(0)
     expect(owned).toEqual([
       [0x0008, 0x0008 + CHANNEL_COUNT * 16],
+      // 0x2E of struct, claimed as 0x30 because blocks go to the radio as
+      // sixteen bytes and a claim that ended mid-block would have the writer
+      // sending bytes it never said it understood.
+      [SETTINGS_BASE, SETTINGS_BASE + SETTINGS_CLAIM],
       [NAME_BASE, NAME_BASE + CHANNEL_COUNT * 16],
     ])
     // The ident prefix is metadata the radio sent, not memory to write back.

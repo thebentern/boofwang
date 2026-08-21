@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { ascii, chirpBits, lbcdFreq, u16le } from '../../codec/fields.js'
+import { ascii, bytes, chirpBits, lbcdFreq, u16le, u8 } from '../../codec/fields.js'
 import { at, defineStruct } from '../../codec/struct.js'
 import { DTCS_CODES } from '../../model/tones.js'
 import { IDENT_SIZE, IMAGE_SIZE } from './protocol.js'
@@ -22,8 +22,27 @@ export const NAME_SIZE = 16
 export const NAME_LENGTH = 7
 
 export const SETTINGS_BASE = 0x0e28
+/**
+ * What the writer must claim for the settings block.
+ *
+ * Blocks go to the radio as 16 bytes at an address, so a claim that ended
+ * mid-block would have the writer sending bytes it never said it understood.
+ * The struct is 0x2E; this rounds it up to the block the writer will actually
+ * transmit. The two bytes past the struct are carried through from the radio,
+ * never written, so rounding up claims nothing the encoder then changes.
+ */
+export const SETTINGS_CLAIM = 0x30
 export const VFO_A_BASE = 0x0f10
 export const VFO_B_BASE = 0x0f30
+/**
+ * The power-on message.
+ *
+ * CHIRP leaves this address as a `%04X` placeholder in `MEM_FORMAT` and fills
+ * it from `_mem_params` at parse time. The UV-82 does not override the base
+ * class, so 0x1828 is the value that applies - and the block at 0x1818 that
+ * looks like it in a hex dump is `sixpoweron_msg`, a different thing.
+ */
+export const POWERON_MSG_BASE = 0x1828
 
 /**
  * A channel record.
@@ -74,6 +93,96 @@ export const UV82_CHANNEL = defineStruct(16, {
 
 export const UV82_NAME = defineStruct(NAME_SIZE, {
   name: at(0x00, ascii(NAME_LENGTH, { pad: 0xff, terminators: [0x00, 0xff] })),
+})
+
+/**
+ * The settings block, transcribed from the `settings` struct in `uv5r.py`.
+ *
+ * The `unknown` runs are named rather than skipped for the same reason the
+ * channel record names its spare bits: `write()` only assigns the keys it is
+ * handed, so anything that stays unnamed here is carried through from the
+ * radio's own bytes - but anything that IS named can be checked against CHIRP,
+ * and a gap in the middle of a struct is how an offset slips by one.
+ */
+export const UV82_SETTINGS = defineStruct(0x2e, {
+  squelch: at(0x00, u8),
+  step: at(0x01, u8),
+  unknown1: at(0x02, u8),
+  save: at(0x03, u8),
+  vox: at(0x04, u8),
+  unknown2: at(0x05, u8),
+  abr: at(0x06, u8),
+  tdr: at(0x07, u8),
+  beep: at(0x08, u8),
+  timeout: at(0x09, u8),
+  unknown3: at(0x0a, bytes(4)),
+  voice: at(0x0e, u8),
+  unknown4: at(0x0f, u8),
+  dtmfst: at(0x10, u8),
+  unknown5: at(0x11, u8),
+  f12: at(
+    0x12,
+    chirpBits(1, [
+      ['unknown12', 6],
+      ['screv', 2],
+    ]),
+  ),
+  pttid: at(0x13, u8),
+  pttlt: at(0x14, u8),
+  mdfa: at(0x15, u8),
+  mdfb: at(0x16, u8),
+  bcl: at(0x17, u8),
+  autolk: at(0x18, u8),
+  sftd: at(0x19, u8),
+  unknown6: at(0x1a, bytes(3)),
+  wtled: at(0x1d, u8),
+  rxled: at(0x1e, u8),
+  txled: at(0x1f, u8),
+  almod: at(0x20, u8),
+  band: at(0x21, u8),
+  tdrab: at(0x22, u8),
+  ste: at(0x23, u8),
+  rpste: at(0x24, u8),
+  rptrl: at(0x25, u8),
+  ponmsg: at(0x26, u8),
+  roger: at(0x27, u8),
+  rogerrx: at(0x28, u8),
+  tdrch: at(0x29, u8),
+  f2a: at(
+    0x2a,
+    chirpBits(1, [
+      ['displayab', 1],
+      ['unknown7', 2],
+      ['fmradio', 1],
+      ['alarm', 1],
+      ['unknown8', 1],
+      ['reset', 1],
+      ['menu', 1],
+    ]),
+  ),
+  f2b: at(
+    0x2b,
+    chirpBits(1, [
+      ['unknown9', 6],
+      ['singleptt', 1],
+      ['vfomrlock', 1],
+    ]),
+  ),
+  workmode: at(0x2c, u8),
+  keylock: at(0x2d, u8),
+})
+
+/**
+ * Two lines of seven characters, shown while the radio powers up.
+ *
+ * Decoded but never written, and it cannot be until the writer grows an aux
+ * pass: 0x1828 is past the end of the main block, and this driver's write path
+ * sends the main block only. `ownedRanges` says so - it stops at the main block
+ * - which is what keeps a change here from reaching the radio unnoticed.
+ */
+export const UV82_POWERON_MSG = defineStruct(14, {
+  line1: at(0x00, ascii(7, { pad: 0xff, terminators: [0x00, 0xff] })),
+  line2: at(0x07, ascii(7, { pad: 0xff, terminators: [0x00, 0xff] })),
 })
 
 // ------------------------------------------------------------ field values --
@@ -133,6 +242,7 @@ export const REGIONS = [{ start: 0x0000, length: IMAGE_SIZE, label: 'image', rea
 export function ownedRanges(): (readonly [number, number])[] {
   return [
     [CHANNEL_BASE, CHANNEL_BASE + CHANNEL_COUNT * UV82_CHANNEL.size],
+    [SETTINGS_BASE, SETTINGS_BASE + SETTINGS_CLAIM],
     [NAME_BASE, NAME_BASE + CHANNEL_COUNT * NAME_SIZE],
   ]
 }
