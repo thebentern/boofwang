@@ -7,7 +7,9 @@ import { RecordingTransport } from '#core/transport/recording-transport.js'
 import { DeviceDisconnectedError } from '#core/transport/errors.js'
 import {
   BluetoothUuidError,
+  KNOWN_PROFILES,
   NORDIC_UART,
+  UV5RM_AE30,
   bluetoothProfile,
   normaliseUuid,
   parseBluetoothProfile,
@@ -318,9 +320,26 @@ describe('the UUIDs themselves', () => {
     expect(NORDIC_UART.verified).toBe(false)
   })
 
-  it('defaults to Nordic UART', () => {
-    expect(bluetoothProfile()).toBe(NORDIC_UART)
-    expect(NORDIC_UART.service).toBe('6e400001-b5a3-f393-e0a9-e50e24dcca9e')
+  it('defaults to a service a real radio was seen advertising', () => {
+    // Nordic UART was the original assumption and it was wrong: a GATT
+    // enumeration of a UV-5R Mini in wireless CPS mode listed AE30, AE3A and
+    // FFE0, and no Nordic service at all. Filtering the chooser on a service
+    // the radio does not advertise lists nothing, which looks exactly like the
+    // radio being switched off.
+    expect(bluetoothProfile()).toBe(UV5RM_AE30)
+    expect(UV5RM_AE30.service).toBe('0000ae30-0000-1000-8000-00805f9b34fb')
+    expect(UV5RM_AE30.write).toBe('0000ae01-0000-1000-8000-00805f9b34fb')
+    expect(UV5RM_AE30.notify).toBe('0000ae02-0000-1000-8000-00805f9b34fb')
+  })
+
+  it('offers every service the radio advertised, and none is claimed to work', () => {
+    // Which pair actually carries the CPS protocol is still unproven, so all of
+    // them stay unverified and the UI goes on saying Bluetooth is untried.
+    const ids = KNOWN_PROFILES.map((p) => p.id)
+    expect(ids).toContain('uv5rm-ae30')
+    expect(ids).toContain('uv5rm-ae3a')
+    expect(ids).toContain('hm10')
+    expect(KNOWN_PROFILES.every((p) => !p.verified)).toBe(true)
   })
 
   it('expands a 16-bit alias, which is how vendors quote them', () => {
