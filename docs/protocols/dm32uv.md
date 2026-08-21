@@ -458,6 +458,77 @@ silently repoint every channel after a gap, and an entry the count did not reach
 got copied down and left in place, so the bank held the same ID twice. The count
 covers the highest occupied slot rather than how many entries there are.
 
+## The last five — 2026-08-21
+
+Mapped from the reference, falsified against this radio's own bytes, then run on
+it. Three write, three are read only, and the split is the honest one rather
+than the flattering one.
+
+| Structure | Block | Shape | Verdict |
+|---|---|---|---|
+| Text messages | `0x0A` | count `u8`, 15-byte header, 31 x 129 B: length byte + ASCII | **write** |
+| Roaming channels | `0x66` | no header, 26 B records, count is a **trailer** at `0x0FF0` | **write** |
+| TX contact, high | `0x43` | 2 B per channel for 2048-4000 | **write**, front only |
+| Roaming zones | `0x65` | 16-byte header, 33 B records | read |
+| Emergency systems | `0x10` @ `0x000` | 8 x 20 B, sharing a page with the key slots | read |
+| Analog config | `0x06` | DTMF codes, DTMF settings, two contact lists | read |
+
+The roaming channel **count is a trailer**, not a header. That is unique in this
+radio — every other counted structure here puts its count first — and reading
+it as a header gives 0x52, the `R` of `Roam CH 1`.
+
+`0x06` is eight sub-structures in one page, not an array. Its DTMF codes are one
+digit per byte with `0xFF` as the terminator, and **`0x0E` is a symbol, not a
+terminator**: this radio's first code is `04 05 06 0e 01 02 03 ff` = `456*123`.
+Its MDC1200 contact numbers are packed **BCD** — nine of the ten read 01-09
+where hex and decimal coincide and settle nothing, and the tenth reads `0x10`
+against a name ending "10", which a plain byte read turns into 16.
+
+The three read-only ones are read-only for stated reasons, not for lack of
+effort: a roaming zone's 33-byte record leaves too little room to tell the
+member entry width from and every zone here is empty; every emergency field past
+the name is DERIVED and all eight records hold factory defaults byte-identical
+to a capture of a different unit; and block `0x06`'s settings record is almost
+entirely unexplained. A control for a byte whose meaning is a guess is worse
+than none, because the user cannot tell which kind they are looking at.
+
+### Why block `0x43` is not exercised on hardware
+
+It could be. 601 channels above 2047 are creatable on this radio — channel
+blocks `0x30`, `0x31`, `0x32`, `0x34`, `0x37`, `0x3B`, `0x3D` and `0x41` are all
+allocated. But channel slots are positional, so creating channel 2550 means
+writing a channel count of **2550** to a radio that has 45: telling it that 2504
+slots it has never used are now in play, most in blocks it has not allocated.
+
+That is a large, unverified change to somebody's radio to prove a two-byte write
+whose geometry is identical to block `0x42`'s, which *is* hardware-verified. So
+`0x43` is covered by unit tests against this radio's own image, and the gap is
+written down rather than quietly skipped.
+
+Its write also stops at `0x0EF6`. From there the page holds two stale zone
+records the flash layer left behind — `"Zone 1"`, count 1, member channel 1, a
+default no zone here uses. They are dead: off the zone bank's own 145-byte grid
+by 44 bytes, and the second runs 25 bytes past the page's last payload byte.
+Dead or not, they are not contact data, so neither the encoder nor
+`ownedRanges` goes past them.
+
+### The claim audit
+
+`test/lib/radios/dm32uv/write-audit.spec.ts` checks both directions for every
+block, because both are failures and only one is loud:
+
+- a byte the encoder writes that `ownedRanges` does not claim stops the write
+  dead — `writeImage` refuses rather than guessing;
+- a byte `ownedRanges` claims that the encoder never writes is **silent**, and
+  disarms the one check that would catch a future bug in that region.
+
+A slack budget was tried for the second and was useless: an allowance generous
+enough for the spare record slots a codeplug grows into is also generous enough
+to hide a whole page. Widening `0x43`'s claim to the full page — the exact
+over-claim this driver exists to avoid — passed it. Each claim is now pinned to
+the layout constants that justify it, and a block on this radio that is in
+neither the table nor the never-written set fails the suite.
+
 ## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied
@@ -474,9 +545,12 @@ covers the highest occupied slot rather than how many entries there are.
 - **Writing block `0x43`**, the TX contact for channels above 2047. Decoded and
   never written: its tail on this radio holds `"Zone 1"` strings rather than
   contact data.
-- Analog config (`0x06`), quick text messages (`0x0A`), the digital and analog
-  emergency sections of `0x10`, roaming zones (`0x65`) and roaming channels
-  (`0x66`).
+- **Writing** roaming zones, the emergency systems and the analog config. All
+  three are decoded and shown; see above for why each is read only.
+- The analog emergency section of `0x10` at `0x0AC`, and the `0x0A20` record in
+  block `0x06`. Neither is decoded.
+- **Hardware-writing block `0x43`.** Unit-verified against this radio's image;
+  see above for why it is not exercised on the radio itself.
 - The meaning of 22 allocated blocks.
 - Whether the alignment of a *short* key differs from a full one. Only AES-256,
   which fills the whole 32-byte field, has been written.

@@ -15,7 +15,6 @@ import {
   ROAMCHANNEL_COUNT_AT,
   TXCONTACT_BLOCK_HIGH,
   TXCONTACT_BLOCK_LOW,
-  TXCONTACT_HIGH_LIMIT,
   SCANLIST_BLOCK,
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
@@ -207,19 +206,20 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
         doc.roamChannels[0] = { ...roamWas, name: 'HW ROAM', colorCode: 7, timeSlot: roamWas.timeSlot === 1 ? 2 : 1 }
       }
 
-      // A channel above 2047, which is what block 0x43 exists for. 2550 lands
-      // in channel block 0x30, which this radio allocates.
-      const template = [...doc.channels.values()].find((c) => c.modulation === 'DMR')
-      const highChannel = 2550
-      const canGoHigh = template !== undefined && !doc.channels.has(highChannel)
-      if (canGoHigh) {
-        doc.channels.set(highChannel, {
-          ...template!,
-          index: highChannel,
-          name: 'HW HIGH',
-          extras: { ...template!.extras, vendor: { ...template!.extras.vendor, txContact: '4' } },
-        })
-      }
+      // Block 0x43 - the TX contact for channels above 2047 - is deliberately
+      // NOT exercised here.
+      //
+      // It could be: 601 such channels are creatable on this radio, because
+      // channel blocks 0x30, 0x31, 0x32, 0x34, 0x37, 0x3b, 0x3d and 0x41 are
+      // allocated. But channel slots are positional, so creating channel 2550
+      // means writing a channel count of 2550 to a radio that has 45 - telling
+      // it that 2504 slots it has never used are now in play, most of them in
+      // blocks it has not allocated. That is a large, unverified change to
+      // somebody's radio to prove a two-byte write whose geometry is identical
+      // to block 0x42's, which this suite already verifies.
+      //
+      // So 0x43 is covered by the unit tests against this radio's own image,
+      // and the limitation is written down rather than quietly skipped.
 
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
@@ -357,20 +357,12 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
         ).toBe(true)
       }
 
-      if (canGoHigh) {
-        // Block 0x43, which had never been written before.
-        const now = back.channels.get(highChannel)
-        expect(now?.name, 'the channel above 2047 did not reach the radio').toBe('HW HIGH')
-        expect(Number(now?.extras.vendor?.txContact), 'its talk group').toBe(4)
-        // And the stale zone records in that block's tail are untouched.
-        expect(
-          equalBytes(
-            block(after, TXCONTACT_BLOCK_HIGH).subarray(TXCONTACT_HIGH_LIMIT),
-            block(baseline, TXCONTACT_BLOCK_HIGH).subarray(TXCONTACT_HIGH_LIMIT),
-          ),
-          'the residue in block 0x43 was disturbed',
-        ).toBe(true)
-      }
+      // Block 0x43 is never written by this run, so it must not have moved -
+      // including the stale zone records in its tail.
+      expect(
+        equalBytes(block(after, TXCONTACT_BLOCK_HIGH), block(baseline, TXCONTACT_BLOCK_HIGH)),
+        'block 0x43 moved without being asked to',
+      ).toBe(true)
 
       // Decoded but never written, so a codeplug edit must not move them.
       expect(driver.decode(after).emergency).toEqual(driver.decode(baseline).emergency)
