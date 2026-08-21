@@ -192,28 +192,85 @@ describe('the write gate', () => {
     ).rejects.toThrow(DriverError)
   })
 
+  const ident = {
+    radioId: 'uv82' as const,
+    variant: 'N822413',
+    layout: 'uv82',
+    raw: new Uint8Array(0),
+    caps: { read: true, write: true },
+    identHash: 'match',
+  }
+
+  /**
+   * A radio that answers the block protocol the way a real one does.
+   *
+   * Every read is `06` and then `58 hi lo size` and then the data. Getting that
+   * ACK wrong is not visible to a stub that only records what it was sent, and
+   * it was not visible to the test that used to live here: asserting the read
+   * was *attempted* proved it was not refused, and nothing more. A real UV-82
+   * failed on the first block.
+   */
+  function radio(contents: Uint8Array) {
+    const out: number[] = []
+    const sent: { addr: number; data: Uint8Array }[] = []
+    return {
+      sent,
+      async write(cmd: Uint8Array) {
+        if (cmd[0] === 0x53) {
+          const addr = (cmd[1]! << 8) | cmd[2]!
+          const size = cmd[3]!
+          out.push(0x06, 0x58, cmd[1]!, cmd[2]!, cmd[3]!)
+          for (let i = 0; i < size; i++) out.push(contents[IDENT_SIZE + addr + i] ?? 0xff)
+        } else if (cmd[0] === 0x58) {
+          const addr = (cmd[1]! << 8) | cmd[2]!
+          sent.push({ addr, data: cmd.slice(4) })
+          contents.set(cmd.slice(4), IDENT_SIZE + addr)
+          out.push(0x06)
+        }
+      },
+      async readExactly(n: number) {
+        if (out.length < n) throw new Error(`the radio has only ${out.length} byte(s), ${n} wanted`)
+        return Uint8Array.from(out.splice(0, n))
+      },
+      peekHex: () => out.slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join(' '),
+    } as never
+  }
+
   it('reads the radio when no base image is supplied, so a restore has something to diff against', async () => {
+    // A restore deliberately supplies no base: it expects the radio to differ
+    // from the image being restored, which is the point of restoring. The
+    // driver reads the radio to find out what actually differs, which keeps the
+    // write to those blocks instead of rewriting six kilobytes.
+    const live = RAW.slice()
+    const report = await writable.writeImage(radio(live), image(), {
+      backup: { ...backup, identHash: 'match' },
+      ident,
+    })
+    expect(report.blocksWritten, 'the radio already holds this image').toBe(0)
+  })
+
+  it('takes the leading ACK on the first block of that read, like every other block', async () => {
     /*
-     * A restore deliberately supplies no base: it expects the radio to differ
-     * from the image being restored, which is the point of restoring. Refusing
-     * there left no way back from a bad write. Reading the radio first keeps the
-     * write to what actually differs instead of rewriting six kilobytes.
+     * `readBlock`'s `first` flag skips the ACK, and exactly one call is entitled
+     * to it: the block `readFirmware` sends straight after the handshake, which
+     * has already taken it. This loop passed `addr === 0`, so it skipped an ACK
+     * that was there, and the header read came back `06 58 00 00` - one byte
+     * out, on block zero, every time. The whole restore path went through here.
      *
-     * With a transport that cannot talk, that read is what fails - which is
-     * itself the proof that it was attempted rather than refused outright.
+     * A restore that has something to do, so the read has to complete before
+     * anything can be written.
      */
-    const img = image()
-    const ident = {
-      radioId: 'uv82' as const,
-      variant: 'N822413',
-      layout: 'uv82',
-      raw: new Uint8Array(0),
-      caps: { read: true, write: true },
-      identHash: 'match',
-    }
-    await expect(
-      writable.writeImage(transport, img, { backup: { ...backup, identHash: 'match' }, ident }),
-    ).rejects.toThrow(/t\.write is not a function/)
+    const live = RAW.slice()
+    live[IDENT_SIZE + 0x0e28 - IDENT_SIZE] = 0xaa
+    const drifted = RAW.slice()
+    drifted[0x0e28] = 0xaa
+
+    const report = await writable.writeImage(radio(drifted), image(), {
+      backup: { ...backup, identHash: 'match' },
+      ident,
+    })
+    expect(report.blocksWritten).toBe(1)
+    expect(report.verified).toBe(true)
   })
 })
 
