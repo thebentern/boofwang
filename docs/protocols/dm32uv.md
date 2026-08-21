@@ -355,7 +355,71 @@ straddle a page**: 44 per page, 44 × 92 = 4048, and the flat `index * 92`
 formula in circulation is wrong twice over. Read only, and it is dropped from a
 raw `.bin` export because a flat file has nowhere to record where it came from.
 
-### Zone membership is writable; scan list membership is not
+### Scan list membership — settled 2026-08-20
+
+Two readings, one word apart, both with direct evidence:
+
+| Reading | Members at | Slots | Evidence |
+|---|---|---|---|
+| A | `+0x18` | 16 | this radio's counts of 16 and 9 against sixteen and nine non-zero words |
+| B | `+0x1A` | 15 | the reference's OEM CPS capture: `0x0000` at `+0x18` on all nine lists |
+
+**A, and not by preference.** This radio's first list has a count of **16**, and
+fifteen slots cannot hold sixteen members — B is arithmetically impossible here
+whatever that capture shows. Both records are then exactly consistent with A and
+off by exactly one under B.
+
+Confirmed on the radio. Scan list 1 was written with channels 23, 24, 25 —
+MURS-1, MURS-2, MURS-3, a set the display makes obvious — and read back:
+
+```
+was: 53 63 61 6e 20 4c 69 73 74 20 31 | 10 | 03 06 00 01 00 ... 0a 00 7f | 01 00 02 00 03 00 ...
+now: 4d 55 52 53 20 53 43 41 4e 00 00 | 03 | 03 06 00 01 00 ... 0a 00 7f | 17 00 18 00 19 00 ...
+```
+
+Count `0x10`→`0x03`, members `17 18 19` = 23, 24, 25 at `+0x18`. Bytes
+`0x0C`–`0x17` — the modes, hang time, priorities and the `0a 00 7f` the
+reference marks preserve — are untouched. Unused slots are written as `0x0000`,
+which is what the radio itself does here: its own list 2 carries zeros past its
+count. That is the opposite of the zone rule, where a written zero is a recorded
+hardware regression.
+
+What the vendor capture means is still unexplained — a different firmware, or
+lists that were empty with residue further in. Recorded as true of
+`DM32.01.01.040` rather than of the radio in general.
+
+### Which talk group a channel transmits to — blocks `0x42`/`0x43`
+
+The channel record carries no contact field. Byte `0x2B`, the one people reach
+for, is the DMR *radio ID* index. The TX contact lives in two dedicated blocks,
+two bytes per channel: a 12-bit talk-group **slot** split across the high nibble
+of byte 0 and all of byte 1, with a digital flag in bit 0 and bits 3-1
+unexplained and preserved.
+
+The split is 2047/2048 — channel 2048's entry is at offset 0 of `0x43`.
+
+Decoding this radio gives the best confirmation available without a second one:
+the channel names describe the talk groups the indices resolve to.
+
+| Channel | Bytes | Slot | Talk group |
+|---|---|---|---|
+| `TAC 1`–`TAC 14` | `01 04` | 4 | TAC Chan |
+| `LR DMR` | `01 01` | 1 | LITTLE ROCK METR |
+| `AR DMR` | `01 03` | 3 | ARKANSAS |
+| `USA DMR` | `01 06` | 6 | USA |
+| `Test DMR` | `01 07` | 7 | Test |
+
+Only `0x42` is written. On this radio `0x43`'s tail holds two `"Zone 1"` strings
+rather than contact data, and nothing explains why; writing a page whose
+contents contradict its documented purpose is not a guess worth making for
+channel numbers nobody has. A channel above 2047 is refused by name.
+
+The slot is **physical**, not a position in the list. This radio's talk-group
+bank has gaps — slots 2, 5, 8 and 9 are wiped records that retain their call
+type — so a picker offering list positions would point every channel after a gap
+at the wrong group.
+
+### Zone membership is writable
 
 Zone membership was settled by this radio, as recorded above. Scan list
 membership was not, and the disagreement is worth writing down because both
@@ -398,8 +462,6 @@ covers the highest occupied slot rather than how many entries there are.
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied
   slot has not been established.
-- **Scan list membership.** See the two readings above; the name is written and
-  the membership is not.
 - **Growing the address book past the pages that were read.** One spare page is
   brought back, so up to 44 contacts can be added; beyond that the write is
   refused by name rather than truncating. Reading the whole 4.4 MiB region to
@@ -409,7 +471,12 @@ covers the highest occupied slot rather than how many entries there are.
   step, and no observed radio has ever had them out of step. Renaming a talk
   group therefore leaves the radio's own name-ordering stale until it rebuilds
   it — cosmetic, and disclosed rather than fixed.
-- Contacts beyond the address book, roaming zones and roaming channels.
+- **Writing block `0x43`**, the TX contact for channels above 2047. Decoded and
+  never written: its tail on this radio holds `"Zone 1"` strings rather than
+  contact data.
+- Analog config (`0x06`), quick text messages (`0x0A`), the digital and analog
+  emergency sections of `0x10`, roaming zones (`0x65`) and roaming channels
+  (`0x66`).
 - The meaning of 22 allocated blocks.
 - Whether the alignment of a *short* key differs from a full one. Only AES-256,
   which fills the whole 32-byte field, has been written.

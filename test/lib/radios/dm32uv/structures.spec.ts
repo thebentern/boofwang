@@ -6,11 +6,7 @@ import { equalBytes } from '#core/codec/struct.js'
 import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createDm32uvDriver, decodeTalkGroupIndex } from '#core/radios/dm32uv/driver.js'
-import { decodeTxContact, encodeTxContact, txContactSlot } from '#core/radios/dm32uv/layout.js'
-import { contactPages, contactsBase, logicalAddress } from '#core/radios/dm32uv/image.js'
-import { DM32UV_SETTINGS_GROUPS as SCHEMA_SETTINGS } from '#core/radios/dm32uv/schema.js'
-import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
-import {
+import { decodeTxContact, encodeTxContact, txContactSlot,
   CONTACT_REGION_HEADER,
   CONTACT_SIZE,
   DM32_CONTACT,
@@ -28,8 +24,10 @@ import {
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
   ZONE_SIZE,
-  contactSlot,
-} from '#core/radios/dm32uv/layout.js'
+  contactSlot } from '#core/radios/dm32uv/layout.js'
+import { contactPages, contactsBase, logicalAddress } from '#core/radios/dm32uv/image.js'
+import { DM32UV_SETTINGS_GROUPS as SCHEMA_SETTINGS } from '#core/radios/dm32uv/schema.js'
+import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
 
 const BLOB = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../../../fixtures/images/dm32uv-DM32.01.01.040.blocks.bin', import.meta.url))),

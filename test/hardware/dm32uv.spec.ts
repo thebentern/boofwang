@@ -9,6 +9,7 @@ import { REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import {
   RXGROUP_BLOCK,
+  TXCONTACT_BLOCK_LOW,
   SCANLIST_BLOCK,
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
@@ -158,7 +159,13 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       doc.zones[0] = { ...doc.zones[0]!, channels: liveChannels }
 
       const scanWas = doc.scanLists[0]
-      if (scanWas) doc.scanLists[0] = { ...scanWas, name: 'HW SCAN' }
+      // The experiment that settles where a scan list's members start.
+      //
+      // MURS-1, MURS-2, MURS-3 are channels 23-25, which is a run the radio's
+      // own display makes obvious. Written from +0x18, they read back as those
+      // three; read from +0x1A they would come back as MURS-2, MURS-3 and
+      // whatever follows - so the read-back below tells the two apart.
+      if (scanWas) doc.scanLists[0] = { ...scanWas, name: 'HW SCAN', channels: [23, 24, 25] }
 
       const rxWas = doc.rxGroups[0]
       if (rxWas) doc.rxGroups[0] = { ...rxWas, name: 'HW RXG', dmrIds: [3105, 91] }
@@ -172,6 +179,18 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       const contactWas = contacts.at(-1)
       if (contactWas) {
         doc.contacts[doc.contacts.length - 1] = { ...contactWas, name: 'HW BOOF', callsign: 'W0AAA' }
+      }
+
+      // Which talk group a channel transmits to, which lives in a block of its
+      // own rather than in the channel record.
+      const dmrChannel = [...doc.channels.values()].find((c) => c.modulation === 'DMR' && c.extras.vendor?.txContact)
+      const txWas = dmrChannel ? Number(dmrChannel.extras.vendor!.txContact) : 0
+      const txWant = doc.talkGroups.length > 1 ? (txWas === 1 ? 3 : 1) : txWas
+      if (dmrChannel && txWant !== txWas) {
+        doc.channels.set(dmrChannel.index, {
+          ...dmrChannel,
+          extras: { ...dmrChannel.extras, vendor: { ...dmrChannel.extras.vendor, txContact: String(txWant) } },
+        })
       }
 
       const settingsWere = { ...doc.settings }
@@ -256,9 +275,11 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
 
       if (scanWas) {
         expect(back.scanLists[0]!.name).toBe('HW SCAN')
-        // Membership is deliberately not written: two readings of those bytes
-        // sit one word apart and both have direct evidence.
-        expect(back.scanLists[0]!.channels, 'scan list membership reached the radio').toEqual(scanWas.channels)
+        expect(back.scanLists[0]!.channels, 'scan list membership did not reach the radio').toEqual([23, 24, 25])
+        // And the count that bounds them, in the byte the radio reads it from.
+        const rec = block(after, SCANLIST_BLOCK).subarray(1, 1 + 57)
+        expect(rec[0x0b], 'the member count').toBe(3)
+        expect(rec[0x18]! | (rec[0x19]! << 8), 'the first member sits at +0x18').toBe(23)
         expect(block(after, SCANLIST_BLOCK)[0], 'the scan list count moved').toBe(baseline0ScanCount)
       }
       if (rxWas) {
@@ -270,6 +291,17 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       if (ridWas) {
         expect(back.radioIds[0]!.name).toBe('HW ID')
         expect(back.radioIds[0]!.dmrId, 'the 24-bit DMR ID').toBe(3_105_999)
+      }
+
+      if (dmrChannel && txWant !== txWas) {
+        const now = back.channels.get(dmrChannel.index)!
+        expect(Number(now.extras.vendor!.txContact), 'the talk group did not reach the radio').toBe(txWant)
+        // Two bytes per channel, and only that channel's pair may have moved.
+        const at = (dmrChannel.index - 1) * 2
+        const nowPage = block(after, TXCONTACT_BLOCK_LOW)
+        const wasPage = block(baseline, TXCONTACT_BLOCK_LOW)
+        const moved = [...nowPage.keys()].filter((i) => nowPage[i] !== wasPage[i])
+        expect(moved.every((i) => i === at || i === at + 1), `bytes moved: ${moved}`).toBe(true)
       }
 
       expect(back.settings.powerOnLine1).toBe('HW BOOF')
