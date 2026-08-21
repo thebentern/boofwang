@@ -226,7 +226,19 @@ body {
     --inB: transparent;
   }
 
+  /*
+   * Landscape, because the table does not fit the other way round.
+   *
+   * With every column shown the grid asks for about 754px, and A4 at these
+   * margins gives 703px upright - so the State column, which is where a
+   * receive-only channel says so in words, would be the part that falls off the
+   * edge. Turning the sheet is the only fix that does not either drop a column
+   * or shrink the type past reading. It applies to the whole document rather
+   * than one page box because the channel table is the page anyone prints from,
+   * and the rest of the app is narrow enough not to care which way it lands.
+   */
   @page {
+    size: landscape;
     margin: 12mm;
   }
 
@@ -263,6 +275,13 @@ body {
     overflow: visible !important;
   }
 
+  /*
+   * A row is never split across a fold. The column headings are not repeated on
+   * the second sheet and cannot be: the table is a grid of divs, and only a real
+   * `thead` gets `table-header-group`. Restructuring the whole table for the
+   * benefit of the printer would cost the virtualiser, so the exported summary -
+   * which is a real table - is the artefact that paginates properly.
+   */
   .ch-row {
     break-inside: avoid;
   }

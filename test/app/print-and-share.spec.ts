@@ -132,6 +132,29 @@ describe('receive-only survives losing colour', () => {
   })
 })
 
+describe('neither output carries key material', () => {
+  it('never reaches for a key from the table that is printed', () => {
+    // The summary half of this is proved properly in test/lib/io/summary.spec.ts,
+    // against real key-bearing codeplugs. The printed half has no test of that
+    // shape available - there is no Vue harness here - so what is checked is the
+    // only way a key could arrive: the table asking the codeplug for one. It
+    // never has, and this is what says so out loud.
+    for (const forbidden of ['encryptionKeys', 'keyHex', 'maskKey']) {
+      expect(TABLE.includes(forbidden), `the channel table reaches for ${forbidden}`).toBe(false)
+    }
+  })
+})
+
+describe('the sheet is wide enough for the columns on it', () => {
+  it('turns the page, rather than letting the last column fall off the edge', () => {
+    // Every column shown comes to roughly 754px of grid, and A4 upright at
+    // these margins gives about 703px - so portrait would clip the State
+    // column, which is where receive-only is spelled out in words.
+    const print = CSS.slice(CSS.indexOf('@media print'))
+    expect(print).toMatch(/@page\s*\{[^}]*size:\s*landscape/)
+  })
+})
+
 describe('the shareable summary is wired to the Export control', () => {
   it('is offered next to the other exports', () => {
     expect(TABLE).toContain('downloadSummaryHtml()')

@@ -59,16 +59,19 @@ const OPTIONAL_COLUMNS = [
   { key: 'flag', label: 'State', width: 104 },
 ] as const
 
-/** Checkbox · gutter · slot · name · receive · shift · transmit. */
-const FIXED_COLUMNS = '26px 20px 34px minmax(90px,1fr) 82px 54px 82px'
+/**
+ * Checkbox · gutter · slot · name · receive · shift · transmit.
+ *
+ * A list rather than one string because print drops the first track - the
+ * checkbox selects nothing on paper - and dropping it by index is a change the
+ * next person to retune a width cannot silently break.
+ */
+const FIXED_COLUMNS = ['26px', '20px', '34px', 'minmax(90px,1fr)', '82px', '54px', '82px'] as const
 const FIXED_WIDTH = 26 + 20 + 34 + 90 + 82 + 54 + 82
-
-/** The same spine without the selection column, which selects nothing on paper. */
-const PRINT_COLUMNS = FIXED_COLUMNS.slice('26px '.length)
 
 const gridColumns = computed(() =>
   [
-    printing.value ? PRINT_COLUMNS : FIXED_COLUMNS,
+    ...(printing.value ? FIXED_COLUMNS.slice(1) : FIXED_COLUMNS),
     ...OPTIONAL_COLUMNS.filter((c) => optional[c.key]).map((c) => `${c.width}px`),
   ].join(' '),
 )
