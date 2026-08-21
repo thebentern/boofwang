@@ -100,7 +100,7 @@ const showBody = computed(() => isGate.value || expanded.value)
     >
       <div class="grid" style="gap: 9px">
         <p style="font-size: 14.5px; line-height: 1.6; color: var(--mu); max-width: 74ch">
-          Encryption is permitted only where your licence authorises it — typically a
+          Encryption is permitted only where your licence authorises it, typically a
           <strong style="color: var(--tx); font-weight: 600">Part 90 land-mobile licence</strong>
           for business, industrial or public-safety operation.
         </p>

@@ -281,7 +281,7 @@ function remove() {
           class="w-full"
           :items="[
             { value: 0, label: 'None' },
-            ...talkGroups.map((g) => ({ value: slotOf(g.id), label: `${g.name || 'unnamed'} — ${g.number}` })),
+            ...talkGroups.map((g) => ({ value: slotOf(g.id), label: `${g.name || 'unnamed'} · ${g.number}` })),
           ]"
         />
         <template #help>
@@ -300,7 +300,7 @@ function remove() {
           class="w-full"
           :items="[
             { value: 0, label: 'None (clear)' },
-            ...availableKeys.map((k) => ({ value: k.slot, label: `Slot ${k.slot} — ${k.name || 'unnamed'}` })),
+            ...availableKeys.map((k) => ({ value: k.slot, label: `Slot ${k.slot} · ${k.name || 'unnamed'}` })),
           ]"
         />
         <template #help>

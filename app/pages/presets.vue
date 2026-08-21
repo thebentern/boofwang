@@ -116,7 +116,7 @@ async function onFilePicked(event: Event) {
       description: [
         problems ? `${problems} row${problems === 1 ? '' : 's'} could not be read and were skipped.` : '',
         unknownColumns.length ? `Columns ignored: ${unknownColumns.join(', ')}.` : '',
-      ].filter(Boolean).join(' ') || 'Staged nowhere yet — place it below when you are ready.',
+      ].filter(Boolean).join(' ') || 'Staged nowhere yet. Place it below when you are ready.',
       icon: problems ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check',
       color: problems ? 'warning' : 'success',
       duration: 10_000,

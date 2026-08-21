@@ -266,7 +266,7 @@ async function askPersist() {
     </div>
 
     <p v-if="backups.length" style="margin-top: 11px; font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 78ch">
-      Restore overwrites what is on the radio right now with the image above — the same register as a write, and it
+      Restore overwrites what is on the radio right now with the image above. It is the same register as a write, and it
       asks the same way. A read that has never been written from is the safest thing in this list.
     </p>
   </div>

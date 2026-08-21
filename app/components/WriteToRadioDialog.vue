@@ -31,7 +31,7 @@ const backupAge = computed(() => {
   const days = Math.floor((Date.now() - new Date(at).getTime()) / 86_400_000)
   if (days < 1) return 'A backup of this radio, taken today, is on file.'
   if (days === 1) return 'The newest backup of this radio is from yesterday.'
-  return `The newest backup of this radio is ${days} days old — anything changed on the radio since then is not in it.`
+  return `The newest backup of this radio is ${days} days old. Anything changed on the radio since then is not in it.`
 })
 onMounted(async () => {
   backup.value = await session.latestBackupForOpenCodeplug()

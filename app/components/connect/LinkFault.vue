@@ -112,7 +112,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['none', 'none'],
     title: 'Program your radio from the browser',
     body:
-      'Nothing to install, no account, no server — your codeplug never leaves this machine. Web Serial will ' +
+      'Nothing to install, no account, no server. Your codeplug never leaves this machine. Web Serial will ' +
       'not let us look for your cable until you ask us to, so the first step is always yours.',
     actions: [{ key: 'pick', label: 'Connect a radio', icon: 'i-lucide-usb' }],
   },
@@ -158,7 +158,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     steps: [
       ['i-lucide-usb', 'Unplug and replug. A CH340 that is not seated shows nothing at all.'],
       ['i-lucide-laptop', 'On macOS a counterfeit CH340 may need the vendor driver; the genuine chip does not.'],
-      ['i-lucide-cable', 'Try the other end — some cables carry data on only one of two identical plugs.'],
+      ['i-lucide-cable', 'Try the other end. Some cables carry data on only one of two identical plugs.'],
     ],
     actions: [{ key: 'pick', label: 'Try again', icon: 'i-lucide-arrow-right' }],
   },
@@ -170,7 +170,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['bad', 'none'],
     title: 'That adapter is echoing our own bytes back',
     body:
-      'Every byte we sent came straight back, byte for byte, with no radio in the loop. That is a loopback — ' +
+      'Every byte we sent came straight back, byte for byte, with no radio in the loop. That is a loopback: ' +
       'a counterfeit adapter with TX bridged to RX, or a cable with nothing on the far end. boofwang stops ' +
       'rather than treating its own output as a reply.',
     steps: [
@@ -188,11 +188,11 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['ok', 'bad'],
     title: 'The port opened, but nothing answered',
     body:
-      'boofwang sent the {model} handshake and got silence. The cable is fine — the radio is not listening.',
+      'boofwang sent the {model} handshake and got silence. The cable is fine; the radio is not listening.',
     steps: [
       ['i-lucide-radio', 'Switch the radio on. It does not need any special mode.'],
       ['i-lucide-cable', 'Push the plug in until it clicks. Half-seated is the commonest cause by far.'],
-      ['i-lucide-zap', 'Turn the volume up — on some radios the programming pin shares the speaker jack.'],
+      ['i-lucide-zap', 'Turn the volume up. On some radios the programming pin shares the speaker jack.'],
     ],
     actions: [RETRY, SAVE_LOG],
   },
@@ -267,7 +267,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     title: '{browser} is showing its own Bluetooth device list',
     body:
       'That list belongs to the browser and we cannot style it, read it, or tell whether your radio is in ' +
-      'it. It only shows devices advertising the service boofwang asked for — and that service number is ' +
+      'it. It only shows devices advertising the service boofwang asked for, and that service number is ' +
       'an assumption, not something anyone has read off one of these radios yet.',
   },
 
@@ -308,7 +308,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     body:
       'boofwang connected to the radio over Bluetooth, sent the {model} handshake, and got silence. That ' +
       'means the link is up and the bytes are going somewhere that is not the radio’s programming ' +
-      'interface — most likely the wrong characteristic, or a service that carries something else entirely. ' +
+      'interface: most likely the wrong characteristic, or a service that carries something else entirely. ' +
       'Nobody has proved this path against a radio yet, so treat a failure here as a boofwang problem before ' +
       'a radio one.',
     steps: [

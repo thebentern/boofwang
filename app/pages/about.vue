@@ -65,7 +65,7 @@ const credits = [
       <p :style="BODY">
         Nowhere. boofwang is a static site: no backend, no analytics, no upload endpoint. Codeplugs you
         read are held in your browser and in files you explicitly save. Encryption keys you enter are
-        treated the same way — which also means anyone with access to your browser profile or to an
+        treated the same way, which also means anyone with access to your browser profile or to an
         exported file can read them.
       </p>
     </section>
@@ -138,7 +138,7 @@ const credits = [
 
       <p :style="BODY" style="margin-top: 10px">
         The FRS, GMRS and MURS channel tables come from 47 CFR Part 95 at the eCFR, the weather channels
-        from NOAA/NWS, and the per-state public-safety frequencies from the FCC ULS bulk downloads — all
+        from NOAA/NWS, and the per-state public-safety frequencies from the FCC ULS bulk downloads, all
         United States Government work, in the public domain.
         <a
           href="https://github.com/thebentern/boofwang/blob/main/docs/provenance.md"
@@ -156,7 +156,7 @@ const credits = [
         Help it along
       </h2>
       <p style="margin-bottom: 12px; font-size: 14px; line-height: 1.6; color: var(--mu)">
-        Bug reports with a protocol log are worth more than anything else — especially from a radio
+        Bug reports with a protocol log are worth more than anything else, especially from a radio
         nobody here owns. Drivers are welcome too.
       </p>
 

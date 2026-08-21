@@ -150,7 +150,7 @@ async function openInstead({ image, note }: OpenedImage, driver: RadioDriver) {
         note.guessedFrom === 'page-ids'
           ? `Read as a ${image.radioId} image from the block ids its pages carry. ` +
             'Check the channels look right before writing it anywhere.'
-          : `Assumed to be a ${image.radioId} image from its size — a bare .bin carries no identity. ` +
+          : `Assumed to be a ${image.radioId} image from its size. A bare .bin carries no identity. ` +
             'Check the channels look right before writing it anywhere.',
       icon: 'i-lucide-triangle-alert',
       color: 'warning',
@@ -218,7 +218,7 @@ async function applyToOpen() {
     >
       <template #body>
         <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 70ch">
-          It came off a different radio, so its image cannot be written to yours — the calibration in it belongs
+          It came off a different radio, so its image cannot be written to yours. The calibration in it belongs
           to the unit it was read from. Its <em>contents</em> can: the lists below are lifted onto the codeplug
           you have open, and everything that belongs to your unit stays where it is.
         </p>
@@ -298,7 +298,7 @@ async function applyToOpen() {
 
         <p class="mt-3" style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
           Applying this sends nothing. It becomes an unsaved edit, and goes to the radio through the same write
-          page as any other — with the backup check, the line-by-line diff and the typed confirmation.
+          page as any other, with the backup check, the line-by-line diff and the typed confirmation.
         </p>
       </template>
 

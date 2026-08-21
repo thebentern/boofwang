@@ -360,7 +360,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 <span class="meta">
                   {{ zone.channels.length }} channel{{ zone.channels.length === 1 ? '' : 's' }}:
                   {{ runs(zone.channels) }}
-                  <span v-if="zone.channels.length" style="color: var(--fn)"> — {{ nameOf(zone.channels[0]!) }}…</span>
+                  <span v-if="zone.channels.length" style="color: var(--fn)"> · {{ nameOf(zone.channels[0]!) }}…</span>
                 </span>
               </InlineEdit>
             </div>
@@ -794,7 +794,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
           </div>
           <p class="note">
             Names are written; membership is not. Flags, the name and one count byte account for all 33 bytes
-            of a roaming zone record, so the channel list is somewhere outside it that nobody has found — and
+            of a roaming zone record, so the channel list is somewhere outside it that nobody has found, and
             an editor that pretended otherwise would be writing into bytes that mean something else.
           </p>
         </template>
@@ -832,7 +832,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
         </div>
         <p class="note">
           Block 0x03, which the OEM software reads and writes but which nobody has explained. The names are
-          real and editable — this is the one block on the radio that stores them as UTF-16. The two reference
+          real and editable. This is the one block on the radio that stores them as UTF-16. The two reference
           numbers point at something unidentified, so they are shown and left alone; on a factory radio they
           hold five pairs drawn from four values that match nothing else in the codeplug.
         </p>
@@ -872,7 +872,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
         </div>
         <p class="note">
           The two VFOs are ordinary channel records at fixed offsets in the last channel block, outside the
-          channel list — nothing counts them and no zone or scan list can point at one. Their talk group is
+          channel list: nothing counts them and no zone or scan list can point at one. Their talk group is
           the exception: it lives four bytes from the end of a different block entirely, which is why the
           reference implementation reads it and does not write it. boofwang writes it.
         </p>
@@ -911,7 +911,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
         </div>
         <p class="note">
           These are decoded so a backup is complete and so you can see what the radio holds. They are written
-          back exactly as they were found — their fields are documented as derived rather than confirmed, and
+          back exactly as they were found. Their fields are documented as derived rather than confirmed, and
           a control for a byte whose meaning is a guess is worse than none.
         </p>
       </section>

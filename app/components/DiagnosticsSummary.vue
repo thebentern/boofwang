@@ -57,7 +57,7 @@ const warnings = computed(() => props.diagnostics.filter((d) => d.severity === '
         <li v-for="g in groups" :key="g.ruleId" class="text-sm">
           <span v-if="g.count > 1" class="font-medium">{{ g.count }}× </span>
           {{ g.message }}
-          <span v-if="g.slots.length" class="text-muted"> — {{ slotSummary(g.slots) }}</span>
+          <span v-if="g.slots.length" class="text-muted"> · {{ slotSummary(g.slots) }}</span>
         </li>
       </ul>
     </template>

@@ -349,7 +349,7 @@ function stateOf(r: SlotRow): RowState {
  */
 const GUTTER: Record<Exclude<RowState, 'ok'>, { icon: string; color: string; title: string; mark: string }> = {
   'error': { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', title: 'Transmit lands in a receive-only allocation', mark: '!' },
-  'receive-only': { icon: 'i-lucide-lock', color: 'var(--cn)', title: 'Receive-only — transmit disabled', mark: 'RX' },
+  'receive-only': { icon: 'i-lucide-lock', color: 'var(--cn)', title: 'Receive-only, transmit disabled', mark: 'RX' },
   'edited': { icon: 'i-lucide-pencil', color: 'var(--in)', title: 'Changed, not yet written', mark: '*' },
   'empty': { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', title: 'Empty slot', mark: '·' },
 }
@@ -1163,7 +1163,7 @@ const printedFacts = computed(() => {
             class="grid items-center ch-row"
             :style="rowStyle(r)"
             :tabindex="0"
-            :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty — click to program it`"
+            :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty. Click to program it`"
             @click="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
             @keydown.enter.self="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
           >

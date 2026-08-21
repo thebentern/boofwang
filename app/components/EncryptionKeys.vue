@@ -335,7 +335,7 @@ const INPUT_STYLE =
 
           <label class="grid gap-1.5" style="margin-bottom: 11px">
             <span class="flex items-baseline gap-2 flex-wrap">
-              <span class="label-xs">Key — {{ KEY_BYTES[draftType] * 2 }} hex characters</span>
+              <span class="label-xs">Key, {{ KEY_BYTES[draftType] * 2 }} hex characters</span>
               <!-- Not part of the label: shouting the escape hatch makes it read as the instruction. -->
               <span v-if="keepsExistingKey" style="font-size: 13px; color: var(--fn)">
                 leave blank to keep the current key

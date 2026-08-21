@@ -158,8 +158,8 @@ async function confirmRestore() {
 
       <div style="padding: 16px 17px">
         <p v-if="canWrite" style="font-size: 14px; line-height: 1.6; color: var(--mu); margin-bottom: 13px">
-          Whatever is on the radio now is replaced by this image. Anything programmed since that read — by boofwang or
-          by anything else — is gone. There is no diff here on purpose: a restore expects the radio to differ.
+          Whatever is on the radio now is replaced by this image. Anything programmed since that read, by boofwang or
+          by anything else, is gone. There is no diff here on purpose: a restore expects the radio to differ.
         </p>
 
         <div

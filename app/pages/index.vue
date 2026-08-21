@@ -277,7 +277,7 @@ function echoLog(): string | null {
   return (
     `sent     ${sent.text}${sent.truncated ? ' …' : ''}\n` +
     `received ${received.text}${received.truncated ? ' …' : ''}\n` +
-    `${' '.repeat(HEX_LABEL_WIDTH)}${carets} identical — loopback detected`
+    `${' '.repeat(HEX_LABEL_WIDTH)}${carets} identical, loopback detected`
   )
 }
 
@@ -456,7 +456,7 @@ const bleNote = computed(() => {
   if (!bluetooth.value.supported) return bluetooth.value.advice
   if (bluetoothProfile().verified) return 'This browser does have Web Bluetooth, so try connecting that way instead.'
   return (
-    'This browser does have Web Bluetooth, which is a different API — so there is one more thing to try ' +
+    'This browser does have Web Bluetooth, which is a different API, so there is one more thing to try ' +
     'below. It has never been tested against a radio, and the service number it looks for is a guess, so ' +
     'do not be surprised when it finds nothing.'
   )

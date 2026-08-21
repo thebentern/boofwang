@@ -383,8 +383,8 @@ async function send() {
           <p style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
             Nothing in the channel list changes. The
             <span class="font-mono tabular">{{ bytes.toLocaleString() }} bytes</span>
-            about to be sent are elsewhere in the codeplug — a zone, talk group or scan list name, an RX
-            group, a radio ID, a setting or a key slot — and boofwang has no line-by-line account of those
+            about to be sent are elsewhere in the codeplug: a zone, talk group or scan list name, an RX
+            group, a radio ID, a setting or a key slot. boofwang has no line-by-line account of those
             yet.
           </p>
         </div>
@@ -499,7 +499,7 @@ async function send() {
     -->
     <p style="margin-top: 14px; font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
       No write is finished until every block has been read back off the radio and compared. If any block does not
-      match, the write stops and says which one — the backup above is what puts the radio back.
+      match, the write stops and says which one. The backup above is what puts the radio back.
     </p>
   </section>
 
