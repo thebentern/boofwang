@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { Channel } from './channel.js'
+import type { Hz } from './units.js'
 
 export type RadioId = 'uvk5' | 'uv82' | 'uv5rmini' | 'dm32uv'
 
@@ -52,6 +53,54 @@ export interface DmrContact {
   remark: string
 }
 
+/** A repeater the radio can roam to: a pair, a colour code and a slot. */
+export interface RoamChannel {
+  id: string
+  name: string
+  rxFreq: Hz
+  txFreq: Hz
+  colorCode: number
+  timeSlot: 1 | 2
+}
+
+/**
+ * A named list of roaming channels.
+ *
+ * `members` is not decoded: a 33-byte record with a 16-byte name leaves too
+ * little room to guess the entry width from, and every zone on the radio this
+ * was written against is empty. The count the radio stores is carried so the
+ * gap is visible rather than implied.
+ */
+export interface RoamZone {
+  id: string
+  name: string
+  memberCount: number
+}
+
+/** One of the radio's eight digital emergency systems. Read only. */
+export interface EmergencySystem {
+  id: string
+  slot: number
+  name: string
+  alarmType: number
+  alarmMode: number
+  revertChannel: number
+}
+
+/**
+ * Analog signalling: DTMF codes and the two contact lists that go with them.
+ *
+ * Read only, and deliberately shallow. The settings record that sits between
+ * the code lists is almost entirely unexplained, so nothing here offers to
+ * change it.
+ */
+export interface AnalogConfig {
+  dtmfCodes: string[]
+  dtmfSpecialCodes: string[]
+  contacts: string[]
+  bdcContacts: { name: string; number: number }[]
+}
+
 export interface DmrRadioId {
   id: string
   name: string
@@ -97,6 +146,13 @@ export interface Codeplug {
   rxGroups: RxGroup[]
   radioIds: DmrRadioId[]
   contacts: DmrContact[]
+  /** Canned text messages. */
+  messages: string[]
+  roamChannels: RoamChannel[]
+  roamZones: RoamZone[]
+  /** Read only: decoded so a backup is complete, never written. */
+  emergency: EmergencySystem[]
+  analog: AnalogConfig | null
   encryptionKeys: EncryptionKey[]
   /** Radio settings, keyed by the setting ids declared in the RadioSchema. */
   settings: Record<string, unknown>
@@ -114,6 +170,11 @@ export function emptyCodeplug(radio: RadioId | null, now: string): Codeplug {
     rxGroups: [],
     radioIds: [],
     contacts: [],
+    messages: [],
+    roamChannels: [],
+    roamZones: [],
+    emergency: [],
+    analog: null,
     encryptionKeys: [],
     settings: {},
   }

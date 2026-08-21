@@ -555,6 +555,18 @@ export const TXCONTACT_BLOCK_LOW = 0x42
 export const TXCONTACT_BLOCK_HIGH = 0x43
 /** Channel 2048's entry is at offset 0 of 0x43, so the split is 2047/2048. */
 export const TXCONTACT_SPLIT = 2047
+/**
+ * Where the usable part of block 0x43 stops.
+ *
+ * From 0x0EF6 the page holds two stale zone records the flash layer left
+ * behind - "Zone 1", count 1, member channel 1, a default no zone on the
+ * development radio uses. They are dead: off the zone bank's own 145-byte grid
+ * by 44 bytes, and the second runs 25 bytes past the page's last payload byte.
+ * Dead or not, they are not contact data, so neither the encoder nor
+ * `ownedRanges` goes past here. Channels 3963 and up need channel block 0x40,
+ * which no radio this has been read from allocates.
+ */
+export const TXCONTACT_HIGH_LIMIT = 0x0ef6
 
 /** Where channel `n` (1-based) keeps its TX contact, or null if it has nowhere. */
 export function txContactSlot(n: number): { blockId: number; offset: number } | null {
@@ -577,4 +589,144 @@ export function decodeTxContact(b0: number, b1: number): { slot: number; digital
 export function encodeTxContact(slot: number, digital: boolean, previous: number): [number, number] {
   const keep = previous & 0b0000_1110 // bits 3-1, meaning unestablished
   return [((slot >> 8) << 4) | keep | (digital ? 1 : 0), slot & 0xff]
+}
+
+// ------------------------------------------------------- quick text messages --
+
+/**
+ * Canned text messages, block 0x0A.
+ *
+ * One count byte, a fifteen-byte header nobody has explained, then
+ * length-prefixed ASCII. The simplest structure in this radio and the only one
+ * whose geometry is uniquely determined rather than merely consistent: a
+ * brute-force search over (base, stride) leaves exactly one pair standing.
+ */
+export const MESSAGE_BLOCK = 0x0a
+export const MESSAGE_SIZE = 0x81
+export const MESSAGE_HEADER = 0x10
+/** What fits before the block id byte: slot 31 ends at 0xFAE. */
+export const MESSAGE_SLOTS = Math.floor((0x1000 - 1 - MESSAGE_HEADER) / MESSAGE_SIZE)
+/** 128 bytes of field, the last reserved as a terminator. */
+export const MESSAGE_MAX_CHARS = 127
+
+export const DM32_MESSAGE = defineStruct(MESSAGE_SIZE, {
+  textLength: at(0x00, u8),
+  text: at(0x01, ascii(MESSAGE_MAX_CHARS, { pad: 0x00, terminators: [0x00, 0xff] })),
+})
+
+export const messageOffset = (n: number) => MESSAGE_HEADER + n * MESSAGE_SIZE
+
+// ------------------------------------------------------------------ roaming --
+
+/**
+ * Roaming channels, block 0x66 - a repeater pair the radio can fall back to.
+ *
+ * No header, and the count is a *trailer* at 0x0FF0 rather than a header byte.
+ * That is unique in this radio and worth stating plainly: every other counted
+ * structure here puts its count first.
+ */
+export const ROAMCHANNEL_BLOCK = 0x66
+export const ROAMCHANNEL_SIZE = 26
+export const ROAMCHANNEL_COUNT_AT = 0x0ff0
+export const ROAMCHANNEL_SLOTS = Math.floor(ROAMCHANNEL_COUNT_AT / ROAMCHANNEL_SIZE)
+
+export const DM32_ROAMCHANNEL = defineStruct(ROAMCHANNEL_SIZE, {
+  name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
+  rxFreq: at(0x10, bcdFreqLE(4)),
+  txFreq: at(0x14, bcdFreqLE(4)),
+  // Only the low bits are understood in either byte, so both are modelled as
+  // bitfields: a whole-byte write here is the mistake that once erased
+  // scan-list membership from channel byte 0x19.
+  colour: at(0x18, bits(1, { colorCode: [0, 4], unknownHigh: [4, 4] })),
+  slot: at(0x19, bits(1, { timeSlot: [0, 1], unknownHigh: [1, 7] })),
+})
+
+/**
+ * Roaming zones, block 0x65 - a named list of roaming channels.
+ *
+ * The name is decoded and the membership is not. A 33-byte record with a
+ * 16-byte name leaves 16 bytes for members and one for a count, and nothing
+ * establishes their width; this radio's three zones are all empty, so its own
+ * bytes cannot settle it either. Read what is known, claim nothing else.
+ */
+export const ROAMZONE_BLOCK = 0x65
+export const ROAMZONE_SIZE = 33
+export const ROAMZONE_HEADER = 0x10
+export const ROAMZONE_SLOTS = Math.floor((0x1000 - 1 - ROAMZONE_HEADER) / ROAMZONE_SIZE)
+
+export const DM32_ROAMZONE = defineStruct(ROAMZONE_SIZE, {
+  name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
+  memberCount: at(0x10, u8),
+})
+
+// -------------------------------------------------------- digital emergency --
+
+/**
+ * Digital emergency systems, block 0x10 at 0x000.
+ *
+ * Eight fixed records of 20 bytes sharing a page with the encryption key slots
+ * at 0x300. No count and no bitmask: a record is empty when all twenty bytes
+ * are 0x00 or 0xFF, the same either-fill test the key slots use.
+ *
+ * Read only. Every field past the name is DERIVED, all eight records on this
+ * radio hold factory defaults byte-identical to the reference's capture of a
+ * different unit, and no channel references one.
+ */
+export const EMERGENCY_SIZE = 0x14
+export const EMERGENCY_SLOTS = 8
+export const EMERGENCY_AREA = [0x000, EMERGENCY_SLOTS * EMERGENCY_SIZE] as const
+
+export const DM32_EMERGENCY = defineStruct(EMERGENCY_SIZE, {
+  name: at(0x00, ascii(8, { pad: 0x00, terminators: [0x00, 0xff] })),
+  alarmType: at(0x0a, u8),
+  alarmMode: at(0x0b, u8),
+  revertChannel: at(0x0c, u16le),
+})
+
+// ------------------------------------------------------------ analog config --
+
+/**
+ * Block 0x06: DTMF signalling and two analog contact lists.
+ *
+ * Eight sub-structures in one page rather than an array. Read only - the
+ * settings record at 0x100 is almost entirely unexplained, and a control for a
+ * byte whose meaning is a guess is worse than none.
+ */
+export const ANALOG_BLOCK = 0x06
+export const DTMF_CODE_SLOTS = 16
+export const DTMF_CODE_SIZE = 16
+export const DTMF_SPECIAL_BASE = 0x110
+export const DTMF_SPECIAL_SLOTS = 4
+export const ANALOG_CONTACT_COUNT_AT = 0x1ff
+export const ANALOG_CONTACT_BASE = 0x200
+export const ANALOG_CONTACT_SIZE = 32
+export const BDC_COUNT_AT = 0xa90
+export const BDC_BASE = 0xaa0
+export const BDC_SIZE = 20
+
+export const DM32_ANALOG_CONTACT = defineStruct(ANALOG_CONTACT_SIZE, {
+  name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
+})
+
+export const DM32_BDC_CONTACT = defineStruct(BDC_SIZE, {
+  name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
+  number: at(0x10, u8),
+})
+
+/**
+ * A DTMF code: one digit per byte, 0xFF ends it.
+ *
+ * 0x0E is not a terminator - this radio's first slot is `04 05 06 0e 01 02 03
+ * ff`, a seven-digit code with a symbol in the middle. Which symbol 0x0E and
+ * 0x0F are is the reference's claim, not the bytes'.
+ */
+export const DTMF_DIGITS = '0123456789ABCD*#'
+
+export function decodeDtmf(bytes: Uint8Array): string {
+  let out = ''
+  for (const b of bytes) {
+    if (b === 0xff) break
+    out += DTMF_DIGITS[b] ?? '?'
+  }
+  return out
 }

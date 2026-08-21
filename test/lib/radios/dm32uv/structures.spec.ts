@@ -6,7 +6,7 @@ import { equalBytes } from '#core/codec/struct.js'
 import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createDm32uvDriver, decodeTalkGroupIndex } from '#core/radios/dm32uv/driver.js'
-import { decodeTxContact, encodeTxContact, txContactSlot,
+import {
   CONTACT_REGION_HEADER,
   CONTACT_SIZE,
   DM32_CONTACT,
@@ -21,10 +21,27 @@ import { decodeTxContact, encodeTxContact, txContactSlot,
   SCANLIST_HEADER,
   SCANLIST_SIZE,
   SETTINGS_BLOCK,
+  ANALOG_BLOCK,
+  EMERGENCY_SIZE,
+  EMERGENCY_SLOTS,
+  KEY_AREA,
+  KEY_BLOCK,
+  MESSAGE_BLOCK,
+  MESSAGE_HEADER,
+  MESSAGE_MAX_CHARS,
+  MESSAGE_SIZE,
+  ROAMCHANNEL_BLOCK,
+  ROAMCHANNEL_COUNT_AT,
+  ROAMZONE_BLOCK,
+  TXCONTACT_HIGH_LIMIT,
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
   ZONE_SIZE,
-  contactSlot } from '#core/radios/dm32uv/layout.js'
+  contactSlot,
+  decodeTxContact,
+  encodeTxContact,
+  txContactSlot,
+} from '#core/radios/dm32uv/layout.js'
 import { contactPages, contactsBase, logicalAddress } from '#core/radios/dm32uv/image.js'
 import { DM32UV_SETTINGS_GROUPS as SCHEMA_SETTINGS } from '#core/radios/dm32uv/schema.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
@@ -858,13 +875,51 @@ describe('which talk group a channel transmits to', () => {
     expect(moved).toEqual([(lr.index - 1) * 2 + 1])
   })
 
-  it('never writes the high block, whose contents contradict its purpose', () => {
-    // On this radio block 0x43's tail holds two "Zone 1" strings rather than
-    // contact data, and nothing explains why.
-    expect(d.ownedRanges(logicalAddress(0x43))).toEqual([])
+  it('claims the high block only as far as the residue', () => {
+    // From 0x0EF6 block 0x43 holds two stale zone records the flash layer left
+    // behind. Claiming them would disarm the check that stops a write when a
+    // byte moves outside what this build models - which is why 0x43's claim is
+    // deliberately not 0x42's.
+    expect(d.ownedRanges(logicalAddress(0x43))).toEqual([[0, TXCONTACT_HIGH_LIMIT]])
+    expect(d.ownedRanges(logicalAddress(0x42))).toEqual([[0, PAGE_SIZE - 1]])
+
     const img = image()
     const out = d.encode(d.decode(img), img)
     expect(equalBytes(page(out, 0x43), page(img, 0x43))).toBe(true)
+  })
+
+  it('refuses a channel whose entry lands in that residue', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const template = doc.channels.get([...doc.channels.keys()][0]!)!
+    // Channel 3963 is the first whose two bytes fall at or past 0x0EF6.
+    doc.channels.set(3963, {
+      ...template,
+      index: 3963,
+      extras: { ...template.extras, vendor: { ...template.extras.vendor, txContact: '1' } },
+    })
+    expect(() => d.encode(doc, img)).toThrow(/firmware residue|does not fit|has not allocated/)
+  })
+
+  it('writes a channel above 2047 into the high block', () => {
+    // 601 channels above 2047 are creatable on this radio: blocks 0x30, 0x31,
+    // 0x32, 0x34, 0x37, 0x3b, 0x3d and 0x41 are allocated. Channel 2550 is one.
+    const img = image()
+    const doc = d.decode(img)
+    const template = doc.channels.get([...doc.channels.keys()][0]!)!
+    doc.channels.set(2550, {
+      ...template,
+      index: 2550,
+      modulation: 'DMR',
+      extras: { ...template.extras, vendor: { ...template.extras.vendor, txContact: '4' } },
+    })
+    const out = d.encode(doc, img)
+    const at = (2550 & 0x7ff) * 2
+    const after = page(out, 0x43)
+    expect(decodeTxContact(after[at]!, after[at + 1]!)).toEqual({ slot: 4, digital: true })
+    // And nothing outside that pair moved.
+    const before = page(img, 0x43)
+    expect([...after.keys()].filter((i) => after[i] !== before[i])).toEqual([at, at + 1])
   })
 
   it('refuses a talk group slot wider than the twelve bits stored', () => {
@@ -876,5 +931,188 @@ describe('which talk group a channel transmits to', () => {
       extras: { ...lr.extras, vendor: { ...lr.extras.vendor, txContact: '5000' } },
     })
     expect(() => d.encode(doc, img)).toThrow(/12 bits/)
+  })
+})
+
+describe('canned text messages', () => {
+  it('decodes this radio’s five, length byte and all', () => {
+    const cp = d.decode(image())
+    expect(cp.messages).toHaveLength(5)
+    expect(cp.messages[0]).toBe('How are you?')
+    // The length byte is the truth: 12 characters, and the field is padded.
+    expect(page(image(), MESSAGE_BLOCK)[MESSAGE_HEADER]).toBe(12)
+  })
+
+  it('reads the count as one byte, not two', () => {
+    // The trap that already bit zones, scan lists and radio IDs. On this radio
+    // byte 0x001 happens to be 0x00, so a 16-bit read gives the same answer and
+    // proves nothing - the header byte has to be made non-zero to tell the two
+    // readings apart.
+    const img = image()
+    expect(page(img, MESSAGE_BLOCK)[0]).toBe(5)
+    page(img, MESSAGE_BLOCK)[1] = 0x01
+    expect(d.decode(img).messages, 'a 16-bit read would report 261 messages').toHaveLength(5)
+  })
+
+  it('round-trips untouched', () => {
+    const img = image()
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, MESSAGE_BLOCK), page(img, MESSAGE_BLOCK))).toBe(true)
+  })
+
+  it('writes a message and its length together', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.messages[1] = 'On my way'
+    const out = d.encode(doc, img)
+    expect(d.decode(out).messages[1]).toBe('On my way')
+    expect(page(out, MESSAGE_BLOCK)[MESSAGE_HEADER + MESSAGE_SIZE]).toBe(9)
+  })
+
+  it('leaves nothing of a longer message behind, including the last byte', () => {
+    // The text field pads to 127 bytes, so the visible tail goes on its own.
+    // Byte 0x80 is outside it - the reference calls it a terminator and marks
+    // that DERIVED - so the record is cleared whole rather than trusting the
+    // pad to reach.
+    const img = image()
+    page(img, MESSAGE_BLOCK)[MESSAGE_HEADER + 0x80] = 0x5a
+
+    const doc = d.decode(img)
+    doc.messages[0] = 'Hi'
+    const out = d.encode(doc, img)
+    expect(d.decode(out).messages[0]).toBe('Hi')
+
+    const rec = page(out, MESSAGE_BLOCK).subarray(MESSAGE_HEADER, MESSAGE_HEADER + MESSAGE_SIZE)
+    expect(new TextDecoder('latin1').decode(rec)).not.toContain('are you')
+    expect(rec[0x80], 'the byte past the text field').toBe(0)
+  })
+
+  it('adds and removes by moving the count', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.messages.push('Sixth')
+    expect(d.decode(d.encode(doc, img)).messages).toHaveLength(6)
+    const doc2 = d.decode(img)
+    doc2.messages.splice(2)
+    const out = d.encode(doc2, img)
+    expect(page(out, MESSAGE_BLOCK)[0]).toBe(2)
+    expect(d.decode(out).messages).toHaveLength(2)
+  })
+
+  it('clips a message to what a record holds', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.messages[0] = 'x'.repeat(300)
+    expect(d.decode(d.encode(doc, img)).messages[0]).toHaveLength(MESSAGE_MAX_CHARS)
+  })
+})
+
+describe('roaming', () => {
+  it('decodes this radio’s three channels with real frequencies', () => {
+    const cp = d.decode(image())
+    expect(cp.roamChannels.map((c) => c.name)).toEqual(['Roam CH 1', 'Roam CH 2', 'Roam CH 3'])
+    for (const c of cp.roamChannels) {
+      expect(c.rxFreq, `${c.name} rx`).toBeGreaterThan(100_000_000)
+      expect(c.txFreq, `${c.name} tx`).toBeGreaterThan(100_000_000)
+      expect(c.timeSlot === 1 || c.timeSlot === 2).toBe(true)
+      expect(c.colorCode).toBeLessThanOrEqual(15)
+    }
+  })
+
+  it('reads the channel count from the trailer, not a header', () => {
+    // Unique in this radio: every other counted structure puts its count first.
+    const data = page(image(), ROAMCHANNEL_BLOCK)
+    expect(data[ROAMCHANNEL_COUNT_AT]).toBe(3)
+    // Offset 0 is the first character of the first name, not a count.
+    expect(String.fromCharCode(data[0]!)).toBe('R')
+  })
+
+  it('decodes the zones by name, and does not invent their membership', () => {
+    const cp = d.decode(image())
+    expect(cp.roamZones.map((z) => z.name)).toEqual(['Roam Zone 1', 'Roam Zone 2', 'Roam Zone 3'])
+    // memberCount is carried so the gap is visible; members are not decoded.
+    for (const z of cp.roamZones) expect(typeof z.memberCount).toBe('number')
+  })
+
+  it('round-trips both blocks untouched', () => {
+    const img = image()
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, ROAMCHANNEL_BLOCK), page(img, ROAMCHANNEL_BLOCK))).toBe(true)
+    expect(equalBytes(page(out, ROAMZONE_BLOCK), page(img, ROAMZONE_BLOCK))).toBe(true)
+  })
+
+  it('writes a roaming channel and keeps the trailer in step', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.roamChannels[0] = { ...doc.roamChannels[0]!, name: 'HILLTOP', colorCode: 7, timeSlot: 2 }
+    const out = d.encode(doc, img)
+    const back = d.decode(out).roamChannels[0]!
+    expect(back.name).toBe('HILLTOP')
+    expect(back.colorCode).toBe(7)
+    expect(back.timeSlot).toBe(2)
+    expect(page(out, ROAMCHANNEL_BLOCK)[ROAMCHANNEL_COUNT_AT]).toBe(3)
+  })
+
+  it('touches only the low bits of the two flag bytes', () => {
+    const img = image()
+    const data = page(img, ROAMCHANNEL_BLOCK)
+    data[0x18] = 0xf3 // colour code 3, high nibble set
+    data[0x19] = 0xfe // slot 1, high bits set
+    const doc = d.decode(img)
+    doc.roamChannels[0] = { ...doc.roamChannels[0]!, colorCode: 5, timeSlot: 2 }
+    const out = page(d.encode(doc, img), ROAMCHANNEL_BLOCK)
+    expect(out[0x18]! >> 4, 'the unexplained high nibble').toBe(0xf)
+    expect(out[0x18]! & 0x0f).toBe(5)
+    expect(out[0x19]! >> 1, 'the unexplained high bits').toBe(0x7f)
+    expect(out[0x19]! & 1).toBe(1)
+  })
+
+  it('never claims the fourteen bytes after the count trailer', () => {
+    const claimed = d.ownedRanges(logicalAddress(ROAMCHANNEL_BLOCK))
+    for (let i = ROAMCHANNEL_COUNT_AT + 1; i < PAGE_SIZE; i++) {
+      expect(claimed.some(([a, b]) => i >= a && i < b), `byte 0x${i.toString(16)}`).toBe(false)
+    }
+  })
+})
+
+describe('the structures decoded but never written', () => {
+  it('reads the eight digital emergency systems', () => {
+    const cp = d.decode(image())
+    expect(cp.emergency).toHaveLength(8)
+    expect(cp.emergency[0]!.name).toBe('DEmer 1')
+    expect(cp.emergency[7]!.name).toBe('DEmer 8')
+  })
+
+  it('shares its page with the key slots without disturbing them', () => {
+    // Block 0x10 holds the emergency systems at 0x000 and the keys at 0x300.
+    // ownedRanges for it is still exactly the key area.
+    expect(d.ownedRanges(logicalAddress(KEY_BLOCK))).toEqual([KEY_AREA])
+    const img = image()
+    const doc = d.decode(img)
+    doc.encryptionKeys[0] = { ...doc.encryptionKeys[0]!, keyHex: 'AB'.repeat(32) }
+    const out = d.encode(doc, img)
+    const from = EMERGENCY_SLOTS * EMERGENCY_SIZE
+    expect(equalBytes(page(out, KEY_BLOCK).subarray(0, from), page(img, KEY_BLOCK).subarray(0, from))).toBe(true)
+  })
+
+  it('reads the DTMF codes and both analog contact lists', () => {
+    const a = d.decode(image()).analog!
+    // 0x0E is a symbol in the middle of a code, not a terminator: the first
+    // slot is 04 05 06 0e 01 02 03 ff.
+    expect(a.dtmfCodes[0]).toBe('456*123')
+    expect(a.dtmfCodes).toHaveLength(6)
+    expect(a.dtmfSpecialCodes).toHaveLength(4)
+    expect(a.contacts).toHaveLength(7)
+    expect(a.contacts[0]).toBe('AContact 1')
+    expect(a.bdcContacts).toHaveLength(10)
+    expect(a.bdcContacts[0]!.name).toBe('BDC Cotnacts 1')
+    expect(a.bdcContacts[0]!.number).toBe(1)
+  })
+
+  it('claims nothing in the analog block', () => {
+    expect(d.ownedRanges(logicalAddress(ANALOG_BLOCK))).toEqual([])
+    const img = image()
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, ANALOG_BLOCK), page(img, ANALOG_BLOCK))).toBe(true)
   })
 })

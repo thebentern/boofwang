@@ -16,6 +16,9 @@ import {
   CHANNEL_BLOCK_LAST,
   RADIOID_BLOCK,
   TXCONTACT_BLOCK_LOW,
+  TXCONTACT_BLOCK_HIGH,
+  MESSAGE_BLOCK,
+  ROAMCHANNEL_BLOCK,
   RXGROUP_BLOCK,
   SCANLIST_BLOCK,
   SETTINGS_BLOCK,
@@ -132,6 +135,9 @@ describe('what a key write touches', () => {
       RADIOID_BLOCK,
       SETTINGS_BLOCK,
       TXCONTACT_BLOCK_LOW,
+      TXCONTACT_BLOCK_HIGH,
+      MESSAGE_BLOCK,
+      ROAMCHANNEL_BLOCK,
     ])
     for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) decoded.add(id)
     for (let id = ZONE_BLOCK_FIRST; id <= ZONE_BLOCK_LAST; id++) decoded.add(id)

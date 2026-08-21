@@ -25,6 +25,13 @@ import type { Transport } from '../../transport/transport.js'
 import { blockData, blockIds, contactPages, contactsBase, logicalAddress } from './image.js'
 import { cloneImage } from '../../radio/image.js'
 import {
+  ANALOG_BLOCK,
+  ANALOG_CONTACT_BASE,
+  ANALOG_CONTACT_COUNT_AT,
+  ANALOG_CONTACT_SIZE,
+  BDC_BASE,
+  BDC_COUNT_AT,
+  BDC_SIZE,
   CALL_TYPE_ALL,
   CALL_TYPE_GROUP,
   CALL_TYPE_PRIVATE,
@@ -36,23 +43,47 @@ import {
   CONTACT_REGION_HEADER,
   CONTACT_SIZE,
   CONTACT_UNKNOWN_13,
+  DM32_ANALOG_CONTACT,
+  DM32_BDC_CONTACT,
   DM32_CHANNEL,
   DM32_CONTACT,
+  DM32_EMERGENCY,
   DM32_KEY_SLOT,
+  DM32_MESSAGE,
   DM32_RADIOID,
+  DM32_ROAMCHANNEL,
+  DM32_ROAMZONE,
   DM32_RXGROUP,
   DM32_SCANLIST,
   DM32_SETTINGS,
   DM32_TALKGROUP,
   DM32_ZONE,
+  DTMF_CODE_SIZE,
+  DTMF_CODE_SLOTS,
+  DTMF_SPECIAL_BASE,
+  DTMF_SPECIAL_SLOTS,
+  EMERGENCY_SIZE,
+  EMERGENCY_SLOTS,
   ENCRYPTION_TYPES,
   KEY_AREA,
   KEY_BLOCK,
   KEY_SLOTS,
+  MESSAGE_BLOCK,
+  MESSAGE_MAX_CHARS,
+  MESSAGE_SIZE,
+  MESSAGE_SLOTS,
   RADIOID_BLOCK,
   RADIOID_HEADER,
   RADIOID_SIZE,
   RADIOID_SLOTS,
+  ROAMCHANNEL_BLOCK,
+  ROAMCHANNEL_COUNT_AT,
+  ROAMCHANNEL_SIZE,
+  ROAMCHANNEL_SLOTS,
+  ROAMZONE_BLOCK,
+  ROAMZONE_HEADER,
+  ROAMZONE_SIZE,
+  ROAMZONE_SLOTS,
   RXGROUP_BLOCK,
   RXGROUP_HEADER,
   RXGROUP_MAX_MEMBERS,
@@ -72,6 +103,7 @@ import {
   TG_INDEX_TABLE_BY_NUMBER,
   TXCONTACT_BLOCK_HIGH,
   TXCONTACT_BLOCK_LOW,
+  TXCONTACT_HIGH_LIMIT,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
   ZONE_HEADER,
@@ -79,12 +111,14 @@ import {
   ZONE_SIZE,
   channelSlot,
   contactSlot,
+  decodeDtmf,
   decodeToneWord,
   decodeTxContact,
   encodeToneWord,
   encodeTxContact,
   isKeySlotEmpty,
   keySlotOffset,
+  messageOffset,
   talkgroupOffset,
   txContactSlot,
 } from './layout.js'
@@ -173,7 +207,10 @@ function writeTargets(image: RadioImage): WriteTarget[] {
     add(id, `block 0x${id.toString(16)} (zones)`)
   }
   add(SCANLIST_BLOCK, `block 0x${SCANLIST_BLOCK.toString(16)} (scan lists)`)
+  add(MESSAGE_BLOCK, `block 0x${MESSAGE_BLOCK.toString(16)} (text messages)`)
+  add(ROAMCHANNEL_BLOCK, `block 0x${ROAMCHANNEL_BLOCK.toString(16)} (roaming channels)`)
   add(TXCONTACT_BLOCK_LOW, `block 0x${TXCONTACT_BLOCK_LOW.toString(16)} (channel talk groups)`)
+  add(TXCONTACT_BLOCK_HIGH, `block 0x${TXCONTACT_BLOCK_HIGH.toString(16)} (channel talk groups, high)`)
   // Settings decide how the radio behaves rather than what it can hear, so they
   // go after the lists but before anything that keys a transmitter.
   add(SETTINGS_BLOCK, `block 0x${SETTINGS_BLOCK.toString(16)} (settings)`)
@@ -280,10 +317,11 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
            * field that says so.
            */
           writeScope:
-            'channels, zones, talk groups, scan lists, RX groups, contacts, radio settings and encryption keys',
+            'channels and their talk groups, zones, talk groups, scan lists, RX groups, contacts, ' +
+            'text messages, roaming channels, radio settings and encryption keys',
           // Everything the driver decodes is written now bar one derived index,
           // so the exclusions are the short half and the chip uses them.
-          writeExcept: 'the radio’s own talk-group ordering',
+          writeExcept: 'roaming zone membership, emergency systems and DTMF',
         },
       }
     : DM32UV_SCHEMA
@@ -780,6 +818,11 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       cp.radioIds = decodeRadioIds(image)
       cp.encryptionKeys = decodeKeys(image)
       cp.contacts = decodeContacts(image)
+      cp.messages = decodeMessages(image)
+      cp.roamChannels = decodeRoamChannels(image)
+      cp.roamZones = decodeRoamZones(image)
+      cp.emergency = decodeEmergency(image)
+      cp.analog = decodeAnalog(image)
       cp.settings = decodeSettings(image)
       return cp
     },
@@ -881,6 +924,8 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       encodeSettings(out, doc.settings)
       encodeContacts(out, doc.contacts)
       encodeTxContacts(out, doc)
+      encodeMessages(out, doc.messages)
+      encodeRoamChannels(out, doc.roamChannels)
 
       return { ...out, sha256: '' }
     },
@@ -953,6 +998,21 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // so the whole page bar its id byte is understood. The high block is read
       // and never written - see encodeTxContacts.
       if (blockId === TXCONTACT_BLOCK_LOW) return [[0, PAGE_SIZE - 1] as const]
+      // Not the same claim as 0x42, and deliberately not folded in with it. The
+      // tail of 0x43 holds two stale zone records the flash layer left behind -
+      // 208 bytes that are demonstrably not contact data - and claiming them
+      // would disarm the check that stops a write when a byte moves outside
+      // what this build models.
+      if (blockId === TXCONTACT_BLOCK_HIGH) return [[0, TXCONTACT_HIGH_LIMIT] as const]
+      if (blockId === MESSAGE_BLOCK) return [[0, PAGE_SIZE - 1] as const]
+      // The records, then the count trailer. The fourteen bytes after it are
+      // unexplained and the block id is never ours.
+      if (blockId === ROAMCHANNEL_BLOCK) {
+        return [
+          [0, ROAMCHANNEL_SLOTS * ROAMCHANNEL_SIZE] as const,
+          [ROAMCHANNEL_COUNT_AT, ROAMCHANNEL_COUNT_AT + 1] as const,
+        ]
+      }
       // The scan-list count is the whole page header, so the claim is the page.
       if (blockId === SCANLIST_BLOCK) return [[0, PAGE_SIZE - 1] as const]
       // The RX group occupancy bitmask, then the records. Bytes 0x04-0x10 are a
@@ -1925,9 +1985,6 @@ export function decodeTxContacts(image: RadioImage): Map<number, { slot: number;
  * making for channel numbers nobody has.
  */
 export function encodeTxContacts(image: RadioImage, doc: Codeplug): void {
-  const data = blockData(image, TXCONTACT_BLOCK_LOW)
-  if (!data) return
-
   for (const channel of doc.channels.values()) {
     const raw = channel.extras.vendor?.txContact
     if (raw === undefined) continue
@@ -1938,16 +1995,198 @@ export function encodeTxContacts(image: RadioImage, doc: Codeplug): void {
 
     const at = txContactSlot(channel.index)
     if (!at) continue
-    if (at.blockId !== TXCONTACT_BLOCK_LOW) {
+    // Block-scoped, deliberately. The same offset means different channels in
+    // the two blocks, so a bare offset test would start refusing channels
+    // 1916-2047 in 0x42 - 132 channels this build writes today.
+    if (at.blockId === TXCONTACT_BLOCK_HIGH && at.offset >= TXCONTACT_HIGH_LIMIT) {
       throw new DriverError(
-        `Channel ${channel.index} keeps its talk group in memory block 0x43, which this build reads ` +
-          'but does not write.',
+        `Channel ${channel.index} keeps its talk group in the tail of memory block 0x43, which holds ` +
+          'firmware residue rather than contact data on every radio this has been read from.',
       )
     }
     if (at.offset + 2 > PAGE_SIZE - 1) continue
 
+    const data = blockData(image, at.blockId)
+    if (!data) continue
     const [b0, b1] = encodeTxContact(slot, channel.modulation === 'DMR', data[at.offset]!)
     data[at.offset] = b0
     data[at.offset + 1] = b1
   }
+}
+
+/** Canned text messages, block 0x0A. */
+export function decodeMessages(image: RadioImage): string[] {
+  const data = blockData(image, MESSAGE_BLOCK)
+  if (!data) return []
+  const total = Math.min(data[0]!, MESSAGE_SLOTS)
+  const out: string[] = []
+  for (let n = 0; n < total; n++) {
+    const off = messageOffset(n)
+    if (off + MESSAGE_SIZE > PAGE_SIZE - 1) break
+    const rec = DM32_MESSAGE.read(data, off)
+    // The length byte is the truth; the text field is padded past it.
+    out.push(rec.text.slice(0, Math.min(rec.textLength, MESSAGE_MAX_CHARS)))
+  }
+  return out
+}
+
+/**
+ * Write the canned messages back.
+ *
+ * Length byte then text, and the record is cleared first: a shorter message
+ * written over a longer one would otherwise leave the old tail readable, and
+ * unlike a name the length byte is what the radio trusts.
+ */
+export function encodeMessages(image: RadioImage, messages: readonly string[]): void {
+  const data = blockData(image, MESSAGE_BLOCK)
+  if (!data) return
+  if (messages.length > MESSAGE_SLOTS) {
+    throw new DriverError(`This radio holds ${MESSAGE_SLOTS} messages; the codeplug has ${messages.length}.`)
+  }
+  const was = Math.min(data[0]!, MESSAGE_SLOTS)
+
+  for (let n = 0; n < Math.max(was, messages.length); n++) {
+    const off = messageOffset(n)
+    if (off + MESSAGE_SIZE > PAGE_SIZE - 1) break
+    const text = messages[n]
+    if (text === undefined) {
+      if (n < was) data.fill(0x00, off, off + MESSAGE_SIZE)
+      continue
+    }
+    const clipped = text.slice(0, MESSAGE_MAX_CHARS)
+    data.fill(0x00, off, off + MESSAGE_SIZE)
+    DM32_MESSAGE.write(data, off, { textLength: clipped.length, text: clipped })
+  }
+  data[0] = messages.length & 0xff
+}
+
+/** Roaming channels, block 0x66. The count is a trailer, not a header. */
+export function decodeRoamChannels(image: RadioImage): Codeplug['roamChannels'] {
+  const data = blockData(image, ROAMCHANNEL_BLOCK)
+  if (!data) return []
+  const total = Math.min(data[ROAMCHANNEL_COUNT_AT]!, ROAMCHANNEL_SLOTS)
+  const out: Codeplug['roamChannels'] = []
+  for (let n = 0; n < total; n++) {
+    const off = n * ROAMCHANNEL_SIZE
+    if (off + ROAMCHANNEL_SIZE > ROAMCHANNEL_COUNT_AT) break
+    const rec = DM32_ROAMCHANNEL.read(data, off)
+    const name = rec.name.trimEnd()
+    if (!name && rec.rxFreq === 0) continue
+    out.push({
+      id: `roamch-${n + 1}`,
+      name,
+      rxFreq: hz(rec.rxFreq),
+      txFreq: hz(rec.txFreq),
+      colorCode: rec.colour.colorCode,
+      timeSlot: rec.slot.timeSlot === 1 ? 2 : 1,
+    })
+  }
+  return out
+}
+
+/** Write the roaming channels back, count trailer included. */
+export function encodeRoamChannels(image: RadioImage, channels: Codeplug['roamChannels']): void {
+  const data = blockData(image, ROAMCHANNEL_BLOCK)
+  if (!data) return
+  if (channels.length > ROAMCHANNEL_SLOTS) {
+    throw new DriverError(`This radio holds ${ROAMCHANNEL_SLOTS} roaming channels; the codeplug has ${channels.length}.`)
+  }
+  const was = Math.min(data[ROAMCHANNEL_COUNT_AT]!, ROAMCHANNEL_SLOTS)
+
+  for (let n = 0; n < Math.max(was, channels.length); n++) {
+    const off = n * ROAMCHANNEL_SIZE
+    if (off + ROAMCHANNEL_SIZE > ROAMCHANNEL_COUNT_AT) break
+    const entry = channels[n]
+    if (!entry) {
+      if (n < was) data.fill(0x00, off, off + ROAMCHANNEL_SIZE)
+      continue
+    }
+    DM32_ROAMCHANNEL.write(data, off, {
+      name: entry.name,
+      rxFreq: entry.rxFreq,
+      txFreq: entry.txFreq,
+      // Only the bits that are understood; the rest of each byte survives.
+      colour: { colorCode: entry.colorCode & 0x0f },
+      slot: { timeSlot: entry.timeSlot === 2 ? 1 : 0 },
+    })
+  }
+  data[ROAMCHANNEL_COUNT_AT] = channels.length & 0xff
+}
+
+/** Roaming zones, block 0x65. Name and member count only - see the layout. */
+export function decodeRoamZones(image: RadioImage): Codeplug['roamZones'] {
+  const data = blockData(image, ROAMZONE_BLOCK)
+  if (!data) return []
+  const total = Math.min(data[0]!, ROAMZONE_SLOTS)
+  const out: Codeplug['roamZones'] = []
+  for (let n = 0; n < total; n++) {
+    const off = ROAMZONE_HEADER + n * ROAMZONE_SIZE
+    if (off + ROAMZONE_SIZE > PAGE_SIZE - 1) break
+    const rec = DM32_ROAMZONE.read(data, off)
+    const name = rec.name.trimEnd()
+    if (!name) continue
+    out.push({ id: `roamzone-${n + 1}`, name, memberCount: rec.memberCount })
+  }
+  return out
+}
+
+/** The eight digital emergency systems, block 0x10 at 0x000. Read only. */
+export function decodeEmergency(image: RadioImage): Codeplug['emergency'] {
+  const data = blockData(image, KEY_BLOCK)
+  if (!data) return []
+  const out: Codeplug['emergency'] = []
+  for (let n = 0; n < EMERGENCY_SLOTS; n++) {
+    const off = n * EMERGENCY_SIZE
+    const slot = data.subarray(off, off + EMERGENCY_SIZE)
+    if (slot.every((b) => b === 0x00 || b === 0xff)) continue
+    const rec = DM32_EMERGENCY.read(data, off)
+    out.push({
+      id: `demer-${n + 1}`,
+      slot: n + 1,
+      name: rec.name.trimEnd(),
+      alarmType: rec.alarmType,
+      alarmMode: rec.alarmMode,
+      revertChannel: rec.revertChannel,
+    })
+  }
+  return out
+}
+
+/** DTMF signalling and the analog contact lists, block 0x06. Read only. */
+export function decodeAnalog(image: RadioImage): Codeplug['analog'] {
+  const data = blockData(image, ANALOG_BLOCK)
+  if (!data) return null
+
+  const codes: string[] = []
+  for (let n = 0; n < DTMF_CODE_SLOTS; n++) {
+    const code = decodeDtmf(data.subarray(n * DTMF_CODE_SIZE, (n + 1) * DTMF_CODE_SIZE))
+    if (code) codes.push(code)
+  }
+  const special: string[] = []
+  for (let n = 0; n < DTMF_SPECIAL_SLOTS; n++) {
+    const at = DTMF_SPECIAL_BASE + n * DTMF_CODE_SIZE
+    const code = decodeDtmf(data.subarray(at, at + DTMF_CODE_SIZE))
+    if (code) special.push(code)
+  }
+
+  const contacts: string[] = []
+  const contactCount = data[ANALOG_CONTACT_COUNT_AT]!
+  for (let n = 0; n < contactCount; n++) {
+    const at = ANALOG_CONTACT_BASE + n * ANALOG_CONTACT_SIZE
+    if (at + ANALOG_CONTACT_SIZE > PAGE_SIZE - 1) break
+    const name = DM32_ANALOG_CONTACT.read(data, at).name.trimEnd()
+    if (name) contacts.push(name)
+  }
+
+  const bdcContacts: { name: string; number: number }[] = []
+  const bdcCount = data[BDC_COUNT_AT]!
+  for (let n = 0; n < bdcCount; n++) {
+    const at = BDC_BASE + n * BDC_SIZE
+    if (at + BDC_SIZE > PAGE_SIZE - 1) break
+    const rec = DM32_BDC_CONTACT.read(data, at)
+    const name = rec.name.trimEnd()
+    if (name) bdcContacts.push({ name, number: rec.number })
+  }
+
+  return { dtmfCodes: codes, dtmfSpecialCodes: special, contacts, bdcContacts }
 }

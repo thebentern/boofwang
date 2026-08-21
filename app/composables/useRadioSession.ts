@@ -254,9 +254,10 @@ export function useRadioSession() {
 
       // Say what was actually restored, not what was asked for. Some drivers
       // write only part of an image on purpose - the DM-32UV cannot write its
-      // own talk-group index, scan list membership or the twenty-odd blocks
-      // nothing has decoded - and calling that a full restore would leave
-      // someone believing their whole radio had been rolled back.
+      // own talk-group index, roaming zone membership, the emergency systems,
+      // the DTMF lists or the twenty-odd blocks nothing has decoded - and
+      // calling that a full restore would leave someone believing their whole
+      // radio had been rolled back.
       const total = image.regions.length
       const scope = device.currentDriver().schema.capabilities.writeScope
       const partial = report.blocksWritten > 0 && report.blocksWritten < total
