@@ -148,3 +148,7 @@ reference/
 
 # Dev-server launch config is machine-local
 .claude/
+
+# Python bytecode from the development bridge.
+__pycache__/
+*.pyc
