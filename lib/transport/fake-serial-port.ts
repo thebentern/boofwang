@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { fromHex, hexDump } from '../codec/checksum.js'
-import type { SerialOpenOptions, SerialPortLike } from './transport.js'
+import type { SerialOpenOptions, SerialPortLike, TransportKind } from './transport.js'
 
 /**
  * A scripted stand-in for a `SerialPort`.
@@ -21,6 +21,15 @@ export interface FakeSerialPortOptions {
   /** Simulated delay before a response is delivered, in ms. */
   latencyMs?: number
   info?: { usbVendorId?: number; usbProductId?: number }
+  /**
+   * What the driver above should believe it is talking over.
+   *
+   * Lets a test exercise the Bluetooth constants - the UV-5R Mini's 0x80 upload
+   * block and its 0xFF padding - through the real transport and the real driver
+   * without a GATT stack in the way. What differs over BLE is what the driver
+   * decides, not how the bytes travel, so this is the honest seam to fake.
+   */
+  kind?: TransportKind
 }
 
 export class FakeSerialPort implements SerialPortLike {
@@ -43,6 +52,10 @@ export class FakeSerialPort implements SerialPortLike {
 
   get openCount(): number {
     return this.#openCount
+  }
+
+  get kind(): TransportKind | undefined {
+    return this.#opts.kind
   }
 
   /** Concatenation of everything written, for assertions. */

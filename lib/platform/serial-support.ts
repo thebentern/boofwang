@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { detectBrowser, type NavigatorLike } from './browser.js'
 
 /**
  * Whether this browser can talk to a radio at all, and why not if it cannot.
@@ -13,16 +14,7 @@
 
 export type SerialBlocker = 'unsupported-browser' | 'insecure-context' | 'none'
 
-/**
- * The structural subset of `Navigator` this check needs.
- *
- * Declared rather than pulled from the DOM lib so `lib/` keeps compiling
- * without DOM types - the same reason `SerialPortLike` exists.
- */
-export interface NavigatorLike {
-  readonly userAgent?: string
-  readonly serial?: unknown
-}
+export type { NavigatorLike } from './browser.js'
 
 export interface SerialSupport {
   supported: boolean
@@ -31,16 +23,6 @@ export interface SerialSupport {
   /** Best-effort browser label, for the guidance text only. */
   browser: string
   advice: string
-}
-
-function detectBrowser(ua: string): string {
-  if (/Edg\//.test(ua)) return 'Edge'
-  if (/OPR\//.test(ua)) return 'Opera'
-  if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) return 'Chrome'
-  if (/Chromium\//.test(ua)) return 'Chromium'
-  if (/Firefox\//.test(ua)) return 'Firefox'
-  if (/Safari\//.test(ua)) return 'Safari'
-  return 'your browser'
 }
 
 export function evaluateSerialSupport(nav: NavigatorLike | undefined, isSecure: boolean): SerialSupport {

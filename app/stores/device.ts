@@ -50,14 +50,21 @@ export const useDeviceStore = defineStore('device', () => {
     return transport
   }
 
-  async function connect(chosen: SerialPortLike, id: RadioId, info: { usbVendorId?: number; usbProductId?: number }) {
+  async function connect(
+    chosen: SerialPortLike,
+    id: RadioId,
+    info: { usbVendorId?: number; usbProductId?: number; label?: string },
+  ) {
     error.value = null
     try {
       state.value = 'opening'
       port = chosen
       driver = createDriver(id)
       radioId.value = id
-      portLabel.value = describeAdapter(info)
+      // A caller that knows what it connected to says so. Only a USB port has
+      // an identity worth deriving, and a Bluetooth link derives as "an
+      // unidentified serial port", which reads as a fault rather than a fact.
+      portLabel.value = info.label ?? describeAdapter(info)
 
       // Every session is recorded. A trace from a radio that would not connect
       // is the single most useful thing a bug report can carry, and it costs

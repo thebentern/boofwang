@@ -29,6 +29,7 @@ import {
   handshake,
   imageSize,
   readBlock,
+  uploadBlockSize,
   writeBlock,
   type Uv5rVariant,
 } from './protocol.js'
@@ -225,22 +226,46 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
        */
       const regionOf = (start: number) => image.regions.find((r) => r.start === start)
 
-      const blocks: { addr: number; data: Uint8Array }[] = []
-      for (const region of variant.regions) {
-        const data = regionOf(region.start)?.data
-        if (!data || data.length !== region.size) {
-          throw new DriverError(`The image is missing the region at 0x${region.start.toString(16)}`)
+      /**
+       * Cut the image into blocks of `size`, padding a short final one with
+       * 0xFF.
+       *
+       * The padding only ever happens over Bluetooth: every region divides by
+       * 0x40 and none of them divides by 0x80, so the last block of each region
+       * runs past the region's end and has to be filled. CHIRP pads with 0xFF
+       * for the same reason, and 0xFF is the right filler because it is what
+       * erased flash reads as - the radio ends up holding what it would have
+       * held anyway.
+       */
+      const plan = (size: number) => {
+        const out: { addr: number; data: Uint8Array }[] = []
+        for (const region of variant.regions) {
+          const data = regionOf(region.start)?.data
+          if (!data || data.length !== region.size) {
+            throw new DriverError(`The image is missing the region at 0x${region.start.toString(16)}`)
+          }
+          for (let off = 0; off < region.size; off += size) {
+            const chunk = new Uint8Array(size).fill(0xff)
+            chunk.set(data.subarray(off, Math.min(off + size, region.size)), 0)
+            out.push({ addr: region.start + off, data: chunk })
+          }
         }
-        for (let off = 0; off < region.size; off += BLOCK_SIZE) {
-          const chunk = new Uint8Array(BLOCK_SIZE).fill(0xff)
-          chunk.set(data.subarray(off, Math.min(off + BLOCK_SIZE, region.size)), 0)
-          blocks.push({ addr: region.start + off, data: chunk })
-        }
+        return out
       }
+
+      /*
+       * Over Bluetooth the radio takes twice as much per frame, which halves
+       * the number of acknowledgement round trips - and a BLE round trip is
+       * what makes this transfer slow. Reads stay at 0x40 either way, so the
+       * two plans differ and the read-back pass gets its own.
+       */
+      const blockSize = uploadBlockSize(t.kind)
+      const blocks = plan(blockSize)
+      const verifyBlocks = blockSize === BLOCK_SIZE ? blocks : plan(BLOCK_SIZE)
 
       const operations: WriteOperation[] = blocks.map((b) => ({
         addr: b.addr,
-        length: BLOCK_SIZE,
+        length: blockSize,
         label: `0x${b.addr.toString(16).padStart(4, '0')}`,
       }))
 
@@ -250,7 +275,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
       if (ctx.dryRun) {
         return {
           blocksWritten: blocks.length,
-          bytesWritten: blocks.length * BLOCK_SIZE,
+          bytesWritten: blocks.length * blockSize,
           verified: false,
           dryRun: true,
           operations,
@@ -262,7 +287,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
         if (e instanceof Error) {
           ;(e as Error & { partial?: WriteReport }).partial = {
             blocksWritten: sent,
-            bytesWritten: sent * BLOCK_SIZE,
+            bytesWritten: sent * blockSize,
             verified: false,
             dryRun: false,
             operations,
@@ -278,15 +303,20 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
           sent++
           ctx.progress?.({
             phase: 'write',
-            done: sent * BLOCK_SIZE,
-            total: blocks.length * BLOCK_SIZE,
+            done: sent * blockSize,
+            total: blocks.length * blockSize,
             label: `0x${b.addr.toString(16).padStart(4, '0')}`,
           })
         }
 
         // Every block is read back and compared. An acknowledgement says the
         // frame arrived, not that it landed where it was meant to.
-        for (const [i, b] of blocks.entries()) {
+        //
+        // The read-back walks the 0x40 plan, which over Bluetooth is not the
+        // plan that was sent. That covers every byte of the image and leaves
+        // only the 0xFF padding past each region's end unchecked - bytes the
+        // image never claimed anything about.
+        for (const [i, b] of verifyBlocks.entries()) {
           ctx.signal?.throwIfAborted()
           const got = await readBlock(t, b.addr, BLOCK_SIZE, opts)
           if (!equalBytes(got, b.data)) {
@@ -303,7 +333,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
           ctx.progress?.({
             phase: 'verify',
             done: (i + 1) * BLOCK_SIZE,
-            total: blocks.length * BLOCK_SIZE,
+            total: verifyBlocks.length * BLOCK_SIZE,
             label: `0x${b.addr.toString(16).padStart(4, '0')}`,
           })
         }
@@ -313,7 +343,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
 
       return {
         blocksWritten: blocks.length,
-        bytesWritten: blocks.length * BLOCK_SIZE,
+        bytesWritten: blocks.length * blockSize,
         verified: true,
         dryRun: false,
         operations,

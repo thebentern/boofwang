@@ -36,8 +36,25 @@ export interface ReadOpts {
 
 export type TransportState = 'closed' | 'open' | 'desynced' | 'disconnected'
 
+/**
+ * What is actually carrying the bytes.
+ *
+ * The protocols are identical over a cable and over BLE, but a few of their
+ * constants are not: the UV-5R Mini uploads in 0x80 blocks over Bluetooth and
+ * 0x40 over a cable, and a short final block is padded. A driver has to be able
+ * to ask.
+ *
+ * CHIRP answers the same question by sniffing the serial port's path for
+ * `/tmp/ttyBLE…`, which is a desktop workaround for having no other way to
+ * know. In a browser the transport is constructed from the thing it talks to,
+ * so it can simply say - and a driver that is told never has to guess wrong.
+ */
+export type TransportKind = 'serial' | 'bluetooth'
+
 export interface Transport {
   readonly state: TransportState
+  /** Which carrier this is, for the handful of constants that differ. */
+  readonly kind: TransportKind
   open(opts: SerialOpenOptions): Promise<void>
   close(): Promise<void>
   write(data: Uint8Array, opts?: ReadOpts): Promise<void>
@@ -63,6 +80,14 @@ export interface Transport {
 export interface SerialPortLike {
   readonly readable: ReadableStream<Uint8Array> | null
   readonly writable: WritableStream<Uint8Array> | null
+  /**
+   * What this port is, when it is not an ordinary serial port.
+   *
+   * Optional so that a real `SerialPort` from `navigator.serial`, which has
+   * never heard of this property, still satisfies the interface structurally.
+   * Absent means `'serial'`.
+   */
+  readonly kind?: TransportKind | undefined
   open(options: SerialOpenOptions): Promise<void>
   close(): Promise<void>
   setSignals?(signals: { dataTerminalReady?: boolean; requestToSend?: boolean; break?: boolean }): Promise<void>

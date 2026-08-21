@@ -21,20 +21,42 @@
  * The topology is fixed and written out rather than looped, because there is no
  * fourth hop to generalise for and three named spans read better than a loop
  * over a discriminated union.
+ *
+ * Over Bluetooth the middle hop is not an adapter - there is no cable and no
+ * USB-serial chip, which is the entire point of the feature. It is still a hop
+ * worth naming, because it is still where things break: the browser's Bluetooth
+ * stack, the machine's radio, and the pairing all sit between the page and the
+ * handset. So the middle chip changes what it is rather than disappearing, and
+ * the trail stays three wide.
  */
 export type HopTone = 'ok' | 'cn' | 'dg' | 'in' | 'neutral'
 export type HopLink = 'ok' | 'work' | 'bad' | 'warn' | 'none'
+export type HopVia = 'adapter' | 'bluetooth'
 
 const props = withDefaults(
   defineProps<{
-    /** The browser itself, which is only the broken hop when Web Serial is missing. */
+    /** The browser itself, which is only the broken hop when the API is missing. */
     browser?: HopTone
     adapter: HopTone
     radio: HopTone
     links: readonly [HopLink, HopLink]
+    /** What the middle hop is: a programming cable, or a Bluetooth link. */
+    via?: HopVia
   }>(),
-  { browser: 'ok' },
+  { browser: 'ok', via: 'adapter' },
 )
+
+/**
+ * Both icon names are written out as literals so the client-bundle scanner can
+ * see them. An icon that arrives only as a computed string renders as a gap,
+ * which on a diagram reads as a missing hop.
+ */
+const MIDDLE: Record<HopVia, { label: string; icon: string }> = {
+  adapter: { label: 'adapter', icon: 'i-lucide-usb' },
+  bluetooth: { label: 'bluetooth', icon: 'i-lucide-signal' },
+}
+
+const middle = computed(() => MIDDLE[props.via])
 
 const TONES: Record<HopTone, { border: string; background: string; color: string }> = {
   ok: { border: 'var(--okL)', background: 'var(--okB)', color: 'var(--ok)' },
@@ -83,8 +105,8 @@ const secondLink = computed(() => props.links[1])
  */
 const description = computed(
   () =>
-    `Connection trail: browser to adapter ${LINK_WORDS[props.links[0]]}, ` +
-    `adapter to radio ${LINK_WORDS[props.links[1]]}.`,
+    `Connection trail: browser to ${middle.value.label} ${LINK_WORDS[props.links[0]]}, ` +
+    `${middle.value.label} to radio ${LINK_WORDS[props.links[1]]}.`,
 )
 </script>
 
@@ -111,8 +133,8 @@ const description = computed(
       style="font-size: 12.5px; padding: 3px 8px; border-radius: 5px"
       :style="chip(adapter)"
     >
-      <UIcon name="i-lucide-usb" style="width: 11px; height: 11px" />
-      adapter
+      <UIcon :name="middle.icon" style="width: 11px; height: 11px" />
+      {{ middle.label }}
     </span>
 
     <span

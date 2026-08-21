@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { RadioId } from '#core/model/codeplug.js'
 import { RADIO_IDS, SCHEMAS, isImplemented } from '#core/radio/registry.js'
+import { bluetoothProfile } from '#core/transport/bluetooth-uuids.js'
 import type { FaultState } from '~/components/connect/LinkFault.vue'
+import type { PortChoice } from '~/composables/useWebSerial'
 
 /**
  * Connect: get a codeplug off a radio.
@@ -26,6 +28,7 @@ import type { FaultState } from '~/components/connect/LinkFault.vue'
 useSeoMeta({ title: 'Connect' })
 
 const support = useSerialSupport()
+const bluetooth = useBluetoothSupport()
 const device = useDeviceStore()
 const codeplug = useCodeplugStore()
 const transfer = useTransferStore()
@@ -52,6 +55,23 @@ const picking = ref(false)
 const connecting = ref(false)
 const fault = ref<FaultState | null>(null)
 const mounted = ref(false)
+/**
+ * True while the browser's Bluetooth chooser is up.
+ *
+ * Kept apart from `picking` because the two dialogues are different dialogues
+ * with different advice: the serial one lists USB-serial chips, and the
+ * Bluetooth one lists whatever is advertising a service number this project is
+ * only guessing at.
+ */
+const blePicking = ref(false)
+/**
+ * Which carrier the current attempt is using.
+ *
+ * Drives the middle hop of the trail and which of the two sets of fault copy
+ * applies. Reset on every attempt rather than remembered, so a cable read after
+ * a failed Bluetooth one does not inherit its diagnosis.
+ */
+const via = ref<'adapter' | 'bluetooth'>('adapter')
 
 async function refreshAdapters() {
   adapters.value = (await grantedPorts()).map((p) => p.info)
@@ -139,6 +159,7 @@ const link = computed<FaultState | 'ready'>(() => {
   if (support.value.blocker === 'insecure-context') return 'insecure'
   if (support.value.blocker === 'unsupported-browser') return 'unsupported'
   if (transfer.active) return 'reading'
+  if (blePicking.value) return 'ble-picking'
   if (picking.value) return 'picking'
   if (fault.value) return fault.value
   return hasPort.value ? 'ready' : 'first'
@@ -159,6 +180,15 @@ const link = computed<FaultState | 'ready'>(() => {
  */
 function classify(message: string): FaultState {
   if (/out of sync|resynchronise/i.test(message)) return 'desync'
+  // Over Bluetooth there is no adapter to echo and no plug to reseat, so the
+  // two states whose remedies are entirely about a cable route elsewhere. A
+  // silent radio on a GATT link is much more likely to be our characteristic
+  // than their radio, and the copy has to say the honest thing.
+  if (via.value === 'bluetooth') {
+    if (/returning boofwang.s own data/i.test(message)) return 'ble-off'
+    if (/\n\s*(expected|received):/.test(message)) return 'wrong'
+    return 'ble-off'
+  }
   if (/returning boofwang.s own data/i.test(message)) return 'echo'
   if (/\n\s*(expected|received):/.test(message)) return 'wrong'
   return 'off'
@@ -282,6 +312,7 @@ const traceAvailable = computed(() => device.traceJson() !== null)
  */
 async function pickPort() {
   fault.value = null
+  via.value = 'adapter'
   picking.value = true
   try {
     const choice = await requestPort()
@@ -312,14 +343,17 @@ async function pickPort() {
  * that, a chooser dismissed after an earlier failure would redraw the earlier
  * failure's card as though it had just happened again.
  */
-async function readRadio() {
+async function readRadio(acquired?: PortChoice | null) {
   fault.value = null
   device.error = null
+  // A read with no port handed to it is a cable read, so the diagnosis of a
+  // failed Bluetooth attempt does not survive the next click of "Try again".
+  if (!acquired) via.value = 'adapter'
   connecting.value = true
   const before = codeplug.revision
 
   try {
-    await session.connectAndRead(radioId.value)
+    await session.connectAndRead(radioId.value, acquired)
     await refreshAdapters()
   } finally {
     connecting.value = false
@@ -332,15 +366,104 @@ async function readRadio() {
   if (codeplug.revision !== before) await navigateTo('/channels')
 }
 
+/**
+ * Ask for a radio over Bluetooth, then read it.
+ *
+ * One click for both, unlike the serial path, and for a reason rather than out
+ * of inconsistency: a granted Bluetooth device cannot be re-acquired without a
+ * fresh gesture the way `getPorts()` re-offers a granted serial port, so there
+ * is no "connected, now read" state to sit in between. The chooser and the read
+ * are one action because they cannot be two.
+ *
+ * `requestDevice` needs transient activation, so nothing is awaited before it.
+ */
+async function connectBluetooth() {
+  fault.value = null
+  device.error = null
+  via.value = 'bluetooth'
+  blePicking.value = true
+
+  let choice: PortChoice | null
+  try {
+    choice = await requestBluetoothRadio()
+  } catch (e) {
+    toast.add({
+      title: 'Could not open the Bluetooth chooser',
+      description: e instanceof Error ? e.message : String(e),
+      icon: 'i-lucide-signal',
+      color: 'error',
+      duration: 0,
+    })
+    return
+  } finally {
+    blePicking.value = false
+  }
+
+  // A dismissed chooser and one that listed nothing both resolve to null and
+  // the browser will not say which. The empty case is the one worth explaining,
+  // because with an unverified service UUID it is the likely one.
+  if (!choice) {
+    fault.value = 'ble-empty'
+    return
+  }
+
+  await readRadio(choice)
+}
+
 function onAction(key: string) {
   if (key === 'pick') void pickPort()
   else if (key === 'read') void readRadio()
+  else if (key === 'bluetooth') void connectBluetooth()
   else if (key === 'cancel') transfer.cancel()
   else if (key === 'trace') void session.downloadTrace()
 }
 
+/**
+ * Whether to offer Bluetooth at all, and what to call it.
+ *
+ * The label is derived from the profile's own `verified` flag rather than
+ * written here, so the day somebody captures the real UUIDs and proves them
+ * against a radio, the caveat comes off by itself. Nothing in this screen can
+ * describe Bluetooth as working while that flag says otherwise.
+ */
+const bleLabel = bluetoothProfile().verified ? 'Connect over Bluetooth' : 'Try Bluetooth (untested)'
+
+/**
+ * Where the Bluetooth offer belongs.
+ *
+ * The three cards where somebody is deciding how to connect and the answer is
+ * not yet a cable. Not while a transfer is running, not on the healthy serial
+ * card - a second route is a distraction from the button that already works -
+ * and not on the Bluetooth fault cards, which carry their own "try again" and
+ * would otherwise show two buttons for the same action.
+ */
+const BLE_OFFER_STATES: readonly FaultState[] = ['first', 'empty', 'unsupported']
+const offerBluetooth = computed(
+  () => bluetooth.value.supported && link.value !== 'ready' && BLE_OFFER_STATES.includes(link.value),
+)
+
+/**
+ * Where Bluetooth stands, in one sentence, for the card that has just said this
+ * browser cannot talk to a radio.
+ *
+ * Both halves are needed. Android Chrome reaches that card because no mobile
+ * browser has Web Serial, and it is also the one platform where Bluetooth is
+ * the *only* route - so leaving the card at "this browser cannot" would be
+ * wrong. And on iOS, where nothing will work, the sentence has to say that
+ * rather than leave someone hunting for a setting.
+ */
+const bleNote = computed(() => {
+  if (!bluetooth.value.supported) return bluetooth.value.advice
+  if (bluetoothProfile().verified) return 'This browser does have Web Bluetooth, so try connecting that way instead.'
+  return (
+    'This browser does have Web Bluetooth, which is a different API — so there is one more thing to try ' +
+    'below. It has never been tested against a radio, and the service number it looks for is a guess, so ' +
+    'do not be surprised when it finds nothing.'
+  )
+})
+
 /** The states where reaching for a file instead of a cable is the sensible move. */
-const FILE_STATES: readonly FaultState[] = ['first', 'empty', 'unsupported', 'insecure']
+const FILE_STATES: readonly FaultState[] = ['first', 'empty', 'unsupported', 'insecure', 'ble-empty']
 const offerFile = computed(() => link.value !== 'ready' && FILE_STATES.includes(link.value))
 
 /**
@@ -374,13 +497,29 @@ const activeRadio = computed<RadioId | null>(() =>
       :model="radioName"
       :browser-name="support.browser"
       :advice="support.advice"
+      :ble-note="bleNote"
+      :via="via"
       :log="log"
       :progress="progress"
       :trace-available="traceAvailable"
       @action="onAction"
     >
-      <template v-if="offerFile" #actions>
-        <OpenCodeplugButton />
+      <template v-if="offerFile || offerBluetooth" #actions>
+        <!--
+          Ghost and second, because it is the untried route. The primary action
+          on every one of these cards stays the one that has been proved to
+          work.
+        -->
+        <RiskAction
+          v-if="offerBluetooth"
+          risk="neutral"
+          ghost
+          :label="bleLabel"
+          icon="i-lucide-signal"
+          :disabled="connecting"
+          @click="connectBluetooth"
+        />
+        <OpenCodeplugButton v-if="offerFile" />
       </template>
     </ConnectLinkFault>
 

@@ -12,6 +12,14 @@ import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial
 export interface PortChoice {
   port: SerialPortLike
   info: { usbVendorId?: number; usbProductId?: number }
+  /**
+   * What to call this connection, when a USB identity is not the answer.
+   *
+   * A Bluetooth link has no vendor or product id at all, and
+   * `describeAdapter({})` would call it "an unidentified serial port" - which
+   * is both wrong and the exact phrasing a user reads as a fault.
+   */
+  label?: string
 }
 
 /**

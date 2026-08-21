@@ -123,6 +123,9 @@ test is what distinguished "the plug is not in" from "the firmware is wrong".
   paths are covered by synthesised records cross-checked against CHIRP.
 - Anything outside the channel array. Settings, VFOs and the two small tail
   regions are read and preserved but not decoded.
+- **Bluetooth, in its entirety.** The 0x80 upload block and the 0xFF padding are
+  transcribed from CHIRP and exercised by unit tests against a fake GATT link,
+  and no radio has ever been on the far end of one.
 
 ## Writing
 
@@ -149,6 +152,34 @@ one-channel edit cost one block on them. Do not carry that design back here.
 Frames are `W` (0x57) + a 16-bit big-endian address + length + the **obfuscated**
 payload, acknowledged with 0x06 per block. The obfuscation applies on the way out
 as well as the way in.
+
+### Over Bluetooth
+
+CHIRP's `UV5RMini` has BLE support, and the difference from the cable is one
+constant and one rule:
+
+- `BLE_UP_BLOCK_SIZE = 0x80` — **uploads** use 0x80 blocks where the cable uses
+  0x40 (`baofeng_uv17Pro.py:2391`). Downloads are unchanged at 0x40, and this
+  driver does not invent a 0x80 read.
+- A block running past the end of its region is **padded with 0xFF**. None of
+  the three regions divides by 0x80 — 0x8040, 0x0040 and 0x01C0 all leave half a
+  block — so every region ends in a padded one. 262 blocks instead of 521.
+
+Everything else is identical: same handshake, same frame layout, same
+obfuscation, same per-block 0x06. The reason for the larger block is that every
+one costs a round trip for its acknowledgement, and a BLE round trip is far
+dearer than a 115200-baud one.
+
+CHIRP decides it is on BLE by sniffing the serial device path for `/tmp/ttyBLE…`
+(`platform.py:185`), which is a desktop workaround for having no other way to
+tell. Here the transport says so directly: `Transport.kind` is `'serial'` or
+`'bluetooth'`, and `uploadBlockSize()` in `protocol.ts` is the only thing that
+reads it.
+
+**Nothing about the Bluetooth path has been run against a radio.** The service
+UUID cannot be guessed and nobody has captured one, so the browser's device
+chooser has never had a radio to list. See `lib/transport/bluetooth-uuids.ts`,
+which is the single place the numbers live and the single place to change them.
 
 ## Verified write session, 2026-08-20
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { toHex } from '../codec/checksum.js'
-import type { ReadOpts, Transport, TransportState } from './transport.js'
+import type { ReadOpts, Transport, TransportKind, TransportState } from './transport.js'
 
 export interface TraceEntry {
   dir: 'tx' | 'rx'
@@ -54,6 +54,14 @@ export class RecordingTransport implements Transport {
 
   get state(): TransportState {
     return this.#inner.state
+  }
+
+  /**
+   * Passed straight through. A driver reads this to choose a block size, and a
+   * recorded session must not change what it would have sent.
+   */
+  get kind(): TransportKind {
+    return this.#inner.kind
   }
 
   open(opts: Parameters<Transport['open']>[0]): Promise<void> {

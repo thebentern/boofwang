@@ -54,6 +54,9 @@ importers:
       '@types/w3c-web-serial':
         specifier: ^1.0.8
         version: 1.0.8
+      '@types/web-bluetooth':
+        specifier: ^0.0.21
+        version: 0.0.21
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1

@@ -7,6 +7,17 @@ import { exportChirpCsv, defaultHeader } from '#core/io/chirp-csv.js'
 import type { RadioId } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { evaluateWriteGate } from '#core/radio/write-gate.js'
+import type { PortChoice } from '~/composables/useWebSerial'
+
+/**
+ * What `device.connect` needs to label the connection.
+ *
+ * `exactOptionalPropertyTypes` is on, so an absent label has to be an absent
+ * key rather than an explicit undefined.
+ */
+function connectInfo(choice: PortChoice) {
+  return { ...choice.info, ...(choice.label === undefined ? {} : { label: choice.label }) }
+}
 
 /**
  * The connect-read-save flow, in one place.
@@ -88,7 +99,7 @@ export function useRadioSession() {
       }
       if (!choice) return
       try {
-        await device.connect(choice.port, codeplug.doc.radio, choice.info)
+        await device.connect(choice.port, codeplug.doc.radio, connectInfo(choice))
       } catch (e) {
         toast.add({
           title: 'Could not connect to the radio',
@@ -215,7 +226,7 @@ export function useRadioSession() {
       }
       if (!choice) return
       try {
-        await device.connect(choice.port, image.radioId, choice.info)
+        await device.connect(choice.port, image.radioId, connectInfo(choice))
       } catch (e) {
         toast.add({
           title: 'Could not connect to the radio',
@@ -298,7 +309,17 @@ export function useRadioSession() {
     }
   }
 
-  async function connectAndRead(id: RadioId) {
+  /**
+   * Read a radio, over whatever it is connected by.
+   *
+   * `acquired` exists for Bluetooth. `requestDevice` needs transient user
+   * activation just as `requestPort` does, and the chooser it opens is a second
+   * dialogue the user has to answer - so the page has to raise it inside its own
+   * click handler and hand the result here, rather than this function deciding
+   * after the fact which chooser to open. When it is absent the serial path is
+   * unchanged.
+   */
+  async function connectAndRead(id: RadioId, acquired?: PortChoice | null) {
     if (!isImplemented(id)) {
       toast.add({ title: 'Not implemented yet', description: `There is no driver for this radio yet.`, color: 'neutral' })
       return
@@ -315,7 +336,7 @@ export function useRadioSession() {
     // happens.
     let choice: Awaited<ReturnType<typeof acquirePort>>
     try {
-      choice = await acquirePort()
+      choice = acquired ?? (await acquirePort())
     } catch (e) {
       toast.add({
         title: 'Could not open a serial port',
@@ -329,7 +350,7 @@ export function useRadioSession() {
     if (!choice) return
 
     try {
-      const ident = await device.connect(choice.port, id, choice.info)
+      const ident = await device.connect(choice.port, id, connectInfo(choice))
 
       if (!ident.caps.write && ident.caps.reason) {
         toast.add({

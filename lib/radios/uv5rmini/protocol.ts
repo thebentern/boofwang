@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { DriverError, LoopbackDetectedError } from '../../radio/driver.js'
 import { ProtocolError } from '../../transport/errors.js'
-import type { ReadOpts, Transport } from '../../transport/transport.js'
+import type { ReadOpts, Transport, TransportKind } from '../../transport/transport.js'
 import { hexDump } from '../../codec/checksum.js'
 
 /**
@@ -19,6 +19,40 @@ import { hexDump } from '../../codec/checksum.js'
 
 export const BAUD_RATE = 115_200
 export const BLOCK_SIZE = 0x40
+
+/**
+ * The upload block size over Bluetooth, which is twice the cable's.
+ *
+ * This is the only thing about this radio's protocol that BLE changes.
+ * Everything else - the handshake, the frame layout, the obfuscation, the
+ * single-byte acknowledgement - is identical, which is why there is no separate
+ * BLE driver and should never be one. CHIRP's `UV5RMini.BLE_UP_BLOCK_SIZE`
+ * (`baofeng_uv17Pro.py:2391`) is the same constant.
+ *
+ * Why it exists at all is throughput. Every block costs a round trip for its
+ * acknowledgement, and a BLE round trip is an order of magnitude dearer than a
+ * 115200-baud one; halving the number of them halves the wait. Reads are
+ * untouched and stay at 0x40 in both cases, because CHIRP only ever changed the
+ * upload - a 0x80 read has never been sent to one of these radios by anything.
+ *
+ * The consequence is padding. None of the three regions divides by 0x80, so the
+ * last block of each runs past the end of its region and is filled with 0xFF.
+ */
+export const BLE_UPLOAD_BLOCK_SIZE = 0x80
+
+/**
+ * How much of an image to put in one write frame.
+ *
+ * Takes the transport's own answer rather than sniffing anything. CHIRP has to
+ * guess from the serial device's path because a desktop BLE-to-serial bridge is
+ * all it can see; here the port knows what it is.
+ *
+ * Tolerates `undefined` so that a fake transport in a test, which has no reason
+ * to declare a carrier, gets the cable behaviour it is asking for.
+ */
+export function uploadBlockSize(kind: TransportKind | undefined): number {
+  return kind === 'bluetooth' ? BLE_UPLOAD_BLOCK_SIZE : BLOCK_SIZE
+}
 
 export interface MemRegion {
   readonly start: number
@@ -255,8 +289,12 @@ export async function readBlock(
 /**
  * Write one block and wait for the acknowledgement.
  *
- * Kept beside the reader so the two cannot drift, and unused until the write
- * path is exercised against hardware.
+ * Kept beside the reader so the two cannot drift.
+ *
+ * Either legal size is accepted rather than the caller's choice being trusted,
+ * because the length also goes into the frame header as a single byte: a block
+ * of some third size would be sent with a header the radio cannot honour, and
+ * the acknowledgement would arrive anyway.
  */
 export async function writeBlock(
   t: Transport,
@@ -264,8 +302,11 @@ export async function writeBlock(
   data: Uint8Array,
   opts?: ReadOpts,
 ): Promise<void> {
-  if (data.length !== BLOCK_SIZE) {
-    throw new DriverError(`A block is ${BLOCK_SIZE} bytes, not ${data.length}`)
+  if (data.length !== BLOCK_SIZE && data.length !== BLE_UPLOAD_BLOCK_SIZE) {
+    throw new DriverError(
+      `A block is ${BLOCK_SIZE} bytes over a cable and ${BLE_UPLOAD_BLOCK_SIZE} over Bluetooth, ` +
+        `not ${data.length}`,
+    )
   }
   await t.write(frame(0x57, addr, data.length, encrypt(data)), opts)
   const ack = await t.readExactly(1, opts)

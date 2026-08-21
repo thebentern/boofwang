@@ -16,6 +16,7 @@ import {
   type SerialOpenOptions,
   type SerialPortLike,
   type Transport,
+  type TransportKind,
   type TransportState,
 } from './transport.js'
 
@@ -62,6 +63,14 @@ export class SerialTransport implements Transport {
 
   get state(): TransportState {
     return this.#state
+  }
+
+  /**
+   * Taken from the port rather than from a constructor argument, so there is
+   * one answer and the thing that knows it is the thing that gives it.
+   */
+  get kind(): TransportKind {
+    return this.#port.kind ?? 'serial'
   }
 
   get port(): SerialPortLike {

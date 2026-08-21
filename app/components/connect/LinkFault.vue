@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Risk } from '~/components/RiskAction.vue'
-import type { HopLink, HopTone } from '~/components/connect/HopTrail.vue'
+import type { HopLink, HopTone, HopVia } from '~/components/connect/HopTrail.vue'
 
 /**
  * Everything that is not the healthy state.
@@ -28,6 +28,19 @@ export type FaultState =
   | 'wrong'
   | 'unsupported'
   | 'insecure'
+  /*
+   * The Bluetooth states.
+   *
+   * Separate rather than reusing the cable ones because the remedies are
+   * different sentences, and one of them is a sentence no cable state has to
+   * say: the reason a Bluetooth attempt most likely failed is that boofwang is
+   * filtering the chooser on a service UUID nobody has ever read off one of
+   * these radios. Telling a user to push the plug in further would be worse
+   * than useless there.
+   */
+  | 'ble-picking'
+  | 'ble-empty'
+  | 'ble-off'
 
 interface ActionSpec {
   readonly key: string
@@ -45,11 +58,27 @@ interface FaultCopy {
   readonly adapter: HopTone
   readonly radio: HopTone
   readonly links: readonly [HopLink, HopLink]
+  /** What the middle hop is, when the state is only ever about one carrier. */
+  readonly via?: HopVia
   /** Reference data that is true regardless of what happened on this cable. */
   readonly staticLog?: string
   readonly steps?: readonly (readonly [string, string])[]
   readonly progress?: boolean
   readonly actions?: readonly ActionSpec[]
+  /**
+   * Whether to print where Bluetooth stands.
+   *
+   * Only on the card that has just told someone their browser cannot talk to a
+   * radio, because that is the one place the answer changes what they do next -
+   * and where it would otherwise contradict itself. Android Chrome lands there
+   * (no Web Serial on any mobile browser) and is the one platform where
+   * Bluetooth is the *only* route, so a flat "this browser cannot" would be
+   * both discouraging and wrong.
+   *
+   * Everywhere else it is noise: a Firefox user whose cable works does not need
+   * to hear about an API they will never reach for.
+   */
+  readonly showBleNote?: boolean
 }
 
 const props = defineProps<{
@@ -60,6 +89,10 @@ const props = defineProps<{
   browserName: string
   /** Why Web Serial is unavailable, when it is. */
   advice?: string
+  /** Where Bluetooth stands for this browser: an alternative, or why not. */
+  bleNote?: string
+  /** What the middle hop is for this session, unless the state overrides it. */
+  via?: HopVia
   /** The transport's own record of this failure. Never invented here. */
   log?: string | null
   progress?: { phase: string; done: number; total: number; percent: number } | null
@@ -212,6 +245,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['none', 'none'],
     title: 'This browser cannot talk to a radio',
     body: '{advice}',
+    showBleNote: true,
   },
 
   insecure: {
@@ -222,6 +256,67 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['none', 'none'],
     title: 'This page needs a secure connection',
     body: '{advice}',
+  },
+
+  'ble-picking': {
+    tone: 'in',
+    adapter: 'in',
+    radio: 'neutral',
+    via: 'bluetooth',
+    links: ['work', 'none'],
+    title: '{browser} is showing its own Bluetooth device list',
+    body:
+      'That list belongs to the browser and we cannot style it, read it, or tell whether your radio is in ' +
+      'it. It only shows devices advertising the service boofwang asked for — and that service number is ' +
+      'an assumption, not something anyone has read off one of these radios yet.',
+  },
+
+  'ble-empty': {
+    tone: 'cn',
+    adapter: 'cn',
+    radio: 'neutral',
+    via: 'bluetooth',
+    links: ['warn', 'none'],
+    title: 'No radio was listed, and the likeliest reason is us',
+    body:
+      'boofwang filters the chooser on a Bluetooth service number that nobody has captured from one of these ' +
+      'radios. It is the Nordic UART service, which this class of hardware usually uses — a reasonable ' +
+      'guess and nothing more. An empty list is exactly what a wrong guess looks like.',
+    steps: [
+      ['i-lucide-radio', 'Check the radio has Bluetooth switched on and is not already paired to a phone.'],
+      [
+        'i-lucide-search',
+        'Read the real service and characteristic numbers with a Bluetooth scanner (nRF Connect, or ' +
+          'chrome://bluetooth-internals), then reload with ?ble=service,write,notify to try them.',
+      ],
+      [
+        'i-lucide-git-branch',
+        'If they work, they belong in lib/transport/bluetooth-uuids.ts, and this stops being a guess for ' +
+          'everybody.',
+      ],
+    ],
+    actions: [{ key: 'bluetooth', label: 'Try again', icon: 'i-lucide-arrow-right' }],
+  },
+
+  'ble-off': {
+    tone: 'dg',
+    adapter: 'ok',
+    radio: 'dg',
+    via: 'bluetooth',
+    links: ['ok', 'bad'],
+    title: 'The Bluetooth link opened, but nothing answered',
+    body:
+      'boofwang connected to the radio over Bluetooth, sent the {model} handshake, and got silence. That ' +
+      'means the link is up and the bytes are going somewhere that is not the radio’s programming ' +
+      'interface — most likely the wrong characteristic, or a service that carries something else entirely. ' +
+      'Nobody has proved this path against a radio yet, so treat a failure here as a boofwang problem before ' +
+      'a radio one.',
+    steps: [
+      ['i-lucide-radio', 'Switch the radio on and make sure nothing else is connected to it.'],
+      ['i-lucide-search', 'Check the characteristic numbers with a Bluetooth scanner, as above.'],
+      ['i-lucide-cable', 'A programming cable is the path that has actually been proved to work.'],
+    ],
+    actions: [{ key: 'bluetooth', label: 'Try again', icon: 'i-lucide-arrow-right' }, SAVE_LOG],
   },
 }
 
@@ -238,6 +333,11 @@ function fill(text: string): string {
 }
 
 const copy = computed(() => STATES[props.state])
+
+/** A state that is only ever about one carrier says so; otherwise the page does. */
+const via = computed<HopVia>(() => copy.value.via ?? props.via ?? 'adapter')
+
+const bleNote = computed(() => (copy.value.showBleNote ? (props.bleNote ?? '') : ''))
 
 const TONE_BORDER = { dg: 'var(--dgL)', cn: 'var(--cnL)', in: 'var(--inL)' } as const
 const TONE_BACKGROUND = { dg: 'var(--dgB)', cn: 'var(--cnB)', in: 'var(--inB)' } as const
@@ -299,10 +399,22 @@ const actions = computed(() => (copy.value.actions ?? []).filter((a) => a.key !=
           :adapter="copy.adapter"
           :radio="copy.radio"
           :links="copy.links"
+          :via="via"
         />
 
         <p style="margin: 0; font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 78ch">
           {{ fill(copy.body) }}
+        </p>
+
+        <!--
+          Only ever printed when Bluetooth is genuinely unavailable, so it never
+          reads as a suggestion the reader cannot act on.
+        -->
+        <p
+          v-if="bleNote"
+          style="margin: 9px 0 0; font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 78ch"
+        >
+          {{ bleNote }}
         </p>
 
         <pre

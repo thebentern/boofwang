@@ -103,7 +103,7 @@ explicit `?bridge` query parameter.
 ```
 lib/          framework-agnostic core; no Vue or Nuxt imports, runs in plain Node
   codec/      binary struct DSL: explicit offsets, partial writes, coverage reporting
-  transport/  Web Serial framing, timeouts, teardown, fakes, trace recorder
+  transport/  framing, timeouts, teardown, fakes, trace recorder; Web Serial and BLE ports
   radio/      driver interface, registry, image model, write gate, diffing
   radios/     one directory per radio: protocol, layout, schema, driver
   model/      channels, tones, units, codeplug document
