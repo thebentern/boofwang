@@ -9,7 +9,8 @@ import {
   BluetoothUuidError,
   KNOWN_PROFILES,
   NORDIC_UART,
-  UV5RM_AE30,
+  UV5RM_AE30_ECHO,
+  UV5RM_BLE,
   bluetoothProfile,
   normaliseUuid,
   parseBluetoothProfile,
@@ -313,33 +314,32 @@ describe('closing', () => {
 })
 
 describe('the UUIDs themselves', () => {
-  it('has not been verified against a radio, and says so', () => {
-    // The connect screen reads this flag to decide whether it is allowed to
-    // describe Bluetooth as working. If someone captures the real UUIDs and
-    // proves them, this test is the thing that has to be changed deliberately.
+  it('marks a profile verified only where a radio has answered', () => {
+    // The connect screen reads this flag to decide whether it may describe
+    // Bluetooth as working. FFE0 earned it by replying 06 to the identify
+    // magic; Nordic UART is still an untested convention and stays false.
+    expect(UV5RM_BLE.verified).toBe(true)
     expect(NORDIC_UART.verified).toBe(false)
   })
 
-  it('defaults to a service a real radio was seen advertising', () => {
-    // Nordic UART was the original assumption and it was wrong: a GATT
-    // enumeration of a UV-5R Mini in wireless CPS mode listed AE30, AE3A and
-    // FFE0, and no Nordic service at all. Filtering the chooser on a service
-    // the radio does not advertise lists nothing, which looks exactly like the
-    // radio being switched off.
-    expect(bluetoothProfile()).toBe(UV5RM_AE30)
-    expect(UV5RM_AE30.service).toBe('0000ae30-0000-1000-8000-00805f9b34fb')
-    expect(UV5RM_AE30.write).toBe('0000ae01-0000-1000-8000-00805f9b34fb')
-    expect(UV5RM_AE30.notify).toBe('0000ae02-0000-1000-8000-00805f9b34fb')
+  it('defaults to the profile a radio actually answered on', () => {
+    // Established by sending the radio its own identify magic on each writable
+    // characteristic: FFE0 replied 06 and nothing else did.
+    expect(bluetoothProfile()).toBe(UV5RM_BLE)
+    expect(UV5RM_BLE.service).toBe('0000ffe0-0000-1000-8000-00805f9b34fb')
+    expect(UV5RM_BLE.write).toBe('0000ffe1-0000-1000-8000-00805f9b34fb')
+    expect(UV5RM_BLE.notify).toBe('0000ffe1-0000-1000-8000-00805f9b34fb')
+    expect(UV5RM_BLE.verified).toBe(true)
   })
 
-  it('offers every service the radio advertised, and none is claimed to work', () => {
-    // Which pair actually carries the CPS protocol is still unproven, so all of
-    // them stay unverified and the UI goes on saying Bluetooth is untried.
-    const ids = KNOWN_PROFILES.map((p) => p.id)
-    expect(ids).toContain('uv5rm-ae30')
-    expect(ids).toContain('uv5rm-ae3a')
-    expect(ids).toContain('hm10')
-    expect(KNOWN_PROFILES.every((p) => !p.verified)).toBe(true)
+  it('never defaults to the AE30 characteristic, which is a loopback', () => {
+    // Writing to ae01 returns the bytes just written. A driver pointed there
+    // would see its own frames come back - the echo failure this project has
+    // already misdiagnosed twice on physical cables. Recorded so nobody
+    // promotes it by looking at the enumeration and picking the first service.
+    expect(bluetoothProfile().id).not.toBe('uv5rm-ae30-echo')
+    expect(UV5RM_AE30_ECHO.verified).toBe(false)
+    expect(KNOWN_PROFILES[0]).toBe(UV5RM_BLE)
   })
 
   it('expands a 16-bit alias, which is how vendors quote them', () => {

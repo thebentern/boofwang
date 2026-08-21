@@ -133,54 +133,55 @@ export const NORDIC_UART: BluetoothProfile = {
  * it is a data change.
  */
 /**
- * What a real Baofeng UV-5R Mini advertises in wireless CPS mode.
+ * What a real Baofeng UV-5R Mini answers on, established by asking it.
  *
- * Captured from a radio rather than guessed, which is the difference between
- * this entry and the Nordic one above: a GATT enumeration over CoreBluetooth
- * listed three vendor services, and these are their characteristics. Nordic
- * UART was not among them, so the convention this file originally assumed was
- * simply wrong for this radio - which is exactly why it shipped behind a flag.
+ * A GATT enumeration of a radio in wireless CPS mode lists three vendor
+ * services - AE30, AE3A and an HM-10 style FFE0 - and no Nordic UART, so the
+ * convention this file originally assumed was simply wrong for this radio.
  *
- * Which of these carries the CPS protocol is still open. All three expose a
- * writable characteristic and a notifying one, and the only way to tell is to
- * send the radio its own identify magic and see which pair answers 0x06. Until
- * that has been done they are all `verified: false` and the connect screen goes
- * on saying so.
+ * Which of them carried the protocol was then settled the only way it can be:
+ * by sending the radio its own identify magic on each writable characteristic
+ * and watching for the acknowledgement. FFE0 answered `06`. It is an HM-10
+ * style transparent serial link, so one characteristic carries both directions,
+ * which the port supports because it never assumes the two are distinct.
+ *
+ * AE30 is the trap, and the reason guessing would have been expensive: writing
+ * to `ae01` returns the sixteen bytes just written, unchanged. It is a loopback,
+ * not a protocol channel. A driver pointed at it would see its own frames come
+ * back and report the echo this project has already spent hours misdiagnosing
+ * on two separate cables.
  */
-export const UV5RM_AE30: BluetoothProfile = {
-  id: 'uv5rm-ae30',
-  label: 'Baofeng vendor service AE30',
+export const UV5RM_BLE: BluetoothProfile = {
+  id: 'uv5rm-ffe0',
+  label: 'Baofeng wireless CPS (HM-10 transparent serial)',
+  service: normaliseUuid('ffe0'),
+  // One characteristic both ways. Writing and notifying on the same handle is
+  // normal for these modules and is what the radio actually answered on.
+  write: normaliseUuid('ffe1'),
+  notify: normaliseUuid('ffe1'),
+  verified: true,
+}
+
+/**
+ * The echo characteristic, kept so it can be recognised rather than rediscovered.
+ *
+ * Never a default and never tried automatically. It is here so that anyone
+ * enumerating this radio and finding AE30 first has something to read.
+ */
+export const UV5RM_AE30_ECHO: BluetoothProfile = {
+  id: 'uv5rm-ae30-echo',
+  label: 'Baofeng AE30 — echoes what is written to it',
   service: normaliseUuid('ae30'),
   write: normaliseUuid('ae01'),
   notify: normaliseUuid('ae02'),
   verified: false,
 }
 
-export const UV5RM_AE3A: BluetoothProfile = {
-  id: 'uv5rm-ae3a',
-  label: 'Baofeng vendor service AE3A',
-  service: normaliseUuid('ae3a'),
-  write: normaliseUuid('ae3b'),
-  notify: normaliseUuid('ae3c'),
-  verified: false,
-}
-
 export const KNOWN_PROFILES: readonly BluetoothProfile[] = [
-  UV5RM_AE30,
-  UV5RM_AE3A,
-  {
-    id: 'hm10',
-    label: 'HM-10 style transparent serial',
-    service: normaliseUuid('ffe0'),
-    // One characteristic carries both directions on these modules, which the
-    // port supports because it never assumes the two are distinct objects.
-    // The captured radio exposes this service too, alongside its own.
-    write: normaliseUuid('ffe1'),
-    notify: normaliseUuid('ffe1'),
-    verified: false,
-  },
-  // Kept last, and kept at all, because it is the convention most of these
-  // modules follow even though this particular radio does not.
+  UV5RM_BLE,
+  UV5RM_AE30_ECHO,
+  // Kept because it is the convention most of these modules follow, even
+  // though the one radio anybody has tested does not use it.
   NORDIC_UART,
 ]
 
@@ -221,14 +222,12 @@ export function parseBluetoothProfile(spec: string): BluetoothProfile {
  * it through every caller would only spread the guess around.
  */
 /*
- * The default is now the radio's own service rather than the Nordic guess.
+ * The default is the profile a radio has actually answered on.
  *
- * A chooser filtered on a service the radio does not advertise lists nothing at
- * all, which is indistinguishable from the radio being off - the worst failure
- * to debug. Filtering on AE30, which a real UV-5R Mini was observed to
- * advertise, at least gets the radio into the list.
+ * Filtering the chooser on a service the radio does not advertise lists nothing
+ * at all, which is indistinguishable from the radio being switched off.
  */
-let active: BluetoothProfile = UV5RM_AE30
+let active: BluetoothProfile = UV5RM_BLE
 
 export function bluetoothProfile(): BluetoothProfile {
   return active

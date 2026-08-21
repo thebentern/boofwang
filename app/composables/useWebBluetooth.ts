@@ -19,10 +19,11 @@ import type { PortChoice } from '~/composables/useWebSerial'
  * link from a cable, which is what made this a small change rather than a
  * parallel stack.
  *
- * **None of this has been run against a radio.** The service UUID cannot be
- * guessed and nobody has captured one yet, so the chooser has never been shown
- * a radio to list. See `lib/transport/bluetooth-uuids.ts` for what is assumed
- * and how to replace it.
+ * A radio has answered over this link, but only as far as the handshake. The
+ * service and characteristic were captured from a UV-5R Mini in wireless CPS
+ * mode and confirmed by sending it its own identify magic, which came back
+ * acknowledged. A full codeplug read over Bluetooth has not been done, and
+ * writing over it is deliberately not offered at all.
  */
 
 export function bluetoothAvailable(): boolean {

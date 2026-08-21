@@ -277,11 +277,11 @@ const STATES: Record<FaultState, FaultCopy> = {
     radio: 'neutral',
     via: 'bluetooth',
     links: ['warn', 'none'],
-    title: 'No radio was listed, and the likeliest reason is us',
+    title: 'No radio was listed',
     body:
-      'boofwang filters the chooser on a Bluetooth service number that nobody has captured from one of these ' +
-      'radios. It is the Nordic UART service, which this class of hardware usually uses — a reasonable ' +
-      'guess and nothing more. An empty list is exactly what a wrong guess looks like.',
+      'boofwang filters the chooser on the Bluetooth service a UV-5R Mini was seen advertising in wireless ' +
+      'CPS mode. That number is right for that radio, so an empty list usually means the radio is not in ' +
+      'wireless CPS mode, is already paired to a phone, or is a model that advertises something else.',
     steps: [
       ['i-lucide-radio', 'Check the radio has Bluetooth switched on and is not already paired to a phone.'],
       [
