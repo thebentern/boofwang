@@ -26,29 +26,24 @@ defineProps<{ activeRadio?: RadioId | null }>()
 type ChipTone = 'ok' | 'cn' | 'dg' | 'neutral'
 
 /**
- * One sentence about what this driver does, derived from what it declares.
+ * One line about what this driver does.
  *
- * `writeScope` is quoted rather than paraphrased so a driver that narrows its
- * write in a future release renames its own chip instead of waiting for someone
- * to notice the copy here has gone stale.
+ * Three states and no qualifiers. Everything a driver cannot reach used to be
+ * spelled out here, and it grew with the driver until the chip read "Read -
+ * channels and their talk groups, zones, talk groups, scan lists, RX groups,
+ * contacts, text messages, roaming, emergency system names, DTMF, radio
+ * settings and encryption keys only" - a sentence that pushes the radio's own
+ * name off the row and, worse, opens with "Read" on a driver that writes.
+ *
+ * The precise scope still exists on `capabilities.writeScope`, and the restore
+ * screen and the write gate both use it. That is where the question is what
+ * will actually be put back. A list of radios is not.
  */
 function statusOf(id: RadioId, schema: RadioSchema | null): { tone: ChipTone; icon: string; label: string } {
-  if (!schema || !isImplemented(id)) {
+  if (!schema || !isImplemented(id) || schema.status === 'planned' || !schema.capabilities.read) {
     return { tone: 'neutral', icon: 'i-lucide-circle-minus', label: 'Not supported yet' }
   }
-  if (schema.status === 'planned' || !schema.capabilities.read) {
-    return { tone: 'neutral', icon: 'i-lucide-circle-minus', label: 'Not supported yet' }
-  }
-  const { write, writeScope, writeExcept } = schema.capabilities
-  if (write && writeExcept) {
-    // A driver that writes nearly everything says what it misses, not what it
-    // covers: the covering list runs to nine items and reads as read-only.
-    return { tone: 'ok', icon: 'i-lucide-circle-check', label: `Read and write · except ${writeExcept}` }
-  }
-  if (write && writeScope) {
-    return { tone: 'cn', icon: 'i-lucide-circle-dot', label: `Read · ${writeScope.replace(/^encryption /, '')} only` }
-  }
-  if (write) {
+  if (schema.capabilities.write) {
     return { tone: 'ok', icon: 'i-lucide-circle-check', label: 'Read and write' }
   }
   return { tone: 'neutral', icon: 'i-lucide-circle-minus', label: 'Read only' }

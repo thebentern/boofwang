@@ -223,7 +223,7 @@ describe('writeImage, against a radio made of pages', () => {
     expect(blockOfWrite(radio, radio.writes[0]!)).toBeLessThanOrEqual(0x64)
   })
 
-  it('sends the talk group page for a talk group rename', async () => {
+  it('sends the talk group page AND its index for a rename', async () => {
     const radio = fakeRadio()
     const t = await connect(radio)
     const img = image()
@@ -232,9 +232,14 @@ describe('writeImage, against a radio made of pages', () => {
 
     await writable.writeImage(t, writable.encode(doc, img), ctxFor(radio, await backupFor(radio), img))
 
-    expect(radio.writes.length).toBe(1)
-    expect(blockOfWrite(radio, radio.writes[0]!)).toBeGreaterThanOrEqual(0x44)
-    expect(blockOfWrite(radio, radio.writes[0]!)).toBeLessThanOrEqual(0x48)
+    // Two pages: the bank, and the index that orders it by name. A rename can
+    // change that order, so a stale index would list the groups wrongly.
+    const blocks = radio.writes.map((w) => blockOfWrite(radio, w))
+    expect(blocks).toHaveLength(2)
+    expect(blocks).toContain(0x0b)
+    expect(blocks.some((b) => b >= 0x44 && b <= 0x48)).toBe(true)
+    // The index goes out immediately after the bank it describes.
+    expect(blocks.indexOf(0x0b)).toBeGreaterThan(blocks.findIndex((b) => b >= 0x44 && b <= 0x48))
   })
 
   it('writes the safest pages first and the key slots last', async () => {

@@ -63,3 +63,28 @@ describe('every radio declares whether it stores text messages', () => {
     expect(dm32 && dm32.maxChars).toBeGreaterThan(0)
   })
 })
+
+describe('the connect screen chip', () => {
+  const LIST = readFileSync(
+    fileURLToPath(new URL('../../app/components/connect/DriverList.vue', import.meta.url)),
+    'utf8',
+  )
+
+  it('says one of three things and never quotes the scope', () => {
+    // It grew to thirteen clauses, pushed the radio's name off the row, and
+    // opened with "Read" on a driver that writes. The scope still exists; the
+    // restore screen and the write gate are where it belongs.
+    const status = LIST.slice(LIST.indexOf('function statusOf'))
+    const labels = [...status.matchAll(/label: '([^']+)'/g)].map((m) => m[1]!)
+    expect(new Set(labels)).toEqual(new Set(['Not supported yet', 'Read and write', 'Read only']))
+    expect(status).not.toContain('writeScope')
+    expect(status).not.toContain('writeExcept')
+  })
+
+  it('leaves the precise scope to the screens that ask the question', () => {
+    const restore = readFileSync(fileURLToPath(new URL('../../app/pages/restore.vue', import.meta.url)), 'utf8')
+    const gate = readFileSync(fileURLToPath(new URL('../../lib/radio/write-gate.ts', import.meta.url)), 'utf8')
+    expect(restore, 'the restore screen stopped reading writeScope').toContain('writeScope')
+    expect(gate, 'the write gate stopped reading writeScope').toContain('writeScope')
+  })
+})

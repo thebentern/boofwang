@@ -29,10 +29,11 @@ DM-32UV writes cover channel records, zones and their channel lists, talk
 groups, scan list names, RX groups, DMR radio IDs, radio settings and the
 encryption key slots, the per-channel talk group, both VFOs, text messages,
 roaming, DTMF codes and both analog contact lists, and the DMR address book in
-its own memory region. Channels, contacts and messages can be added and removed. What is not
-written is the radio's own ordering of its talk group list, roaming zone
-membership, and the individual fields inside other structures whose meaning is
-documented as derived rather than confirmed. Its pages relocate between sessions
+its own memory region. Channels, zones, talk groups, contacts and messages can be added and
+removed, and the radio's own ordering of its talk group list is rewritten to
+match. What is not written is roaming zone membership and the individual fields
+inside other structures whose meaning is documented as derived rather than
+confirmed. Its pages relocate between sessions
 and 22 of its 59 allocated blocks are undocumented, so every other byte is read,
 preserved and never sent back.
 

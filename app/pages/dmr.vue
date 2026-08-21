@@ -297,7 +297,13 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
     <template v-else>
       <!-- Zones -->
       <section v-if="hasZones" style="margin-bottom: 18px">
-        <h2 class="sec">Zones</h2>
+        <div class="flex items-center gap-2" style="margin-bottom: 7px">
+          <h2 class="sec" style="margin: 0">Zones</h2>
+          <RiskAction
+            risk="neutral" ghost size="sm" icon="i-lucide-plus" label="Add"
+            class="ms-auto" @click="codeplug.addZone()"
+          />
+        </div>
         <div class="card">
           <p v-if="codeplug.zones.length === 0" class="empty">This codeplug has no zones.</p>
           <div
@@ -338,13 +344,28 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 </span>
               </InlineEdit>
             </div>
+            <RiskAction
+              risk="caution"
+              ghost
+              size="sm"
+              icon="i-lucide-trash-2"
+              label="Remove"
+              class="shrink-0"
+              @click="codeplug.removeZone(zone.id)"
+            />
           </div>
         </div>
       </section>
 
       <!-- Talk groups -->
       <section v-if="hasTalkGroups" style="margin-bottom: 18px">
-        <h2 class="sec">Talk groups</h2>
+        <div class="flex items-center gap-2" style="margin-bottom: 7px">
+          <h2 class="sec" style="margin: 0">Talk groups</h2>
+          <RiskAction
+            risk="neutral" ghost size="sm" icon="i-lucide-plus" label="Add"
+            class="ms-auto" @click="codeplug.addTalkGroup()"
+          />
+        </div>
         <div class="card">
           <p v-if="codeplug.talkGroups.length === 0" class="empty">This codeplug has no talk groups.</p>
           <div
@@ -365,10 +386,27 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               @cancel="cancel"
             />
             <template v-if="!isEditing('talkgroup', group.id)">
-              <span class="ms-auto font-mono shrink-0" style="font-size: 13.5px; color: var(--tx)">{{ group.number }}</span>
-              <span class="chip shrink-0" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
-                {{ CALL_TYPE[group.callType] ?? group.callType }}
-              </span>
+              <input
+                type="number"
+                :value="group.number"
+                min="0"
+                max="16777215"
+                class="ms-auto rounded-[6px] px-2 outline-none font-mono shrink-0"
+                style="height: 29px; width: 120px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 13.5px"
+                @change="codeplug.updateTalkGroup(group.id, { number: Number(($event.target as HTMLInputElement).value) })"
+              >
+              <select
+                :value="group.callType"
+                class="rounded-[6px] px-2 outline-none shrink-0"
+                style="height: 29px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 13.5px"
+                @change="codeplug.updateTalkGroup(group.id, { callType: ($event.target as HTMLSelectElement).value as 'group' | 'private' | 'allCall' })"
+              >
+                <option v-for="(label, value) in CALL_TYPE" :key="value" :value="value">{{ label }}</option>
+              </select>
+              <RiskAction
+                risk="caution" ghost size="sm" icon="i-lucide-trash-2" label="Remove"
+                class="shrink-0" @click="codeplug.removeTalkGroup(group.id)"
+              />
             </template>
           </div>
         </div>

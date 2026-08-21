@@ -676,6 +676,56 @@ To take it further you would need a second unit to diff against, or a way to
 change one of these bytes deliberately and see what moved. Neither is available
 from a single radio and a read command.
 
+## Adding and removing zones and talk groups — 2026-08-21
+
+The last two, and they were blocked for different reasons.
+
+**Zones** needed the count byte at `0x000` of block `0x5C`. The fifteen bytes
+beside it are live radio state — one of them moved from `0x0B` to `0x08` between
+two captures with no write in between, which is how we know — so `ownedRanges`
+claims `[0, 1)` and `[0x10, 0xFFF)` and never the gap. Records are placed by the
+slot their id carries, so removing a zone does not shuffle the ones after it
+onto different records.
+
+**Talk groups** have no count at all: occupancy is by content, so adding one is
+writing a record into a free slot. What blocked them was block `0x0B` — the
+radio's own index of the bank — which would go stale the moment the list
+changed, leaving the radio listing a talk group that is gone and missing one
+that is there.
+
+### Block `0x0B` is now regenerated
+
+Five interdependent parts, written together or not at all:
+
+| Part | Where |
+|---|---|
+| Total, `u16le` | `0x000` |
+| Group Call count, `u16le` | `0x002` |
+| All Call count, `u8` | `0x004` |
+| Occupancy bitmask, 128 slots | `0x010`–`0x01F` |
+| Index by name | `0x100` |
+| Index by DMR number | `0x740` |
+
+A **cleared** bit means the slot is in use, because an erased page is all ones.
+Each table entry is two bytes — the physical slot, then the call type in the
+high nibble — and `0xFFFF` ends it.
+
+Two details that matter. The name order is **byte-wise**, not case-insensitive:
+`ZZZ` sorts before `aaa` because `0x5A < 0x61`, and a test pins exactly that
+pair. And entries are cleared only as far as the table previously reached —
+filling to the table's derived end would run into the gaps beyond it, which are
+`0xFF` in every capture but were never established as unused.
+
+The index is written immediately after the bank it describes. It is derived from
+those records, and committing it against a bank that then failed to write would
+leave the radio worse off than either change alone.
+
+Talk group records are placed by physical slot, like the radio IDs and for the
+same reason: this radio's bank has gaps at slots 2, 5, 8 and 9 — wiped records
+that keep their call type — and a channel's TX contact points at a slot number,
+so packing the bank would silently repoint every channel after a gap. A new
+group takes the lowest free slot, which on this radio is 2.
+
 ## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied
@@ -684,11 +734,6 @@ from a single radio and a read command.
   brought back, so up to 44 contacts can be added; beyond that the write is
   refused by name rather than truncating. Reading the whole 4.4 MiB region to
   avoid that would cost about seven minutes on every read.
-- **Block `0x0B`**, the radio's own talk-group index. Decoded, never written:
-  regenerating it means keeping two counts, a bitmask and two sorted tables in
-  step, and no observed radio has ever had them out of step. Renaming a talk
-  group therefore leaves the radio's own name-ordering stale until it rebuilds
-  it — cosmetic, and disclosed rather than fixed.
 - **Writing block `0x43`**, the TX contact for channels above 2047. Decoded and
   never written: its tail on this radio holds `"Zone 1"` strings rather than
   contact data.

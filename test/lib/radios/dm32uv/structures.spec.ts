@@ -1274,3 +1274,131 @@ describe('the two VFOs', () => {
     expect(highest, 'a channel record overlaps VFO A').toBeLessThanOrEqual(VFO_A)
   })
 })
+
+describe('adding and removing zones', () => {
+  const count = (img: RadioImage) => page(img, ZONE_BLOCK_FIRST)[0]
+
+  it('leaves the count alone when nothing was added or removed', () => {
+    const img = image()
+    expect(count(d.encode(d.decode(img), img))).toBe(count(img))
+  })
+
+  it('adds a zone and moves the count', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const was = doc.zones.length
+    doc.zones.push({ id: 'zone-new', name: 'NEW ZONE', channels: [...doc.channels.keys()].slice(0, 2) })
+    const out = d.encode(doc, img)
+    expect(count(out)).toBe(was + 1)
+    const back = d.decode(out).zones
+    expect(back).toHaveLength(was + 1)
+    expect(back[was]!.name).toBe('NEW ZONE')
+    expect(back[was]!.channels).toHaveLength(2)
+  })
+
+  it('removes a zone without shuffling the ones after it', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const names = doc.zones.map((z) => z.name)
+    doc.zones.splice(1, 1)
+    const back = d.decode(d.encode(doc, img)).zones
+    expect(back.map((z) => z.name)).toEqual([names[0], names[2], names[3]])
+  })
+
+  it('never writes the fifteen header bytes beside the count', () => {
+    // One of them moved on its own between two captures of this radio, which
+    // is how we know they are live state rather than padding.
+    const img = image()
+    const doc = d.decode(img)
+    doc.zones.push({ id: 'zone-new', name: 'X', channels: [] })
+    const out = d.encode(doc, img)
+    expect(equalBytes(page(out, ZONE_BLOCK_FIRST).subarray(1, ZONE_HEADER), page(img, ZONE_BLOCK_FIRST).subarray(1, ZONE_HEADER))).toBe(true)
+  })
+
+  it('refuses more zones than the radio has slots for', () => {
+    const img = image()
+    const doc = d.decode(img)
+    while (doc.zones.length < 300) doc.zones.push({ id: `z${doc.zones.length}`, name: 'X', channels: [] })
+    expect(() => d.encode(doc, img)).toThrow(/zones/)
+  })
+})
+
+describe('adding and removing talk groups', () => {
+  it('places each at its own slot, gaps included', () => {
+    // This radio's bank has gaps: slots 2, 5, 8 and 9 hold wiped records that
+    // keep their call type, and a channel's TX contact points at a slot number.
+    const img = image()
+    const index = decodeTalkGroupIndex(img)!
+    expect(index.live).toEqual([1, 3, 4, 6, 7, 10])
+    const out = d.encode(d.decode(img), img)
+    expect(decodeTalkGroupIndex(out)!.live).toEqual(index.live)
+  })
+
+  it('adds a talk group into the lowest free slot', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const was = doc.talkGroups.length
+    doc.talkGroups.push({ id: 'tg-new', name: 'ADDED', number: 4242, callType: 'group' })
+    const out = d.encode(doc, img)
+    const back = d.decode(out)
+    expect(back.talkGroups).toHaveLength(was + 1)
+    expect(back.talkGroups.find((g) => g.name === 'ADDED')?.number).toBe(4242)
+    // Slot 2 was the lowest wiped one.
+    expect(decodeTalkGroupIndex(out)!.live).toContain(2)
+  })
+
+  it('removes a talk group and leaves the rest where they were', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const keep = doc.talkGroups.filter((g) => g.name !== 'ARKANSAS')
+    doc.talkGroups = keep
+    const out = d.encode(doc, img)
+    expect(d.decode(out).talkGroups.map((g) => g.name)).toEqual(keep.map((g) => g.name))
+    // ARKANSAS was slot 3; that slot is now free and the others have not moved.
+    expect(decodeTalkGroupIndex(out)!.live).toEqual([1, 4, 6, 7, 10])
+  })
+
+  it('keeps the index consistent with the bank it describes', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.talkGroups.push({ id: 'tg-new', name: 'AAA FIRST', number: 1, callType: 'group' })
+    const out = d.encode(doc, img)
+
+    const index = decodeTalkGroupIndex(out)!
+    const groups = d.decode(out).talkGroups
+    // Count, bitmask popcount and both table lengths all agree.
+    expect(page(out, 0x0b)[0]! | (page(out, 0x0b)[1]! << 8)).toBe(groups.length)
+    expect(index.live).toHaveLength(groups.length)
+    expect(index.byName).toHaveLength(groups.length)
+    expect([...index.byName].sort((a, b) => a - b)).toEqual(index.live)
+  })
+
+  it('sorts the name table byte-wise, which is not case-insensitively', () => {
+    const img = image()
+    const doc = d.decode(img)
+    // 'a' (0x61) sorts after 'Z' (0x5a) byte-wise, and before it if folded.
+    doc.talkGroups.push({ id: 'tg-l', name: 'aaa', number: 11, callType: 'group' })
+    doc.talkGroups.push({ id: 'tg-u', name: 'ZZZ', number: 12, callType: 'group' })
+    const out = d.encode(doc, img)
+
+    const slots = decodeTalkGroupIndex(out)!.byName
+    const bySlot = new Map(d.decode(out).talkGroups.map((g) => [Number(/-(\d+)$/.exec(g.id)![1]), g.name]))
+    const order = slots.map((s) => bySlot.get(s)).filter(Boolean) as string[]
+    expect(order.indexOf('ZZZ')).toBeLessThan(order.indexOf('aaa'))
+  })
+
+  it('round-trips the index untouched when nothing changed', () => {
+    const img = image()
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, 0x0b), page(img, 0x0b))).toBe(true)
+  })
+
+  it('refuses more talk groups than the index can address', () => {
+    const img = image()
+    const doc = d.decode(img)
+    while (doc.talkGroups.length < 200) {
+      doc.talkGroups.push({ id: `t${doc.talkGroups.length}`, name: 'X', number: 1, callType: 'group' })
+    }
+    expect(() => d.encode(doc, img)).toThrow(/talk groups/)
+  })
+})

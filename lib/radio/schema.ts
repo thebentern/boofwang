@@ -82,27 +82,16 @@ export interface RadioSchema {
      * What a write can actually reach, in the user's words, when it is not
      * the whole codeplug.
      *
-     * The DM-32UV reaches nearly everything it decodes, so it declares no
-     * `writeExcept` at all - what it misses is one index the radio rebuilds for
-     * itself and a scatter of fields whose meaning is a guess, neither of which
-     * belongs on a one-line chip.
+     * Used by the restore screen and the write gate, where "what will
+     * actually be put back" is the question being asked. Deliberately not used
+     * by the connect screen's chip: that grew to thirteen clauses and opened
+     * with the word "Read" on a driver that writes.
      * Without saying so, editing something outside that on that radio looks
      * like it worked - the table updates, the write button lights up - and the
      * write then reports "nothing has changed", which is both false and
      * unhelpful.
      */
     readonly writeScope?: string
-    /**
-     * What a write does *not* reach, in the user's words.
-     *
-     * The complement of `writeScope`, and worth having separately because the
-     * two grow in opposite directions: as a driver matures its scope becomes a
-     * long list and its exclusions become a short one. The connect screen's
-     * one-line chip wants the short one - "Read · channels, zones, talk groups,
-     * scan lists, RX groups, contacts, radio settings and encryption keys only"
-     * both reads as read-only and squeezes the radio's name off the row.
-     */
-    readonly writeExcept?: string
   }
 
   readonly memory: {

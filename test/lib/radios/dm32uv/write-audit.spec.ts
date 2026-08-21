@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
-import { analogRanges, createDm32uvDriver, emergencyNameRanges, roamZoneNameRanges } from '#core/radios/dm32uv/driver.js'
+import {
+  analogRanges,
+  createDm32uvDriver,
+  emergencyNameRanges,
+  roamZoneNameRanges,
+  talkGroupIndexRanges,
+} from '#core/radios/dm32uv/driver.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
 import { fromStoredBackup, toStoredBackup } from '#core/storage/db.js'
@@ -19,6 +25,9 @@ import {
   ROAMCHANNEL_SIZE,
   ROAMCHANNEL_SLOTS,
   RXGROUP_HEADER,
+  TG_INDEX_BITMASK,
+  TG_INDEX_TABLE_BY_NAME,
+  TG_INDEX_TABLE_BY_NUMBER,
   TALKGROUP_BLOCK_FIRST,
   TALKGROUP_BLOCK_LAST,
   TXCONTACT_HIGH_LIMIT,
@@ -177,7 +186,7 @@ describe('nothing claims more than it writes', () => {
     0x04: d.ownedRanges(logicalAddress(0x04), image()), // settings: the struct's own ranges
     0x06: analogRanges(image()), // DTMF codes and both contact lists, field by field
     0x0a: [[0, PAGE_SIZE - 1]], // messages
-    0x0b: [], // talk group index, derived
+    0x0b: talkGroupIndexRanges(d.decode(image()).talkGroups.length), // counts, bitmask, two tables
     0x0f: [[0, 4], [RXGROUP_HEADER, PAGE_SIZE - 1]], // RX groups: bitmask, then records
     0x10: [...emergencyNameRanges(), KEY_AREA], // emergency names, then the key slots
     0x11: [[0, PAGE_SIZE - 1]], // scan lists
@@ -211,7 +220,10 @@ describe('nothing claims more than it writes', () => {
     }
     if (id >= TALKGROUP_BLOCK_FIRST && id <= TALKGROUP_BLOCK_LAST) return [[0, PAGE_SIZE - 1]]
     if (id >= ZONE_BLOCK_FIRST && id <= ZONE_BLOCK_LAST) {
-      return [[id === ZONE_BLOCK_FIRST ? ZONE_HEADER : 0, PAGE_SIZE - 1]]
+      // The first block also claims its count byte, so zones can be added.
+      return id === ZONE_BLOCK_FIRST
+        ? [[0, 1], [ZONE_HEADER, PAGE_SIZE - 1]]
+        : [[0, PAGE_SIZE - 1]]
     }
     return null
   }
@@ -248,10 +260,22 @@ describe('nothing claims more than it writes', () => {
   })
 
   it('claims nothing at all in the blocks that are never written', () => {
-    // The talk group index is derived from five interdependent parts; block
-    // 0x43's tail is stale zone records; calibration is blocked outright.
-    expect(d.ownedRanges(logicalAddress(0x0b), image()), 'talk group index').toEqual([])
+    // Calibration is blocked outright; the analog emergency section shares its
+    // page with the key slots and is claimed by neither.
     expect(d.ownedRanges(logicalAddress(0x02), image()), 'calibration').toEqual([])
+  })
+
+  it('claims only the five parts of the talk group index', () => {
+    // Two counts, an All Call tally, the bitmask and two tables. Everything
+    // between them is 0xFF in every capture, which is not the same as unused.
+    const claimed = d.ownedRanges(logicalAddress(0x0b), image())
+    const inside = (i: number) => claimed.some(([a, b]) => i >= a && i < b)
+    for (const i of [5, 6, 0x0f, 0x20, 0x80, 0xff, 0x700, 0x73f, 0xd00, 0xffe]) {
+      expect(inside(i), `byte 0x${i.toString(16)} is between the parts and must not be claimed`).toBe(false)
+    }
+    for (const i of [0, 4, TG_INDEX_BITMASK, TG_INDEX_TABLE_BY_NAME, TG_INDEX_TABLE_BY_NUMBER]) {
+      expect(inside(i), `byte 0x${i.toString(16)} is one of the five parts`).toBe(true)
+    }
   })
 
   it('claims only names and codes in the three that are mostly derived', () => {

@@ -404,6 +404,50 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     republish()
   }
 
+  function addZone() {
+    const cp = doc.value
+    const limit = schema.value?.features.zones
+    if (!cp || !limit || cp.zones.length >= limit.max) return
+    cp.zones.push({ id: `zone-new-${cp.zones.length + 1}`, name: '', channels: [] })
+    republish()
+  }
+
+  function removeZone(id: string) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.zones.findIndex((z) => z.id === id)
+    if (i < 0) return
+    cp.zones.splice(i, 1)
+    republish()
+  }
+
+  function addTalkGroup() {
+    const cp = doc.value
+    const limit = schema.value?.features.talkGroups
+    if (!cp || !limit || cp.talkGroups.length >= limit.max) return
+    cp.talkGroups.push({ id: `tg-new-${cp.talkGroups.length + 1}`, name: '', number: 0, callType: 'group' })
+    republish()
+  }
+
+  function removeTalkGroup(id: string) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.talkGroups.findIndex((g) => g.id === id)
+    if (i < 0) return
+    cp.talkGroups.splice(i, 1)
+    republish()
+  }
+
+  /** A talk group's number and call type, which the radio stores beside its name. */
+  function updateTalkGroup(id: string, patch: { number?: number; callType?: Codeplug['talkGroups'][number]['callType'] }) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.talkGroups.findIndex((g) => g.id === id)
+    if (i < 0) return
+    cp.talkGroups[i] = { ...cp.talkGroups[i]!, ...patch }
+    republish()
+  }
+
   /** Change one radio setting. The key is the one the schema's FieldSpec names. */
   function setSetting(key: string, value: unknown) {
     const cp = doc.value
@@ -517,6 +561,11 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     deleteChannel,
     renameZone,
     renameTalkGroup,
+    addZone,
+    removeZone,
+    addTalkGroup,
+    removeTalkGroup,
+    updateTalkGroup,
     setZoneChannels,
     renameScanList,
     setScanListChannels,

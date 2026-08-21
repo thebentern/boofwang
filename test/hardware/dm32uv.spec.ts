@@ -4,11 +4,10 @@ import { equalBytes } from '#core/codec/struct.js'
 import { hz, mW } from '#core/model/units.js'
 import type { RadioImage } from '#core/radio/image.js'
 import type { IdentifyResult } from '#core/radio/driver.js'
-import { createDm32uvDriver } from '#core/radios/dm32uv/driver.js'
+import { createDm32uvDriver, decodeTalkGroupIndex } from '#core/radios/dm32uv/driver.js'
 import { PAGE_SIZE, REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import {
-  RXGROUP_BLOCK,
   ANALOG_BLOCK,
   CHANNEL_BLOCK_LAST,
   MESSAGE_BLOCK,
@@ -16,9 +15,10 @@ import {
   ROAMCHANNEL_BLOCK,
   ROAMCHANNEL_COUNT_AT,
   ROAMZONE_BLOCK,
+  RXGROUP_BLOCK,
+  SCANLIST_BLOCK,
   TXCONTACT_BLOCK_HIGH,
   TXCONTACT_BLOCK_LOW,
-  SCANLIST_BLOCK,
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
   ZONE_SIZE,
@@ -244,6 +244,14 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       const vfoWas = doc.vfo.a
       if (vfoWas) doc.vfo = { ...doc.vfo, a: { ...vfoWas, rxFreq: hz(446_006_25 * 10), tx: { kind: 'simplex' } } }
 
+      // Adding and removing a zone and a talk group, which move the zone count
+      // and the talk group index the radio keeps for itself.
+      const zonesWere = doc.zones.length
+      doc.zones.push({ id: 'zone-new', name: 'HW ZN NEW', channels: liveChannels })
+      const tgsWere = doc.talkGroups.length
+      doc.talkGroups.push({ id: 'tg-new', name: 'HW TG NEW', number: 424242, callType: 'group' })
+      const tgIndexWas = decodeTalkGroupIndex(baseline)!
+
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
       doc.settings['callsignColour.colour'] = 5
@@ -437,6 +445,23 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
         // VFO B ends against the block id byte, which is never ours.
         expect(block(after, CHANNEL_BLOCK_LAST)[PAGE_SIZE - 1]).toBe(block(baseline, CHANNEL_BLOCK_LAST)[PAGE_SIZE - 1])
       }
+
+      // The zone count moved, and the fifteen bytes beside it did not.
+      expect(back.zones, 'the added zone did not reach the radio').toHaveLength(zonesWere + 1)
+      expect(back.zones.at(-1)!.name).toBe('HW ZN NEW')
+      expect(block(after, ZONE_BLOCK_FIRST)[0]).toBe(zonesWere + 1)
+      expect(
+        equalBytes(block(after, ZONE_BLOCK_FIRST).subarray(1, ZONE_HEADER), block(baseline, ZONE_BLOCK_FIRST).subarray(1, ZONE_HEADER)),
+        'the zone page header state was rewritten',
+      ).toBe(true)
+
+      // The talk group landed in a free slot, and the radio's own index agrees.
+      expect(back.talkGroups, 'the added talk group did not reach the radio').toHaveLength(tgsWere + 1)
+      const tgIndexNow = decodeTalkGroupIndex(after)!
+      expect(tgIndexNow.live).toHaveLength(tgsWere + 1)
+      expect(tgIndexNow.live.length).toBeGreaterThan(tgIndexWas.live.length)
+      expect(tgIndexNow.byName, 'the name table disagrees with the bitmask').toHaveLength(tgIndexNow.live.length)
+      expect([...tgIndexNow.byName].sort((a, b) => a - b)).toEqual(tgIndexNow.live)
 
       expect(back.settings.powerOnLine1).toBe('HW BOOF')
       expect(back.settings['callsignColour.colour']).toBe(5)

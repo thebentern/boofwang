@@ -207,6 +207,10 @@ function writeTargets(image: RadioImage): WriteTarget[] {
   for (let id = TALKGROUP_BLOCK_FIRST; id <= TALKGROUP_BLOCK_LAST; id++) {
     add(id, `block 0x${id.toString(16)} (talk groups)`)
   }
+  // Immediately after the bank it indexes: it is derived from those records,
+  // and committing it against a bank that then fails to write would leave the
+  // radio worse off than either change alone.
+  add(TG_INDEX_BLOCK, `block 0x${TG_INDEX_BLOCK.toString(16)} (talk group ordering)`)
   for (let id = ZONE_BLOCK_FIRST; id <= ZONE_BLOCK_LAST; id++) {
     add(id, `block 0x${id.toString(16)} (zones)`)
   }
@@ -326,15 +330,10 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
             'channels and their talk groups, zones, talk groups, scan lists, RX groups, contacts, ' +
             'text messages, roaming, emergency system names, DTMF, radio settings and encryption keys',
           /*
-           * No writeExcept any more. What a write does not reach is now one
-           * derived index the radio rebuilds for itself - block 0x0B, its own
-           * ordering of the talk group list - plus the individual fields inside
-           * other structures whose meaning is a guess. Neither is something a
-           * user goes looking for, and naming them on a one-line chip made a
-           * driver that writes nearly everything read as though it did not.
-           *
-           * The restore screen still carries the precise list, because that is
-           * where "what will actually be put back" is the question being asked.
+           * Read by the restore screen and the write gate, and by nothing else.
+           * The connect screen says "Read and write" and stops: this list grew
+           * to thirteen clauses, pushed the radio's own name off the row, and
+           * opened with "Read" on a driver that writes nearly all of it.
            */
         },
       }
@@ -942,6 +941,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
 
       encodeZones(out, doc.zones, live)
       encodeTalkGroups(out, doc.talkGroups)
+      encodeTalkGroupIndex(out, doc.talkGroups)
       encodeScanLists(out, doc.scanLists, live)
       encodeRxGroups(out, doc.rxGroups)
       encodeRadioIds(out, doc.radioIds)
@@ -1017,8 +1017,14 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         ]
       }
       if (blockId >= ZONE_BLOCK_FIRST && blockId <= ZONE_BLOCK_LAST) {
-        const base = blockId === ZONE_BLOCK_FIRST ? ZONE_HEADER : 0
-        return [[base, PAGE_SIZE - 1] as const]
+        if (blockId !== ZONE_BLOCK_FIRST) return [[0, PAGE_SIZE - 1] as const]
+        // The count, then the records. The fifteen bytes between them are live
+        // radio state - one of them moved on its own between two captures of
+        // this radio - and are never written.
+        return [
+          [0, 1] as const,
+          [ZONE_HEADER, PAGE_SIZE - 1] as const,
+        ]
       }
       if (blockId >= TALKGROUP_BLOCK_FIRST && blockId <= TALKGROUP_BLOCK_LAST) {
         return [[0, PAGE_SIZE - 1] as const]
@@ -1034,6 +1040,9 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // what this build models.
       if (blockId === TXCONTACT_BLOCK_HIGH) return [[0, TXCONTACT_HIGH_LIMIT] as const]
       if (blockId === MESSAGE_BLOCK) return [[0, PAGE_SIZE - 1] as const]
+      if (blockId === TG_INDEX_BLOCK) {
+        return image ? talkGroupIndexRanges(decodeTalkGroups(image).length) : []
+      }
       // Names and codes only. The settings record between the DTMF lists and
       // the zone header beside the count are left to the radio.
       if (blockId === ANALOG_BLOCK) return image ? analogRanges(image) : []
@@ -1343,89 +1352,256 @@ function decodesToKey(block: Uint8Array, off: number): boolean {
 export function encodeZones(image: RadioImage, zones: Codeplug['zones'], live?: ReadonlySet<number>): void {
   const first = blockData(image, ZONE_BLOCK_FIRST)
   if (!first) return
-  const total = first[0]!
 
-  let index = 0
-  let docIndex = 0
-  for (let blockId = ZONE_BLOCK_FIRST; blockId <= ZONE_BLOCK_LAST && index < total; blockId++) {
+  // Every zone record slot the image has a page for.
+  const slots: { data: Uint8Array; offset: number; n: number }[] = []
+  let n = 0
+  for (let blockId = ZONE_BLOCK_FIRST; blockId <= ZONE_BLOCK_LAST; blockId++) {
     const data = blockData(image, blockId)
     if (!data) continue
     const base = blockId === ZONE_BLOCK_FIRST ? ZONE_HEADER : 0
     const capacity = Math.floor((PAGE_SIZE - base - 1) / ZONE_SIZE)
+    for (let i = 0; i < capacity; i++, n++) slots.push({ data, offset: base + i * ZONE_SIZE, n: n + 1 })
+  }
+  if (slots.length === 0) return
+  if (zones.length > slots.length) {
+    throw new DriverError(`This radio holds ${slots.length} zones; the codeplug has ${zones.length}.`)
+  }
 
-    for (let i = 0; i < capacity && index < total; i++, index++) {
-      // Mirror the decoder's skip. `decodeZones` walks every record up to the
-      // count but pushes only those with a name or channels, so the nth record
-      // is not the nth zone in the document. Advancing both counters together
-      // wrote zone 2's name onto record 3 the moment any record was empty.
-      const off = base + i * ZONE_SIZE
-      const rec = DM32_ZONE.read(data, off)
-      if (!rec.name.trimEnd() && Math.min(rec.channelCount, 64) === 0) continue
-
-      const zone = zones[docIndex]
-      docIndex++
-      if (!zone) continue
-
-      // Drop anything the radio could not resolve. No set means the caller did
-      // not supply the channel bank, in which case membership is left alone
-      // rather than guessed at.
-      //
-      // The test is "is there a channel there", not "is the number in range".
-      // A number inside the bank count whose record is blank is the one case
-      // this radio could not settle, and the writer can simply never create it.
-      if (live) {
-        const members = zone.channels.filter((c) => live.has(c)).slice(0, ZONE_MAX_CHANNELS)
-        const entries = rec.channels.slice()
-        for (let i = 0; i < members.length; i++) {
-          entries[i * 2] = members[i]! & 0xff
-          entries[i * 2 + 1] = (members[i]! >> 8) & 0xff
-        }
-        DM32_ZONE.write(data, off, { name: zone.name, channels: entries })
-        // The count last, and only after the entries are in place.
-        DM32_ZONE.write(data, off, { channelCount: members.length })
-        continue
-      }
-
-      DM32_ZONE.write(data, off, { name: zone.name })
+  // By slot, from the id the decoder issued, so a zone that is removed does not
+  // shuffle the ones after it onto different records.
+  const taken = new Set<number>()
+  const placed = new Map<number, Codeplug['zones'][number]>()
+  const fresh: Codeplug['zones'] = []
+  for (const zone of zones) {
+    const match = /^zone-(\d+)$/.exec(zone.id)
+    const at = match ? Number(match[1]) - 1 : -1
+    if (at >= 0 && at < slots.length && !taken.has(at)) {
+      taken.add(at)
+      placed.set(at, zone)
+    } else {
+      fresh.push(zone)
     }
   }
+  for (const zone of fresh) {
+    let at = 0
+    while (at < slots.length && taken.has(at)) at++
+    if (at >= slots.length) throw new DriverError('Every zone slot on this radio is taken.')
+    taken.add(at)
+    placed.set(at, zone)
+  }
+
+  const was = first[0]!
+  const highest = taken.size === 0 ? 0 : Math.max(...taken) + 1
+
+  for (let i = 0; i < Math.max(was, highest); i++) {
+    const slot = slots[i]
+    if (!slot) break
+    const zone = placed.get(i)
+    if (!zone) {
+      // Only clear a record that used to be inside the count.
+      if (i < was) DM32_ZONE.write(slot.data, slot.offset, { name: '', channelCount: 0 })
+      continue
+    }
+
+    const rec = DM32_ZONE.read(slot.data, slot.offset)
+    if (!live) {
+      DM32_ZONE.write(slot.data, slot.offset, { name: zone.name })
+      continue
+    }
+
+    // Only channels that are actually there. The one case this radio could not
+    // settle is an in-count entry pointing at a blank record, and the writer
+    // can simply never create one.
+    const members = zone.channels.filter((c) => live.has(c)).slice(0, ZONE_MAX_CHANNELS)
+    const entries = rec.channels.slice()
+    for (let m = 0; m < members.length; m++) {
+      entries[m * 2] = members[m]! & 0xff
+      entries[m * 2 + 1] = (members[m]! >> 8) & 0xff
+    }
+    DM32_ZONE.write(slot.data, slot.offset, { name: zone.name, channels: entries })
+    // The count last, so a write interrupted midway leaves the old shorter one
+    // rather than one reaching into half-written slots.
+    DM32_ZONE.write(slot.data, slot.offset, { channelCount: members.length })
+  }
+
+  // The zone count. The fifteen bytes beside it carry live radio state - a
+  // cursor this radio moved on its own between two sessions - and are not ours.
+  first[0] = highest & 0xff
 }
 
 /**
- * Write the talk group records back.
+ * Write the talk group records back, placing each at its own physical slot.
  *
- * Name, number and call type - the three fields the decoder reads. Everything
- * else in the 24-byte record is left alone. The traversal mirrors the decoder's
- * exactly, including its skip of empty slots, so the nth talk group in the
- * document lands on the nth record the decoder produced.
+ * By slot and not by array position, for the same reason the radio IDs are:
+ * this radio's bank has gaps - slots 2, 5, 8 and 9 hold wiped records that keep
+ * their call type - and a channel's TX contact points at a slot number. Packing
+ * the bank would silently repoint every channel after a gap.
+ *
+ * There is no count anywhere for talk groups. Occupancy is by content, so
+ * adding one is writing a record into a free slot and removing one is clearing
+ * it. Block 0x0B, the radio's own index of which slots are live, is regenerated
+ * separately and immediately after.
  */
 export function encodeTalkGroups(image: RadioImage, groups: Codeplug['talkGroups']): void {
-  let index = 0
+  const slots = talkGroupSlots(image)
+  if (slots.length === 0) return
+  if (groups.length > slots.length) {
+    throw new DriverError(
+      `This radio holds ${slots.length} talk groups; the codeplug has ${groups.length}.`,
+    )
+  }
+
+  const taken = new Set<number>()
+  const placed = new Map<number, Codeplug['talkGroups'][number]>()
+  const fresh: Codeplug['talkGroups'] = []
+  for (const group of groups) {
+    const match = /^tg-[0-9a-fx]+-(\d+)$/.exec(group.id)
+    const slot = match ? slots.findIndex((s) => s.n === Number(match[1])) : -1
+    if (slot >= 0 && !taken.has(slot)) {
+      taken.add(slot)
+      placed.set(slot, group)
+    } else {
+      fresh.push(group)
+    }
+  }
+  for (const group of fresh) {
+    let at = 0
+    while (at < slots.length && taken.has(at)) at++
+    if (at >= slots.length) throw new DriverError('Every talk group slot on this radio is taken.')
+    taken.add(at)
+    placed.set(at, group)
+  }
+
+  for (let i = 0; i < slots.length; i++) {
+    const { data, offset } = slots[i]!
+    const group = placed.get(i)
+    if (!group) {
+      // Clear a slot the user emptied, and leave one that was never occupied:
+      // a record the decoder already ignored may hold bytes nobody has
+      // explained, and this radio's wiped slots keep a call type.
+      const rec = DM32_TALKGROUP.read(data, offset)
+      if (rec.name.trimEnd() || rec.number !== 0) {
+        DM32_TALKGROUP.write(data, offset, { name: '', number: 0 })
+      }
+      continue
+    }
+    DM32_TALKGROUP.write(data, offset, {
+      name: group.name,
+      number: group.number,
+      callType:
+        group.callType === 'allCall'
+          ? CALL_TYPE_ALL
+          : group.callType === 'private'
+            ? CALL_TYPE_PRIVATE
+            : CALL_TYPE_GROUP,
+    })
+  }
+}
+
+/** Every talk group slot the image has a page for, in bank order. */
+export function talkGroupSlots(image: RadioImage): { data: Uint8Array; offset: number; n: number }[] {
+  const out: { data: Uint8Array; offset: number; n: number }[] = []
   for (let blockId = TALKGROUP_BLOCK_FIRST; blockId <= TALKGROUP_BLOCK_LAST; blockId++) {
     const data = blockData(image, blockId)
     if (!data) continue
     for (let n = 1; ; n++) {
-      const off = talkgroupOffset(n)
-      if (off + DM32_TALKGROUP.size > PAGE_SIZE - 1) break
-      const rec = DM32_TALKGROUP.read(data, off)
-      if (!rec.name.trimEnd() && rec.number === 0) continue
-
-      const group = groups[index]
-      index++
-      if (!group) continue
-
-      DM32_TALKGROUP.write(data, off, {
-        name: group.name,
-        number: group.number,
-        callType:
-          group.callType === 'allCall'
-            ? CALL_TYPE_ALL
-            : group.callType === 'private'
-              ? CALL_TYPE_PRIVATE
-              : CALL_TYPE_GROUP,
-      })
+      const offset = talkgroupOffset(n)
+      if (offset + DM32_TALKGROUP.size > PAGE_SIZE - 1) break
+      out.push({ data, offset, n })
     }
   }
+  return out
+}
+
+/**
+ * Regenerate block 0x0B, the radio's own index of the talk group bank.
+ *
+ * Five interdependent parts, and they are written together or not at all: two
+ * counts, a byte counting the All Call entries, a 128-slot occupancy bitmask
+ * where a *cleared* bit means the slot is in use, and two sorted index tables -
+ * one in name order, one in DMR-number order.
+ *
+ * This was decoded and left alone for a long time because a bitmask that
+ * disagrees with its tables is a state no observed radio has ever been in. It
+ * is written now because talk groups can be added and removed, and a stale
+ * index is worse than a regenerated one: the radio would list a talk group that
+ * is gone and miss one that is there.
+ *
+ * Everything between the parts is preserved. The eleven bytes after the counts,
+ * the gap before each table and the tail past them are 0xFF in every capture,
+ * which is not the same as unused - this codebase learned that in block 0x10,
+ * whose supposedly reserved tail turned out to hold pairs nobody can explain.
+ */
+export function encodeTalkGroupIndex(image: RadioImage, groups: Codeplug['talkGroups']): void {
+  const data = blockData(image, TG_INDEX_BLOCK)
+  if (!data) return
+  if (groups.length > TG_INDEX_SLOTS) {
+    throw new DriverError(
+      `This build writes at most ${TG_INDEX_SLOTS} talk groups, because the index stores each slot in one byte.`,
+    )
+  }
+
+  const slots = talkGroupSlots(image)
+  // Where each group ended up, as the physical slot number the index stores.
+  const live: { slot: number; name: string; number: number; callType: number }[] = []
+  for (let i = 0; i < slots.length; i++) {
+    const rec = DM32_TALKGROUP.read(slots[i]!.data, slots[i]!.offset)
+    const name = rec.name.trimEnd()
+    if (!name && rec.number === 0) continue
+    live.push({ slot: slots[i]!.n, name, number: rec.number, callType: rec.callType })
+  }
+
+  const was = data[0]! | (data[1]! << 8)
+
+  // Counts. The third is the All Call subset; the second is Group Call.
+  data[0] = live.length & 0xff
+  data[1] = (live.length >>> 8) & 0xff
+  const groupCalls = live.filter((g) => g.callType === CALL_TYPE_GROUP).length
+  data[2] = groupCalls & 0xff
+  data[3] = (groupCalls >>> 8) & 0xff
+  data[4] = live.filter((g) => g.callType === CALL_TYPE_ALL).length & 0xff
+
+  // Occupancy bitmask: a CLEARED bit means the slot is in use, because an
+  // erased page is all ones.
+  const occupied = new Set(live.map((g) => g.slot))
+  for (let i = 0; i < TG_INDEX_SLOTS; i++) {
+    const at = TG_INDEX_BITMASK + (i >> 3)
+    const bit = 1 << (i & 7)
+    if (occupied.has(i + 1)) data[at] = data[at]! & ~bit
+    else data[at] = data[at]! | bit
+  }
+
+  // The two tables. Name order is raw byte-wise and demonstrably not
+  // case-insensitive; number order is plain ascending.
+  const byName = [...live].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.slot - b.slot))
+  const byNumber = [...live].sort((a, b) => a.number - b.number || a.slot - b.slot)
+
+  const writeTable = (base: number, rows: typeof live) => {
+    rows.forEach((g, i) => {
+      data[base + i * 2] = g.slot & 0xff
+      data[base + i * 2 + 1] = (g.callType << 4) & 0xff
+    })
+    // Terminate, and clear only as far as the table previously reached. Filling
+    // to the table's DERIVED end would run into the gaps beyond it.
+    for (let i = rows.length; i <= Math.max(was, rows.length); i++) {
+      data[base + i * 2] = 0xff
+      data[base + i * 2 + 1] = 0xff
+    }
+  }
+  writeTable(TG_INDEX_TABLE_BY_NAME, byName)
+  writeTable(TG_INDEX_TABLE_BY_NUMBER, byNumber)
+}
+
+/** The five parts of block 0x0B, and nothing between or after them. */
+export function talkGroupIndexRanges(count: number): ReadonlyArray<readonly [number, number]> {
+  const rows = Math.max(count, 1) + 1
+  return [
+    [0, 5],
+    [TG_INDEX_BITMASK, TG_INDEX_BITMASK + TG_INDEX_SLOTS / 8],
+    [TG_INDEX_TABLE_BY_NAME, TG_INDEX_TABLE_BY_NAME + rows * 2],
+    [TG_INDEX_TABLE_BY_NUMBER, TG_INDEX_TABLE_BY_NUMBER + rows * 2],
+  ]
 }
 
 export function encodeKeys(block: Uint8Array, keys: Codeplug['encryptionKeys']): void {
