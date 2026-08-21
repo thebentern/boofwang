@@ -22,6 +22,29 @@ const SOURCE = readFileSync(
   'utf8',
 )
 
+const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8')
+
+/**
+ * Somewhere to click, with a codeplug already open.
+ *
+ * This is worth a test because the feature shipped without one. Every mount of
+ * `OpenCodeplugButton` sat inside a "No codeplug open" card, and the connect
+ * page's is behind a link fault, so the button was only ever on screen when
+ * nothing was loaded - while `couldBeDonor` returns false unless something is.
+ * The merge, its dialog and its tests all existed and no user could reach any
+ * of it.
+ */
+describe('somewhere to open a donor file from', () => {
+  it('is on the channel table, which only renders with a codeplug open', () => {
+    expect(read('../../app/components/ChannelTable.vue')).toMatch(/<OpenCodeplugButton\b/)
+    // ChannelTable is the `v-else` of the page's "No codeplug open" card, so
+    // anything mounted inside it is by definition reachable with one open.
+    const page = read('../../app/pages/channels.vue')
+    const table = page.indexOf('<ChannelTable')
+    expect(table).toBeGreaterThan(page.indexOf('<template v-else>'))
+  })
+})
+
 describe('applying a donor codeplug', () => {
   it('sends nothing itself', () => {
     expect(SOURCE).not.toMatch(/writeImage\(/)

@@ -980,6 +980,16 @@ const printedFacts = computed(() => {
         </div>
 
         <!--
+          The only way to open a file with a codeplug already open, and that is
+          the precondition for the one thing this button does that "Read a
+          radio" cannot: taking a codeplug somebody else sent and putting its
+          contents on your radio. Every other mount of it lives inside a "No
+          codeplug open" card, so without this one the club-codeplug flow had
+          no entry point at all.
+        -->
+        <OpenCodeplugButton toolbar />
+
+        <!--
           Its own button rather than an entry in the Export menu: printing is a
           verb, not a file. It also takes the deterministic path into print
           mode, which Ctrl+P cannot.

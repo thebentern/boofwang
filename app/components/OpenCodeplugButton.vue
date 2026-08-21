@@ -6,6 +6,14 @@ import type { Codeplug } from '#core/model/codeplug.js'
 import type { RadioDriver } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
 
+/**
+ * `toolbar` for the form that sits beside Print and Export on the channel
+ * table, which is the only place this button can be reached with a codeplug
+ * already open - and a codeplug already open is the whole precondition for
+ * applying somebody else's to it.
+ */
+const { toolbar = false } = defineProps<{ toolbar?: boolean }>()
+
 const codeplug = useCodeplugStore()
 const toast = useToast()
 const input = useTemplateRef<HTMLInputElement>('input')
@@ -221,7 +229,19 @@ async function applyToOpen() {
 <template>
   <div>
     <input ref="input" type="file" accept=".bwp,.bin,.img,application/octet-stream" class="hidden" @change="onPick" >
+    <button
+      v-if="toolbar"
+      type="button"
+      class="inline-flex items-center"
+      style="height: 31px; padding: 0 10px; gap: 6px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13.5px"
+      title="Open a codeplug file: replace the one you have open, or apply another radio's onto it"
+      @click="input?.click()"
+    >
+      <UIcon name="i-lucide-file-up" style="width: 12px; height: 12px; color: var(--fn)" />
+      Open
+    </button>
     <UButton
+      v-else
       icon="i-lucide-file-up"
       label="Open a codeplug file"
       color="neutral"
