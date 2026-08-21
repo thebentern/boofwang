@@ -410,8 +410,23 @@ async function connectBluetooth() {
   await readRadio(choice)
 }
 
+/**
+ * Abandon the Bluetooth attempt and go back to the cable.
+ *
+ * `pickPort` already resets the carrier and the fault, but neither it nor the
+ * chooser clears the error the Bluetooth attempt left behind, and that error is
+ * what the card reads its diagnosis from. Without clearing it the screen asks
+ * about a USB adapter while still explaining a Bluetooth failure.
+ */
+async function useCableInstead() {
+  device.error = null
+  blePicking.value = false
+  await pickPort()
+}
+
 function onAction(key: string) {
   if (key === 'pick') void pickPort()
+  else if (key === 'cable') void useCableInstead()
   else if (key === 'read') void readRadio()
   else if (key === 'bluetooth') void connectBluetooth()
   else if (key === 'cancel') transfer.cancel()

@@ -103,6 +103,15 @@ const emit = defineEmits<{ action: [key: string] }>()
 
 const RETRY: ActionSpec = { key: 'read', label: 'Try again', icon: 'i-lucide-arrow-right' }
 const SAVE_LOG: ActionSpec = { key: 'trace', label: 'Save the protocol log', icon: 'i-lucide-file-down', ghost: true }
+/**
+ * The way back to the other carrier.
+ *
+ * Every Bluetooth fault used to offer only its own retry, which left anyone
+ * whose radio will not pair with nowhere to go but the browser's back button.
+ * Bluetooth is the newer and less certain of the two routes, so the cable has
+ * to stay one click away from every one of its dead ends.
+ */
+const USE_CABLE: ActionSpec = { key: 'cable', label: 'Use a cable instead', icon: 'i-lucide-usb', ghost: true }
 
 const STATES: Record<FaultState, FaultCopy> = {
   first: {
@@ -366,8 +375,32 @@ const phaseLabel = computed(() => {
   return phase ? (PHASES[phase] ?? phase) : 'starting'
 })
 
-/** Actions that need a trace are hidden when there is none, rather than failing on click. */
-const actions = computed(() => (copy.value.actions ?? []).filter((a) => a.key !== 'trace' || props.traceAvailable))
+/**
+ * Nothing is offered while the radio is still being talked to.
+ *
+ * These two states are waiting on a dialogue or a transfer, and their own
+ * actions are the cancel. Offering a change of carrier mid-attempt would be a
+ * second thing to click at the moment the screen is least able to act on it.
+ */
+const IN_PROGRESS: readonly FaultState[] = ['picking', 'reading', 'ble-picking']
+
+/**
+ * Actions that need a trace are hidden when there is none, rather than failing
+ * on click. Anything reached over Bluetooth also gains a way back to the cable.
+ *
+ * That last part is a rule rather than an entry in each Bluetooth state,
+ * because a Bluetooth attempt can fail into the shared states too - a read that
+ * times out lands in `off`, not `ble-off` - and hardcoding it three times would
+ * have left exactly those cases stuck.
+ */
+const actions = computed(() => {
+  const listed = (copy.value.actions ?? []).filter((a) => a.key !== 'trace' || props.traceAvailable)
+  const stranded = via.value === 'bluetooth' && !IN_PROGRESS.includes(props.state)
+  if (!stranded || listed.some((a) => a.key === 'cable')) return listed
+  // Before the log, which is the least likely next move.
+  const at = listed.findIndex((a) => a.key === 'trace')
+  return at < 0 ? [...listed, USE_CABLE] : [...listed.slice(0, at), USE_CABLE, ...listed.slice(at)]
+})
 </script>
 
 <template>
