@@ -878,6 +878,31 @@ write capture holds `0e 01` at the same offset, so it read-modify-writes the
 same way over the same fill. Reproducing a capture nobody was aiming at is the
 strongest evidence in this repository that the bit layout is right.
 
+### Key placement is one rule, not two — and strict lengths make it moot
+
+The reference marks key placement DERIVED and warns that assuming *"key always
+starts at +0x0C"* will mis-render AES keys. Read its captured table closely and
+the warning is about **short** keys only. Every sample in it is an 8-byte test
+key:
+
+| Type | Sample at | Note in the reference |
+|---|---|---|
+| AES-256 | +0x24-+0x2B | last 8 of 32 |
+| AES-128 | +0x14-+0x1B | last 8 of the first 16 |
+| ARC4 | +0x0C-+0x10 | first 5 — and ARC4's length *is* 5 |
+| Custom | +0x0C-+0x12 | first 7 — and Custom's length *is* 7 |
+
+So there is one rule: the key is right-aligned within **its own type's length**,
+and that length starts at +0x0C. ARC4 and Custom look left-aligned only because
+their samples happen to be full length.
+
+A key of the correct length fills its type's width exactly, so right-aligned and
+"starts at +0x0C" name the same bytes and the question cannot arise. boofwang
+rejects every other length outright, which is what turns that from luck into a
+property — the two tests sit next to each other in `structures.spec.ts` for that
+reason. The 32-byte field is still carried verbatim through a round trip, so a
+radio placing a key somewhere unexpected survives a read and a write regardless.
+
 ### The 22 remaining blocks are not codeplug data
 
 A second attempt, with a different method than the last one. Entropy runs 6.6 to
@@ -912,9 +937,6 @@ not, because it tells someone a restore rolls back more than it can. A test now
 checks every parenthesised noun the writer emits appears in the sentence.
 
 ## Not verified
-- **Zone membership.** `encodeZones` writes the name only. A zone's channel list
-  is a set of indices, and what the radio does with one pointing at an emptied
-  slot has not been established.
 - **Growing the address book past the pages that were read.** One spare page is
   brought back, so up to 44 contacts can be added; beyond that the write is
   refused by name rather than truncating. Reading the whole 4.4 MiB region to
@@ -942,7 +964,10 @@ checks every parenthesised noun the writer emits appears in the sentence.
   the reference's reading and no capture pins it; an inverted reading also
   circulates.
 - **The scaling of the four digital timers**, which is why they are offered raw.
-- Whether the alignment of a *short* key differs from a full one. Only AES-256,
-  which fills the whole 32-byte field, has been written.
+- Whether a radio would accept a key **shorter than its type's length**. It
+  cannot arise here: `validateKeyHex` demands exactly `KEY_BYTES[type]` bytes,
+  and a key of that length fills its type's width, so the reference's
+  right-alignment rule and "starts at +0x0C" are the same placement. See below.
+  Only AES-256 has been written to the radio itself.
 - The bandwidth polarity at `0x19` bit 7 is still `DERIVED` in the reference.
   Every channel on this radio holds `0x19 = 0x00`, so it cannot settle it.

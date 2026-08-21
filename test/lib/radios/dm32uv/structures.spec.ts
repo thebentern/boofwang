@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { equalBytes } from '#core/codec/struct.js'
+import type { Codeplug } from '#core/model/codeplug.js'
+import { KEY_BYTES, validateKeyHex } from '#core/model/encryption.js'
 import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { hz } from '#core/model/units.js'
@@ -1736,5 +1738,78 @@ describe('the block 0x03 call list', () => {
     const names = d.decode(image()).callList.map((c) => c.name)
     for (const name of names) expect(name).toMatch(/^[\x20-\x7e]*$/)
     expect(d.decode(image()).callList).toHaveLength(6)
+  })
+})
+
+describe('where a key of each type lands in the 32-byte field', () => {
+  /*
+   * The reference marks key placement DERIVED and warns that an implementation
+   * assuming "key always starts at +0x0C" will mis-render AES keys. Reading its
+   * own captured table closely, the warning is about *short* keys and nothing
+   * else - every sample in it is an 8-byte test key:
+   *
+   *   AES256  8 bytes at +0x24-+0x2B   last 8 of 32
+   *   AES128  8 bytes at +0x14-+0x1B   last 8 of the first 16
+   *   ARC4    5 bytes at +0x0C-+0x10   first 5, and ARC4's length is 5
+   *   Custom  7 bytes at +0x0C-+0x12   first 7, and Custom's length is 7
+   *
+   * So the rule is one rule, not two: the key is right-aligned within its own
+   * type's length, and that length starts at +0x0C. The two short types look
+   * left-aligned only because their samples are full length.
+   *
+   * A key of the correct length fills its type's width exactly, so the two
+   * alignments coincide and the question cannot arise. boofwang rejects any
+   * other length outright - `validateKeyHex` demands exactly KEY_BYTES[type]
+   * bytes - which is what makes that reasoning load-bearing rather than lucky,
+   * and is why these two tests are next to each other.
+   */
+  const KEY_AT = 0x0c
+
+  it('refuses every length but the exact one, for every type', () => {
+    for (const [type, bytes] of Object.entries(KEY_BYTES)) {
+      if (type === 'none') continue
+      const t = type as keyof typeof KEY_BYTES
+      expect(validateKeyHex(t, 'AB'.repeat(bytes)).ok, `${type} exact`).toBe(true)
+      expect(validateKeyHex(t, 'AB'.repeat(bytes - 1)).ok, `${type} short`).toBe(false)
+      expect(validateKeyHex(t, 'AB'.repeat(bytes + 1)).ok, `${type} long`).toBe(false)
+    }
+  })
+
+  it('puts a full key of each type where the reference’s sample ends', () => {
+    for (const [type, bytes] of Object.entries(KEY_BYTES)) {
+      if (type === 'none') continue
+      const img = image()
+      const doc = d.decode(img)
+      doc.encryptionKeys[0] = {
+        ...doc.encryptionKeys[0]!,
+        type: type as Codeplug['encryptionKeys'][number]['type'],
+        keyHex: 'AB'.repeat(bytes),
+      }
+      const out = page(d.encode(doc, img), KEY_BLOCK)
+      const field = KEY_AREA[0] + KEY_AT
+
+      // Right-aligned within the type's own length is the same as starting at
+      // +0x0C, because the key is that length.
+      const last = field + bytes - 1
+      expect(out[field], `${type} first byte`).toBe(0xab)
+      expect(out[last], `${type} last byte at +0x${(KEY_AT + bytes - 1).toString(16)}`).toBe(0xab)
+      // And nothing past the type's width, which is what "trimming trailing
+      // zeros is lossy" is guarding: the rest of the 32 bytes is zeroed, not
+      // left holding the previous key's tail.
+      for (let i = bytes; i < 32; i++) expect(out[field + i], `${type} +${i}`).toBe(0x00)
+    }
+  })
+
+  it('round-trips all 32 bytes rather than the key’s own length', () => {
+    // The field is carried verbatim, so a radio or firmware placing a key
+    // somewhere this build does not expect still survives a read and a write.
+    const img = image()
+    const data = page(img, KEY_BLOCK)
+    const field = KEY_AREA[0] + KEY_AT
+    for (let i = 0; i < 32; i++) data[field + i] = i + 1
+    data[KEY_AREA[0] + 0x0b] = 3 // AES-128, whose key is half the field
+    const doc = d.decode(img)
+    expect(doc.encryptionKeys[0]!.keyHex).toHaveLength(64)
+    expect(equalBytes(page(d.encode(doc, img), KEY_BLOCK), data)).toBe(true)
   })
 })
