@@ -7,9 +7,12 @@ import type { RadioImage } from '#core/radio/image.js'
 import {
   analogRanges,
   createDm32uvDriver,
+  DM32UV_WRITE_SCOPE,
+  callListNameRanges,
   emergencyNameRanges,
   roamZoneNameRanges,
   talkGroupIndexRanges,
+  writeTargets,
 } from '#core/radios/dm32uv/driver.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
@@ -183,6 +186,7 @@ describe('nothing claims more than it writes', () => {
    */
   const EXPECTED: Record<number, readonly (readonly [number, number])[]> = {
     0x02: [], // calibration, permanently blocked
+    0x03: callListNameRanges(image()), // call list: names only, references untouched
     0x04: d.ownedRanges(logicalAddress(0x04), image()), // settings: the struct's own ranges
     0x06: analogRanges(image()), // DTMF codes and both contact lists, field by field
     0x0a: [[0, PAGE_SIZE - 1]], // messages
@@ -312,5 +316,32 @@ describe('the new structures survive being saved and reopened', () => {
     expect(reopened.messages).toEqual(doc.messages)
     expect(reopened.roamChannels).toEqual(doc.roamChannels)
     expect(reopened.analog).toEqual(doc.analog)
+  })
+
+  it('describes in words everything the writer actually touches', () => {
+    // This sentence has fallen behind `writeTargets` three times, always by
+    // claiming less than the driver does. The nouns are the link.
+    const scope = DM32UV_WRITE_SCOPE.toLowerCase()
+    const nouns = new Set<string>()
+    for (const target of writeTargets(image())) {
+      const m = /\(([^)]+)\)/.exec(target.label)
+      if (m) nouns.add(m[1]!.toLowerCase())
+      else if (target.label.startsWith('contacts page')) nouns.add('contacts')
+    }
+    expect(nouns.size).toBeGreaterThan(5)
+
+    // A few labels are plural or split in the writer and singular in the prose.
+    const spellings: Record<string, string> = {
+      'talk group ordering': 'ordering',
+      'channel talk groups, high': 'channels with their talk groups',
+      'channel talk groups': 'channels with their talk groups',
+      'dtmf and analog contacts': 'dtmf and analog contacts',
+      'roaming zone names': 'zone names',
+      'roaming channels': 'roaming channels',
+    }
+    for (const noun of nouns) {
+      const needle = spellings[noun] ?? noun
+      expect(scope, `"${noun}" is written but not described`).toContain(needle)
+    }
   })
 })

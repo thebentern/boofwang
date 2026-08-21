@@ -81,8 +81,15 @@ import {
   ROAMCHANNEL_COUNT_AT,
   ROAMCHANNEL_SIZE,
   ROAMCHANNEL_SLOTS,
+  CALLLIST_BASE,
+  CALLLIST_BLOCK,
+  CALLLIST_NAME_AT,
+  CALLLIST_NAME_BYTES,
+  CALLLIST_SIZE,
+  CALLLIST_SLOTS,
+  DM32_CALLLIST,
   ROAMZONE_BLOCK,
-  ROAMZONE_HEADER,
+  ROAMZONE_NAME_AT,
   ROAMZONE_SIZE,
   ROAMZONE_SLOTS,
   RXGROUP_BLOCK,
@@ -195,7 +202,20 @@ interface WriteTarget {
  * allocates only the pages it uses, and inventing one would write 4 KiB of
  * whatever we happened to have over a page the radio never asked for.
  */
-function writeTargets(image: RadioImage): WriteTarget[] {
+/**
+ * What a write reaches, in words, for the restore screen and the write gate.
+ *
+ * Kept honest by a test rather than by care: it asserts every parenthesised
+ * noun `writeTargets` emits appears here. Under-claiming is the failure that
+ * matters, because a scope that reads narrower than the writer tells someone a
+ * restore will roll back more than it can.
+ */
+export const DM32UV_WRITE_SCOPE =
+  'channels with their talk groups, zones, talk groups and their ordering, scan lists and their ' +
+  'membership, RX groups, radio IDs, contacts, text messages, roaming channels and zone names, ' +
+  'emergency systems, DTMF and analog contacts, call list names, settings and encryption keys'
+
+export function writeTargets(image: RadioImage): WriteTarget[] {
   const out: WriteTarget[] = []
   const add = (blockId: number, label: string) => {
     const region = image.regions.find((r) => r.start === logicalAddress(blockId))
@@ -218,6 +238,7 @@ function writeTargets(image: RadioImage): WriteTarget[] {
   add(MESSAGE_BLOCK, `block 0x${MESSAGE_BLOCK.toString(16)} (text messages)`)
   add(ROAMCHANNEL_BLOCK, `block 0x${ROAMCHANNEL_BLOCK.toString(16)} (roaming channels)`)
   add(ROAMZONE_BLOCK, `block 0x${ROAMZONE_BLOCK.toString(16)} (roaming zone names)`)
+  add(CALLLIST_BLOCK, `block 0x${CALLLIST_BLOCK.toString(16)} (call list names)`)
   add(ANALOG_BLOCK, `block 0x${ANALOG_BLOCK.toString(16)} (DTMF and analog contacts)`)
   add(TXCONTACT_BLOCK_LOW, `block 0x${TXCONTACT_BLOCK_LOW.toString(16)} (channel talk groups)`)
   add(TXCONTACT_BLOCK_HIGH, `block 0x${TXCONTACT_BLOCK_HIGH.toString(16)} (channel talk groups, high)`)
@@ -318,17 +339,12 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           ...DM32UV_SCHEMA.capabilities,
           write: true,
           /*
-           * Still a scope, just a much wider one. The write reaches channel
-           * records, zones with their channel lists, talk groups, scan list
-           * names, RX groups, radio settings, the DMR address book and key
-           * slots. It does not reach scan list membership, the talk-group quick
-           * index, or the twenty-odd blocks nothing has decoded - so a restore
-           * is still not the full rollback the word promises, and this is the
-           * field that says so.
+           * Every noun below is checked against the labels `writeTargets`
+           * actually produces, because this sentence has drifted behind the
+           * writer three separate times - each time claiming less than the
+           * driver did, which is the direction that reads as safe and is not.
            */
-          writeScope:
-            'channels and their talk groups, zones, talk groups, scan lists, RX groups, contacts, ' +
-            'text messages, roaming, emergency system names, DTMF, radio settings and encryption keys',
+          writeScope: DM32UV_WRITE_SCOPE,
           /*
            * Read by the restore screen and the write gate, and by nothing else.
            * The connect screen says "Read and write" and stops: this list grew
@@ -844,6 +860,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       cp.vfo = decodeVfos(image)
       cp.roamChannels = decodeRoamChannels(image)
       cp.roamZones = decodeRoamZones(image)
+      cp.callList = decodeCallList(image)
       cp.emergency = decodeEmergency(image)
       cp.analog = decodeAnalog(image)
       cp.settings = decodeSettings(image)
@@ -952,6 +969,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       encodeVfos(out, doc.vfo)
       encodeRoamChannels(out, doc.roamChannels)
       encodeRoamZones(out, doc.roamZones)
+      encodeCallList(out, doc.callList)
       encodeEmergency(out, doc.emergency)
       encodeAnalog(out, doc.analog)
 
@@ -1047,6 +1065,9 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // the zone header beside the count are left to the radio.
       if (blockId === ANALOG_BLOCK) return image ? analogRanges(image) : []
       if (blockId === ROAMZONE_BLOCK) return image ? roamZoneNameRanges(image) : []
+      // Names only: the two reference fields beside them refer to something
+      // nobody has identified, so there is no way to keep them in step.
+      if (blockId === CALLLIST_BLOCK) return image ? callListNameRanges(image) : []
       // The records, then the count trailer. The fourteen bytes after it are
       // unexplained and the block id is never ours.
       if (blockId === ROAMCHANNEL_BLOCK) {
@@ -2322,19 +2343,90 @@ export function encodeRoamChannels(image: RadioImage, channels: Codeplug['roamCh
   data[ROAMCHANNEL_COUNT_AT] = channels.length & 0xff
 }
 
-/** Roaming zones, block 0x65. Name and member count only - see the layout. */
+/**
+ * The block 0x03 "Call" list.
+ *
+ * Occupancy is by content again, and the reason is right there in the bytes:
+ * record 0 has `FF FF` in the in-use marker and the name "Call 1", while record
+ * 5 has `FE FF` and no name at all. Neither field alone identifies a record
+ * worth showing, so a record counts if it has either.
+ */
+export function decodeCallList(image: RadioImage): Codeplug['callList'] {
+  const data = blockData(image, CALLLIST_BLOCK)
+  if (!data) return []
+  const out: Codeplug['callList'] = []
+  for (let n = 0; n < CALLLIST_SLOTS; n++) {
+    const off = CALLLIST_BASE + n * CALLLIST_SIZE
+    const rec = DM32_CALLLIST.read(data, off)
+    const name = rec.name.trimEnd()
+    if (!name && rec.inUse === 0xffff) continue
+    out.push({
+      id: `call-${n + 1}`,
+      name,
+      inUse: rec.inUse !== 0xffff,
+      referenceA: rec.referenceA,
+      referenceB: rec.referenceB,
+    })
+  }
+  return out
+}
+
+/**
+ * Write the call list names back, and only the names.
+ *
+ * The two reference fields point at something nobody has identified, so there
+ * is no way to keep them consistent with an edit and no way to tell when they
+ * have been broken. Records are matched by the slot in their id.
+ */
+export function encodeCallList(image: RadioImage, entries: Codeplug['callList']): void {
+  const data = blockData(image, CALLLIST_BLOCK)
+  if (!data) return
+  for (const entry of entries) {
+    const match = /^call-(\d+)$/.exec(entry.id)
+    if (!match) continue
+    const n = Number(match[1]) - 1
+    if (n < 0 || n >= CALLLIST_SLOTS) continue
+    DM32_CALLLIST.write(data, CALLLIST_BASE + n * CALLLIST_SIZE, { name: entry.name })
+  }
+}
+
+/** The name field of every call-list record that has one. */
+export function callListNameRanges(image: RadioImage): ReadonlyArray<readonly [number, number]> {
+  const data = blockData(image, CALLLIST_BLOCK)
+  if (!data) return []
+  const out: (readonly [number, number])[] = []
+  for (let n = 0; n < CALLLIST_SLOTS; n++) {
+    const off = CALLLIST_BASE + n * CALLLIST_SIZE
+    const rec = DM32_CALLLIST.read(data, off)
+    if (!rec.name.trimEnd() && rec.inUse === 0xffff) continue
+    out.push([off + CALLLIST_NAME_AT, off + CALLLIST_NAME_AT + CALLLIST_NAME_BYTES])
+  }
+  return out
+}
+
+/**
+ * Roaming zones, block 0x65.
+ *
+ * Occupancy is by content, deliberately. There is no count byte: the first byte
+ * of the page is record 0's flags, and on this radio it reads 0x03 against
+ * three zones - a coincidence that reads exactly like a count and is not one.
+ */
 export function decodeRoamZones(image: RadioImage): Codeplug['roamZones'] {
   const data = blockData(image, ROAMZONE_BLOCK)
   if (!data) return []
-  const total = Math.min(data[0]!, ROAMZONE_SLOTS)
   const out: Codeplug['roamZones'] = []
-  for (let n = 0; n < total; n++) {
-    const off = ROAMZONE_HEADER + n * ROAMZONE_SIZE
+  for (let n = 0; n < ROAMZONE_SLOTS; n++) {
+    const off = n * ROAMZONE_SIZE
     if (off + ROAMZONE_SIZE > PAGE_SIZE - 1) break
     const rec = DM32_ROAMZONE.read(data, off)
     const name = rec.name.trimEnd()
     if (!name) continue
-    out.push({ id: `roamzone-${n + 1}`, name, memberCount: rec.memberCount })
+    out.push({
+      id: `roamzone-${n + 1}`,
+      name,
+      enabled: rec.flags.enabled === 1,
+      channelIndex: rec.channelIndex,
+    })
   }
   return out
 }
@@ -2403,27 +2495,23 @@ export function decodeAnalog(image: RadioImage): Codeplug['analog'] {
 /**
  * Write the roaming zone names back.
  *
- * The name and nothing else. A zone's member list needs an entry width nobody
- * has established, and all three zones on the radio this was written against
- * hold zero members, so its own bytes cannot settle it either. The count byte
- * and the fifteen header bytes beside it stay as the radio has them, which is
- * why zones cannot be added or removed here.
+ * The name and nothing else. Flags, the name and the count/index byte fill all
+ * 33 bytes of a record, so there is no channel list in there to write - the
+ * reference says as much - and the flag bits beside bit 0 are unlabelled.
+ *
+ * Records are matched by the slot their id carries, so a zone that is renamed
+ * lands back on its own record rather than on the nth occupied one.
  */
 export function encodeRoamZones(image: RadioImage, zones: Codeplug['roamZones']): void {
   const data = blockData(image, ROAMZONE_BLOCK)
   if (!data) return
-  const total = Math.min(data[0]!, ROAMZONE_SLOTS)
-
-  let docIndex = 0
-  for (let n = 0; n < total; n++) {
-    const off = ROAMZONE_HEADER + n * ROAMZONE_SIZE
-    if (off + ROAMZONE_SIZE > PAGE_SIZE - 1) break
-    // Mirror the decoder's skip of unnamed records, so the nth zone in the
-    // document lands on the nth record the decoder produced.
-    if (!DM32_ROAMZONE.read(data, off).name.trimEnd()) continue
-    const zone = zones[docIndex]
-    docIndex++
-    if (!zone) continue
+  for (const zone of zones) {
+    const match = /^roamzone-(\d+)$/.exec(zone.id)
+    if (!match) continue
+    const n = Number(match[1]) - 1
+    if (n < 0 || n >= ROAMZONE_SLOTS) continue
+    const off = n * ROAMZONE_SIZE
+    if (off + ROAMZONE_SIZE > PAGE_SIZE - 1) continue
     DM32_ROAMZONE.write(data, off, { name: zone.name })
   }
 }
@@ -2519,15 +2607,16 @@ export function analogRanges(image: RadioImage): ReadonlyArray<readonly [number,
   return out
 }
 
-/** The name field of every roaming zone record the block says exists. */
+/** The name field of every roaming zone record that carries one. */
 export function roamZoneNameRanges(image: RadioImage): ReadonlyArray<readonly [number, number]> {
   const data = blockData(image, ROAMZONE_BLOCK)
   if (!data) return []
-  const total = Math.min(data[0]!, ROAMZONE_SLOTS)
   const out: (readonly [number, number])[] = []
-  for (let n = 0; n < total; n++) {
-    const off = ROAMZONE_HEADER + n * ROAMZONE_SIZE
-    if (off + 16 <= PAGE_SIZE - 1) out.push([off, off + 16])
+  for (let n = 0; n < ROAMZONE_SLOTS; n++) {
+    const off = n * ROAMZONE_SIZE
+    if (off + ROAMZONE_SIZE > PAGE_SIZE - 1) break
+    if (!DM32_ROAMZONE.read(data, off).name.trimEnd()) continue
+    out.push([off + ROAMZONE_NAME_AT, off + ROAMZONE_NAME_AT + 16])
   }
   return out
 }

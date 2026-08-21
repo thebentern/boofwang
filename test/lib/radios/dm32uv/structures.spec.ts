@@ -41,7 +41,17 @@ import {
   MESSAGE_SIZE,
   ROAMCHANNEL_BLOCK,
   ROAMCHANNEL_COUNT_AT,
+  DM32_ROAMZONE,
+  CALLLIST_BASE,
+  CALLLIST_BLOCK,
+  CALLLIST_END,
+  CALLLIST_NAME_AT,
+  CALLLIST_SIZE,
+  CALLLIST_SLOTS,
+  DM32_CALLLIST,
   ROAMZONE_BLOCK,
+  ROAMZONE_NAME_AT,
+  ROAMZONE_SIZE,
   TXCONTACT_HIGH_LIMIT,
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
@@ -375,12 +385,122 @@ describe('settings', () => {
     expect(equalBytes(page(out, SETTINGS_BLOCK), page(img, SETTINGS_BLOCK))).toBe(true)
   })
 
-  it('claims only the bytes it models, not the whole page', () => {
+  it('claims the documented bytes, less the ones it declines to model', () => {
     const claimed = d.ownedRanges(logicalAddress(SETTINGS_BLOCK))
     const total = claimed.reduce((n, [a, b]) => n + (b - a), 0)
-    expect(total).toBeGreaterThan(0)
-    // The page is 4096 bytes and most of it has no established meaning.
-    expect(total).toBeLessThan(200)
+
+    // The reference counts 232 bytes of block 0x04 as carrying a documented
+    // field. Five groups of those are deliberately left unclaimed, so the
+    // number below is arithmetic rather than a bound someone picked:
+    const DOCUMENTED = 232
+    const ANALOG_CALL = 8 // 0x120-0x127: the dump contradicts the field order
+    const LANGUAGE_BLOB = 8 // 0x0A0-0x0A7: opaque, no decomposition exists
+    const UNKNOWN_SINGLES = 3 // 0x032, 0x045, 0x080: named but not understood
+    const FUN_PLUS_PADDING = 10 // one skipped byte in each of ten entries
+    expect(total).toBe(DOCUMENTED - ANALOG_CALL - LANGUAGE_BLOB - UNKNOWN_SINGLES - FUN_PLUS_PADDING)
+
+    // And the page is 4096 bytes, so the great majority stays untouched.
+    expect(total).toBeLessThan(PAGE_SIZE / 10)
+  })
+
+  it('leaves the bytes it declines to model alone', () => {
+    const unclaimed = [0x032, 0x045, 0x080, 0x0a0, 0x0a7, 0x120, 0x127, 0x232]
+    const claimed = d.ownedRanges(logicalAddress(SETTINGS_BLOCK))
+    for (const off of unclaimed) {
+      expect(claimed.some(([a, b]) => off >= a && off < b)).toBe(false)
+    }
+
+    // Not just unclaimed - actually preserved through a round trip that
+    // rewrites every setting the build does model.
+    const img = image()
+    const data = page(img, SETTINGS_BLOCK)
+    for (const off of unclaimed) data[off] = 0x5a
+    const doc = d.decode(img)
+    doc.settings.menuExitTime = 7
+    doc.settings['menuZone.zoneList'] = 0
+    const out = page(d.encode(doc, img), SETTINGS_BLOCK)
+    for (const off of unclaimed) expect(out[off]).toBe(0x5a)
+  })
+
+  it('reads and writes every region the reference documents', () => {
+    const doc = d.decode(image()).settings
+    // One representative key from each documented region, so a struct edit that
+    // silently drops a whole table fails here rather than on someone's radio.
+    for (const key of [
+      'powerOnLine1',
+      'alertTones.keyPress',
+      'alertTonesCont.batteryLow',
+      'backlightBrightness',
+      'standbyCharColour1',
+      'gpsFlags.gpsSwitch',
+      'callHoldTime',
+      'digitalFlags.missedCallAlert',
+      'nameDisplayFlags.sendTxName',
+      'txDwellTime',
+      'sk1Short',
+      'oneTouch1Type',
+      'oneTouch5Sms',
+      'funPlus1Mode',
+      'funPlus10Sms',
+      'aprsScheduledSendTime',
+      'latitude',
+      'aprsReportChannel8',
+      'aprsUploadId',
+      'menuZone.zoneList',
+      'menuChannelB.channelName',
+    ]) {
+      expect(key in doc, key).toBe(true)
+    }
+  })
+
+  it('round-trips every modelled setting through a write', () => {
+    const img = image()
+    const doc = d.decode(img)
+    // Hand the whole decoded settings record straight back. Every field must
+    // survive its own encoder, or the page comes back different.
+    const out = d.encode(doc, img)
+    expect(equalBytes(page(out, SETTINGS_BLOCK), page(img, SETTINGS_BLOCK))).toBe(true)
+  })
+
+  it('writes each documented region where the reference says it lives', () => {
+    const cases: [string, number, number][] = [
+      ['standbyCharColour1', 0x037, 6],
+      ['activeWaitTime', 0x062, 9],
+      ['preCarrierTime', 0x064, 11],
+      ['smsFormat', 0x066, 5],
+      ['txDwellTime', 0x081, 200],
+      ['oneTouch3CallType', 0x20d, 6],
+      ['funPlus7Menu', 0x25b, 13],
+      ['aprsRepeaterActiveDelay', 0x330, 10],
+    ]
+    for (const [key, off, value] of cases) {
+      const img = image()
+      const doc = d.decode(img)
+      doc.settings[key] = value
+      const out = page(d.encode(doc, img), SETTINGS_BLOCK)
+      expect(out[off], `${key} @0x${off.toString(16)}`).toBe(value)
+    }
+  })
+
+  it('stores the APRS upload ID and the report channels little-endian', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.settings.aprsUploadId = 0x123456
+    doc.settings.aprsReportChannel1 = 0x0102
+    const out = page(d.encode(doc, img), SETTINGS_BLOCK)
+    expect([out[0x332], out[0x333], out[0x334]]).toEqual([0x56, 0x34, 0x12])
+    expect([out[0x320], out[0x321]]).toEqual([0x02, 0x01])
+    expect(d.decode(d.encode(doc, img)).settings.aprsUploadId).toBe(0x123456)
+  })
+
+  it('flips one menu bit without disturbing the unlabelled ones beside it', () => {
+    const img = image()
+    // The OEM write capture has data in 0x500 bits 2-7, which no label covers.
+    page(img, SETTINGS_BLOCK)[0x500] = 0xfd
+    const doc = d.decode(img)
+    doc.settings['menuZone.newZone'] = 0
+    const out = page(d.encode(doc, img), SETTINGS_BLOCK)
+    expect(out[0x500]).toBe(0xfd & ~0b10)
   })
 })
 
@@ -1039,8 +1159,43 @@ describe('roaming', () => {
   it('decodes the zones by name, and does not invent their membership', () => {
     const cp = d.decode(image())
     expect(cp.roamZones.map((z) => z.name)).toEqual(['Roam Zone 1', 'Roam Zone 2', 'Roam Zone 3'])
-    // memberCount is carried so the gap is visible; members are not decoded.
-    for (const z of cp.roamZones) expect(typeof z.memberCount).toBe('number')
+    // channelIndex is carried so the gap is visible; members are not decoded.
+    for (const z of cp.roamZones) expect(typeof z.channelIndex).toBe('number')
+  })
+
+  it('does not read the first byte of the block as a zone count', () => {
+    // It is 0x03 on this radio against three zones, which reads exactly like a
+    // count and is not one - it is record 0's flags. Records 1 and 2 have 0xFF
+    // in the same position, which no count encoding would produce.
+    const data = page(image(), ROAMZONE_BLOCK)
+    expect(data[0]).toBe(0x03)
+    expect(data[ROAMZONE_SIZE]).toBe(0xff)
+    expect(data[ROAMZONE_SIZE * 2]).toBe(0xff)
+
+    // A fourth zone, past where any count byte would have stopped the walk.
+    const img = image()
+    const p4 = page(img, ROAMZONE_BLOCK)
+    for (let i = 0; i < 11; i++) p4[ROAMZONE_SIZE * 3 + ROAMZONE_NAME_AT + i] = 'Roam Zone 4'.charCodeAt(i)
+    expect(d.decode(img).roamZones.map((z) => z.name)).toEqual([
+      'Roam Zone 1',
+      'Roam Zone 2',
+      'Roam Zone 3',
+      'Roam Zone 4',
+    ])
+  })
+
+  it('renames the zone whose slot the id names, not the nth occupied one', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.roamZones = doc.roamZones.filter((z) => z.id !== 'roamzone-2')
+    doc.roamZones[1] = { ...doc.roamZones[1]!, name: 'Third' }
+    const out = d.encode(doc, img)
+    const data = page(out, ROAMZONE_BLOCK)
+    const nameAt = (n: number) =>
+      DM32_ROAMZONE.read(data, n * ROAMZONE_SIZE).name.replace(/\0+$/, '').trimEnd()
+    expect(nameAt(0)).toBe('Roam Zone 1')
+    expect(nameAt(1)).toBe('Roam Zone 2') // dropped from the doc, left alone on the radio
+    expect(nameAt(2)).toBe('Third')
   })
 
   it('round-trips both blocks untouched', () => {
@@ -1400,5 +1555,109 @@ describe('adding and removing talk groups', () => {
       doc.talkGroups.push({ id: `t${doc.talkGroups.length}`, name: 'X', number: 1, callType: 'group' })
     }
     expect(() => d.encode(doc, img)).toThrow(/talk groups/)
+  })
+})
+
+describe('the block 0x03 call list', () => {
+  it('decodes the six records this radio and the reference both hold', () => {
+    const cp = d.decode(image())
+    expect(cp.callList.map((c) => c.name)).toEqual(['Call 1', 'Call 2', 'Call 3', 'Call 4', 'Call 5', ''])
+  })
+
+  it('counts a record with a name but no marker, and one with a marker but no name', () => {
+    // Record 0 reads FF FF and is named; record 5 reads FE FF and is not. Either
+    // test alone loses one of them, which is why occupancy needs both.
+    const cp = d.decode(image())
+    expect(cp.callList[0]).toMatchObject({ name: 'Call 1', inUse: false })
+    expect(cp.callList[5]).toMatchObject({ name: '', inUse: true })
+  })
+
+  it('reads the names as UTF-16LE, which no other block uses', () => {
+    const data = page(image(), CALLLIST_BLOCK)
+    const at = CALLLIST_BASE + CALLLIST_NAME_AT
+    // 'C' then a zero high byte: single-byte ASCII would put '\0' at at+1.
+    expect(data[at]).toBe('C'.charCodeAt(0))
+    expect(data[at + 1]).toBe(0)
+    expect(data[at + 2]).toBe('a'.charCodeAt(0))
+  })
+
+  it('carries the two reference values without interpreting them', () => {
+    const cp = d.decode(image())
+    const pairs = cp.callList.filter((c) => c.inUse).map((c) => [c.referenceA, c.referenceB])
+    expect(new Set(pairs.flat())).toEqual(new Set([0x0c91, 0x2441, 0x17ca, 0x4fd6]))
+
+    /*
+     * Five distinct pairs from four values - not six.
+     *
+     * The reference reads this as "the six populated entries enumerate every
+     * unordered pair (C(4,2) = 6)", and its own captured table does not support
+     * it: only five records carry references, and (0x17CA, 0x4FD6) is absent.
+     * This radio agrees with the table rather than with the sentence.
+     */
+    expect(pairs).toHaveLength(5)
+    const key = (p: number[]) => [...p].sort((a, b) => a - b).join(',')
+    expect(new Set(pairs.map(key)).size).toBe(5)
+    expect(pairs.map(key)).not.toContain(key([0x17ca, 0x4fd6]))
+  })
+
+  it('writes a name back as UTF-16LE and leaves the references alone', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.callList[1] = { ...doc.callList[1]!, name: 'Wide' }
+    const out = page(d.encode(doc, img), CALLLIST_BLOCK)
+    const off = CALLLIST_BASE + CALLLIST_SIZE
+    expect(DM32_CALLLIST.read(out, off).name).toBe('Wide')
+    expect(DM32_CALLLIST.read(out, off).referenceA).toBe(0x0c91)
+    expect(DM32_CALLLIST.read(out, off).referenceB).toBe(0x2441)
+    expect(out[off]).toBe(0xfe) // the in-use marker is not ours either
+    // The shortened name must not leave the tail of the old one behind.
+    const tail = out.subarray(off + CALLLIST_NAME_AT + 8, off + CALLLIST_NAME_AT + 12)
+    expect([...tail]).toEqual([0, 0, 0, 0])
+  })
+
+  it('renames the record its id names, not the nth listed one', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.callList = doc.callList.filter((c) => c.id !== 'call-2')
+    doc.callList[1] = { ...doc.callList[1]!, name: 'Third' }
+    const out = page(d.encode(doc, img), CALLLIST_BLOCK)
+    const nameAt = (n: number) => DM32_CALLLIST.read(out, CALLLIST_BASE + n * CALLLIST_SIZE).name
+    expect(nameAt(1)).toBe('Call 2') // dropped from the doc, left on the radio
+    expect(nameAt(2)).toBe('Third')
+  })
+
+  it('round-trips the block untouched', () => {
+    const img = image()
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, CALLLIST_BLOCK), page(img, CALLLIST_BLOCK))).toBe(true)
+  })
+
+  it('stops where the records stop, not where the page or the reference does', () => {
+    // The reference says 92, which does not fit in a 4 KiB page at all.
+    expect(CALLLIST_BASE + 92 * CALLLIST_SIZE).toBeGreaterThan(0x1000)
+    // Filling the page would give 88, and that overruns the records too.
+    expect(CALLLIST_SLOTS).toBe(32)
+    expect(CALLLIST_END).toBe(0x718)
+
+    // What is actually at 0x718: DTMF digit runs and two plain single-byte
+    // ASCII words. Neither is anything a call record can contain, and the
+    // 88-slot reading claimed all of it as name fields.
+    const data = page(image(), CALLLIST_BLOCK)
+    const text = new TextDecoder('latin1').decode(data.subarray(CALLLIST_END, 0xfff))
+    expect(text).toContain('Disable')
+    expect(text).toContain('Enable')
+
+    // And nothing this driver claims reaches past the records.
+    for (const [, end] of d.ownedRanges(logicalAddress(CALLLIST_BLOCK), image())) {
+      expect(end).toBeLessThanOrEqual(CALLLIST_END)
+    }
+  })
+
+  it('does not read the structure after the records as records', () => {
+    // Read as call records, 0x718 onward yields names of U+FFFF runs and
+    // "reference values" that are the letters of "Disable". None of it appears.
+    const names = d.decode(image()).callList.map((c) => c.name)
+    for (const name of names) expect(name).toMatch(/^[\x20-\x7e]*$/)
+    expect(d.decode(image()).callList).toHaveLength(6)
   })
 })

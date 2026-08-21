@@ -71,10 +71,35 @@ export interface RoamChannel {
  * was written against is empty. The count the radio stores is carried so the
  * gap is visible rather than implied.
  */
+/**
+ * An entry in the DM-32UV's block 0x03 "Call" list.
+ *
+ * Named for what the records say rather than for what they do, because what
+ * they do is not known - see the layout. The OEM CPS writes this block, so it
+ * is codeplug data; the two reference fields point at something nobody has
+ * identified, and are carried rather than interpreted.
+ */
+export interface CallListEntry {
+  id: string
+  name: string
+  inUse: boolean
+  referenceA: number
+  referenceB: number
+}
+
 export interface RoamZone {
   id: string
   name: string
-  memberCount: number
+  /** Bit 0 of the record's first byte. */
+  enabled: boolean
+  /**
+   * The byte the reference calls "channel count / index".
+   *
+   * Carried and shown, not interpreted. Flags, name and this byte account for
+   * all 33 bytes of the record, so whatever list it counts or points into is
+   * somewhere nobody has found.
+   */
+  channelIndex: number
 }
 
 /** One of the radio's eight digital emergency systems. Read only. */
@@ -158,6 +183,8 @@ export interface Codeplug {
   vfo: { a: Channel | null; b: Channel | null }
   roamChannels: RoamChannel[]
   roamZones: RoamZone[]
+  /** Block 0x03. Real codeplug data of unknown purpose - see `CallListEntry`. */
+  callList: CallListEntry[]
   /** Read only: decoded so a backup is complete, never written. */
   emergency: EmergencySystem[]
   analog: AnalogConfig | null
@@ -182,6 +209,7 @@ export function emptyCodeplug(radio: RadioId | null, now: string): Codeplug {
     vfo: { a: null, b: null },
     roamChannels: [],
     roamZones: [],
+    callList: [],
     emergency: [],
     analog: null,
     encryptionKeys: [],

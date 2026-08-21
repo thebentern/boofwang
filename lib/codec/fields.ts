@@ -203,6 +203,55 @@ export function ascii(n: number, opts: AsciiOpts = {}): Field<string> {
   }
 }
 
+/**
+ * A NUL-terminated UTF-16LE string in a fixed-width field.
+ *
+ * One structure in this project needs it: block 0x03 of the DM-32UV, which is
+ * the only block in that radio's codeplug not storing names as single bytes.
+ * Worth its own field rather than a decode helper, because the write side is
+ * where it matters - the padding has to stay 16-bit or the next entry's first
+ * character is what gets eaten.
+ */
+export function utf16le(nBytes: number, opts: { pad?: number } = {}): Field<string> {
+  if (nBytes % 2 !== 0) throw new RangeError(`utf16le(${nBytes}): needs an even width`)
+  const pad = opts.pad ?? 0x00
+  const units = nBytes / 2
+
+  return {
+    size: nBytes,
+    get(buf, off) {
+      bounds(buf, off, nBytes, `utf16le(${nBytes})`)
+      let s = ''
+      for (let i = 0; i < units; i++) {
+        const code = buf[off + i * 2]! | (buf[off + i * 2 + 1]! << 8)
+        // 0xFFFF is erased flash rather than a character, and terminates too.
+        if (code === 0 || code === 0xffff) break
+        s += String.fromCharCode(code)
+      }
+      return s
+    },
+    set(buf, off, v) {
+      bounds(buf, off, nBytes, `utf16le(${nBytes})`)
+      // Same idempotence rule as `ascii`: bytes that already decode to `v` are
+      // left alone, so a read-then-write does not fill a diff with padding.
+      if (this.get(buf, off) === v) return
+      let len = Math.min(v.length, units)
+      // Truncating between the halves of a surrogate pair would leave a lone
+      // surrogate, which is not a character in any encoding. Drop both halves.
+      if (len < v.length && len > 0) {
+        const last = v.charCodeAt(len - 1)
+        if (last >= 0xd800 && last <= 0xdbff) len--
+      }
+      for (let i = 0; i < len; i++) {
+        const code = v.charCodeAt(i)
+        buf[off + i * 2] = code & 0xff
+        buf[off + i * 2 + 1] = code >> 8
+      }
+      buf.fill(pad, off + len * 2, off + nBytes)
+    },
+  }
+}
+
 // -------------------------------------------------------------- bit fields --
 
 export type BitMap = Record<string, readonly [lsb: number, width: number]>

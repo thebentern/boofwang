@@ -31,6 +31,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   const messages = shallowRef<readonly string[]>([])
   const roamChannels = shallowRef<readonly Codeplug['roamChannels'][number][]>([])
   const roamZones = shallowRef<readonly Codeplug['roamZones'][number][]>([])
+  const callList = shallowRef<readonly Codeplug['callList'][number][]>([])
   const emergency = shallowRef<readonly Codeplug['emergency'][number][]>([])
   const analog = shallowRef<Codeplug['analog']>(null)
   const settings = shallowRef<Readonly<Record<string, unknown>>>({})
@@ -66,6 +67,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     messages.value = Object.freeze([...decoded.messages])
     roamChannels.value = Object.freeze(decoded.roamChannels.map((c) => Object.freeze(c)))
     roamZones.value = Object.freeze(decoded.roamZones.map((z) => Object.freeze(z)))
+    callList.value = Object.freeze(decoded.callList.map((c) => Object.freeze(c)))
     emergency.value = Object.freeze(decoded.emergency.map((e) => Object.freeze(e)))
     analog.value = decoded.analog ? Object.freeze(decoded.analog) : null
     settings.value = Object.freeze({ ...decoded.settings })
@@ -89,6 +91,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     messages.value = []
     roamChannels.value = []
     roamZones.value = []
+    callList.value = []
     emergency.value = []
     analog.value = null
     settings.value = {}
@@ -246,6 +249,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     contacts.value = Object.freeze(cp.contacts.map((c) => Object.freeze(c)))
     messages.value = Object.freeze([...cp.messages])
     roamChannels.value = Object.freeze(cp.roamChannels.map((c) => Object.freeze(c)))
+    roamZones.value = Object.freeze(cp.roamZones.map((z) => Object.freeze(z)))
+    callList.value = Object.freeze(cp.callList.map((c) => Object.freeze(c)))
     settings.value = Object.freeze({ ...cp.settings })
     revalidate()
     revision.value++
@@ -392,6 +397,24 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     const cp = doc.value
     if (!cp || index < 0 || index >= cp.messages.length) return
     cp.messages.splice(index, 1)
+    republish()
+  }
+
+  function updateRoamZone(id: string, patch: Partial<Codeplug['roamZones'][number]>) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.roamZones.findIndex((z) => z.id === id)
+    if (i < 0) return
+    cp.roamZones[i] = { ...cp.roamZones[i]!, ...patch }
+    republish()
+  }
+
+  function updateCallListEntry(id: string, patch: Partial<Codeplug['callList'][number]>) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.callList.findIndex((c) => c.id === id)
+    if (i < 0) return
+    cp.callList[i] = { ...cp.callList[i]!, ...patch }
     republish()
   }
 
@@ -581,6 +604,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     addMessage,
     removeMessage,
     updateRoamChannel,
+    updateRoamZone,
+    updateCallListEntry,
     setSetting,
     setEncryptionKey,
     removeEncryptionKey,
@@ -595,6 +620,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     messages,
     roamChannels,
     roamZones,
+    callList,
     emergency,
     analog,
     settings,

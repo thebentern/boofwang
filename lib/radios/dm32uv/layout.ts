@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { array, ascii, bcdFreqLE, bcdLE, bits, bytes, chirpBits, u16le, u24le, u8 } from '../../codec/fields.js'
+import { array, ascii, bcdFreqLE, bcdLE, bits, bytes, chirpBits, u16le, u24le, u8, utf16le } from '../../codec/fields.js'
 import { at, defineStruct } from '../../codec/struct.js'
 import { ctcss, dtcs, type ToneSpec } from '../../model/tones.js'
 
@@ -412,11 +412,16 @@ export const DM32_SETTINGS = defineStruct(0x600, {
       scanStop: [7, 1],
     }),
   ),
+  alertTonesCont: at(
+    0x21,
+    bits(1, { batteryLow: [0, 1], analogTxEnd: [1, 1], analogTxAlert: [2, 1], unknownHigh: [3, 5] }),
+  ),
   displayFlags: at(
     0x33,
     bits(1, { volumeChangePrompt: [0, 1], timeDisplay: [1, 1], unknown2: [2, 1], dateFormat: [3, 1], unknownHigh: [4, 4] }),
   ),
   menuExitTime: at(0x36, u8),
+  standbyCharColour1: at(0x37, u8),
   utcZone: at(0x41, u8),
   backlightBrightness: at(0x30, u8),
   autoBacklightDuration: at(0x31, u8),
@@ -440,7 +445,43 @@ export const DM32_SETTINGS = defineStruct(0x600, {
   gpsReportInterval: at(0x42, u8),
   digitalDecodeFlags: at(0x60, bits(1, { privateCallMatch: [0, 1], groupCallMatch: [1, 1], reserved: [2, 6] })),
   callHoldTime: at(0x61, u8),
+  /**
+   * Raw bytes, deliberately.
+   *
+   * The reference gives scaling formulas for the four timers below - active
+   * wait is `(raw-1)*30 + 300` ms, pre-carrier `(raw+1)*120` ms, SMS format
+   * `(raw+1)*10` s - but marks every one of them derived from *model comments*
+   * rather than from a capture, and says its own code stores the raw byte and
+   * labels the control "(raw)". Applying an unverified formula would show a
+   * confident wrong number; the byte is at least true.
+   */
+  activeWaitTime: at(0x62, u8),
   activeRetriesTime: at(0x63, u8),
+  preCarrierTime: at(0x64, u8),
+  digitalFlags: at(
+    0x65,
+    bits(1, {
+      missedCallAlert: [0, 1],
+      dataService: [1, 2],
+      callAlertDecode: [3, 1],
+      radioEnableDecode: [4, 1],
+      radioCheckDecode: [5, 1],
+      radioDisableDecode: [6, 1],
+      remoteMonitorDecode: [7, 1],
+    }),
+  ),
+  smsFormat: at(0x66, u8),
+  nameDisplayFlags: at(
+    0x67,
+    bits(1, {
+      unknownLow: [0, 2],
+      nameDisplayPriority: [2, 1],
+      sendTxName: [3, 1],
+      unknownMid: [4, 2],
+      nameDataFormat: [6, 2],
+    }),
+  ),
+  txDwellTime: at(0x81, u8),
   keyLockFlags: at(0x85, bits(1, { lockKey: [0, 1], knobLock: [1, 1], sideKeyLock: [2, 1], reserved: [3, 5] })),
   autoKeypadLockDelay: at(0x86, u8),
   sk1Short: at(0x87, u8),
@@ -456,6 +497,222 @@ export const DM32_SETTINGS = defineStruct(0x600, {
   latitudeDirection: at(0x30f, ascii(1, { pad: 0x00, terminators: [] })),
   longitude: at(0x310, ascii(9, { pad: 0x00, terminators: [0x00] })),
   longitudeDirection: at(0x319, ascii(1, { pad: 0x00, terminators: [] })),
+
+  /**
+   * One Touch Call, base 0x200, five entries of five bytes.
+   *
+   * Layout confirmed: all five entries in the factory dump decode inside their
+   * enums, which a wrong alignment would not manage five times running.
+   */
+  oneTouch1Type: at(0x200, u8),
+  oneTouch1Object: at(0x201, u16le),
+  oneTouch1CallType: at(0x203, u8),
+  oneTouch1Sms: at(0x204, u8),
+  oneTouch2Type: at(0x205, u8),
+  oneTouch2Object: at(0x206, u16le),
+  oneTouch2CallType: at(0x208, u8),
+  oneTouch2Sms: at(0x209, u8),
+  oneTouch3Type: at(0x20a, u8),
+  oneTouch3Object: at(0x20b, u16le),
+  oneTouch3CallType: at(0x20d, u8),
+  oneTouch3Sms: at(0x20e, u8),
+  oneTouch4Type: at(0x20f, u8),
+  oneTouch4Object: at(0x210, u16le),
+  oneTouch4CallType: at(0x212, u8),
+  oneTouch4Sms: at(0x213, u8),
+  oneTouch5Type: at(0x214, u8),
+  oneTouch5Object: at(0x215, u16le),
+  oneTouch5CallType: at(0x217, u8),
+  oneTouch5Sms: at(0x218, u8),
+
+  /**
+   * Fun+, base 0x230, ten entries of seven bytes.
+   *
+   * The reference's two internal sources disagreed by one byte over where the
+   * entry starts; the factory dump settles it, because under the shifted
+   * reading Operate Mode would hold values up to 13 against a 0-1 range. The
+   * `+0x02` padding byte is left unclaimed rather than written as zero.
+   *
+   * The Fun+ number is the entry index and is not stored in the entry.
+   */
+  funPlus1Mode: at(0x230, u8),
+  funPlus1Menu: at(0x231, u8),
+  funPlus1CallWay: at(0x233, u8),
+  funPlus1CallObject: at(0x234, u8),
+  funPlus1CallType: at(0x235, u8),
+  funPlus1Sms: at(0x236, u8),
+  funPlus2Mode: at(0x237, u8),
+  funPlus2Menu: at(0x238, u8),
+  funPlus2CallWay: at(0x23a, u8),
+  funPlus2CallObject: at(0x23b, u8),
+  funPlus2CallType: at(0x23c, u8),
+  funPlus2Sms: at(0x23d, u8),
+  funPlus3Mode: at(0x23e, u8),
+  funPlus3Menu: at(0x23f, u8),
+  funPlus3CallWay: at(0x241, u8),
+  funPlus3CallObject: at(0x242, u8),
+  funPlus3CallType: at(0x243, u8),
+  funPlus3Sms: at(0x244, u8),
+  funPlus4Mode: at(0x245, u8),
+  funPlus4Menu: at(0x246, u8),
+  funPlus4CallWay: at(0x248, u8),
+  funPlus4CallObject: at(0x249, u8),
+  funPlus4CallType: at(0x24a, u8),
+  funPlus4Sms: at(0x24b, u8),
+  funPlus5Mode: at(0x24c, u8),
+  funPlus5Menu: at(0x24d, u8),
+  funPlus5CallWay: at(0x24f, u8),
+  funPlus5CallObject: at(0x250, u8),
+  funPlus5CallType: at(0x251, u8),
+  funPlus5Sms: at(0x252, u8),
+  funPlus6Mode: at(0x253, u8),
+  funPlus6Menu: at(0x254, u8),
+  funPlus6CallWay: at(0x256, u8),
+  funPlus6CallObject: at(0x257, u8),
+  funPlus6CallType: at(0x258, u8),
+  funPlus6Sms: at(0x259, u8),
+  funPlus7Mode: at(0x25a, u8),
+  funPlus7Menu: at(0x25b, u8),
+  funPlus7CallWay: at(0x25d, u8),
+  funPlus7CallObject: at(0x25e, u8),
+  funPlus7CallType: at(0x25f, u8),
+  funPlus7Sms: at(0x260, u8),
+  funPlus8Mode: at(0x261, u8),
+  funPlus8Menu: at(0x262, u8),
+  funPlus8CallWay: at(0x264, u8),
+  funPlus8CallObject: at(0x265, u8),
+  funPlus8CallType: at(0x266, u8),
+  funPlus8Sms: at(0x267, u8),
+  funPlus9Mode: at(0x268, u8),
+  funPlus9Menu: at(0x269, u8),
+  funPlus9CallWay: at(0x26b, u8),
+  funPlus9CallObject: at(0x26c, u8),
+  funPlus9CallType: at(0x26d, u8),
+  funPlus9Sms: at(0x26e, u8),
+  funPlus10Mode: at(0x26f, u8),
+  funPlus10Menu: at(0x270, u8),
+  funPlus10CallWay: at(0x272, u8),
+  funPlus10CallObject: at(0x273, u8),
+  funPlus10CallType: at(0x274, u8),
+  funPlus10Sms: at(0x275, u8),
+
+  /** APRS. The position strings below are hardware-confirmed; the rest is derived. */
+  aprsScheduledSendTime: at(0x301, u8),
+  aprsFixedBeacon: at(0x302, bits(1, { enabled: [0, 1], unknownHigh: [1, 7] })),
+  aprsReportChannel1: at(0x320, u16le),
+  aprsReportChannel2: at(0x322, u16le),
+  aprsReportChannel3: at(0x324, u16le),
+  aprsReportChannel4: at(0x326, u16le),
+  aprsReportChannel5: at(0x328, u16le),
+  aprsReportChannel6: at(0x32a, u16le),
+  aprsReportChannel7: at(0x32c, u16le),
+  aprsReportChannel8: at(0x32e, u16le),
+  aprsRepeaterActiveDelay: at(0x330, u8),
+  aprsCallType: at(0x331, bits(1, { group: [0, 1], unknownHigh: [1, 7] })),
+  /**
+   * Little-endian, on the evidence rather than by preference.
+   *
+   * The byte order is disputed, and both captured values are only plausible
+   * DMR IDs read little-endian - factory `C8 01 00` is 456 one way and
+   * 13,107,456 the other. Two samples is not proof, so this is the reading to
+   * revisit if a radio ever shows a different ID than the one written here.
+   */
+  aprsUploadId: at(0x332, u24le),
+
+  /**
+   * Menu enable bits, 0x500-0x507 - one bit per menu item, set meaning shown.
+   *
+   * The polarity is derived, and an inverted reading circulates. What is not in
+   * doubt is that the unlabelled bits carry data: the OEM write capture has
+   * bits set at 0x500 bits 2-7, 0x503 bit 7, 0x505 bits 4-7 and 0x507 bits 5-7,
+   * so these bytes are read-modify-written a bit at a time and never rebuilt.
+   */
+  menuZone: at(0x500, bits(1, { zoneList: [0, 1], newZone: [1, 1], unknownHigh: [2, 6] })),
+  menuCall: at(
+    0x501,
+    bits(1, {
+      callAlert: [0, 1],
+      radioCheck: [1, 1],
+      remoteMonitor: [2, 1],
+      radioEnable: [3, 1],
+      radioDisable: [4, 1],
+      measurePeriod: [5, 1],
+      unknownHigh: [6, 2],
+    }),
+  ),
+  menuSettingsA: at(
+    0x502,
+    bits(1, {
+      talkaround: [0, 1],
+      alertTone: [1, 1],
+      txPower: [2, 1],
+      startDisplay: [3, 1],
+      langSelect: [4, 1],
+      matchPrivate: [5, 1],
+      matchGroup: [6, 1],
+      displayMode: [7, 1],
+    }),
+  ),
+  menuSettingsB: at(
+    0x503,
+    bits(1, {
+      smsFormat: [0, 1],
+      subChannelMode: [1, 1],
+      powerSave: [2, 1],
+      fmRadio: [3, 1],
+      gps: [4, 1],
+      aprs: [5, 1],
+      record: [6, 1],
+      unknownHigh: [7, 1],
+    }),
+  ),
+  menuContact: at(
+    0x504,
+    bits(1, {
+      addContact: [0, 1],
+      delContact: [1, 1],
+      editContact: [2, 1],
+      sendMessage: [3, 1],
+      functionality: [4, 1],
+      manualDial: [5, 1],
+      csvContacts: [6, 1],
+      unknownHigh: [7, 1],
+    }),
+  ),
+  menuLog: at(
+    0x505,
+    bits(1, {
+      missedCall: [0, 1],
+      answeredCall: [1, 1],
+      sentCall: [2, 1],
+      delLog: [3, 1],
+      unknownHigh: [4, 4],
+    }),
+  ),
+  menuChannelA: at(
+    0x506,
+    bits(1, {
+      rxFrequency: [0, 1],
+      txFrequency: [1, 1],
+      ctcDcs: [2, 1],
+      txContact: [3, 1],
+      colorCode: [4, 1],
+      timeSlot: [5, 1],
+      radioId: [6, 1],
+      radioName: [7, 1],
+    }),
+  ),
+  menuChannelB: at(
+    0x507,
+    bits(1, {
+      channelType: [0, 1],
+      tdmaDirectMode: [1, 1],
+      rxGroupList: [2, 1],
+      addChannel: [3, 1],
+      channelName: [4, 1],
+      unknownHigh: [5, 3],
+    }),
+  ),
 })
 
 /**
@@ -681,21 +938,83 @@ export const DM32_ROAMCHANNEL = defineStruct(ROAMCHANNEL_SIZE, {
 })
 
 /**
- * Roaming zones, block 0x65 - a named list of roaming channels.
+ * Roaming zones, block 0x65.
  *
- * The name is decoded and the membership is not. A 33-byte record with a
- * 16-byte name leaves 16 bytes for members and one for a count, and nothing
- * establishes their width; this radio's three zones are all empty, so its own
- * bytes cannot settle it either. Read what is known, claim nothing else.
+ * Records run from the top of the page with no header, 33 bytes each, and the
+ * name sits at `+0x10` rather than at the start. That is the reference's own
+ * field table, and this radio's bytes agree: record 0 begins `03 00 01 01`
+ * while records 1 and 2 begin `ff ff ff ff`, which is per-record flags in an
+ * erased state rather than a page header.
+ *
+ * The `03` in record 0 is not a zone count. It reads as one - this radio has
+ * three zones - and that coincidence is exactly what makes it worth writing
+ * down. Occupancy is by content, like the talk groups.
+ *
+ * There is no channel list. Flags at `+0x00`, name at `+0x10` and the count or
+ * index byte at `+0x20` account for all 33 bytes, and the reference says in as
+ * many words that where the list lives is unresolved. It is not that the entry
+ * width is unknown; there is nowhere in the record for entries to be.
  */
+/**
+ * Block 0x03 - the "Call" list.
+ *
+ * The one block the reference classes as unknown that the OEM CPS nonetheless
+ * both reads and writes, so it is real codeplug data rather than a scratch
+ * buffer. The record layout is confirmed twice over: the reference's capture
+ * and this radio agree byte for byte, down to the same four reference values.
+ *
+ * What the records are *for* is still unknown. The two reference fields draw
+ * from a set of exactly four values and the six populated entries enumerate
+ * every unordered pair of that set - C(4,2) = 6 - which reads like factory
+ * demonstration data and matches nothing else in the codeplug. So the names are
+ * editable and the two references are carried, shown, and left alone.
+ *
+ * This is also the only block whose names are UTF-16LE.
+ */
+export const CALLLIST_BLOCK = 0x03
+export const CALLLIST_BASE = 0x218
+export const CALLLIST_SIZE = 0x28
+export const CALLLIST_NAME_AT = 0x08
+export const CALLLIST_NAME_BYTES = 32
+/**
+ * Thirty-two records, which is neither the reference's figure nor the page's.
+ *
+ * The reference says 92. That cannot be right: 92 records of 40 bytes from
+ * 0x218 would end at 0x1078, past the end of a 4 KiB page. Filling the page
+ * instead gives 88, and that is wrong too - the records stop well before it.
+ *
+ * A different structure begins at exactly `0x218 + 32 * 0x28` = 0x718: DTMF
+ * digit runs (`01 02 03 04 05`, `0a 0b 0c 0d` for A-D) and the words "Enable"
+ * and "Disable" in plain single-byte ASCII, which no record in this block uses.
+ * Read as call records that region decodes to sixteen-character strings of
+ * U+FFFF and reference values that are really the letters of "Disable" - which
+ * is what the 88-slot reading produced before this bound existed, and it would
+ * have let a write put a name over it.
+ *
+ * Thirty-two is also what this radio caps its RX groups and scan lists at.
+ */
+export const CALLLIST_SLOTS = 32
+/** Where the unrelated structure after the records starts. Nothing here writes past it. */
+export const CALLLIST_END = CALLLIST_BASE + CALLLIST_SLOTS * CALLLIST_SIZE
+
+export const DM32_CALLLIST = defineStruct(CALLLIST_SIZE, {
+  /** `FE FF` where the CPS populated the entry, `FF FF` where it did not. */
+  inUse: at(0x00, u16le),
+  referenceA: at(0x02, u16le),
+  referenceB: at(0x04, u16le),
+  name: at(CALLLIST_NAME_AT, utf16le(CALLLIST_NAME_BYTES)),
+})
+
 export const ROAMZONE_BLOCK = 0x65
 export const ROAMZONE_SIZE = 33
-export const ROAMZONE_HEADER = 0x10
-export const ROAMZONE_SLOTS = Math.floor((0x1000 - 1 - ROAMZONE_HEADER) / ROAMZONE_SIZE)
+export const ROAMZONE_NAME_AT = 0x10
+export const ROAMZONE_SLOTS = Math.floor((0x1000 - 1) / ROAMZONE_SIZE)
 
 export const DM32_ROAMZONE = defineStruct(ROAMZONE_SIZE, {
-  name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
-  memberCount: at(0x10, u8),
+  flags: at(0x00, bits(1, { enabled: [0, 1], unknownHigh: [1, 7] })),
+  name: at(ROAMZONE_NAME_AT, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
+  /** Called "channel count / index" by the reference. 0 on every record here. */
+  channelIndex: at(0x20, u8),
 })
 
 // -------------------------------------------------------- digital emergency --

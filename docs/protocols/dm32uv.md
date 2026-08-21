@@ -726,6 +726,151 @@ that keep their call type — and a channel's TX contact points at a slot number
 so packing the bank would silently repoint every channel after a gap. A new
 group takes the lowest free slot, which on this radio is 2.
 
+## Session of 2026-08-21 — the rest of block 0x04, block 0x03, and roaming zones
+
+### Roaming zones use the reference's record layout, and the count byte is a coincidence
+
+The decoder read `data[0]` as a zone count. It is 3 on this radio, and this
+radio has three roaming zones, which is exactly the sort of agreement that
+survives review. It is a coincidence. Under the reference's own field table the
+records start at offset 0 with no page header, and byte 0 is record 0's flags:
+
+```
+rec0 @0x000  03 00 01 01  name='Roam Zone 1'  +0x20=00
+rec1 @0x021  ff ff ff ff  name='Roam Zone 2'  +0x20=00
+rec2 @0x042  ff ff ff ff  name='Roam Zone 3'  +0x20=00
+```
+
+Records 1 and 2 hold `ff ff ff ff` in the same position. No count encoding
+produces that; erased per-record flags do. Occupancy is now by content, and a
+test writes a fourth zone past where a count-bounded walk would have stopped.
+
+Both readings put the names at the same page offsets — 0x010, 0x031, 0x052 —
+so the name write was correct either way. Only the walk was wrong.
+
+There is still no channel list. Flags at `+0x00`, the name at `+0x10` and the
+count-or-index byte at `+0x20` account for all 33 bytes of a record. It is not
+that the entry width is unknown; there is nowhere in the record for entries.
+
+### Block 0x03 — the "Call" list, and where its records actually stop
+
+The one block the reference classes as unknown that the OEM CPS both reads and
+writes, so it is codeplug data. This radio reproduces the reference's capture
+byte for byte: the same four reference values, the same names, the same pairs.
+Names are UTF-16LE — the only block on the radio that does not use single bytes
+— which needed a new `utf16le` codec field.
+
+Two corrections to the reference came out of implementing it.
+
+**The record array holds 32 entries, not 92.** 92 records of 40 bytes from
+0x218 would end at 0x1078, past the end of a 4 KiB page, so the figure cannot be
+right on its face. Filling the page instead gives 88, and that is wrong too. A
+different structure begins at exactly `0x218 + 32 * 0x28` = 0x718:
+
+```
+0x730  01 02 03 04 05 00 f1 ff ...      DTMF digit runs
+0x7c0  0a 0b 0c 0d 04 05 06 ff ...      0x0A-0x0D is A-D
+0x8a0  44 69 73 61 62 6c 65 00          "Disable", single-byte ASCII
+0x8d0  45 6e 61 62 6c 65 00             "Enable"
+```
+
+Read as call records that region yields sixteen-character strings of U+FFFF and
+"reference values" that are really the letters of *Disable*. The 88-slot walk
+produced exactly that, and worse, claimed all of it as writable name fields.
+
+**Only five of the six pairs are present.** The reference reads the two
+reference fields as enumerating every unordered pair of a four-value set —
+"C(4,2) = 6". Its own captured table does not support it: five records carry
+references and `(0x17CA, 0x4FD6)` is absent. This radio agrees with the table
+rather than with the sentence.
+
+The names are written. The in-use marker and the two references are carried,
+shown and left alone, because nothing identifies what they point at.
+
+### Everything else block 0x04 documents
+
+The settings struct went from 232 documented bytes partly covered to 203
+claimed, and the 29-byte difference is deliberate rather than incidental:
+
+| Left unclaimed | Why |
+|---|---|
+| `0x120-0x127` analog call | The reference's own dump contradicts its field order and shows a value outside the documented range |
+| `0x0A0-0x0A7` language | An opaque blob with no decomposition anywhere |
+| `0x032`, `0x045`, `0x080` | Named in the reference, understood by nobody |
+| Fun+ `+0x02` × 10 | Padding the reference's parser skips |
+
+Added: the second alert-tone byte, standby character colour, the four digital
+timers, the digital and name-display flag bytes, transmit dwell, One Touch Call
+(5 × 5 B from 0x200), Fun+ (10 × 7 B from 0x230), the whole APRS region
+including the eight report channels and the fixed position, and the 40-odd menu
+enable bits at `0x500-0x507`.
+
+The four timers are exposed as raw bytes. The reference gives scaling formulas
+for them but marks each as derived from *model comments* rather than a capture,
+and says its own code stores the raw byte and labels the control "(raw)".
+A confident wrong number is worse than a true one nobody has scaled yet.
+
+`aprsUploadId` is stored little-endian. The byte order is disputed and both
+captured values are only plausible DMR IDs read that way — factory `C8 01 00` is
+456 one way and 13,107,456 the other. Two samples is evidence, not proof.
+
+### Hardware verification
+
+Baseline `be790de6…` / `0937de53…`, restored to both afterwards.
+
+The bench suite writes one field from every region added and reads each back.
+Separately, a deliberate write was left on the radio and read with the
+independent raw reader rather than through this driver:
+
+```
+standbyCharColour1      @0x037  0 -> 7      OK
+txDwellTime             @0x081  1 -> 200    OK
+oneTouch1Type           @0x200  2 -> 1      OK
+funPlus10Sms            @0x275  0 -> 4      OK
+aprsRepeaterActiveDelay @0x330  0 -> 7      OK
+aprsUploadId            @0x332  56 34 12 -> 0x123456 little-endian
+aprsReportChannel8      @0x32E  2c 01 -> 300
+menuZone                @0x500  0xFF -> 0xFD, six unlabelled bits kept
+roam zone 0 name        @0x65+0x010  'RAW PROOF', flags and zone 1 untouched
+```
+
+Block 0x04 changed **exactly eleven bytes** — 0x37, 0x81, 0x200, 0x275,
+0x32E-0x330, 0x332-0x334, 0x500 — and nothing else. All seven deliberately
+unclaimed sites came back identical.
+
+### The 22 remaining blocks are not codeplug data
+
+A second attempt, with a different method than the last one. Entropy runs 6.6 to
+7.5 bits per byte across most of them with all 256 values present, no file
+signature (JPEG, PNG, BMP, GIF, gzip, zip, RIFF), and no pairwise similarity
+between any two of them.
+
+Three of them looked briefly like a boot image — 0x51 is `c2 18` repeated
+(RGB565 dark grey), 0x6b is `5e 3d` repeated (a sky blue), and 0x56 counts up in
+16-bit steps like a gradient. Adjacent-row correlation kills it: at every
+candidate width from 96 to 320 pixels it stays between 0.007 and 0.047, where a
+raster image would be far higher.
+
+Taken with what was already established — byte-identical across two captures
+hours apart with many writes in between, so not live state — and with the
+reference's own note that the OEM CPS never reads or writes any of them, these
+are firmware or asset regions rather than codeplug. boofwang reads them,
+preserves them byte for byte through every write, and restores them. There is no
+CPS feature here to add.
+
+### Two bugs found on the way
+
+`republish()` in the codeplug store never republished `roamZones`. Harmless
+while nothing could edit them, and a silent one the moment something could: the
+edit reaches the document, the encoder and the radio while the interface goes on
+showing the old value, so the user makes it twice. A test now derives the rule
+from which lists the store actually mutates rather than from a hand-kept list.
+
+`writeScope` had drifted behind `writeTargets` for the third time, each time
+claiming *less* than the driver writes — the direction that reads as safe and is
+not, because it tells someone a restore rolls back more than it can. A test now
+checks every parenthesised noun the writer emits appears in the sentence.
+
 ## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied
@@ -739,14 +884,22 @@ group takes the lowest free slot, which on this radio is 2.
   contact data.
 - **Roaming zone membership**, and every emergency and DTMF field past the name
   or code. See above — each is left alone for a stated reason, not for lack of
-  effort.
+  effort. For roaming zones the reason is now sharper than "unresolved": the
+  33 bytes of a record are fully accounted for, so the list is not in there.
 - **The analog emergency section** of `0x10` at `0x0AC` and the `0x0A20` record
   in block `0x06`, neither decoded — and neither decodable from this radio: the
   first is 608 bytes holding exactly one non-zero byte, and the second is six
   bytes with no structure to infer.
 - **Hardware-writing block `0x43`.** Unit-verified against this radio's image;
   see above for why it is not exercised on the radio itself.
-- The meaning of 22 allocated blocks.
+- The meaning of 22 allocated blocks — twice attempted, and now positively
+  characterised as not-codeplug rather than merely unread. See above.
+- **What the two block 0x03 reference fields point at.** Five pairs from four
+  values that match nothing else in the codeplug.
+- **The polarity of the menu enable bits** at `0x500-0x507`. Set-means-shown is
+  the reference's reading and no capture pins it; an inverted reading also
+  circulates.
+- **The scaling of the four digital timers**, which is why they are offered raw.
 - Whether the alignment of a *short* key differs from a full one. Only AES-256,
   which fills the whole 32-byte field, has been written.
 - The bandwidth polarity at `0x19` bit 7 is still `DERIVED` in the reference.

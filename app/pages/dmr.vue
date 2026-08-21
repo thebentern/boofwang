@@ -760,16 +760,62 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               :style="`padding: 10px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
             >
               <span class="idx">{{ i + 1 }}</span>
-              <span style="font-size: 14.5px; font-weight: 600; color: var(--tx)">{{ zone.name }}</span>
-              <span class="meta ms-auto">{{ zone.memberCount }} member{{ zone.memberCount === 1 ? '' : 's' }}</span>
+              <input
+                type="text"
+                :value="zone.name"
+                maxlength="16"
+                class="rounded-[6px] px-2.5 outline-none"
+                style="height: 31px; width: 200px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
+                autocomplete="off"
+                @change="codeplug.updateRoamZone(zone.id, { name: ($event.target as HTMLInputElement).value })"
+              >
+              <span class="meta ms-auto">{{ zone.enabled ? 'Enabled' : 'Disabled' }}</span>
             </div>
           </div>
           <p class="note">
-            Roaming zones are read and never written. A 33-byte record with a 16-byte name leaves too little
-            room to tell the member entry width from, and every zone on the radio this was written against is
-            empty, so its own bytes cannot settle it either — so nothing here is offered for editing.
+            Names are written; membership is not. Flags, the name and one count byte account for all 33 bytes
+            of a roaming zone record, so the channel list is somewhere outside it that nobody has found — and
+            an editor that pretended otherwise would be writing into bytes that mean something else.
           </p>
         </template>
+      </section>
+
+      <!-- Call list, block 0x03 -->
+      <section v-if="codeplug.callList.length" class="mt-7">
+        <h2 class="sec">Call list</h2>
+        <div class="card">
+          <div
+            v-for="(entry, i) in codeplug.callList"
+            :key="entry.id"
+            class="flex items-center gap-3"
+            :style="`padding: 10px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+          >
+            <span class="idx">{{ i + 1 }}</span>
+            <input
+              type="text"
+              :value="entry.name"
+              maxlength="16"
+              class="rounded-[6px] px-2.5 outline-none"
+              style="height: 31px; width: 200px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
+              autocomplete="off"
+              @change="codeplug.updateCallListEntry(entry.id, { name: ($event.target as HTMLInputElement).value })"
+            >
+            <span
+              v-if="entry.referenceA !== 0xffff"
+              class="chip"
+              style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)"
+            >
+              refs {{ entry.referenceA }}, {{ entry.referenceB }}
+            </span>
+            <span class="meta ms-auto">{{ entry.inUse ? 'In use' : 'Free' }}</span>
+          </div>
+        </div>
+        <p class="note">
+          Block 0x03, which the OEM software reads and writes but which nobody has explained. The names are
+          real and editable — this is the one block on the radio that stores them as UTF-16. The two reference
+          numbers point at something unidentified, so they are shown and left alone; on a factory radio they
+          hold five pairs drawn from four values that match nothing else in the codeplug.
+        </p>
       </section>
 
       <!-- VFOs -->

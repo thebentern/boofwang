@@ -9,6 +9,11 @@ import { PAGE_SIZE, REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import {
   ANALOG_BLOCK,
+  CALLLIST_BASE,
+  CALLLIST_BLOCK,
+  CALLLIST_END,
+  CALLLIST_NAME_AT,
+  CALLLIST_SIZE,
   CHANNEL_BLOCK_LAST,
   MESSAGE_BLOCK,
   MESSAGE_HEADER,
@@ -17,6 +22,7 @@ import {
   ROAMZONE_BLOCK,
   RXGROUP_BLOCK,
   SCANLIST_BLOCK,
+  SETTINGS_BLOCK,
   TXCONTACT_BLOCK_HIGH,
   TXCONTACT_BLOCK_LOW,
   ZONE_BLOCK_FIRST,
@@ -252,10 +258,43 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       doc.talkGroups.push({ id: 'tg-new', name: 'HW TG NEW', number: 424242, callType: 'group' })
       const tgIndexWas = decodeTalkGroupIndex(baseline)!
 
+      // The block 0x03 call list: UTF-16LE names, and two reference fields
+      // beside them that point at something nobody has identified.
+      const callWas = doc.callList[1]?.name
+      if (doc.callList[1]) doc.callList[1] = { ...doc.callList[1], name: 'HW CALL' }
+
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
       doc.settings['callsignColour.colour'] = 5
       doc.settings['gpsFlags.gpsSwitch'] = settingsWere['gpsFlags.gpsSwitch'] === 1 ? 0 : 1
+
+      /*
+       * One field from every settings region added since the last bench run,
+       * so a region that decodes but never reaches the radio fails here rather
+       * than on someone's radio. `NEW_SETTINGS` is checked again after the
+       * read-back and again after the restore.
+       */
+      const NEW_SETTINGS: Record<string, number> = {
+        'alertTonesCont.batteryLow': settingsWere['alertTonesCont.batteryLow'] === 1 ? 0 : 1,
+        standbyCharColour1: 7,
+        activeWaitTime: 9,
+        preCarrierTime: 11,
+        smsFormat: 5,
+        txDwellTime: 200,
+        'digitalFlags.missedCallAlert': settingsWere['digitalFlags.missedCallAlert'] === 1 ? 0 : 1,
+        'nameDisplayFlags.sendTxName': settingsWere['nameDisplayFlags.sendTxName'] === 1 ? 0 : 1,
+        oneTouch1Type: 1,
+        oneTouch5Sms: 3,
+        funPlus1Mode: 1,
+        funPlus10Sms: 4,
+        aprsScheduledSendTime: 6,
+        aprsReportChannel8: 300,
+        aprsUploadId: 0x123456,
+        aprsRepeaterActiveDelay: 7,
+        'menuZone.newZone': settingsWere['menuZone.newZone'] === 1 ? 0 : 1,
+        'menuChannelB.channelName': settingsWere['menuChannelB.channelName'] === 1 ? 0 : 1,
+      }
+      for (const [key, value] of Object.entries(NEW_SETTINGS)) doc.settings[key] = value
 
       // Add a channel past the end and delete one in the middle. Both were
       // silently dropped before: the encode loop was bounded by the stored
@@ -469,6 +508,44 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       expect(back.settings['standbyTextColour.colour']).toBe(settingsWere['standbyTextColour.colour'])
       // And the settings this build models but does not offer are unchanged.
       expect(back.settings.gpsReportInterval).toBe(settingsWere.gpsReportInterval)
+
+      for (const [key, value] of Object.entries(NEW_SETTINGS)) {
+        expect(back.settings[key], `${key} did not reach the radio`).toBe(value)
+      }
+
+      if (callWas !== undefined) {
+        expect(back.callList[1]!.name, 'the call list name did not reach the radio').toBe('HW CALL')
+        // Raw bytes, because the point of this block is that it is the only one
+        // storing names two bytes to the character.
+        const at = CALLLIST_BASE + CALLLIST_SIZE + CALLLIST_NAME_AT
+        const raw = block(after, CALLLIST_BLOCK)
+        expect(raw[at]).toBe('H'.charCodeAt(0))
+        expect(raw[at + 1]).toBe(0)
+        expect(raw[at + 2]).toBe('W'.charCodeAt(0))
+        // The in-use marker and the two references beside it are not ours.
+        const rec = CALLLIST_BASE + CALLLIST_SIZE
+        expect([...raw.subarray(rec, rec + 8)]).toEqual([
+          ...block(baseline, CALLLIST_BLOCK).subarray(rec, rec + 8),
+        ])
+        // And nothing reached the unrelated structure after the records.
+        expect(
+          equalBytes(raw.subarray(CALLLIST_END, PAGE_SIZE - 1), block(baseline, CALLLIST_BLOCK).subarray(CALLLIST_END, PAGE_SIZE - 1)),
+          'a byte past the call records was written',
+        ).toBe(true)
+      }
+      /*
+       * The unlabelled bits beside the two menu bits above. The OEM capture has
+       * data in them, so a menu byte rebuilt from defaults rather than merged
+       * would zero them - and nothing else in this suite would notice.
+       */
+      expect(block(after, SETTINGS_BLOCK)[0x500]! & 0xfc).toBe(block(baseline, SETTINGS_BLOCK)[0x500]! & 0xfc)
+      expect(block(after, SETTINGS_BLOCK)[0x507]! & 0xe0).toBe(block(baseline, SETTINGS_BLOCK)[0x507]! & 0xe0)
+      // The three sites in block 0x04 this build deliberately declines to model.
+      for (const off of [0x032, 0x045, 0x080, 0x0a0, 0x0a7, 0x120, 0x127]) {
+        expect(block(after, SETTINGS_BLOCK)[off], `0x${off.toString(16)} was written`).toBe(
+          block(baseline, SETTINGS_BLOCK)[off],
+        )
+      }
 
       // The address book, written for real.
       if (contactWas) {

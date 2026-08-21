@@ -20,6 +20,7 @@ import {
   u32be,
   u32le,
   u8,
+  utf16le,
 } from '#core/codec/fields.js'
 
 const buf = (...b: number[]) => Uint8Array.from(b)
@@ -401,5 +402,71 @@ describe('rejecting values that would silently corrupt a field', () => {
     const b = buf(0x12, 0x34)
     expect(() => bcdLE(2).set(b, 0, -5)).toThrow(/negative/)
     expect([...b]).toEqual([0x12, 0x34])
+  })
+})
+
+describe('utf16le', () => {
+  const f = utf16le(12)
+  const buf = () => new Uint8Array(12).fill(0xff)
+
+  it('reads a NUL-terminated string', () => {
+    const b = new Uint8Array([0x48, 0, 0x69, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])
+    expect(f.get(b, 0)).toBe('Hi')
+  })
+
+  it('treats erased flash as the end of the string', () => {
+    // 0xFFFF is what an unwritten field holds; decoded as a character it is a
+    // replacement mark, which would put U+FFFF runs into names.
+    expect(f.get(new Uint8Array(12).fill(0xff), 0)).toBe('')
+  })
+
+  it('writes low and high bytes in the right order', () => {
+    const b = buf()
+    f.set(b, 0, 'Hi')
+    expect([...b.subarray(0, 4)]).toEqual([0x48, 0, 0x69, 0])
+  })
+
+  it('pads the rest of the field so a shorter name leaves no tail', () => {
+    const b = buf()
+    f.set(b, 0, 'Wide')
+    f.set(b, 0, 'Hi')
+    expect([...b.subarray(4)]).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
+    expect(f.get(b, 0)).toBe('Hi')
+  })
+
+  it('leaves bytes alone when they already decode to the same string', () => {
+    // Same idempotence rule as ascii: a read-then-write must not perturb
+    // padding, or every upload diff fills with phantom edits.
+    const b = new Uint8Array([0x48, 0, 0x69, 0, 0, 0, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f])
+    const before = new Uint8Array(b)
+    f.set(b, 0, 'Hi')
+    expect([...b]).toEqual([...before])
+  })
+
+  it('truncates rather than overrunning the field', () => {
+    const b = buf()
+    f.set(b, 0, 'FarTooLongForThis')
+    expect(f.get(b, 0)).toBe('FarToo')
+    expect(b).toHaveLength(12)
+  })
+
+  it('refuses an odd width', () => {
+    expect(() => utf16le(7)).toThrow(/even width/)
+  })
+
+  it('round-trips a character that needs a surrogate pair', () => {
+    const b = buf()
+    f.set(b, 0, 'a\u{1f600}b')
+    expect(f.get(b, 0)).toBe('a\u{1f600}b')
+  })
+
+  it('drops both halves rather than truncating between them', () => {
+    // A lone surrogate is not a character in any encoding, and cutting the
+    // field at an odd number of code units is exactly how one gets written.
+    const narrow = utf16le(6)
+    const b = new Uint8Array(6).fill(0xff)
+    narrow.set(b, 0, 'ab\u{1f600}')
+    expect(narrow.get(b, 0)).toBe('ab')
+    expect([...b.subarray(4)]).toEqual([0, 0])
   })
 })

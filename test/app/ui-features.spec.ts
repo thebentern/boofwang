@@ -88,3 +88,56 @@ describe('the connect screen chip', () => {
     expect(gate, 'the write gate stopped reading writeScope').toContain('writeScope')
   })
 })
+
+/**
+ * Every list the store publishes has to be republished when it is edited.
+ *
+ * `republish()` rebuilds the frozen arrays the components render from. A list
+ * that is published on open but missing from `republish` looks correct until
+ * someone edits it, and then the edit reaches the document, the encoder and the
+ * radio while the interface goes on showing the old value - the edit appears to
+ * have been ignored, so it gets made twice.
+ *
+ * That was true of `roamZones` for as long as nothing could edit them.
+ */
+describe('the codeplug store republishes everything it publishes', () => {
+  const STORE = readFileSync(fileURLToPath(new URL('../../app/stores/codeplug.ts', import.meta.url)), 'utf8')
+
+  const published = [...STORE.matchAll(/^ {2}const (\w+) = shallowRef</gm)].map((m) => m[1]!)
+  const body = STORE.slice(STORE.indexOf('function republish()'))
+  const republished = new Set(
+    [...body.slice(0, body.indexOf('\n  }')).matchAll(/^\s*(\w+)\.value = /gm)].map((m) => m[1]!),
+  )
+
+  /** Published lists the store can actually change, found from the mutations. */
+  const mutable = published.filter((name) => {
+    const re = new RegExp(`cp\\.${name}(\\[[^\\]]*\\]\\s*=|\\.push|\\.splice|\\.set\\(|\\.delete\\(|\\s*=[^=])`)
+    return re.test(STORE)
+  })
+
+  it('finds the lists it is meant to check', () => {
+    expect(published).toContain('roamZones')
+    expect(published).toContain('callList')
+    expect(mutable).toContain('zones')
+    expect(mutable).toContain('roamZones')
+    expect(mutable).toContain('callList')
+    // Read-only ones must not be swept in, or the rule means nothing.
+    expect(mutable).not.toContain('emergency')
+    expect(mutable).not.toContain('analog')
+  })
+
+  it('republishes every list an edit can reach', () => {
+    /*
+     * `channels` is the one exception, and deliberate: it is copy-on-write at a
+     * single index so a row edit re-renders one row rather than four thousand,
+     * and its mutators publish it themselves. Everything else goes through
+     * `republish`.
+     */
+    const missing = mutable.filter((name) => name !== 'channels' && !republished.has(name))
+    expect(missing).toEqual([])
+  })
+
+  it('keeps the channel list publishing itself, since it is exempt above', () => {
+    expect(STORE).toMatch(/channels\.value = /)
+  })
+})
