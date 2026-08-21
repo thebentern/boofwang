@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { Channel } from '#core/model/channel.js'
-import { sortedChannels } from '#core/model/codeplug.js'
 import { formatPower } from '#core/model/units.js'
 import {
   PRESET_GROUPS,
@@ -405,10 +404,14 @@ const stageLabel = computed(() => {
  * Write the plan into the open codeplug.
  *
  * A bulk slot rewrite is not something `updateChannel` can express - it patches
- * one existing index and refuses an empty slot - so this touches the document
- * map directly and then restores the store's invariants by hand: the frozen
- * copy-on-write list rebuilt from the map, the diagnostics re-run, and the
- * revision bumped so `encoded` and `pendingWrite` recompute.
+ * one existing index and refuses an empty slot - so this goes through
+ * `setChannelRecord`, which places an exact record into any slot at all.
+ *
+ * All of it inside one `transact`, because staging a preset is one decision.
+ * The plan is shown before it commits and the user agreed to that plan, not to
+ * twenty separate placements they would then have to take back one at a time.
+ * The store publishes the frozen list, re-runs the diagnostics and bumps the
+ * revision once, when the transaction closes.
  */
 function stage() {
   const cp = codeplug.doc
@@ -417,26 +420,23 @@ function stage() {
 
   const stagedAt = new Date().toISOString()
 
-  // Highest slot first: a channel moving from 12 to 22 must not land on 22
-  // before whatever is already at 22 has itself moved out.
-  for (const m of [...p.moves].sort((a, b) => b.from - a.from)) {
-    const existing = cp.channels.get(m.from)
-    if (!existing) continue
-    cp.channels.delete(m.from)
-    cp.channels.set(m.to, Object.freeze({ ...existing, index: m.to }))
-  }
+  codeplug.transact('preset stage', () => {
+    // Highest slot first: a channel moving from 12 to 22 must not land on 22
+    // before whatever is already at 22 has itself moved out.
+    for (const m of [...p.moves].sort((a, b) => b.from - a.from)) {
+      const existing = cp.channels.get(m.from)
+      if (!existing) continue
+      codeplug.setChannelRecord(m.from, null)
+      codeplug.setChannelRecord(m.to, Object.freeze({ ...existing, index: m.to }))
+    }
 
-  for (const place of p.placements) {
-    cp.channels.set(
-      place.slot,
-      Object.freeze(presetToChannel(place.source, p.set, place.slot, codeplug.schema, stagedAt)),
-    )
-  }
-
-  codeplug.channels = Object.freeze(sortedChannels(cp).map((c) => Object.freeze(c)))
-  codeplug.revalidate()
-  codeplug.revision += 1
-  codeplug.dirty = true
+    for (const place of p.placements) {
+      codeplug.setChannelRecord(
+        place.slot,
+        Object.freeze(presetToChannel(place.source, p.set, place.slot, codeplug.schema, stagedAt)),
+      )
+    }
+  })
 
   void navigateTo('/channels')
 }

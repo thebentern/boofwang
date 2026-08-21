@@ -1,13 +1,108 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Vue's reactivity is imported rather than left to Nuxt's auto-imports, unlike
+// the other two stores: the undo history is exercised by a spec that mounts
+// this store under a bare Pinia, and outside the Nuxt build there is nothing to
+// supply `ref` and `computed`. Nuxt takes an explicit import in preference to
+// its own, so nothing changes for the app.
+import { computed, markRaw, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import type { Channel } from '#core/model/channel.js'
 import { hz } from '#core/model/units.js'
-import type { Codeplug } from '#core/model/codeplug.js'
+import type { Codeplug, ScanList, Zone } from '#core/model/codeplug.js'
 import { sortedChannels } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { diffImages } from '#core/radio/diff.js'
 import type { Diagnostic, RadioDriver } from '#core/radio/driver.js'
 import type { RadioSchema } from '#core/radio/schema.js'
+
+/** How many user-visible actions the history remembers. */
+const HISTORY_LIMIT = 50
+
+/** The two lists that name channels by number, and so have to be patched alongside them. */
+type MemberList = 'zones' | 'scanLists'
+
+/**
+ * One memory slot as it stood before an action.
+ *
+ * `null` means the slot held nothing, which is what lets a create, a delete and
+ * an edit all be the same shape of patch: creating undoes to `null`, deleting
+ * undoes to the record that was there.
+ */
+interface SlotPatch {
+  readonly slot: number
+  readonly record: Channel | null
+}
+
+/**
+ * One channel's place in one zone or scan list, as it stood before an action.
+ *
+ * Deleting a channel takes it out of everything that points at it, and an undo
+ * that brought the channel back without its memberships would leave the user
+ * looking at a codeplug they never made. `at` is the position it held rather
+ * than merely the fact of it, so a restore puts it back in order.
+ */
+interface MemberPatch {
+  readonly list: MemberList
+  readonly id: string
+  readonly channel: number
+  readonly at: number | null
+}
+
+/**
+ * One user-visible action, stored as what it changed things *from*.
+ *
+ * This is what makes the history affordable. An entry is a handful of slot
+ * numbers and the records that were in them, so taking back a preset stage of
+ * twenty channels costs twenty small objects rather than a copy of four
+ * thousand - and nothing here is ever a `Uint8Array`.
+ */
+interface HistoryEntry {
+  readonly label: string
+  readonly slots: readonly SlotPatch[]
+  readonly members: readonly MemberPatch[]
+  /**
+   * `dirty` as it stood before the action.
+   *
+   * Carried so that undoing back to what the radio holds says so, rather than
+   * leaving the status bar claiming unwritten edits that no longer exist.
+   */
+  readonly dirtyBefore: boolean
+  /** The `foreignEdits` count when the action started. See that field. */
+  readonly foreignEdits: number
+}
+
+/**
+ * The action currently being recorded.
+ *
+ * `depth` is what makes grouping nest: an inner `transact` joins the group
+ * already open instead of starting its own, so `deleteChannel` is written the
+ * same way whether it is called on its own or from inside a bulk edit.
+ */
+interface Batch {
+  depth: number
+  readonly label: string
+  /** Keyed by slot, because only the first value seen in an action is the one to undo to. */
+  readonly slots: Map<number, SlotPatch>
+  readonly members: MemberPatch[]
+  readonly lists: Set<MemberList>
+  readonly dirtyBefore: boolean
+  readonly foreignEdits: number
+  /** False while undo or redo is replaying: those push the inverse onto the opposite stack themselves. */
+  readonly record: boolean
+}
+
+/** Where a channel sits in a membership list, or null when it is not in it. */
+function positionOf(channels: readonly number[], channel: number): number | null {
+  const at = channels.indexOf(channel)
+  return at === -1 ? null : at
+}
+
+/** That list with the channel moved to `at`, or taken out when `at` is null. */
+function withMember(channels: readonly number[], channel: number, at: number | null): number[] {
+  const next = channels.filter((c) => c !== channel)
+  if (at !== null) next.splice(at, 0, channel)
+  return next
+}
 
 /**
  * The open codeplug.
@@ -49,6 +144,287 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   /** Kept so edits can be re-validated and re-encoded without the caller re-supplying it. */
   const driverRef = shallowRef<RadioDriver | null>(null)
 
+  // ----------------------------------------------------------------- history
+
+  /*
+   * The two stacks, and the action being recorded into one of them.
+   *
+   * Plain closure state rather than refs, and never returned. Pinia wraps what
+   * a setup store returns in `reactive()`, so an exposed array of entries would
+   * become a deep proxy over every frozen `Channel` it holds - which is exactly
+   * the cost the frozen copy-on-write list exists to avoid, paid a second time
+   * and per edit. Components read `canUndo`, `canRedo` and the labels instead,
+   * and those are driven by the four small refs below.
+   */
+  const undoStack: HistoryEntry[] = []
+  const redoStack: HistoryEntry[] = []
+  let batch: Batch | null = null
+
+  /**
+   * Edits this history does not record: settings, zones, contacts, messages, keys.
+   *
+   * Counted rather than flagged so an undo can tell "nothing else has changed
+   * since this action" from "something has". Without it, undoing the first
+   * channel edit would clear `dirty` and re-lock the write gate while a
+   * settings change was still sitting unwritten.
+   *
+   * Every one of those edits goes through `markEdited`, which is the only place
+   * outside the transaction machinery that marks the codeplug unwritten. Having
+   * the count and the flag move together is what stops a mutation being added
+   * later that marks it dirty without telling the history about it - the one
+   * way an undo can end up claiming there is nothing to write when there is.
+   */
+  let foreignEdits = 0
+
+  /**
+   * Close an edit the history does not record.
+   *
+   * The common tail of every mutation below that is not a channel: count it,
+   * re-run the diagnostics, move the revision so `encoded` and the diff
+   * recompute, and mark the codeplug unwritten. It exists as one function
+   * rather than four repeated lines because the count is easy to leave out and
+   * leaving it out is silent - the zone rename still shows, it is still
+   * encoded, and the only symptom is an undo two edits later deciding the
+   * codeplug is clean and the write gate refusing to send it.
+   */
+  function markEdited() {
+    foreignEdits++
+    revalidate()
+    revision.value++
+    dirty.value = true
+  }
+
+  const undoDepth = ref(0)
+  const redoDepth = ref(0)
+  const undoLabel = ref('')
+  const redoLabel = ref('')
+
+  const canUndo = computed(() => undoDepth.value > 0)
+  const canRedo = computed(() => redoDepth.value > 0)
+
+  /** Mirror the stacks into the refs components watch. The stacks themselves stay unreactive. */
+  function syncHistory() {
+    undoDepth.value = undoStack.length
+    redoDepth.value = redoStack.length
+    undoLabel.value = undoStack[undoStack.length - 1]?.label ?? ''
+    redoLabel.value = redoStack[redoStack.length - 1]?.label ?? ''
+  }
+
+  /** Forget every recorded action. Undoing across a different codeplug would be incoherent. */
+  function clearHistory() {
+    undoStack.length = 0
+    redoStack.length = 0
+    batch = null
+    foreignEdits = 0
+    syncHistory()
+  }
+
+  function openBatch(label: string, record: boolean) {
+    if (batch) {
+      batch.depth++
+      return
+    }
+    batch = {
+      depth: 1,
+      label,
+      slots: new Map(),
+      members: [],
+      lists: new Set(),
+      dirtyBefore: dirty.value,
+      foreignEdits,
+      record,
+    }
+  }
+
+  /**
+   * Publish what the action touched, and hand back the patch that would undo it.
+   *
+   * Returns null while an enclosing group is still open, and for an action that
+   * touched no slot at all - a transmit fix over channels that were already
+   * receive-only, an edit aimed at a slot that holds nothing. Recording those
+   * would put steps in the history that visibly do nothing when taken back.
+   *
+   * An action that wrote the same value back is still recorded, because telling
+   * that apart means comparing two channel records field by field on every
+   * keystroke. The callers that can cheaply tell - the cell editor comparing
+   * its draft, the fix skipping channels already inhibited - do so instead, and
+   * they are the ones a user can trigger by accident.
+   */
+  function closeBatch(): HistoryEntry | null {
+    const b = batch
+    if (!b || --b.depth > 0) return null
+    batch = null
+    if (b.slots.size === 0 && b.members.length === 0) return null
+
+    const cp = doc.value
+    if (cp) {
+      if (b.slots.size > 0) publishChannels(b.slots.keys())
+      if (b.lists.has('zones')) zones.value = Object.freeze(cp.zones.map((z) => Object.freeze(z)))
+      if (b.lists.has('scanLists')) scanLists.value = Object.freeze(cp.scanLists.map((l) => Object.freeze(l)))
+    }
+    revalidate()
+    revision.value++
+    if (b.record) dirty.value = true
+
+    const inverse: HistoryEntry = {
+      label: b.label,
+      slots: [...b.slots.values()],
+      members: b.members,
+      dirtyBefore: b.dirtyBefore,
+      foreignEdits: b.foreignEdits,
+    }
+    if (b.record) {
+      undoStack.push(inverse)
+      // The oldest entry falls off rather than the newest being refused: the
+      // edit someone wants back is almost always the one they just made.
+      if (undoStack.length > HISTORY_LIMIT) undoStack.shift()
+      redoStack.length = 0
+      syncHistory()
+    }
+    return inverse
+  }
+
+  /**
+   * Note what a slot held before this action, once per action.
+   *
+   * First write wins. A preset stage shifts a channel out of slot 22 and then
+   * puts another one in, and undoing that has to arrive at what was in 22
+   * before the stage - not at the value it passed through halfway.
+   */
+  function noteSlot(slot: number) {
+    const cp = doc.value
+    if (!batch || !cp || batch.slots.has(slot)) return
+    batch.slots.set(slot, { slot, record: cp.channels.get(slot) ?? null })
+  }
+
+  function noteMember(list: MemberList, id: string, channel: number, at: number | null) {
+    if (!batch) return
+    batch.members.push({ list, id, channel, at })
+    batch.lists.add(list)
+  }
+
+  /**
+   * Put a record into a slot, or empty it, as part of the open action.
+   *
+   * The one place the channel bank changes. An inline edit, a new channel, a
+   * delete and a preset stage all funnel through here, so the history cannot
+   * miss a change and the frozen list is republished exactly once per action
+   * rather than once per slot.
+   */
+  function writeSlot(slot: number, record: Channel | null) {
+    const cp = doc.value
+    if (!cp) return
+    noteSlot(slot)
+    if (record === null) cp.channels.delete(slot)
+    else cp.channels.set(slot, record)
+  }
+
+  /**
+   * Re-publish the frozen channel list after an action.
+   *
+   * The table's whole performance story rests on this staying copy-on-write. A
+   * slice with only the touched positions replaced changes exactly those rows'
+   * identity, so one edit re-renders one row of four thousand. Only an action
+   * that adds or removes a slot needs the list rebuilt, because that is the
+   * only case in which the other rows actually move.
+   */
+  function publishChannels(touched: Iterable<number>) {
+    const cp = doc.value
+    if (!cp) return
+    const list = channels.value
+    const positions = new Map<number, number>()
+    for (let i = 0; i < list.length; i++) positions.set(list[i]!.index, i)
+
+    const slots = [...touched]
+    for (const slot of slots) {
+      if (positions.has(slot) !== cp.channels.has(slot)) {
+        channels.value = Object.freeze(sortedChannels(cp).map((c) => Object.freeze(c)))
+        return
+      }
+    }
+
+    const copy = list.slice()
+    for (const slot of slots) {
+      const at = positions.get(slot)
+      // Both sides agreed above, so a slot missing here is one that was empty
+      // before the action and is empty after it - a write of null over nothing.
+      // There is no position to replace, and indexing by `undefined` would put
+      // a stray key on the array the table then renders.
+      if (at === undefined) continue
+      copy[at] = Object.freeze(cp.channels.get(slot)!)
+    }
+    channels.value = Object.freeze(copy)
+  }
+
+  /** Put a channel back where it sat in a zone or scan list, or take it out again. */
+  function applyMember(cp: Codeplug, m: MemberPatch) {
+    const list: (Zone | ScanList)[] = m.list === 'zones' ? cp.zones : cp.scanLists
+    const i = list.findIndex((e) => e.id === m.id)
+    const entry = list[i]
+    if (!entry) return
+    const now = positionOf(entry.channels, m.channel)
+    if (now === m.at) return
+    noteMember(m.list, m.id, m.channel, now)
+    list[i] = { ...entry, channels: withMember(entry.channels, m.channel, m.at) }
+  }
+
+  /**
+   * Group a burst of mutations into one undo step.
+   *
+   * Staging twenty preset channels is one thing the user did, so it has to be
+   * one thing they can take back; twenty steps to undo one decision is not a
+   * history, it is a chore. Nesting joins the group already open, which is what
+   * lets the mutations below be written once and used both ways.
+   */
+  function transact<T>(label: string, fn: () => T): T {
+    openBatch(label, true)
+    try {
+      return fn()
+    } finally {
+      closeBatch()
+    }
+  }
+
+  /**
+   * Put the codeplug back the way one recorded patch says it was.
+   *
+   * The inverse falls out of doing it: applying a patch notes what was there
+   * first, so what `closeBatch` hands back is precisely the patch that would
+   * restore things as they are now. Undo and redo are therefore the same code
+   * moving an entry between the two stacks.
+   */
+  function replay(entry: HistoryEntry): HistoryEntry | null {
+    const cp = doc.value
+    if (!cp) return null
+    openBatch(entry.label, false)
+    for (const p of entry.slots) writeSlot(p.slot, p.record)
+    for (const m of entry.members) applyMember(cp, m)
+    const inverse = closeBatch()
+
+    // `dirty` walks back with the edits, but only as far as the edits explain.
+    // Undoing everything this history knows about really does leave a codeplug
+    // the encoder renders byte-for-byte back to what the radio holds, and the
+    // write gate should say so rather than offering a write that sends nothing.
+    // Anything the history does not record is still unwritten, and the count of
+    // those is what keeps this from lying in the other direction.
+    dirty.value = entry.dirtyBefore || foreignEdits !== entry.foreignEdits
+    return inverse
+  }
+
+  function undo() {
+    if (!doc.value || undoStack.length === 0) return
+    const inverse = replay(undoStack.pop()!)
+    if (inverse) redoStack.push(inverse)
+    syncHistory()
+  }
+
+  function redo() {
+    if (!doc.value || redoStack.length === 0) return
+    const inverse = replay(redoStack.pop()!)
+    if (inverse) undoStack.push(inverse)
+    syncHistory()
+  }
+
   function load(newImage: RadioImage, driver: RadioDriver) {
     driverRef.value = markRaw(driver)
     // markRaw: a reactive typed array of this size creates a dependency entry
@@ -56,6 +432,10 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     image.value = markRaw(newImage)
     schema.value = markRaw(driver.schema)
     publish(driver.decode(newImage))
+    // Every recorded patch names slots in the codeplug that is being replaced.
+    // Applying one to the next radio's channel bank would not fail, which is
+    // precisely why it must not be possible.
+    clearHistory()
     revision.value++
     dirty.value = false
   }
@@ -125,23 +505,30 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     analog.value = null
     settings.value = {}
     diagnostics.value = []
+    clearHistory()
     dirty.value = false
     revision.value++
   }
 
   /** Copy-on-write at one index, so only that row's identity changes. */
   function updateChannel(index: number, patch: Partial<Channel>) {
-    const list = channels.value
-    const at = list.findIndex((c) => c.index === index)
-    if (at < 0) return
-    const next = Object.freeze({ ...list[at]!, ...patch })
-    const copy = list.slice()
-    copy[at] = next
-    channels.value = Object.freeze(copy)
-    doc.value?.channels.set(index, next)
-    revalidate()
-    revision.value++
-    dirty.value = true
+    const current = doc.value?.channels.get(index)
+    if (!current) return
+    transact('channel edit', () => writeSlot(index, Object.freeze({ ...current, ...patch })))
+  }
+
+  /**
+   * Put an exact record into a slot, or empty it.
+   *
+   * The verb bulk placement needs and `updateChannel` cannot express: that one
+   * patches a channel that is already there and refuses an empty slot, while
+   * staging a preset both moves channels between slots and programmes slots
+   * that held nothing. Wrap a run of these in `transact` and they take back as
+   * the single action they were.
+   */
+  function setChannelRecord(index: number, record: Channel | null) {
+    if (!doc.value) return
+    transact('placement', () => writeSlot(index, record))
   }
 
   /** Add or replace a key slot. */
@@ -152,9 +539,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     if (at >= 0) cp.encryptionKeys[at] = key
     else cp.encryptionKeys.push({ ...key })
     cp.encryptionKeys.sort((a, b) => a.slot - b.slot)
-    revalidate()
-    revision.value++
-    dirty.value = true
+    markEdited()
   }
 
   function removeEncryptionKey(slot: number) {
@@ -163,9 +548,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     const before = cp.encryptionKeys.length
     cp.encryptionKeys = cp.encryptionKeys.filter((k) => k.slot !== slot)
     if (cp.encryptionKeys.length === before) return
-    revalidate()
-    revision.value++
-    dirty.value = true
+    markEdited()
   }
 
   /** Remove a channel. The slot is erased on the radio when the image is written. */
@@ -214,13 +597,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
       extras: {},
     })
 
-    cp.channels.set(index, created)
-    channels.value = Object.freeze(
-      [...channels.value, created].sort((a, b) => a.index - b.index),
-    )
-    revalidate()
-    revision.value++
-    dirty.value = true
+    transact('new channel', () => writeSlot(index, created))
     return created
   }
 
@@ -240,9 +617,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     if (i < 0 || cp.zones[i]!.name === name) return
     cp.zones[i] = { ...cp.zones[i]!, name }
     zones.value = Object.freeze(cp.zones.map((z) => Object.freeze(z)))
-    revalidate()
-    revision.value++
-    dirty.value = true
+    markEdited()
   }
 
   /** Rename a talk group. Its number and call type come from the radio. */
@@ -253,9 +628,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     if (i < 0 || cp.talkGroups[i]!.name === name) return
     cp.talkGroups[i] = { ...cp.talkGroups[i]!, name }
     talkGroups.value = Object.freeze(cp.talkGroups.map((g) => Object.freeze(g)))
-    revalidate()
-    revision.value++
-    dirty.value = true
+    markEdited()
   }
 
   /**
@@ -266,6 +639,10 @@ export const useCodeplugStore = defineStore('codeplug', () => {
    * first and then republishes the second, so a component never sees a
    * half-updated list and `:key` identity changes for exactly the rows that
    * moved.
+   *
+   * None of these is recorded in the undo history, which is about channels;
+   * they announce themselves through `markEdited` instead so that undoing a
+   * channel edit cannot claim the codeplug is clean while one of them stands.
    */
   function republish() {
     const cp = doc.value
@@ -281,9 +658,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     roamZones.value = Object.freeze(cp.roamZones.map((z) => Object.freeze(z)))
     callList.value = Object.freeze(cp.callList.map((c) => Object.freeze(c)))
     settings.value = Object.freeze({ ...cp.settings })
-    revalidate()
-    revision.value++
-    dirty.value = true
+    markEdited()
   }
 
   /**
@@ -510,8 +885,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
 
   function deleteChannel(index: number) {
     const cp = doc.value
-    if (!cp?.channels.delete(index)) return
-    channels.value = Object.freeze(channels.value.filter((c) => c.index !== index))
+    if (!cp?.channels.has(index)) return
 
     // Take it out of everything that points at it, in the same edit.
     //
@@ -520,13 +894,13 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     // zone still pointing at the emptied slot is the one case this radio's
     // bytes could not settle, and the cheapest way to never rely on the answer
     // is to never create it.
-    cp.zones = cp.zones.map((z) =>
-      z.channels.includes(index) ? { ...z, channels: z.channels.filter((c) => c !== index) } : z,
-    )
-    cp.scanLists = cp.scanLists.map((l) =>
-      l.channels.includes(index) ? { ...l, channels: l.channels.filter((c) => c !== index) } : l,
-    )
-    republish()
+    //
+    // One transaction, so the channel and its memberships come back together.
+    transact('delete', () => {
+      writeSlot(index, null)
+      for (const zone of cp.zones) applyMember(cp, { list: 'zones', id: zone.id, channel: index, at: null })
+      for (const l of cp.scanLists) applyMember(cp, { list: 'scanLists', id: l.id, channel: index, at: null })
+    })
   }
 
   function revalidate() {
@@ -609,7 +983,15 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     encoded,
     encodeError,
     pendingWrite,
+    transact,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    undoLabel,
+    redoLabel,
     createChannel,
+    setChannelRecord,
     deleteChannel,
     renameZone,
     renameTalkGroup,

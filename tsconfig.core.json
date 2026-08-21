@@ -18,5 +18,8 @@
     "baseUrl": ".",
     "paths": { "#core/*": ["./lib/*"] }
   },
-  "include": ["lib/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"]
+  "include": ["lib/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
+  // test/nuxt/ holds the specs that import from app/, which this project
+  // deliberately cannot see. Nuxt's generated tsconfig.app.json owns them.
+  "exclude": ["test/nuxt/**"]
 }
