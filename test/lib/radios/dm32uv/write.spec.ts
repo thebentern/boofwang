@@ -25,6 +25,8 @@ import {
   CHANNEL_HEADER,
   CHANNEL_SIZE,
   channelSlot,
+  EMERGENCY_SIZE,
+  EMERGENCY_SLOTS,
   KEY_AREA,
   KEY_BLOCK,
   KEY_SLOTS,
@@ -109,8 +111,22 @@ describe('what a key write touches', () => {
     expect(equalBytes(out.subarray(0, KEY_AREA[0]), before.subarray(0, KEY_AREA[0]))).toBe(true)
   })
 
-  it('claims the key area in block 0x10, and only that area', () => {
-    expect(writable.ownedRanges(KEY_BLOCK_ADDR)).toEqual([KEY_AREA])
+  it('claims the key area in block 0x10, and the emergency names beside it', () => {
+    // The page holds three things: eight emergency systems at 0x000, the analog
+    // emergency section, and the key slots at 0x300. Only the names of the
+    // first and the whole of the last are ours.
+    const claimed = writable.ownedRanges(KEY_BLOCK_ADDR)
+    expect(claimed).toContainEqual(KEY_AREA)
+    expect(claimed.filter((r) => r[0] < KEY_AREA[0])).toHaveLength(EMERGENCY_SLOTS)
+    for (const [from, to] of claimed) {
+      if (from >= KEY_AREA[0]) continue
+      expect(to - from, 'an emergency claim wider than its name field').toBe(8)
+    }
+    // Nothing between the last emergency name and the key area.
+    const gapStart = (EMERGENCY_SLOTS - 1) * EMERGENCY_SIZE + 8
+    for (let i = gapStart; i < KEY_AREA[0]; i++) {
+      expect(claimed.some(([a, b]) => i >= a && i < b), `byte 0x${i.toString(16)}`).toBe(false)
+    }
   })
 
   it('never claims calibration', () => {

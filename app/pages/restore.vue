@@ -200,9 +200,9 @@ async function confirmRestore() {
             <strong style="font-weight: 600; color: var(--tx)">
               The {{ schema?.model }} only accepts writes to its {{ writeScope }}.
             </strong>
-            Those are put back and nothing else. The radio's own talk-group index, roaming zone
-            membership, the emergency systems, the DTMF and analog contact lists, and the twenty-odd memory
-            blocks nobody has decoded stay exactly as the radio has them now. The count at the end is of what was actually sent, so this is
+            Those are put back and nothing else. The radio's own ordering of its talk group list, roaming
+            zone membership, and the twenty-odd memory blocks nobody has decoded stay exactly as the radio
+            has them now — as do the individual settings inside other structures whose meaning is a guess. The count at the end is of what was actually sent, so this is
             not the full rollback the word restore usually promises.
           </p>
         </div>

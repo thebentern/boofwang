@@ -22,6 +22,7 @@ import {
   SCANLIST_SIZE,
   SETTINGS_BLOCK,
   ANALOG_BLOCK,
+  DTMF_SPECIAL_BASE,
   BDC_BASE,
   BDC_SIZE,
   EMERGENCY_SIZE,
@@ -1087,14 +1088,34 @@ describe('the structures decoded but never written', () => {
 
   it('shares its page with the key slots without disturbing them', () => {
     // Block 0x10 holds the emergency systems at 0x000 and the keys at 0x300.
-    // ownedRanges for it is still exactly the key area.
-    expect(d.ownedRanges(logicalAddress(KEY_BLOCK))).toEqual([KEY_AREA])
+    // Editing a key must not move an emergency byte, and the reverse.
     const img = image()
     const doc = d.decode(img)
     doc.encryptionKeys[0] = { ...doc.encryptionKeys[0]!, keyHex: 'AB'.repeat(32) }
     const out = d.encode(doc, img)
     const from = EMERGENCY_SLOTS * EMERGENCY_SIZE
     expect(equalBytes(page(out, KEY_BLOCK).subarray(0, from), page(img, KEY_BLOCK).subarray(0, from))).toBe(true)
+
+    const doc2 = d.decode(img)
+    doc2.emergency[0] = { ...doc2.emergency[0]!, name: 'RENAMED' }
+    const out2 = d.encode(doc2, img)
+    expect(d.decode(out2).emergency[0]!.name).toBe('RENAMED')
+    expect(
+      equalBytes(page(out2, KEY_BLOCK).subarray(KEY_AREA[0]), page(img, KEY_BLOCK).subarray(KEY_AREA[0])),
+      'renaming an emergency system moved a key slot',
+    ).toBe(true)
+  })
+
+  it('writes only the name of an emergency system', () => {
+    // Every field past the name is DERIVED, and all eight records here hold
+    // factory defaults byte-identical to a capture of a different unit.
+    const img = image()
+    const doc = d.decode(img)
+    doc.emergency[0] = { ...doc.emergency[0]!, name: 'AB', alarmType: 9, alarmMode: 9, revertChannel: 99 }
+    const out = d.encode(doc, img)
+    const rec = page(out, KEY_BLOCK).subarray(0, EMERGENCY_SIZE)
+    const was = page(img, KEY_BLOCK).subarray(0, EMERGENCY_SIZE)
+    expect(equalBytes(rec.subarray(8), was.subarray(8)), 'a derived field was written').toBe(true)
   })
 
   it('reads the DTMF codes and both analog contact lists', () => {
@@ -1111,11 +1132,63 @@ describe('the structures decoded but never written', () => {
     expect(a.bdcContacts[0]!.number).toBe(1)
   })
 
-  it('claims nothing in the analog block', () => {
-    expect(d.ownedRanges(logicalAddress(ANALOG_BLOCK))).toEqual([])
+  it('round-trips the analog block untouched', () => {
     const img = image()
     const out = d.encode(d.decode(img), img)
     expect(equalBytes(page(out, ANALOG_BLOCK), page(img, ANALOG_BLOCK))).toBe(true)
+  })
+
+  it('writes a DTMF code back in the radio’s own encoding', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.analog!.dtmfCodes[0] = '99#12'
+    const out = d.encode(doc, img)
+    expect(d.decode(out).analog!.dtmfCodes[0]).toBe('99#12')
+    // One digit per byte, 0xFF ends it and fills the rest of the slot.
+    expect([...page(out, ANALOG_BLOCK).subarray(0, 7)]).toEqual([9, 9, 0x0f, 1, 2, 0xff, 0xff])
+  })
+
+  it('writes both contact lists, and the MDC number as BCD', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.analog!.contacts[0] = 'RENAMED'
+    doc.analog!.bdcContacts[0] = { name: 'MDC ONE', number: 42 }
+    const back = d.decode(d.encode(doc, img)).analog!
+    expect(back.contacts[0]).toBe('RENAMED')
+    expect(back.bdcContacts[0]).toEqual({ name: 'MDC ONE', number: 42 })
+    expect(page(d.encode(doc, img), ANALOG_BLOCK)[BDC_BASE + 0x10], 'stored as BCD').toBe(0x42)
+  })
+
+  it('refuses an MDC number wider than the two digits stored', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.analog!.bdcContacts[0] = { ...doc.analog!.bdcContacts[0]!, number: 250 }
+    expect(() => d.encode(doc, img)).toThrow(/two BCD digits/)
+  })
+
+  it('never claims the DTMF settings record', () => {
+    // Of its sixteen bytes the reference names four, disagrees with the
+    // hardware on one, and marks the rest unknown.
+    const claimed = d.ownedRanges(logicalAddress(ANALOG_BLOCK), image())
+    for (let i = 0x100; i < DTMF_SPECIAL_BASE; i++) {
+      expect(claimed.some(([a, b]) => i >= a && i < b), `byte 0x${i.toString(16)}`).toBe(false)
+    }
+  })
+
+  it('writes a roaming zone name and leaves its header alone', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.roamZones[0] = { ...doc.roamZones[0]!, name: 'HILLTOPS' }
+    const out = d.encode(doc, img)
+    expect(d.decode(out).roamZones[0]!.name).toBe('HILLTOPS')
+    // The count and the fifteen bytes beside it are the radio's.
+    expect(equalBytes(page(out, ROAMZONE_BLOCK).subarray(0, 0x10), page(img, ROAMZONE_BLOCK).subarray(0, 0x10))).toBe(true)
+    // And the member area of the record it renamed.
+    const memberAt = 0x10 + 0x10
+    expect(
+      equalBytes(page(out, ROAMZONE_BLOCK).subarray(memberAt, 0x10 + 33), page(img, ROAMZONE_BLOCK).subarray(memberAt, 0x10 + 33)),
+      'membership was written',
+    ).toBe(true)
   })
 })
 

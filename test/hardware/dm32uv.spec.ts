@@ -9,10 +9,12 @@ import { REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import {
   RXGROUP_BLOCK,
+  ANALOG_BLOCK,
   MESSAGE_BLOCK,
   MESSAGE_HEADER,
   ROAMCHANNEL_BLOCK,
   ROAMCHANNEL_COUNT_AT,
+  ROAMZONE_BLOCK,
   TXCONTACT_BLOCK_HIGH,
   TXCONTACT_BLOCK_LOW,
   SCANLIST_BLOCK,
@@ -221,6 +223,22 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       // So 0x43 is covered by the unit tests against this radio's own image,
       // and the limitation is written down rather than quietly skipped.
 
+      // The three that were read-only until now: names and codes only.
+      const zoneNameWas = doc.roamZones[0]?.name
+      if (doc.roamZones[0]) doc.roamZones[0] = { ...doc.roamZones[0], name: 'HW RZ' }
+      const emergWas = doc.emergency[0]
+      if (emergWas) doc.emergency[0] = { ...emergWas, name: 'HW EM' }
+      const dtmfWas = doc.analog?.dtmfCodes[0]
+      const bdcWas = doc.analog?.bdcContacts[0]
+      if (doc.analog) {
+        doc.analog = {
+          ...doc.analog,
+          dtmfCodes: doc.analog.dtmfCodes.map((c, i) => (i === 0 ? '99#12' : c)),
+          contacts: doc.analog.contacts.map((c, i) => (i === 0 ? 'HW AC' : c)),
+          bdcContacts: doc.analog.bdcContacts.map((c, i) => (i === 0 ? { name: 'HW MDC', number: 42 } : c)),
+        }
+      }
+
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
       doc.settings['callsignColour.colour'] = 5
@@ -364,10 +382,49 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
         'block 0x43 moved without being asked to',
       ).toBe(true)
 
-      // Decoded but never written, so a codeplug edit must not move them.
-      expect(driver.decode(after).emergency).toEqual(driver.decode(baseline).emergency)
-      expect(driver.decode(after).analog).toEqual(driver.decode(baseline).analog)
-      expect(driver.decode(after).roamZones).toEqual(driver.decode(baseline).roamZones)
+      // Anything in these three that was NOT edited above must be unchanged -
+      // only names and codes are written, never the derived fields beside them.
+      const wasAnalog = driver.decode(baseline).analog
+      const nowAnalog = driver.decode(after).analog
+      if (wasAnalog && nowAnalog) {
+        expect(nowAnalog.dtmfCodes.slice(1)).toEqual(wasAnalog.dtmfCodes.slice(1))
+        expect(nowAnalog.dtmfSpecialCodes).toEqual(wasAnalog.dtmfSpecialCodes)
+        expect(nowAnalog.contacts.slice(1)).toEqual(wasAnalog.contacts.slice(1))
+        expect(nowAnalog.bdcContacts.slice(1)).toEqual(wasAnalog.bdcContacts.slice(1))
+      }
+      expect(driver.decode(after).emergency.slice(1)).toEqual(driver.decode(baseline).emergency.slice(1))
+      expect(driver.decode(after).roamZones.slice(1)).toEqual(driver.decode(baseline).roamZones.slice(1))
+
+      if (zoneNameWas !== undefined) {
+        expect(back.roamZones[0]!.name, 'the roaming zone name did not reach the radio').toBe('HW RZ')
+        // The count byte and the fifteen beside it are the radio's.
+        expect(
+          equalBytes(block(after, ROAMZONE_BLOCK).subarray(0, 0x10), block(baseline, ROAMZONE_BLOCK).subarray(0, 0x10)),
+          'the roaming zone page header was written',
+        ).toBe(true)
+      }
+
+      if (emergWas) {
+        const now = driver.decode(after).emergency[0]!
+        expect(now.name, 'the emergency name did not reach the radio').toBe('HW EM')
+        // Every field past the name is derived and must not have moved.
+        expect(now.alarmType).toBe(emergWas.alarmType)
+        expect(now.alarmMode).toBe(emergWas.alarmMode)
+        expect(now.revertChannel).toBe(emergWas.revertChannel)
+      }
+
+      if (dtmfWas !== undefined) {
+        const nowAnalog = driver.decode(after).analog!
+        expect(nowAnalog.dtmfCodes[0], 'the DTMF code did not reach the radio').toBe('99#12')
+        expect(nowAnalog.contacts[0]).toBe('HW AC')
+        expect(nowAnalog.bdcContacts[0], 'the MDC number is BCD').toEqual({ name: 'HW MDC', number: 42 })
+        expect(bdcWas).toBeTruthy()
+        // The DTMF settings record between the two code lists is not ours.
+        expect(
+          equalBytes(block(after, ANALOG_BLOCK).subarray(0x100, 0x110), block(baseline, ANALOG_BLOCK).subarray(0x100, 0x110)),
+          'the DTMF settings record was written',
+        ).toBe(true)
+      }
 
       expect(back.settings.powerOnLine1).toBe('HW BOOF')
       expect(back.settings['callsignColour.colour']).toBe(5)

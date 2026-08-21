@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
-import { createDm32uvDriver } from '#core/radios/dm32uv/driver.js'
+import { analogRanges, createDm32uvDriver, emergencyNameRanges, roamZoneNameRanges } from '#core/radios/dm32uv/driver.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
 import { fromStoredBackup, toStoredBackup } from '#core/storage/db.js'
@@ -175,15 +175,15 @@ describe('nothing claims more than it writes', () => {
   const EXPECTED: Record<number, readonly (readonly [number, number])[]> = {
     0x02: [], // calibration, permanently blocked
     0x04: d.ownedRanges(logicalAddress(0x04), image()), // settings: the struct's own ranges
-    0x06: [], // analog config, decoded and never written
+    0x06: analogRanges(image()), // DTMF codes and both contact lists, field by field
     0x0a: [[0, PAGE_SIZE - 1]], // messages
     0x0b: [], // talk group index, derived
     0x0f: [[0, 4], [RXGROUP_HEADER, PAGE_SIZE - 1]], // RX groups: bitmask, then records
-    0x10: [KEY_AREA], // key slots only - the emergency systems share this page
+    0x10: [...emergencyNameRanges(), KEY_AREA], // emergency names, then the key slots
     0x11: [[0, PAGE_SIZE - 1]], // scan lists
     0x42: [[0, PAGE_SIZE - 1]], // TX contact, channels 1-2047
     0x43: [[0, TXCONTACT_HIGH_LIMIT]], // TX contact, high - stops before the residue
-    0x65: [], // roaming zones, decoded and never written
+    0x65: roamZoneNameRanges(image()), // names only - membership is unresolved
     0x66: [
       [0, ROAMCHANNEL_SLOTS * ROAMCHANNEL_SIZE],
       [ROAMCHANNEL_COUNT_AT, ROAMCHANNEL_COUNT_AT + 1],
@@ -247,12 +247,22 @@ describe('nothing claims more than it writes', () => {
     }
   })
 
-  it('claims nothing at all in the blocks that are decoded but never written', () => {
-    // Emergency systems share block 0x10 with the key slots; the analog config
-    // and roaming zones have pages of their own. All three are read.
-    expect(d.ownedRanges(logicalAddress(0x06), image()), 'analog config').toEqual([])
-    expect(d.ownedRanges(logicalAddress(0x65), image()), 'roaming zones').toEqual([])
+  it('claims nothing at all in the blocks that are never written', () => {
+    // The talk group index is derived from five interdependent parts; block
+    // 0x43's tail is stale zone records; calibration is blocked outright.
     expect(d.ownedRanges(logicalAddress(0x0b), image()), 'talk group index').toEqual([])
+    expect(d.ownedRanges(logicalAddress(0x02), image()), 'calibration').toEqual([])
+  })
+
+  it('claims only names and codes in the three that are mostly derived', () => {
+    // Roaming zones, the emergency systems and the analog config are written
+    // for their names and codes and nothing else. Each claim must be a small
+    // fraction of its page, or something wider has crept in.
+    const img = image()
+    for (const [id, cap] of [[0x06, 700], [0x65, 700], [0x10, 1100]] as const) {
+      const total = d.ownedRanges(logicalAddress(id), img).reduce((n, [a, b]) => n + (b - a), 0)
+      expect(total, `block 0x${id.toString(16)} claims too much of its page`).toBeLessThan(cap)
+    }
   })
 })
 

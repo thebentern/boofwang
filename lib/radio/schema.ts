@@ -82,10 +82,10 @@ export interface RadioSchema {
      * What a write can actually reach, in the user's words, when it is not
      * the whole codeplug.
      *
-     * The DM-32UV reaches nearly everything it decodes. What it does not reach
-     * - roaming zone membership, the emergency systems, the DTMF and analog
-     * contact lists, and the blocks nothing has decoded - is the short half,
-     * which is what `writeExcept` is for.
+     * The DM-32UV reaches nearly everything it decodes, so it declares no
+     * `writeExcept` at all - what it misses is one index the radio rebuilds for
+     * itself and a scatter of fields whose meaning is a guess, neither of which
+     * belongs on a one-line chip.
      * Without saying so, editing something outside that on that radio looks
      * like it worked - the table updates, the write button lights up - and the
      * write then reports "nothing has changed", which is both false and

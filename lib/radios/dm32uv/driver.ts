@@ -60,6 +60,7 @@ import {
   DM32_ZONE,
   DTMF_CODE_SIZE,
   DTMF_CODE_SLOTS,
+  DTMF_DIGITS,
   DTMF_SPECIAL_BASE,
   DTMF_SPECIAL_SLOTS,
   EMERGENCY_SIZE,
@@ -209,6 +210,8 @@ function writeTargets(image: RadioImage): WriteTarget[] {
   add(SCANLIST_BLOCK, `block 0x${SCANLIST_BLOCK.toString(16)} (scan lists)`)
   add(MESSAGE_BLOCK, `block 0x${MESSAGE_BLOCK.toString(16)} (text messages)`)
   add(ROAMCHANNEL_BLOCK, `block 0x${ROAMCHANNEL_BLOCK.toString(16)} (roaming channels)`)
+  add(ROAMZONE_BLOCK, `block 0x${ROAMZONE_BLOCK.toString(16)} (roaming zone names)`)
+  add(ANALOG_BLOCK, `block 0x${ANALOG_BLOCK.toString(16)} (DTMF and analog contacts)`)
   add(TXCONTACT_BLOCK_LOW, `block 0x${TXCONTACT_BLOCK_LOW.toString(16)} (channel talk groups)`)
   add(TXCONTACT_BLOCK_HIGH, `block 0x${TXCONTACT_BLOCK_HIGH.toString(16)} (channel talk groups, high)`)
   // Settings decide how the radio behaves rather than what it can hear, so they
@@ -318,10 +321,18 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
            */
           writeScope:
             'channels and their talk groups, zones, talk groups, scan lists, RX groups, contacts, ' +
-            'text messages, roaming channels, radio settings and encryption keys',
-          // Everything the driver decodes is written now bar one derived index,
-          // so the exclusions are the short half and the chip uses them.
-          writeExcept: 'roaming zones, the talk-group ordering, emergency systems and DTMF',
+            'text messages, roaming, emergency system names, DTMF, radio settings and encryption keys',
+          /*
+           * No writeExcept any more. What a write does not reach is now one
+           * derived index the radio rebuilds for itself - block 0x0B, its own
+           * ordering of the talk group list - plus the individual fields inside
+           * other structures whose meaning is a guess. Neither is something a
+           * user goes looking for, and naming them on a one-line chip made a
+           * driver that writes nearly everything read as though it did not.
+           *
+           * The restore screen still carries the precise list, because that is
+           * where "what will actually be put back" is the question being asked.
+           */
         },
       }
     : DM32UV_SCHEMA
@@ -709,10 +720,19 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           ? await readRawPage(t, physical, opts)
           : await readPage(t, physical, blockId, opts)
 
-        const merged =
-          blockId === KEY_BLOCK
-            ? mergeKeySlots(live, desired.data, base)
-            : mergeOwned(live, desired.data, base, owned)
+        // Byte by byte across everything this block owns, then the key slots
+        // again a whole slot at a time.
+        //
+        // Both, not one or the other. Block 0x10 carries the key slots AND the
+        // eight emergency system names, and merging only the slots meant an
+        // emergency rename was encoded into the image and then quietly dropped
+        // on the way to the radio - the third time this project has widened an
+        // encoder without widening what carries it.
+        const merged = mergeOwned(live, desired.data, base, owned)
+        if (blockId === KEY_BLOCK) {
+          const keys = mergeKeySlots(live, desired.data, base)
+          merged.set(keys.subarray(KEY_AREA[0], KEY_AREA[1]), KEY_AREA[0])
+        }
         // The tail byte is never ours to change. On a config page it must read
         // back as the block id; in the address book it is whatever was there.
         if (!raw) merged[PAGE_SIZE - 1] = blockId
@@ -926,6 +946,9 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       encodeTxContacts(out, doc)
       encodeMessages(out, doc.messages)
       encodeRoamChannels(out, doc.roamChannels)
+      encodeRoamZones(out, doc.roamZones)
+      encodeEmergency(out, doc.emergency)
+      encodeAnalog(out, doc.analog)
 
       return { ...out, sha256: '' }
     },
@@ -974,7 +997,8 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
      * thing standing between a bug and 22 blocks of unrecoverable memory.
      */
     ownedRanges: (regionStart: number, image?: RadioImage) => {
-      if (regionStart === logicalAddress(KEY_BLOCK)) return [KEY_AREA]
+      // The key slots, and the eight emergency names that share the page.
+      if (regionStart === logicalAddress(KEY_BLOCK)) return [...emergencyNameRanges(), KEY_AREA]
 
       const blockId = regionStart >>> 12
       if (blockId >= CHANNEL_BLOCK_FIRST && blockId <= CHANNEL_BLOCK_LAST) {
@@ -1005,6 +1029,10 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // what this build models.
       if (blockId === TXCONTACT_BLOCK_HIGH) return [[0, TXCONTACT_HIGH_LIMIT] as const]
       if (blockId === MESSAGE_BLOCK) return [[0, PAGE_SIZE - 1] as const]
+      // Names and codes only. The settings record between the DTMF lists and
+      // the zone header beside the count are left to the radio.
+      if (blockId === ANALOG_BLOCK) return image ? analogRanges(image) : []
+      if (blockId === ROAMZONE_BLOCK) return image ? roamZoneNameRanges(image) : []
       // The records, then the count trailer. The fourteen bytes after it are
       // unexplained and the block id is never ours.
       if (blockId === ROAMCHANNEL_BLOCK) {
@@ -2189,4 +2217,136 @@ export function decodeAnalog(image: RadioImage): Codeplug['analog'] {
   }
 
   return { dtmfCodes: codes, dtmfSpecialCodes: special, contacts, bdcContacts }
+}
+
+/**
+ * Write the roaming zone names back.
+ *
+ * The name and nothing else. A zone's member list needs an entry width nobody
+ * has established, and all three zones on the radio this was written against
+ * hold zero members, so its own bytes cannot settle it either. The count byte
+ * and the fifteen header bytes beside it stay as the radio has them, which is
+ * why zones cannot be added or removed here.
+ */
+export function encodeRoamZones(image: RadioImage, zones: Codeplug['roamZones']): void {
+  const data = blockData(image, ROAMZONE_BLOCK)
+  if (!data) return
+  const total = Math.min(data[0]!, ROAMZONE_SLOTS)
+
+  let docIndex = 0
+  for (let n = 0; n < total; n++) {
+    const off = ROAMZONE_HEADER + n * ROAMZONE_SIZE
+    if (off + ROAMZONE_SIZE > PAGE_SIZE - 1) break
+    // Mirror the decoder's skip of unnamed records, so the nth zone in the
+    // document lands on the nth record the decoder produced.
+    if (!DM32_ROAMZONE.read(data, off).name.trimEnd()) continue
+    const zone = zones[docIndex]
+    docIndex++
+    if (!zone) continue
+    DM32_ROAMZONE.write(data, off, { name: zone.name })
+  }
+}
+
+/**
+ * Write the emergency system names back.
+ *
+ * Names only, and the reason is written down rather than assumed: every field
+ * past the name is marked DERIVED by the reference, and all eight records on
+ * the radio this was written against hold factory defaults byte-identical to a
+ * capture of a different unit - so nothing here has ever been seen to vary, and
+ * a value that has never varied is a value whose meaning is untested.
+ */
+export function encodeEmergency(image: RadioImage, systems: Codeplug['emergency']): void {
+  const data = blockData(image, KEY_BLOCK)
+  if (!data) return
+  for (const system of systems) {
+    const n = system.slot - 1
+    if (n < 0 || n >= EMERGENCY_SLOTS) continue
+    DM32_EMERGENCY.write(data, n * EMERGENCY_SIZE, { name: system.name })
+  }
+}
+
+/**
+ * Write the DTMF codes and the two analog contact lists back.
+ *
+ * The settings record between the code lists is left alone: of its sixteen
+ * bytes the reference names four, disagrees with the hardware on one of them,
+ * and marks the rest unknown.
+ */
+export function encodeAnalog(image: RadioImage, analog: Codeplug['analog']): void {
+  const data = blockData(image, ANALOG_BLOCK)
+  if (!data || !analog) return
+
+  const writeCode = (at: number, code: string) => {
+    for (let i = 0; i < DTMF_CODE_SIZE; i++) {
+      const digit = i < code.length ? DTMF_DIGITS.indexOf(code[i]!.toUpperCase()) : -1
+      // 0xFF ends a code and marks the rest of the slot unused, which is what
+      // the radio itself stores.
+      data[at + i] = digit < 0 ? 0xff : digit
+    }
+  }
+
+  analog.dtmfCodes.forEach((code, n) => {
+    if (n < DTMF_CODE_SLOTS) writeCode(n * DTMF_CODE_SIZE, code)
+  })
+  analog.dtmfSpecialCodes.forEach((code, n) => {
+    if (n < DTMF_SPECIAL_SLOTS) writeCode(DTMF_SPECIAL_BASE + n * DTMF_CODE_SIZE, code)
+  })
+
+  const contactCount = data[ANALOG_CONTACT_COUNT_AT]!
+  analog.contacts.forEach((name, n) => {
+    if (n >= contactCount) return
+    const at = ANALOG_CONTACT_BASE + n * ANALOG_CONTACT_SIZE
+    if (at + ANALOG_CONTACT_SIZE <= PAGE_SIZE - 1) DM32_ANALOG_CONTACT.write(data, at, { name })
+  })
+
+  const bdcCount = data[BDC_COUNT_AT]!
+  analog.bdcContacts.forEach((contact, n) => {
+    if (n >= bdcCount) return
+    const at = BDC_BASE + n * BDC_SIZE
+    if (at + BDC_SIZE > PAGE_SIZE - 1) return
+    if (contact.number < 0 || contact.number > 99) {
+      throw new DriverError(`MDC1200 number ${contact.number} does not fit the two BCD digits stored.`)
+    }
+    DM32_BDC_CONTACT.write(data, at, { name: contact.name, number: contact.number })
+  })
+}
+
+/** The name field of every emergency record, and nothing else in the page. */
+export function emergencyNameRanges(): ReadonlyArray<readonly [number, number]> {
+  return Array.from({ length: EMERGENCY_SLOTS }, (_, n) => [n * EMERGENCY_SIZE, n * EMERGENCY_SIZE + 8] as const)
+}
+
+/** The DTMF code slots and the two contact lists, field by field. */
+export function analogRanges(image: RadioImage): ReadonlyArray<readonly [number, number]> {
+  const data = blockData(image, ANALOG_BLOCK)
+  const out: (readonly [number, number])[] = [[0, DTMF_CODE_SLOTS * DTMF_CODE_SIZE]]
+  out.push([DTMF_SPECIAL_BASE, DTMF_SPECIAL_BASE + DTMF_SPECIAL_SLOTS * DTMF_CODE_SIZE])
+
+  // Only the records the block says exist. A slot past the count has never been
+  // ours and may hold bytes nobody has explained.
+  const contacts = data ? data[ANALOG_CONTACT_COUNT_AT]! : 0
+  for (let n = 0; n < contacts; n++) {
+    const at = ANALOG_CONTACT_BASE + n * ANALOG_CONTACT_SIZE
+    if (at + 16 <= PAGE_SIZE - 1) out.push([at, at + 16])
+  }
+  const bdc = data ? data[BDC_COUNT_AT]! : 0
+  for (let n = 0; n < bdc; n++) {
+    const at = BDC_BASE + n * BDC_SIZE
+    if (at + 17 <= PAGE_SIZE - 1) out.push([at, at + 17])
+  }
+  return out
+}
+
+/** The name field of every roaming zone record the block says exists. */
+export function roamZoneNameRanges(image: RadioImage): ReadonlyArray<readonly [number, number]> {
+  const data = blockData(image, ROAMZONE_BLOCK)
+  if (!data) return []
+  const total = Math.min(data[0]!, ROAMZONE_SLOTS)
+  const out: (readonly [number, number])[] = []
+  for (let n = 0; n < total; n++) {
+    const off = ROAMZONE_HEADER + n * ROAMZONE_SIZE
+    if (off + 16 <= PAGE_SIZE - 1) out.push([off, off + 16])
+  }
+  return out
 }

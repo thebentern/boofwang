@@ -529,6 +529,57 @@ over-claim this driver exists to avoid — passed it. Each claim is now pinned t
 the layout constants that justify it, and a block on this radio that is in
 neither the table nor the never-written set fails the suite.
 
+## Names and codes in the last three — 2026-08-21
+
+Roaming zones, the emergency systems and the analog config were read-only
+because most of their fields are marked DERIVED. But each has fields the
+reference marks CONFIRMED, and those are now written:
+
+| Structure | Written | Left to the radio |
+|---|---|---|
+| Roaming zones `0x65` | the 16-byte name | the count byte, the fifteen header bytes beside it, and membership |
+| Emergency `0x10` @`0x000` | the 8-byte name | every field past it — all DERIVED, and identical on two units |
+| Analog `0x06` | DTMF codes, both contact lists | the settings record at `0x100` |
+
+The MDC1200 contact number is packed **BCD** and is validated against two digits
+rather than a byte. A DTMF code is written one digit per byte with `0xFF` ending
+it and filling the rest of the slot, which is what the radio stores.
+
+`ownedRanges` for these three is computed field by field rather than declared as
+a page: block `0x06` claims the code slots and only the contact records the
+block's own counts say exist, and `0x65` claims only the name of each record the
+count reaches. The DTMF settings record — sixteen bytes of which the reference
+names four, disagrees with the hardware on one, and marks the rest unknown — is
+claimed by nothing.
+
+### The merge bug hardware caught and the tests did not
+
+Block `0x10` carries the key slots **and** the eight emergency names, and the
+key slots have a merge of their own so that half an old key and half a new one
+cannot reach the radio. That special case was the *only* merge applied to the
+page:
+
+```ts
+const merged = blockId === KEY_BLOCK
+  ? mergeKeySlots(live, desired.data, base)   // 0x300-0x45F only
+  : mergeOwned(live, desired.data, base, owned)
+```
+
+So an emergency rename was encoded into the image, ACKed, read back, and
+reported verified — with the name unchanged on the radio. The third time this
+project has widened an encoder without widening what carries it, and the first
+time the unit tests missed it entirely: they exercise `encode()` and
+`ownedRanges`, and this was neither.
+
+Both merges now run: byte-wise across everything the block owns, then the key
+slots again a whole slot at a time.
+
+The test that should have caught it exists now, and so does the one that tells
+the two merges apart — which the obvious test does not. Change a key on the
+radio's keypad, then edit one byte of that key in a codeplug read before the
+change: a byte-wise merge sends that one byte onto the radio's key and leaves it
+holding `FF1111…`, half of each.
+
 ## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied
@@ -545,10 +596,13 @@ neither the table nor the never-written set fails the suite.
 - **Writing block `0x43`**, the TX contact for channels above 2047. Decoded and
   never written: its tail on this radio holds `"Zone 1"` strings rather than
   contact data.
-- **Writing** roaming zones, the emergency systems and the analog config. All
-  three are decoded and shown; see above for why each is read only.
-- The analog emergency section of `0x10` at `0x0AC`, and the `0x0A20` record in
-  block `0x06`. Neither is decoded.
+- **Roaming zone membership**, and every emergency and DTMF field past the name
+  or code. See above — each is left alone for a stated reason, not for lack of
+  effort.
+- **The analog emergency section** of `0x10` at `0x0AC` and the `0x0A20` record
+  in block `0x06`, neither decoded — and neither decodable from this radio: the
+  first is 608 bytes holding exactly one non-zero byte, and the second is six
+  bytes with no structure to infer.
 - **Hardware-writing block `0x43`.** Unit-verified against this radio's image;
   see above for why it is not exercised on the radio itself.
 - The meaning of 22 allocated blocks.

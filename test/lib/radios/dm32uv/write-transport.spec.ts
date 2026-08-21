@@ -9,7 +9,7 @@ import type { RadioImage } from '#core/radio/image.js'
 import { createDm32uvDriver } from '#core/radios/dm32uv/driver.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import { PAGE_SIZE, PAGE_TAIL } from '#core/radios/dm32uv/protocol.js'
-import { DM32_CONTACT, contactSlot } from '#core/radios/dm32uv/layout.js'
+import { KEY_AREA, DM32_CONTACT, contactSlot  } from '#core/radios/dm32uv/layout.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { FakeSerialPort } from '#core/transport/fake-serial-port.js'
 
@@ -557,5 +557,97 @@ describe('readImage, and the shape it hands the rest of the app', () => {
     const img = await writable.readImage(t, identFor(radio, false), {})
     expect(img.regions.filter((r) => r.start >= CONTACTS_BASE)).toEqual([])
     expect(writable.decode(img).contacts).toEqual([])
+  })
+
+  it('sends everything a block owns, not just the part with a special merge', async () => {
+    // Block 0x10 carries the encryption key slots AND the eight emergency
+    // system names, and the key slots get a merge of their own so that half an
+    // old key and half a new one is impossible. That special case used to be
+    // the ONLY merge applied to the page, so an emergency rename was encoded
+    // into the image and then dropped on the way out - encoded, ACKed, read
+    // back, and reported verified, with the name unchanged on the radio.
+    //
+    // Hardware caught this, not the suite. This is the test that should have.
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const img = image()
+    const doc = writable.decode(img)
+    expect(doc.emergency.length, 'the fixture has no emergency systems').toBeGreaterThan(0)
+    doc.emergency[0] = { ...doc.emergency[0]!, name: 'SENT' }
+
+    await writable.writeImage(t, writable.encode(doc, img), ctxFor(radio, await backupFor(radio), img))
+
+    expect(radio.writes).toHaveLength(1)
+    expect(radio.writes[0]!.data[PAGE_TAIL], 'the page written').toBe(0x10)
+    const onRadio = radio.pages.get(radio.writes[0]!.addr)!
+    expect(
+      writable.decode({ ...img, regions: img.regions.map((r) => (r.start === logicalAddress(0x10) ? { ...r, data: onRadio } : r)) })
+        .emergency[0]!.name,
+      'the emergency name never left the encoder',
+    ).toBe('SENT')
+  })
+
+  it('sends a whole key slot when only part of it was edited', async () => {
+    // The discriminator between the two merges, and the reason the key slots
+    // have one of their own.
+    //
+    // Someone reads on Monday, changes a key on the radio's own keypad on
+    // Tuesday, then opens Monday's codeplug and edits one byte of that key.
+    // A byte-wise merge sends that one byte onto Tuesday's key and leaves the
+    // radio holding half of each - a key that decrypts nothing, and unlike a
+    // channel you cannot look at the radio and see it is wrong.
+    const radio = fakeRadio()
+    const img = image()
+    const doc = writable.decode(img)
+    const slot = doc.encryptionKeys[0]!
+    const bytes = slot.keyHex.length / 2
+
+    // Tuesday: a different key on the radio than in the image.
+    const onRadioBefore = [...radio.pages.entries()].find(([, p]) => p[PAGE_TAIL] === 0x10)!
+    const keyAt = KEY_AREA[0] + 0x0c
+    onRadioBefore[1].fill(0x11, keyAt, keyAt + bytes)
+
+    // Wednesday: edit one byte of the key the image holds.
+    const edited = 'FF' + slot.keyHex.slice(2)
+    doc.encryptionKeys[0] = { ...slot, keyHex: edited }
+
+    const t = await connect(radio)
+    await writable.writeImage(t, writable.encode(doc, img), ctxFor(radio, await backupFor(radio), img))
+
+    const after = radio.pages.get(radio.writes[0]!.addr)!
+    const back = writable.decode({
+      ...img,
+      regions: img.regions.map((r) => (r.start === logicalAddress(0x10) ? { ...r, data: after } : r)),
+    })
+    expect(back.encryptionKeys[0]!.keyHex.toUpperCase(), 'the radio holds half of each key').toBe(
+      edited.toUpperCase(),
+    )
+    expect(
+      [...after.subarray(keyAt, keyAt + bytes)].some((b) => b === 0x11),
+      'a byte of the key that was on the radio survived into the merged slot',
+    ).toBe(false)
+  })
+
+  it('still merges the key slots a whole slot at a time', async () => {
+    // The reason block 0x10 has a merge of its own: byte granularity here would
+    // let half an old key and half a new one reach the radio, and unlike a
+    // channel you cannot look at the radio and see that it is wrong.
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const img = image()
+    const doc = writable.decode(img)
+    const slot = doc.encryptionKeys[0]!
+    doc.encryptionKeys[0] = { ...slot, keyHex: 'AB'.repeat(slot.keyHex.length / 2) }
+
+    await writable.writeImage(t, writable.encode(doc, img), ctxFor(radio, await backupFor(radio), img))
+
+    const onRadio = radio.pages.get(radio.writes[0]!.addr)!
+    const back = writable.decode({
+      ...img,
+      regions: img.regions.map((r) => (r.start === logicalAddress(0x10) ? { ...r, data: onRadio } : r)),
+    })
+    expect(back.encryptionKeys[0]!.keyHex.toUpperCase()).toBe('AB'.repeat(slot.keyHex.length / 2))
+    // And the other slots are untouched.
+    expect(back.encryptionKeys.slice(1)).toEqual(doc.encryptionKeys.slice(1))
   })
 })
