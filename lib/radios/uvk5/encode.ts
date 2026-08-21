@@ -24,6 +24,7 @@ import {
   bandForFreq,
   channelAddr,
   nameAddr,
+  STOCK_SETTINGS_BLOCKS,
 } from './layout.js'
 import { UVK5_SCHEMA } from './schema.js'
 
@@ -232,9 +233,9 @@ export function encodeChannel(mem: Uint8Array, slot: number, ch: Channel): void 
  * Write a whole codeplug into the programmable region of an existing image.
  *
  * `mem` is expected to be a copy of the bytes read from the radio, not a fresh
- * buffer. Everything outside the channel, name and attribute tables is left
- * exactly as the radio had it - settings, DTMF contacts, the boot logo, and
- * every byte this codebase has never decoded.
+ * buffer. Everything outside the channel, name, attribute and settings blocks
+ * is left exactly as the radio had it - DTMF contacts, the eight password
+ * bytes, and every byte this codebase has never decoded.
  */
 export function encodeInto(mem: Uint8Array, doc: Codeplug): void {
   for (let slot = 0; slot < CHANNEL_COUNT; slot++) {
@@ -249,6 +250,46 @@ export function encodeInto(mem: Uint8Array, doc: Codeplug): void {
     // "tidying" those breaks the round-trip invariant for no benefit. Erasing
     // is for a channel the user actually deleted.
     if (!isErasedRecord(mem, channelAddr(slot))) eraseChannel(mem, slot)
+  }
+  encodeStockSettings(mem, doc.settings)
+}
+
+/**
+ * The stock firmware's settings, spread over seven blocks.
+ *
+ * Egzumer keeps all of this in one window; stock does not, and the addresses
+ * are not a rearrangement of each other. Written as a partial patch for the
+ * same reason the channel records are: a key this build does not name keeps
+ * whatever the radio had, which is what makes `encode(decode(image), image)`
+ * byte-identical.
+ */
+export function decodeStockSettings(mem: Uint8Array): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const { base, struct } of STOCK_SETTINGS_BLOCKS) {
+    if (mem.length < base + struct.size) continue
+    for (const [key, value] of Object.entries(struct.read(mem, base))) {
+      out[key] = typeof value === 'string' ? value.trimEnd() : value
+    }
+  }
+  return out
+}
+
+export function encodeStockSettings(mem: Uint8Array, settings: Codeplug['settings']): void {
+  for (const { base, struct } of STOCK_SETTINGS_BLOCKS) {
+    if (mem.length < base + struct.size) continue
+    const current = struct.read(mem, base) as Record<string, unknown>
+    const patch: Record<string, unknown> = {}
+    for (const [key, held] of Object.entries(current)) {
+      if (!(key in settings)) continue
+      const value = settings[key]
+      // A settings map can arrive from an imported file, so a value of the
+      // wrong type is dropped rather than coerced. A string where a byte
+      // belongs must not quietly become zero.
+      if (typeof value !== typeof held) continue
+      if (typeof value === 'string' ? (held as string).trimEnd() === value : held === value) continue
+      patch[key] = value
+    }
+    if (Object.keys(patch).length > 0) struct.write(mem, base, patch)
   }
 }
 

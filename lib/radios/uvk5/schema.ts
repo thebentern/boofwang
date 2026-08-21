@@ -22,6 +22,7 @@ const RX_ONLY_BANDS = new Set([1])
  * themselves only for it.
  */
 export const EGZUMER_LAYOUT = 'egzumer'
+export const STOCK_LAYOUT = 'stock'
 
 const listed = (labels: readonly string[]) => labels.map((label, value) => ({ value, label }))
 
@@ -401,6 +402,135 @@ export const EGZUMER_SETTINGS_GROUPS = [
   },
 ] as const satisfies RadioSchema['settings']
 
+/** `KEYACTIONS_LIST` in uvk5.py, which is not the egzumer list of the same name. */
+const STOCK_KEY_ACTIONS = listed([
+  'None', 'Flashlight on/off', 'Power select', 'Monitor', 'Scan on/off',
+  'VOX on/off', 'Alarm on/off', 'FM radio on/off', 'Transmit 1750 Hz',
+])
+const STOCK_OFF_ON = listed(['Off', 'On'])
+
+/**
+ * The stock firmware's settings.
+ *
+ * Labels and option lists transcribed from CHIRP's `uvk5.py`, which is GPL-3.0.
+ * Every group names the stock layout alone, for the same reason the egzumer
+ * groups name theirs: the two firmwares keep their settings at different
+ * addresses in different orders, and a group rendered for the wrong one is a
+ * form full of controls that do not exist on the radio in front of the user.
+ *
+ * Two fields are decoded and deliberately not offered. `killed` is the DTMF
+ * remote-kill flag, and the only thing setting it does is stop the radio
+ * working. The eight password bytes at 0xE98 are not even modelled, so they
+ * round-trip without boofwang ever showing or rewriting them.
+ */
+export const STOCK_SETTINGS_GROUPS = [
+  {
+    id: 'stock-radio',
+    label: 'Radio',
+    layouts: [STOCK_LAYOUT],
+    fields: [
+      { key: 'squelch', label: 'Squelch', type: 'int', min: 0, max: 9, icon: 'lucide:volume-2' },
+      { key: 'batterySave', label: 'Battery save', type: 'enum', options: listed(['Off', '1:1', '1:2', '1:3', '1:4']) },
+      {
+        key: 'maxTalkTime',
+        label: 'Transmit timeout',
+        type: 'enum',
+        options: [
+          { value: 0, label: '30 sec' }, { value: 1, label: '1 min' }, { value: 2, label: '2 min' },
+          { value: 3, label: '3 min' }, { value: 4, label: '4 min' }, { value: 5, label: '5 min' },
+          { value: 6, label: '6 min' }, { value: 7, label: '7 min' }, { value: 8, label: '8 min' },
+          { value: 9, label: '9 min' }, { value: 10, label: '15 min' },
+        ],
+      },
+      { key: 'dualWatch', label: 'Dual watch', type: 'enum', options: listed(['Off', 'Band A', 'Band B']) },
+      { key: 'crossband', label: 'Cross-band repeat', type: 'enum', options: listed(['Off', 'Band A', 'Band B']) },
+      { key: 'vfoOpen', label: 'Frequency mode', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'noaaAutoscan', label: 'NOAA weather autoscan', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'callChannel', label: 'Call channel', type: 'int', min: 0, max: 199 },
+    ],
+  },
+  {
+    id: 'stock-audio',
+    label: 'Audio',
+    layouts: [STOCK_LAYOUT],
+    fields: [
+      { key: 'micGain', label: 'Microphone gain', type: 'int', min: 0, max: 4, icon: 'lucide:mic' },
+      { key: 'beepControl', label: 'Key beep', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'keypadTone', label: 'Voice prompts', type: 'enum', options: listed(['Off', 'Chinese', 'English']) },
+      { key: 'language', label: 'Menu language', type: 'enum', options: listed(['Chinese', 'English']) },
+      { key: 'remindingOfEndTalk', label: 'End-of-transmission tone', type: 'enum', options: listed(['Off', 'Roger', 'MDC']) },
+      { key: 'tailNoteElimination', label: 'Squelch tail elimination', type: 'enum', options: STOCK_OFF_ON },
+      {
+        key: 'repeaterTailElimination',
+        label: 'Repeater tail elimination',
+        type: 'enum',
+        options: [{ value: 0, label: 'Off' }, ...Array.from({ length: 9 }, (_, i) => ({ value: i + 1, label: `${(i + 1) * 100} ms` }))],
+      },
+      { key: 'alarmMode', label: 'Alarm mode', type: 'enum', options: listed(['Site', 'Tone']) },
+    ],
+  },
+  {
+    id: 'stock-vox',
+    label: 'VOX',
+    layouts: [STOCK_LAYOUT],
+    fields: [
+      { key: 'voxSwitch', label: 'VOX', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'voxLevel', label: 'VOX level', type: 'int', min: 0, max: 9 },
+    ],
+  },
+  {
+    id: 'stock-display',
+    label: 'Display',
+    layouts: [STOCK_LAYOUT],
+    fields: [
+      { key: 'channelDisplayMode', label: 'Channel display', type: 'enum', options: listed(['Frequency', 'Channel number', 'Channel name']) },
+      { key: 'powerOnDispMode', label: 'Power-on screen', type: 'enum', options: listed(['Full screen', 'Welcome message', 'Battery voltage']) },
+      { key: 'backlightAutoMode', label: 'Backlight timeout', type: 'int', min: 0, max: 10 },
+      { key: 'logoLine1', label: 'Welcome line 1', type: 'string', maxLength: 16 },
+      { key: 'logoLine2', label: 'Welcome line 2', type: 'string', maxLength: 16 },
+    ],
+  },
+  {
+    id: 'stock-keys',
+    label: 'Keys and scanning',
+    layouts: [STOCK_LAYOUT],
+    fields: [
+      { key: 'keyLock', label: 'Keypad lock', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'autoKeypadLock', label: 'Automatic keypad lock', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'key1ShortpressAction', label: 'Side key 1, short press', type: 'enum', options: STOCK_KEY_ACTIONS },
+      { key: 'key1LongpressAction', label: 'Side key 1, long press', type: 'enum', options: STOCK_KEY_ACTIONS },
+      { key: 'key2ShortpressAction', label: 'Side key 2, short press', type: 'enum', options: STOCK_KEY_ACTIONS },
+      { key: 'key2LongpressAction', label: 'Side key 2, long press', type: 'enum', options: STOCK_KEY_ACTIONS },
+      {
+        key: 'scanResumeMode',
+        label: 'Scan resume',
+        type: 'enum',
+        options: listed(['After 5 seconds', 'When the signal goes', 'Stop on a signal']),
+      },
+      { key: 'scanlistDefault', label: 'Default scan list', type: 'enum', options: listed(['None', '1', '2', '1 and 2']) },
+      { key: 'scanlist1PriorityScan', label: 'Scan list 1 priority', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'scanlist2PriorityScan', label: 'Scan list 2 priority', type: 'enum', options: STOCK_OFF_ON },
+    ],
+  },
+  {
+    id: 'stock-locks',
+    label: 'Transmit locks',
+    layouts: [STOCK_LAYOUT],
+    description:
+      'What the radio will let you transmit on. These are the firmware\u2019s own limits, and widening ' +
+      'them does not widen your licence: what you may transmit is decided by the licence you hold and ' +
+      'the rules where you are, not by this radio.',
+    fields: [
+      { key: 'flock', label: 'Frequency lock', type: 'enum', options: listed(['Off', 'FCC', 'CE', 'GB', '430 MHz', '438 MHz']) },
+      { key: 'tx200', label: 'Transmit on 200 MHz', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'tx350', label: 'Transmit on 350 MHz', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'tx500', label: 'Transmit on 500 MHz', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'en350', label: 'Enable the 350 MHz band', type: 'enum', options: STOCK_OFF_ON },
+      { key: 'enscramble', label: 'Enable scrambler', type: 'enum', options: STOCK_OFF_ON },
+    ],
+  },
+] as const satisfies RadioSchema['settings']
+
 export const UVK5_SCHEMA: RadioSchema = {
   id: 'uvk5',
   vendor: 'Quansheng',
@@ -510,12 +640,12 @@ export const UVK5_SCHEMA: RadioSchema = {
   ],
 
   /**
-   * Only the egzumer layout has any, which is why every group declares itself
-   * for that layout alone. Stock firmware's own settings are read, preserved
-   * and written back untouched, but nothing here offers to change one - see the
-   * note on {@link EGZUMER_SETTINGS_GROUPS} for why the two cannot simply share.
+   * Both layouts have their own, and every group names the one it belongs to.
+   * The two firmwares keep their settings at different addresses in different
+   * orders, so a group rendered for the wrong one would be a form full of
+   * controls that do not exist on the radio in front of the user.
    */
-  settings: EGZUMER_SETTINGS_GROUPS,
+  settings: [...EGZUMER_SETTINGS_GROUPS, ...STOCK_SETTINGS_GROUPS],
 }
 
 export const UVK5_SERIAL = {

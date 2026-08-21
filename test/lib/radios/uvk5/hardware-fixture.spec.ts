@@ -218,16 +218,15 @@ describe('what the driver claims to own', () => {
     expect(createUvk5Driver().ownedRanges(REGIONS[1].start)).toEqual([])
   })
 
-  it('claims only the channel, attribute and name tables', () => {
+  it('claims the channel, attribute, settings and name tables', () => {
     const owned = createUvk5Driver().ownedRanges(0x0000)
-    expect(owned).toEqual([
-      [0x0000, CHANNEL_COUNT * 16],
-      [ATTR_BASE, ATTR_BASE + NAMED_CHANNEL_COUNT],
-      [NAME_BASE, NAME_BASE + NAMED_CHANNEL_COUNT * 16],
-    ])
-    // Settings at 0x0e70 onward are read and preserved but not yet modelled.
-    const claimsSettings = owned.some(([s, e]) => 0x0e70 >= s && 0x0e70 < e)
-    expect(claimsSettings).toBe(false)
+    expect(owned[0]).toEqual([0x0000, CHANNEL_COUNT * 16])
+    expect(owned[1]).toEqual([ATTR_BASE, ATTR_BASE + NAMED_CHANNEL_COUNT])
+    expect(owned[owned.length - 1]).toEqual([NAME_BASE, NAME_BASE + NAMED_CHANNEL_COUNT * 16])
+    // Settings from 0x0e70 are now decoded and written, so they are claimed.
+    expect(owned.some(([s, e]) => 0x0e70 >= s && 0x0e70 < e)).toBe(true)
+    // Every claim stays below the calibration boundary.
+    for (const [, e] of owned) expect(e).toBeLessThanOrEqual(0x1d00)
   })
 })
 

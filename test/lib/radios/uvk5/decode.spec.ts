@@ -163,12 +163,26 @@ describe('validate', () => {
 })
 
 describe('ownedRanges', () => {
-  it('claims the channel, attribute and name tables', () => {
+  it('claims the channel, attribute, settings and name tables', () => {
     expect(driver.ownedRanges(0x0000)).toEqual([
       [0x0000, 0x0d60],
       [0x0d60, 0x0e28],
+      [0x0e70, 0x0e80], // main settings
+      [0x0e90, 0x0e98], // keys; the eight password bytes at 0x0e98 are not claimed
+      [0x0ea0, 0x0ea2], // keypad tone, language
+      [0x0ea8, 0x0eab], // alarm
+      [0x0eb0, 0x0ed0], // the two boot logo lines
+      [0x0f18, 0x0f20], // scan list defaults and priorities
+      [0x0f40, 0x0f47], // transmit locks
       [0x0f50, 0x1bd0],
     ])
+  })
+
+  it('does not claim the password bytes, so they are never rewritten', () => {
+    const owned = driver.ownedRanges(0x0000)
+    for (let addr = 0x0e98; addr < 0x0ea0; addr++) {
+      expect(owned.some(([s, e]) => addr >= s && addr < e), `0x${addr.toString(16)}`).toBe(false)
+    }
   })
 
   it('claims nothing in the calibration region, which is what makes it unwritable', () => {

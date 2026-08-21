@@ -223,10 +223,123 @@ export const REGIONS = regionsFor(PROG_SIZE)
  * Anything outside these is read, stored and written back verbatim, and a diff
  * that lands outside them means the encoder has a bug.
  */
+// ------------------------------------------------------------- stock settings --
+
+/**
+ * The stock firmware's settings, which live in seven small blocks rather than
+ * one.
+ *
+ * Transcribed from `MEM_FORMAT` in CHIRP's `uvk5.py`. Egzumer gathers all of
+ * this into one contiguous window, which is why that layout has a single
+ * struct and this one has seven - the addresses are not a rearrangement of
+ * each other and neither can be derived from the other.
+ *
+ * The eight password bytes at 0xE98 are deliberately not modelled. They round
+ * trip because nothing names them, which is the behaviour wanted for a secret:
+ * boofwang neither shows it nor rewrites it.
+ */
+export const SETTINGS_MAIN_BASE = 0x0e70
+export const SETTINGS_KEYS_BASE = 0x0e90
+export const SETTINGS_TONE_BASE = 0x0ea0
+export const SETTINGS_ALARM_BASE = 0x0ea8
+export const LOGO_BASE = 0x0eb0
+export const SCANLIST_BASE = 0x0f18
+export const LOCK_BASE = 0x0f40
+
+export const UVK5_SETTINGS_MAIN = defineStruct(16, {
+  callChannel: at(0x00, u8),
+  squelch: at(0x01, u8),
+  maxTalkTime: at(0x02, u8),
+  noaaAutoscan: at(0x03, u8),
+  keyLock: at(0x04, u8),
+  voxSwitch: at(0x05, u8),
+  voxLevel: at(0x06, u8),
+  micGain: at(0x07, u8),
+  unknown3: at(0x08, u8),
+  channelDisplayMode: at(0x09, u8),
+  crossband: at(0x0a, u8),
+  batterySave: at(0x0b, u8),
+  dualWatch: at(0x0c, u8),
+  backlightAutoMode: at(0x0d, u8),
+  tailNoteElimination: at(0x0e, u8),
+  vfoOpen: at(0x0f, u8),
+})
+
+/** Stops at 8 bytes: `password[8]` follows and is left alone on purpose. */
+export const UVK5_SETTINGS_KEYS = defineStruct(8, {
+  beepControl: at(0x00, u8),
+  key1ShortpressAction: at(0x01, u8),
+  key1LongpressAction: at(0x02, u8),
+  key2ShortpressAction: at(0x03, u8),
+  key2LongpressAction: at(0x04, u8),
+  scanResumeMode: at(0x05, u8),
+  autoKeypadLock: at(0x06, u8),
+  powerOnDispMode: at(0x07, u8),
+})
+
+export const UVK5_SETTINGS_TONE = defineStruct(2, {
+  keypadTone: at(0x00, u8),
+  language: at(0x01, u8),
+})
+
+export const UVK5_SETTINGS_ALARM = defineStruct(3, {
+  alarmMode: at(0x00, u8),
+  remindingOfEndTalk: at(0x01, u8),
+  repeaterTailElimination: at(0x02, u8),
+})
+
+/** The two lines shown while the radio powers up. */
+export const UVK5_LOGO = defineStruct(32, {
+  logoLine1: at(0x00, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
+  logoLine2: at(0x10, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
+})
+
+export const UVK5_SCANLIST = defineStruct(8, {
+  scanlistDefault: at(0x00, u8),
+  scanlist1PriorityScan: at(0x01, u8),
+  scanlist1PriorityCh1: at(0x02, u8),
+  scanlist1PriorityCh2: at(0x03, u8),
+  scanlist2PriorityScan: at(0x04, u8),
+  scanlist2PriorityCh1: at(0x05, u8),
+  scanlist2PriorityCh2: at(0x06, u8),
+  scanlistUnknown0xff: at(0x07, u8),
+})
+
+/**
+ * The transmit locks, and `killed`.
+ *
+ * `killed` is the DTMF remote-kill flag. It is decoded so it round-trips and so
+ * a person can see it, and it is not offered as a control: the only thing
+ * setting it does is stop the radio working.
+ */
+export const UVK5_LOCK = defineStruct(7, {
+  flock: at(0x00, u8),
+  tx350: at(0x01, u8),
+  killed: at(0x02, u8),
+  tx200: at(0x03, u8),
+  tx500: at(0x04, u8),
+  en350: at(0x05, u8),
+  enscramble: at(0x06, u8),
+})
+
+/** Every stock settings block, with the base each sits at. */
+export const STOCK_SETTINGS_BLOCKS = [
+  { base: SETTINGS_MAIN_BASE, struct: UVK5_SETTINGS_MAIN },
+  { base: SETTINGS_KEYS_BASE, struct: UVK5_SETTINGS_KEYS },
+  { base: SETTINGS_TONE_BASE, struct: UVK5_SETTINGS_TONE },
+  { base: SETTINGS_ALARM_BASE, struct: UVK5_SETTINGS_ALARM },
+  { base: LOGO_BASE, struct: UVK5_LOGO },
+  { base: SCANLIST_BASE, struct: UVK5_SCANLIST },
+  { base: LOCK_BASE, struct: UVK5_LOCK },
+] as const
+
 export function ownedRangesProgrammable(): (readonly [number, number])[] {
   return [
     [CHANNEL_BASE, CHANNEL_BASE + CHANNEL_COUNT * UVK5_CHANNEL.size],
     [ATTR_BASE, ATTR_BASE + NAMED_CHANNEL_COUNT],
+    ...STOCK_SETTINGS_BLOCKS.flatMap(({ base, struct }) =>
+      struct.ranges().map(([s, e]) => [base + s, base + e] as const),
+    ),
     [NAME_BASE, NAME_BASE + NAMED_CHANNEL_COUNT * NAME_SIZE],
   ]
 }

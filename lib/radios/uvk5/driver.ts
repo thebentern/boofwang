@@ -47,7 +47,7 @@ import {
   VFO_CHANNEL_NAMES,
 } from './layout.js'
 import { MEM_BLOCK, MEM_SIZE, readMem, resetRadio, sayHello, writeMem } from './protocol.js'
-import { decodeTone, encodeInto } from './encode.js'
+import { decodeStockSettings, decodeTone, encodeInto } from './encode.js'
 import {
   EGZUMER_BANDS_STANDARD_HZ,
   EGZUMER_BANDS_WIDE_HZ,
@@ -476,6 +476,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
         const ch = decodeChannel(mem, i)
         if (ch) cp.channels.set(ch.index, ch)
       }
+      cp.settings = decodeStockSettings(mem)
 
       return cp
     },
