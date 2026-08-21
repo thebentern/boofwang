@@ -36,16 +36,25 @@ do
 done
 curl -sSLf "https://raw.githubusercontent.com/infamy/DM32-Protocol-Spec/main/LICENSE" -o dm32/LICENSE 2>/dev/null || true
 
-# Assemble an importable `chirp` package so scripts/crosscheck-chirp-csv.py can
-# load CHIRP's real CSV driver and check our export against it.
+# Assemble an importable `chirp` package so the cross-check scripts can load
+# CHIRP's real drivers and compare our output against them:
+#   scripts/crosscheck-chirp-csv.py   needs generic_csv
+#   scripts/gen-egzumer-fixture.py    needs the whole uvk5_egzumer driver, which
+#                                     is why settings.py, checksum.py and a
+#                                     chirp.drivers package are pulled in too.
 echo "Assembling an importable chirp package ..."
-mkdir -p chirp_pkg/chirp
+mkdir -p chirp_pkg/chirp/drivers
 for f in bitwise.py bitwise_grammar.py pyPEG.py chirp_common.py generic_csv.py uvk5.py; do
   [ -f "$f" ] && cp "$f" chirp_pkg/chirp/
 done
-for f in memmap.py util.py errors.py directory.py platform.py; do
+for f in memmap.py util.py errors.py directory.py platform.py settings.py checksum.py \
+         bitwise_grammar.py pyPEG.py; do
   curl -sSLf "$CHIRP_RAW/chirp/$f" -o "chirp_pkg/chirp/$f" 2>/dev/null || true
 done
+for f in uvk5.py uvk5_egzumer.py; do
+  [ -f "$f" ] && cp "$f" chirp_pkg/chirp/drivers/
+done
+: > chirp_pkg/chirp/drivers/__init__.py
 printf 'CHIRP_VERSION = "boofwang-crosscheck"\n' > chirp_pkg/chirp/__init__.py
 echo "  chirp_pkg/chirp ($(ls chirp_pkg/chirp | wc -l | tr -d ' ') modules)"
 

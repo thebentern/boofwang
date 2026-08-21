@@ -83,6 +83,79 @@ image, and the driver writes whichever blocks differ from what it reads off the
 radio. Without that, the safety check would have made recovery impossible — the
 one operation that has to work when everything else has gone wrong.
 
+## The egzumer custom firmware
+
+Detected by the `EGZUMER ` prefix on the hello reply, and decoded as a layout of
+its own. **No radio running this firmware has ever been connected to boofwang.**
+Everything below was checked against CHIRP's `chirp/drivers/uvk5_egzumer.py` and
+nothing below was checked against hardware.
+
+### Verified against CHIRP, not against a radio
+
+The check is stronger than reading the format string twice, and weaker than a
+capture. `scripts/gen-egzumer-fixture.py` drives CHIRP's own egzumer driver to
+write an 8 KB image and then to read it back;
+`test/fixtures/images/uvk5-egzumer-synthetic.bin` is those bytes and
+`test/fixtures/uvk5-egzumer-chirp-decode.json` is that reading. Neither side of
+the comparison in `test/lib/radios/uvk5/egzumer.spec.ts` was written by
+boofwang, so a transposed nibble or an off-by-one offset fails it.
+
+Before any of that, every field offset was located mechanically: each one was
+set through CHIRP's `bitwise` parser on an otherwise zeroed image and the byte
+that moved recorded. The results are the offsets in
+`lib/radios/uvk5/egzumer-layout.ts`.
+
+What that establishes, field by field:
+
+| | |
+|---|---|
+| Calibration starts at | `0x1E00`, not stock's `0x1D00` — 256 more programmable bytes |
+| Channel table | `channel[214]` at 0, same shape and same address as stock |
+| Byte `0x0B` of a record | `modulation:4, shift:4`, where stock has `enable_am` at bit 4 and a two-bit shift. Modulation 0/1/2 is FM/AM/USB, narrowed by the bandwidth bit |
+| Byte `0x0D` of a record | PTT-ID is **three** bits, not two: egzumer adds Apollo Quindar as a fifth value |
+| Tuning steps | 24 entries, not 6, and not in ascending order — index 6 is 8.33 kHz |
+| Attribute table | 207 entries at `0x0D60`, not 200. The seven above memory 200 are not decoded; CHIRP never reads them either |
+| Band nibble | Written from `BANDS_NOLIMITS`, with CHIRP's "band 1 below 50 MHz" rule. Not the band plan the radio displays — see the note in the layout |
+| Band plan and VFO names | `BANDS_WIDE` (18 MHz–1.3 GHz) or `BANDS_STANDARD`, chosen by `BUILD_OPTIONS.ENABLE_WIDE_RX` at `0x1FF1`, which is inside the calibration region and therefore read but never written |
+| Settings | `0x0E70`–`0x0F48`, plus twenty FM presets at `0x0E40`. Decoded and offered as controls |
+
+### Deliberately left undecoded
+
+- **The eight VFO channel pointers at `0x0E80`.** They decode into the codeplug,
+  but no control is offered. CHIRP keeps `MrChannel`, `FreqChannel` and
+  `NoaaChannel` consistent with `ScreenChannel` whenever one changes, and a
+  control editing one in isolation would leave the radio pointing two ways.
+- **The power-on password at `0x0E98`.** Decoded as a 32-bit number, not
+  offered: a raw integer field is the wrong way to ask for a six-digit code.
+- **The seven attribute entries above memory 200**, at `0x0E28`–`0x0E2E`.
+- **The DTMF contact list at `0x1C00`.** Byte-identical to stock's, which is
+  also undecoded. Sixteen names and numbers, preserved verbatim.
+- **The calibration region itself**, `0x1E00` up. Read for a backup, hashed for
+  the unit fingerprint, never written. CHIRP offers to upload it behind a
+  warning; boofwang does not offer it at all.
+- **The eighteen extra tuning steps in the channel editor.** A channel found on
+  one keeps it — the step index round-trips — but the editor's list is stock's
+  six, because a stock radio offered "8.33 kHz" would silently store 6.25.
+- **Apollo Quindar in the PTT-ID control.** Decodes and round-trips; the editor
+  offers stock's four values, because the fifth does not fit in stock's field.
+
+### Not verified, and what would settle it
+
+- **Writing.** `canWrite` is `false` for this firmware. `writeImage` refuses on
+  the variant even with the driver's write gate open and a matching backup, and
+  `test/lib/radios/uvk5/egzumer.spec.ts` asserts that against a fake radio that
+  throws if it is ever sent a write command. Turning it on needs the same
+  evidence stock needed: a hardware capture in `test/fixtures/images/`, a
+  round-trip over those real bytes, and a write/verify/restore recorded here.
+- **Whether CHIRP's format string is right about the radio.** Nothing short of a
+  radio can establish that, and everything above inherits the assumption.
+- **Any of it on a build with `ENABLE_WIDE_RX` off.** The synthetic image has it
+  on, so the standard band plan is transcribed but never exercised.
+
+A read of a real egzumer radio, attached to
+[issue #3](https://github.com/thebentern/boofwang/issues/3), would settle most
+of this.
+
 ## Adapters
 
 The USB-serial chip matters more than anything else in the chain.
@@ -104,4 +177,9 @@ to be caught by comparing the reply against what was just sent.
   (minus shift with the offset equal to the receive frequency). The test radio
   had none of these programmed, so they rest on synthetic fixtures and on
   CHIRP's source.
-- Any firmware other than `2.01.32`, including the egzumer layout.
+- Any firmware other than `2.01.32`. The egzumer layout now decodes, but only
+  against CHIRP — see the section above.
+- **Which layout a bare `.bin` is in.** Stock and egzumer images are both 8,192
+  bytes and a raw dump carries no identity, so one opens as stock. A `.bwp`
+  records the layout, and a CHIRP `.img` carries the hello string in its
+  metadata, so both open correctly.

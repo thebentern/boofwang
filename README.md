@@ -20,6 +20,13 @@ CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
 Per-radio protocol notes, including exactly what has and has not been exercised
 against hardware, are in [`docs/protocols/`](docs/protocols/).
 
+The UV-K5 also reads the [egzumer](https://github.com/egzumer/uv-k5-firmware-custom)
+custom firmware, which arranges its EEPROM differently: channels, names and
+settings all decode, and the settings page gains a form that stock firmware has
+no equivalent for. That layout is **read-only**. Nobody working on boofwang has
+a radio running it, so its offsets are checked against CHIRP's driver and
+against nothing else, and writing stays off until one has been.
+
 Two different radios are sold as "UV-5R Mini" and "5RM"/"UV-5RM". They differ in
 ident string, region map, channel count and power table. Both are implemented;
 the handshake selects between them. Only the UV-5R Mini has been tested on

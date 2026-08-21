@@ -53,6 +53,28 @@ export interface SettingGroup {
   readonly label: string
   readonly description?: string
   readonly fields: readonly FieldSpec[]
+  /**
+   * The image layouts this group applies to, when it does not apply to all of
+   * them.
+   *
+   * One radio can have more than one EEPROM layout: the UV-K5 stores its
+   * settings in one arrangement under stock firmware and a substantially
+   * different one under egzumer, and the driver decides which by the firmware
+   * string the radio reports. Without this, a group added for one of them
+   * would be rendered for the other, where its keys decode to nothing - a form
+   * full of controls that silently do not exist on the radio in front of the
+   * user, which is exactly the failure the settings-schema test was written to
+   * catch.
+   *
+   * Absent means "every layout", which is the right default for a radio that
+   * only has one.
+   */
+  readonly layouts?: readonly string[]
+}
+
+/** The setting groups that apply to an image of `layout`, in schema order. */
+export function settingsForLayout(schema: RadioSchema, layout: string | undefined): readonly SettingGroup[] {
+  return schema.settings.filter((g) => !g.layouts || (layout !== undefined && g.layouts.includes(layout)))
 }
 
 export interface RadioSchema {

@@ -52,7 +52,9 @@ export const VARIANT_RULES: readonly VariantRule[] = [
       label: 'egzumer custom firmware',
       calStart: 0x1e00,
       canWrite: false,
-      note: 'The egzumer layout differs from stock and is not implemented yet, so this firmware is read-only for now.',
+      note:
+        'The egzumer layout is decoded - channels, names and settings all read - but nothing has ever ' +
+        'been written to a radio running it, so writing stays off until one has been.',
     },
   },
 ]
@@ -70,6 +72,24 @@ export const UNKNOWN_VARIANT: VariantInfo = {
 export function classifyFirmware(firmware: string): VariantInfo {
   for (const rule of VARIANT_RULES) {
     if (rule.prefixes.some((p) => firmware.startsWith(p))) return rule.info
+  }
+  return UNKNOWN_VARIANT
+}
+
+/**
+ * The variant an already-read image belongs to, by the layout name stamped on
+ * it rather than by a firmware string.
+ *
+ * A stored image is the case that needs this: a `.bwp` records the layout, and
+ * a file opened from disk may carry no firmware string at all, so
+ * `classifyFirmware` has nothing to work from. Where the layout is not one this
+ * build knows, the stock geometry is the safe answer - it is the smaller
+ * programmable region of the two, so nothing decides to write past a boundary
+ * on the strength of a guess.
+ */
+export function variantForLayout(layout: string): VariantInfo {
+  for (const rule of VARIANT_RULES) {
+    if (rule.info.layout === layout) return rule.info
   }
   return UNKNOWN_VARIANT
 }

@@ -183,17 +183,39 @@ export const channelAddr = (i: number) => CHANNEL_BASE + i * UVK5_CHANNEL.size
 export const attrAddr = (i: number) => ATTR_BASE + i
 export const nameAddr = (i: number) => NAME_BASE + i * NAME_SIZE
 
+export interface RegionSpec {
+  readonly start: number
+  readonly length: number
+  readonly label: string
+  readonly readOnly: boolean
+}
+
 /**
- * The two memory regions.
+ * The two memory regions, split wherever this firmware puts the calibration
+ * boundary.
  *
  * Calibration is a separate, read-only region rather than a range some code
  * path has to remember to skip. `writeImage` filters on the flag, so excluding
  * it is structural.
+ *
+ * Where the boundary falls is a property of the firmware, not of the radio:
+ * stock keeps calibration from 0x1D00, egzumer from 0x1E00, which gives it
+ * another 256 bytes of programmable space. Taking it from the variant rather
+ * than from a constant is what stops those 256 bytes being classed read-only on
+ * a radio that programs them.
  */
-export const REGIONS = [
-  { start: 0x0000, length: PROG_SIZE, label: 'programmable', readOnly: false },
-  { start: PROG_SIZE, length: MEM_SIZE - PROG_SIZE, label: 'calibration', readOnly: true },
-] as const
+export function regionsFor(calStart: number): readonly [RegionSpec, RegionSpec] {
+  if (!Number.isInteger(calStart) || calStart <= 0 || calStart >= MEM_SIZE) {
+    throw new RangeError(`UV-K5 calibration boundary 0x${calStart.toString(16)} is not inside the EEPROM`)
+  }
+  return [
+    { start: 0x0000, length: calStart, label: 'programmable', readOnly: false },
+    { start: calStart, length: MEM_SIZE - calStart, label: 'calibration', readOnly: true },
+  ]
+}
+
+/** The stock firmware's split, which is also what a bare `.bin` is assumed to be. */
+export const REGIONS = regionsFor(PROG_SIZE)
 
 /**
  * Byte ranges of the programmable region this driver claims to understand.

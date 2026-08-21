@@ -5,11 +5,24 @@
  * Everything here is schema-driven, so this page has no per-radio knowledge and
  * gains a radio the moment that radio's schema declares one.
  */
+import { settingsForLayout } from '#core/radio/schema.js'
+
 useSeoMeta({ title: 'Radio settings' })
 
 const codeplug = useCodeplugStore()
 
-const groups = computed(() => codeplug.schema?.settings ?? [])
+/**
+ * Only the groups that apply to the layout this codeplug was read from.
+ *
+ * One radio can store its settings more than one way: the UV-K5 puts them in a
+ * different arrangement under egzumer firmware than under stock, and several of
+ * the addresses mean different things in the two. Rendering every group
+ * regardless of layout would offer someone with a stock radio a form full of
+ * controls for bytes that hold something else entirely.
+ */
+const groups = computed(() =>
+  codeplug.schema ? settingsForLayout(codeplug.schema, codeplug.image?.layout) : [],
+)
 const count = computed(() => groups.value.reduce((n, g) => n + g.fields.length, 0))
 
 /**

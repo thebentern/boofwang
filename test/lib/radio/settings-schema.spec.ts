@@ -4,9 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { RadioImage } from '#core/radio/image.js'
 import { SCHEMAS, createDriver } from '#core/radio/registry.js'
-import type { RadioSchema } from '#core/radio/schema.js'
+import { settingsForLayout } from '#core/radio/schema.js'
 import type { RadioId } from '#core/model/codeplug.js'
 import { REGIONS as UVK5_REGIONS } from '#core/radios/uvk5/layout.js'
+import { EGZUMER_REGIONS } from '#core/radios/uvk5/egzumer-layout.js'
 import { REGIONS as UV82_REGIONS } from '#core/radios/uv82/layout.js'
 import { VARIANTS as UV5RMINI_VARIANTS } from '#core/radios/uv5rmini/protocol.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
@@ -26,6 +27,12 @@ import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
  * Both directions are checked. A schema key with no field is the dangerous one;
  * a decoded field with no control is merely a gap, so it is reported as a count
  * rather than a failure.
+ *
+ * The unit of the check is a radio *and a layout*, not a radio. One driver can
+ * decode more than one EEPROM arrangement - the UV-K5 has stock's and
+ * egzumer's - and a group declared for one of them says nothing about the
+ * other. Checking per radio would have meant either failing every egzumer
+ * control against a stock image or dropping the check for both.
  */
 
 const file = (name: string) =>
@@ -43,13 +50,32 @@ function flat(
   }))
 }
 
-const IMAGES: Partial<Record<RadioId, () => RadioImage>> = {
+interface Case {
+  readonly id: RadioId
+  readonly layout: string
+  readonly image: () => RadioImage
+}
+
+const IMAGES: Record<string, () => RadioImage> = {
   uvk5: () => ({
     radioId: 'uvk5',
     variant: '2.01.32',
     layout: 'stock',
     createdAt: '2026-08-21T00:00:00.000Z',
     regions: flat(file('uvk5-2.01.32.bin'), UVK5_REGIONS),
+    meta: {},
+    sha256: '',
+  }),
+  // Synthetic, and the only egzumer image there is: no one working on this has
+  // that firmware. Every byte was written by CHIRP's own egzumer driver - see
+  // scripts/gen-egzumer-fixture.py - which makes it a fair test of the offsets
+  // and no test at all of whether the offsets match a real radio.
+  'uvk5-egzumer': () => ({
+    radioId: 'uvk5',
+    variant: 'EGZUMER v0.22',
+    layout: 'egzumer',
+    createdAt: '2026-08-21T00:00:00.000Z',
+    regions: flat(file('uvk5-egzumer-synthetic.bin'), EGZUMER_REGIONS),
     meta: {},
     sha256: '',
   }),
@@ -105,11 +131,19 @@ const IMAGES: Partial<Record<RadioId, () => RadioImage>> = {
   },
 }
 
-const RADIOS = Object.keys(IMAGES) as RadioId[]
+const CASES: readonly Case[] = [
+  { id: 'uvk5', layout: 'stock', image: IMAGES.uvk5! },
+  { id: 'uvk5', layout: 'egzumer', image: IMAGES['uvk5-egzumer']! },
+  { id: 'uv82', layout: 'uv82', image: IMAGES.uv82! },
+  { id: 'uv5rmini', layout: 'uv5rmini', image: IMAGES.uv5rmini! },
+  { id: 'dm32uv', layout: 'DP570UV', image: IMAGES.dm32uv! },
+]
 
-describe.each(RADIOS)('%s settings', (id: RadioId) => {
-  const groups: NonNullable<RadioSchema['settings']> = SCHEMAS[id]?.settings ?? []
-  const doc = createDriver(id).decode(IMAGES[id]!())
+describe.each(CASES.map((c) => [`${c.id} (${c.layout})`, c] as const))('%s settings', (_label, c) => {
+  const { id, layout, image } = c
+  const schema = SCHEMAS[id]!
+  const groups = settingsForLayout(schema, layout)
+  const doc = createDriver(id).decode(image())
 
   it('offers a control for something only where a field exists to back it', () => {
     const missing: string[] = []
@@ -125,7 +159,7 @@ describe.each(RADIOS)('%s settings', (id: RadioId) => {
     // A control whose key survives decode but which `encode` drops is the same
     // silent failure one step later, so each key is changed and looked for.
     const driver = createDriver(id)
-    const base = IMAGES[id]!()
+    const base = image()
     const inert: string[] = []
 
     for (const group of groups) {

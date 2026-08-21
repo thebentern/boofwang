@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { Channel } from '../../model/channel.js'
 import type { Codeplug } from '../../model/codeplug.js'
-import { CTCSS_DECIHZ, DTCS_CODES, type ToneSpec } from '../../model/tones.js'
+import { CTCSS_DECIHZ, DTCS_CODES, ctcss, dtcs, type ToneSpec } from '../../model/tones.js'
 import { DriverError } from '../../radio/driver.js'
 import {
   ATTR_BASE,
@@ -55,6 +55,26 @@ export function isErasedRecord(mem: Uint8Array, addr: number, size = UVK5_CHANNE
 export interface ToneFieldPair {
   flag: number
   code: number
+}
+
+/**
+ * One stored code field as a tone, or null when the index names no tone.
+ *
+ * Lives beside its inverse rather than next to the rest of the decoder because
+ * the two have to agree about the flag values, and because both firmware
+ * layouts need it - putting it in the driver would have made the egzumer
+ * decoder import the module that imports it.
+ */
+export function decodeTone(flag: number, code: number): ToneSpec | null {
+  if (flag === TONE_CTCSS) {
+    const t = CTCSS_DECIHZ[code]
+    return t === undefined ? null : ctcss(t)
+  }
+  if (flag === TONE_DTCS_N || flag === TONE_DTCS_R) {
+    const c = DTCS_CODES[code]
+    return c === undefined ? null : dtcs(c, flag === TONE_DTCS_R ? 'R' : 'N')
+  }
+  return null
 }
 
 /**
@@ -153,6 +173,18 @@ export function eraseChannel(mem: Uint8Array, slot: number): void {
 
 export function encodeChannel(mem: Uint8Array, slot: number, ch: Channel): void {
   const addr = channelAddr(slot)
+
+  // Stock firmware has one bit for the demodulator, so it can express FM and AM
+  // and nothing else. Refusing here rather than falling back to FM matters now
+  // that egzumer channels decode: a single-sideband channel carried across from
+  // one of those codeplugs would otherwise arrive as wideband FM on a frequency
+  // chosen for SSB, with nothing anywhere saying it had changed.
+  if (ch.modulation !== 'FM' && ch.modulation !== 'AM') {
+    throw new DriverError(
+      `Channel ${ch.index}: stock UV-K5 firmware can store FM or AM, not ${ch.modulation}. ` +
+        'Change the modulation, or write this codeplug to a radio whose firmware supports it.',
+    )
+  }
 
   // A previously-erased record is all ones. Zero it so unmodelled bits do not
   // start life set, matching what CHIRP does for a fresh memory.

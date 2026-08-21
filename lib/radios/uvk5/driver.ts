@@ -2,7 +2,7 @@
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
 import { diffRanges, equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, txFrequency, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
-import { ctcss, dtcs, NO_TONE, type TonePair, type ToneSpec } from '../../model/tones.js'
+import { NO_TONE, type TonePair } from '../../model/tones.js'
 import { hz, type Hz } from '../../model/units.js'
 import {
   BackupRequiredError,
@@ -37,37 +37,92 @@ import {
   ownedRangesProgrammable,
   POWER_HIGH,
   POWER_MEDIUM,
-  REGIONS,
+  regionsFor,
   SHIFT_MINUS,
   SHIFT_PLUS,
-  TONE_CTCSS,
-  TONE_DTCS_N,
-  TONE_DTCS_R,
   TUNING_STEPS_HZ,
   UVK5_ATTRIBUTES,
   UVK5_CHANNEL,
   UVK5_NAME,
   VFO_CHANNEL_NAMES,
 } from './layout.js'
-import { MEM_BLOCK, MEM_SIZE, PROG_SIZE, readMem, resetRadio, sayHello, writeMem } from './protocol.js'
-import { encodeInto } from './encode.js'
-import { UVK5_SCHEMA, UVK5_SERIAL } from './schema.js'
-import { classifyFirmware, variantsCompatible } from './variants.js'
-import { CTCSS_DECIHZ, DTCS_CODES } from '../../model/tones.js'
+import { MEM_BLOCK, MEM_SIZE, readMem, resetRadio, sayHello, writeMem } from './protocol.js'
+import { decodeTone, encodeInto } from './encode.js'
+import {
+  EGZUMER_BANDS_STANDARD_HZ,
+  EGZUMER_BANDS_WIDE_HZ,
+  egzumerOwnedRanges,
+} from './egzumer-layout.js'
+import {
+  decodeEgzumerChannel,
+  decodeEgzumerSettings,
+  encodeEgzumerInto,
+  readBuildOptions,
+  DEFAULT_BUILD_OPTIONS,
+  type BuildOptions,
+} from './egzumer.js'
+import { EGZUMER_LAYOUT, UVK5_FM_RANGE, UVK5_SCHEMA, UVK5_SERIAL } from './schema.js'
+import { classifyFirmware, variantForLayout, variantsCompatible } from './variants.js'
 
-const PROGRAMMABLE_START = REGIONS[0].start
+const PROGRAMMABLE_START = 0x0000
 
-/** Decode one code field into a ToneSpec, or null when the index is out of range. */
-function decodeTone(flag: number, code: number): ToneSpec | null {
-  if (flag === TONE_CTCSS) {
-    const t = CTCSS_DECIHZ[code]
-    return t === undefined ? null : ctcss(t)
-  }
-  if (flag === TONE_DTCS_N || flag === TONE_DTCS_R) {
-    const c = DTCS_CODES[code]
-    return c === undefined ? null : dtcs(c, flag === TONE_DTCS_R ? 'R' : 'N')
-  }
-  return null
+/**
+ * How much of the EEPROM this firmware lets a programmer write.
+ *
+ * Everything above it is calibration. Stock stops at 0x1D00 and egzumer at
+ * 0x1E00, so the number has to come from the image rather than from a constant
+ * - the alternative is a write that stops 256 bytes short of what the radio
+ * actually programs, or one that treats calibration as fair game.
+ */
+const progSizeOf = (layout: string) => variantForLayout(layout).calStart
+
+const isEgzumer = (layout: string) => layout === EGZUMER_LAYOUT
+
+/** The build flags of an egzumer image, read from its calibration region. */
+function buildOptionsOf(image: RadioImage): BuildOptions {
+  const cal = image.regions.find((r) => r.readOnly === true)
+  return cal ? readBuildOptions(cal.data, cal.start) : DEFAULT_BUILD_OPTIONS
+}
+
+/**
+ * The bands to hold a codeplug to.
+ *
+ * The schema's table is the stock radio's, which is what most UV-K5s are. An
+ * egzumer build compiled with wide receive reaches from 18 MHz to 1.3 GHz, and
+ * holding one of those to stock's limits would put an error on every channel
+ * the radio is perfectly happy with. Which table applies is recorded during
+ * decode, because it comes from a build flag in the calibration region that the
+ * codeplug alone does not carry.
+ *
+ * Widening what a radio can *hear* is the firmware author's decision. Widening
+ * what this app will let someone transmit on is not, so the extra reach at the
+ * bottom is split rather than inherited wholesale: the broadcast FM band the
+ * radio's own receiver covers - `FMMIN` to `FMMAX`, 76 to 108 MHz - is marked
+ * receive-only for the same reason the air band above it is. Stock's band 0
+ * stops at 76 MHz precisely because of what is above it, and that fact does not
+ * change when the receiver is widened.
+ */
+function bandsFor(doc: Codeplug): RadioSchema['rf']['bands'] {
+  // `buildWideRx` is only ever set by the egzumer decoder, so its presence is
+  // what says this codeplug came off that firmware. A codeplug built from a CSV
+  // has no settings at all and gets the stock table, which is the conservative
+  // answer.
+  const wideRx = doc.settings.buildWideRx
+  if (wideRx === undefined) return UVK5_SCHEMA.rf.bands
+
+  const table = wideRx === 0 ? EGZUMER_BANDS_STANDARD_HZ : EGZUMER_BANDS_WIDE_HZ
+  const band = (lo: number, hi: number, txAllowed: boolean) => ({
+    loHz: hz(lo),
+    hiHz: hz(hi),
+    label: `${Math.round(lo / 1e6)}-${Math.round(hi / 1e6)} MHz`,
+    txAllowed,
+  })
+
+  return table.flatMap(([lo, hi], i) => {
+    const txAllowed = UVK5_SCHEMA.rf.bands[i]?.txAllowed ?? false
+    if (i !== 0 || hi <= UVK5_FM_RANGE.min) return [band(lo, hi, txAllowed)]
+    return [band(lo, UVK5_FM_RANGE.min, txAllowed), band(UVK5_FM_RANGE.min, hi, false)]
+  })
 }
 
 /** The same image with its programmable region replaced by `mem`. */
@@ -147,12 +202,14 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       // writing to another, and the second radio's codeplug would be
       // overwritten with nothing to restore it from.
       //
-      // Calibration is factory-set per unit, so it is the natural fingerprint,
-      // and it is 768 bytes - six extra reads, well under a second.
-      const cal = new Uint8Array(MEM_SIZE - PROG_SIZE)
+      // Calibration is factory-set per unit, so it is the natural fingerprint.
+      // Where it starts is the firmware's business - 768 bytes on stock, 512 on
+      // egzumer - so the variant decides, and both are a handful of extra reads.
+      const calStart = variant.calStart
+      const cal = new Uint8Array(MEM_SIZE - calStart)
       for (let off = 0; off < cal.length; off += MEM_BLOCK) {
         ctx.signal?.throwIfAborted()
-        cal.set(await readMem(t, PROG_SIZE + off, MEM_BLOCK, { timeoutMs, signal: ctx.signal, adapter: ctx.adapter }), off)
+        cal.set(await readMem(t, calStart + off, MEM_BLOCK, { timeoutMs, signal: ctx.signal, adapter: ctx.adapter }), off)
       }
       const calHash = await sha256Hex(cal)
 
@@ -193,8 +250,10 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       }
 
       // The whole EEPROM is captured, calibration included. A backup that
-      // cannot restore calibration is not a backup.
-      const regions = REGIONS.map((r) => ({
+      // cannot restore calibration is not a backup. Where the two regions meet
+      // comes from the firmware that answered the handshake, not from a
+      // constant - see `regionsFor`.
+      const regions = regionsFor(progSizeOf(ident.layout)).map((r) => ({
         start: r.start,
         data: buf.slice(r.start, r.start + r.length),
         readOnly: r.readOnly,
@@ -249,14 +308,19 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       const timeoutMs = ctx.readTimeoutMs ?? DEFAULT_DRIVER_TIMEOUT_MS
       const opts = { timeoutMs, signal: ctx.signal, adapter: ctx.adapter }
 
+      // How far the programmable region reaches is a property of the firmware
+      // the image was read from, so it is taken from the image's own layout
+      // rather than assumed. Getting this wrong on an egzumer radio would mean
+      // stopping 256 bytes short of what that firmware actually programs.
+      const progSize = progSizeOf(image.layout)
       const source = image.regions.find((r) => r.start === PROGRAMMABLE_START && !r.readOnly)
       if (!source) throw new DriverError('This image has no writable region')
-      if (source.data.length !== PROG_SIZE) {
+      if (source.data.length !== progSize) {
         // A short region would make `subarray` yield empty blocks and send
         // zero-length write commands to live EEPROM addresses; a long one would
         // be silently truncated. Neither should ever reach a radio.
         throw new DriverError(
-          `This image's programmable region is ${source.data.length} bytes; the UV-K5 expects exactly ${PROG_SIZE}.`,
+          `This image's programmable region is ${source.data.length} bytes; the UV-K5 expects exactly ${progSize}.`,
         )
       }
       const payload = source.data
@@ -288,15 +352,15 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
         // trustworthy basis for deciding which blocks may be left alone;
         // `ctx.baseImage` is what the *caller* believes, which is a different
         // thing and is exactly what goes stale.
-        const live = new Uint8Array(PROG_SIZE)
-        for (let addr = 0; addr < PROG_SIZE; addr += MEM_BLOCK) {
+        const live = new Uint8Array(progSize)
+        for (let addr = 0; addr < progSize; addr += MEM_BLOCK) {
           ctx.signal?.throwIfAborted()
           live.set(await readMem(t, addr, MEM_BLOCK, opts), addr)
-          ctx.progress?.({ phase: 'read', done: addr + MEM_BLOCK, total: PROG_SIZE, label: 'checking the radio' })
+          ctx.progress?.({ phase: 'read', done: addr + MEM_BLOCK, total: progSize, label: 'checking the radio' })
         }
 
         const expected = ctx.baseImage?.regions.find((r) => r.start === PROGRAMMABLE_START)?.data
-        if (expected && expected.length === PROG_SIZE && !equalBytes(live, expected)) {
+        if (expected && expected.length === progSize && !equalBytes(live, expected)) {
           const [first] = diffRanges(expected, live)
           throw new RadioChangedError(first ? first[0] : 0)
         }
@@ -333,14 +397,14 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
         }
 
         // Step 4. Write and verify one block at a time.
-        for (let addr = 0; addr < PROG_SIZE; addr += MEM_BLOCK) {
+        for (let addr = 0; addr < progSize; addr += MEM_BLOCK) {
           ctx.signal?.throwIfAborted()
           const block = payload.subarray(addr, addr + MEM_BLOCK)
           const label = `0x${addr.toString(16).padStart(4, '0')}`
 
           if (equalBytes(block, live.subarray(addr, addr + MEM_BLOCK))) {
             operations.push({ addr, length: MEM_BLOCK, label, skipped: 'unchanged' })
-            ctx.progress?.({ phase: 'write', done: addr + MEM_BLOCK, total: PROG_SIZE, label })
+            ctx.progress?.({ phase: 'write', done: addr + MEM_BLOCK, total: progSize, label })
             continue
           }
 
@@ -355,7 +419,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
           operations.push({ addr, length: MEM_BLOCK, label })
           blocksWritten++
           bytesWritten += MEM_BLOCK
-          ctx.progress?.({ phase: 'write', done: addr + MEM_BLOCK, total: PROG_SIZE, label })
+          ctx.progress?.({ phase: 'write', done: addr + MEM_BLOCK, total: progSize, label })
         }
 
         return report()
@@ -394,6 +458,20 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       cp.meta.title = 'UV-K5 codeplug'
       cp.meta.variant = image.variant
 
+      // Which decoder applies is decided by the layout stamped on the image at
+      // read, not by re-reading the firmware string here. That is the same fact
+      // a `.bwp` carries and the same one `writeImage` checks against the radio
+      // on the cable, so all three can never disagree.
+      if (isEgzumer(image.layout)) {
+        const build = buildOptionsOf(image)
+        for (let i = 0; i < CHANNEL_COUNT; i++) {
+          const ch = decodeEgzumerChannel(mem, i, build)
+          if (ch) cp.channels.set(ch.index, ch)
+        }
+        cp.settings = decodeEgzumerSettings(mem, build)
+        return cp
+      }
+
       for (let i = 0; i < CHANNEL_COUNT; i++) {
         const ch = decodeChannel(mem, i)
         if (ch) cp.channels.set(ch.index, ch)
@@ -420,7 +498,8 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       const out = cloneImage(base)
       const region = out.regions.find((r) => r.start === PROGRAMMABLE_START)
       if (!region) throw new DriverError('UV-K5 image has no programmable region')
-      encodeInto(region.data, doc)
+      if (isEgzumer(base.layout)) encodeEgzumerInto(region.data, doc)
+      else encodeInto(region.data, doc)
       // The hash describes bytes that have changed, so it is recomputed when
       // the image is persisted rather than carried over from the base.
       return { ...out, sha256: '' }
@@ -428,8 +507,9 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
 
     validate(doc: Codeplug): Diagnostic[] {
       const out: Diagnostic[] = []
+      const bands = bandsFor(doc)
       for (const ch of doc.channels.values()) {
-        const band = UVK5_SCHEMA.rf.bands.find((b) => ch.rxFreq >= b.loHz && ch.rxFreq <= b.hiHz)
+        const band = bands.find((b) => ch.rxFreq >= b.loHz && ch.rxFreq <= b.hiHz)
         if (!band) {
           out.push({
             severity: 'error',
@@ -454,7 +534,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
         // preset. CHIRP has no equivalent rule at all.
         const txHz = ch.index > NAMED_CHANNEL_COUNT ? null : txFrequency(ch)
         if (txHz !== null) {
-          const txBand = UVK5_SCHEMA.rf.bands.find((b) => txHz >= b.loHz && txHz <= b.hiHz)
+          const txBand = bands.find((b) => txHz >= b.loHz && txHz <= b.hiHz)
           if (!txBand) {
             out.push({
               severity: 'error',
@@ -497,10 +577,16 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       return out
     },
 
-    ownedRanges(regionStart: number) {
+    ownedRanges(regionStart: number, image?: RadioImage) {
       // The calibration region is claimed by nobody, which is what makes it
       // impossible to write.
-      return regionStart === PROGRAMMABLE_START ? ownedRangesProgrammable() : []
+      if (regionStart !== PROGRAMMABLE_START) return []
+      // Egzumer claims more of the programmable region than stock does, because
+      // this build decodes its settings window and its FM presets and stock's
+      // it does not. Claiming those on a stock image would be the dangerous
+      // direction of the same mistake: `ownedRanges` is what the write gate
+      // uses to decide a changed byte was changed on purpose.
+      return image !== undefined && isEgzumer(image.layout) ? egzumerOwnedRanges() : ownedRangesProgrammable()
     },
   }
 

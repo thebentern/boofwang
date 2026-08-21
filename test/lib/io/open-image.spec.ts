@@ -105,6 +105,27 @@ describe('a CHIRP .img', () => {
     expect(metadata).toEqual({})
   })
 
+  it('takes the UV-K5 layout from the firmware string, not from the size', async () => {
+    // Stock and egzumer images are both 8,192 bytes, so size cannot separate
+    // them - and reading one as the other puts the calibration boundary 256
+    // bytes out. The hello string CHIRP records is what decides.
+    const egzumer = await encodeChirpImg({ ...uvk5Image(), variant: 'EGZUMER v0.22', layout: 'egzumer' })
+    const opened = await openImageFile(egzumer)
+    expect(opened.image.layout).toBe('egzumer')
+    expect(opened.image.regions.map((r) => r.start)).toEqual([0x0000, 0x1e00])
+    expect(opened.image.regions[0]!.data.length).toBe(0x1e00)
+    expect(opened.image.regions[1]!.readOnly).toBe(true)
+  })
+
+  it('falls back to the size guess for a firmware string it does not recognise', async () => {
+    // Guessing a layout from an unknown firmware is the thing the variant table
+    // exists to refuse, so an unrecognised string is treated as no information.
+    const odd = await encodeChirpImg({ ...uvk5Image(), variant: 'SOMEONES-FORK-9' })
+    const opened = await openImageFile(odd)
+    expect(opened.image.layout).toBe('stock')
+    expect(opened.image.regions.map((r) => r.start)).toEqual([0x0000, 0x1d00])
+  })
+
   it('refuses to write one for a radio CHIRP has no driver for', async () => {
     // A .img exists so CHIRP can open it. Producing one for the DM-32UV would
     // be a promise nothing can keep.

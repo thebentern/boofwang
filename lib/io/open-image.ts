@@ -5,7 +5,8 @@ import type { ImageRegion, RadioImage } from '../radio/image.js'
 import { isImplemented } from '../radio/registry.js'
 import { decodeBwp, looksLikeBwp, peekBwpHeader } from './bwp.js'
 import { imgToImage, looksLikeChirpImg, splitChirpImg, type ChirpMetadata } from './chirp-img.js'
-import { REGIONS as UVK5_REGIONS } from '../radios/uvk5/layout.js'
+import { REGIONS as UVK5_REGIONS, regionsFor } from '../radios/uvk5/layout.js'
+import { classifyFirmware } from '../radios/uvk5/variants.js'
 import { REGIONS as UV82_REGIONS } from '../radios/uv82/layout.js'
 import { VARIANTS as UV5R_VARIANTS } from '../radios/uv5rmini/protocol.js'
 import { PAGE_SIZE, PAGE_TAIL } from '../radios/dm32uv/protocol.js'
@@ -39,6 +40,32 @@ export const RAW_LAYOUTS: readonly RawLayout[] = [
 ]
 
 const totalOf = (l: RawLayout) => l.regions.reduce((n, r) => n + r.length, 0)
+
+/**
+ * The UV-K5 layout a CHIRP `.img` is really in, when its metadata says.
+ *
+ * Stock and egzumer images are both 8,192 bytes, so the size lookup cannot
+ * separate them - and reading one as the other puts the calibration boundary
+ * 256 bytes out and decodes a third of the settings window as something else
+ * entirely. CHIRP records the radio's hello string in `uvk5_firmware`, which is
+ * the same string the handshake would have produced, so classifying it here
+ * gives an imported file the same layout a direct read would have given it.
+ *
+ * Null for anything else, including a firmware string this build does not
+ * recognise: guessing a layout from an unknown firmware is exactly what the
+ * variant table exists to refuse.
+ */
+function uvk5LayoutFor(metadata: ChirpMetadata): RawLayout | null {
+  const firmware = metadata.uvk5_firmware
+  if (typeof firmware !== 'string' || firmware === '') return null
+  const variant = classifyFirmware(firmware)
+  if (variant.layout === 'unknown') return null
+  return {
+    radioId: 'uvk5',
+    layout: variant.layout,
+    regions: regionsFor(variant.calStart),
+  }
+}
 
 /**
  * Whether a buffer looks like a flat dump of DM-32UV pages.
@@ -119,7 +146,7 @@ export async function openImageFile(bytes: Uint8Array): Promise<OpenedImage> {
 
   if (looksLikeChirpImg(bytes)) {
     const { memory, metadata } = splitChirpImg(bytes)
-    const layout = RAW_LAYOUTS.find((l) => totalOf(l) === memory.length)
+    const layout = uvk5LayoutFor(metadata) ?? RAW_LAYOUTS.find((l) => totalOf(l) === memory.length)
     if (!layout) {
       const model = [metadata.vendor, metadata.model].filter(Boolean).join(' ')
       throw new OpenImageError(

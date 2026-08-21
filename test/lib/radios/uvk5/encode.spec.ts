@@ -320,6 +320,17 @@ describe('encode rejects what it cannot honour', () => {
     const cp = driver.decode(image)
     expect(() => driver.encode(cp, { ...image, radioId: 'dm32uv' })).toThrow(/Not a UV-K5 image/)
   })
+
+  it('refuses single sideband rather than quietly writing it as FM', () => {
+    // Stock firmware has one bit for the demodulator. Egzumer channels do
+    // decode as USB now, and one carried across to a stock image would
+    // otherwise land as wideband FM on a frequency chosen for SSB.
+    const image = realImage()
+    const cp = driver.decode(image)
+    const ch = cp.channels.get(1)!
+    cp.channels.set(1, { ...ch, modulation: 'USB' })
+    expect(() => driver.encode(cp, image)).toThrow(/can store FM or AM, not USB/)
+  })
 })
 
 describe('arbitrary edits still preserve everything unowned', () => {

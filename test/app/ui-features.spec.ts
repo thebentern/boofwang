@@ -64,6 +64,32 @@ describe('every radio declares whether it stores text messages', () => {
   })
 })
 
+describe('the settings form asks which layout it is rendering for', () => {
+  /**
+   * Same class of bug one page over. A radio can store its settings more than
+   * one way - the UV-K5 arranges them differently under egzumer firmware than
+   * under stock, and several addresses mean different things in the two - so a
+   * group declares which layouts it belongs to. A page that reads
+   * `schema.settings` directly ignores that and renders every group for every
+   * image, which puts controls for egzumer's backlight range in front of
+   * someone whose radio keeps something else in that byte.
+   */
+  const PAGE = readFileSync(fileURLToPath(new URL('../../app/pages/settings.vue', import.meta.url)), 'utf8')
+
+  it('filters the groups by the open image\'s layout', () => {
+    expect(PAGE).toMatch(/settingsForLayout\(\s*codeplug\.schema,\s*codeplug\.image\?\.layout\s*\)/)
+  })
+
+  it('never reaches for the unfiltered list', () => {
+    expect(PAGE).not.toMatch(/codeplug\.schema\??\.settings/)
+  })
+
+  it('has groups that actually declare a layout, so the filter is not vacuous', () => {
+    const declared = Object.values(SCHEMAS).flatMap((s) => (s ? s.settings.filter((g) => g.layouts) : []))
+    expect(declared.length).toBeGreaterThan(0)
+  })
+})
+
 describe('the connect screen chip', () => {
   const LIST = readFileSync(
     fileURLToPath(new URL('../../app/components/connect/DriverList.vue', import.meta.url)),
