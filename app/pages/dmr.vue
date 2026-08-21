@@ -20,6 +20,17 @@ const hasScanLists = computed(() => !!features.value?.scanLists)
 const hasRxGroups = computed(() => !!features.value?.rxGroups)
 const hasRadioIds = computed(() => !!features.value?.radioIds)
 const hasContacts = computed(() => !!features.value?.contacts)
+const hasMessages = computed(() => !!features.value?.messages)
+const hasRoaming = computed(() => codeplug.roamChannels.length > 0 || codeplug.roamZones.length > 0)
+const hasReadOnlyExtras = computed(() => codeplug.emergency.length > 0 || codeplug.analog !== null)
+
+/** What the radio can hold, so Add stops rather than the encoder throwing. */
+const messageLimit = computed(() =>
+  features.value?.messages ? features.value.messages.max : 0,
+)
+const messagesFull = computed(() => codeplug.messages.length >= messageLimit.value)
+
+const MHZ = (hz: number) => (hz / 1_000_000).toFixed(5)
 const supported = computed(
   () =>
     hasZones.value ||
@@ -621,6 +632,144 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
         </p>
       </section>
 
+      <!-- Text messages -->
+      <section v-if="hasMessages" style="margin-top: 18px">
+        <div class="flex items-center gap-2" style="margin-bottom: 7px">
+          <h2 class="sec" style="margin: 0">Text messages</h2>
+          <RiskAction
+            risk="neutral"
+            ghost
+            size="sm"
+            icon="i-lucide-plus"
+            :label="messagesFull ? `Full (${messageLimit})` : 'Add'"
+            :disabled="messagesFull"
+            class="ms-auto"
+            @click="codeplug.addMessage()"
+          />
+        </div>
+        <div class="card">
+          <p v-if="codeplug.messages.length === 0" class="empty">
+            This radio has no canned messages stored.
+          </p>
+          <div
+            v-for="(text, i) in codeplug.messages"
+            v-else
+            :key="i"
+            class="flex items-center gap-3"
+            :style="`padding: 11px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+          >
+            <span class="idx">{{ i + 1 }}</span>
+            <input
+              type="text"
+              :value="text"
+              maxlength="127"
+              class="rounded-[6px] px-2.5 outline-none flex-1 min-w-0"
+              style="height: 31px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
+              autocomplete="off"
+              @change="codeplug.setMessage(i, ($event.target as HTMLInputElement).value)"
+            >
+            <span class="meta shrink-0">{{ text.length }}/127</span>
+            <RiskAction
+              risk="caution"
+              ghost
+              size="sm"
+              icon="i-lucide-trash-2"
+              label="Remove"
+              @click="codeplug.removeMessage(i)"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- Roaming -->
+      <section v-if="hasRoaming" style="margin-top: 18px">
+        <h2 class="sec">Roaming channels</h2>
+        <div class="card">
+          <div
+            v-for="(chan, i) in codeplug.roamChannels"
+            :key="chan.id"
+            class="flex items-center gap-3 flex-wrap"
+            :style="`padding: 11px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+          >
+            <span class="idx">{{ i + 1 }}</span>
+            <input
+              type="text"
+              :value="chan.name"
+              maxlength="16"
+              class="rounded-[6px] px-2.5 outline-none"
+              style="height: 31px; width: 170px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
+              autocomplete="off"
+              @change="codeplug.updateRoamChannel(chan.id, { name: ($event.target as HTMLInputElement).value })"
+            >
+            <span class="meta">{{ MHZ(chan.rxFreq) }} / {{ MHZ(chan.txFreq) }} MHz</span>
+            <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+              CC {{ chan.colorCode }}
+            </span>
+            <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+              TS {{ chan.timeSlot }}
+            </span>
+          </div>
+        </div>
+
+        <template v-if="codeplug.roamZones.length">
+          <h2 class="sec" style="margin-top: 14px">Roaming zones</h2>
+          <div class="card">
+            <div
+              v-for="(zone, i) in codeplug.roamZones"
+              :key="zone.id"
+              class="flex items-center gap-3"
+              :style="`padding: 10px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+            >
+              <span class="idx">{{ i + 1 }}</span>
+              <span style="font-size: 14.5px; font-weight: 600; color: var(--tx)">{{ zone.name }}</span>
+              <span class="meta ms-auto">{{ zone.memberCount }} member{{ zone.memberCount === 1 ? '' : 's' }}</span>
+            </div>
+          </div>
+          <p class="note">
+            Roaming zones are read and never written. A 33-byte record with a 16-byte name leaves too little
+            room to tell the member entry width from, and every zone on the radio this was written against is
+            empty, so its own bytes cannot settle it either — so nothing here is offered for editing.
+          </p>
+        </template>
+      </section>
+
+      <!-- Read only -->
+      <section v-if="hasReadOnlyExtras" style="margin-top: 18px">
+        <h2 class="sec">Read from the radio, never written</h2>
+        <div class="card" style="padding: 16px">
+          <div v-if="codeplug.emergency.length" style="margin-bottom: 14px">
+            <span class="label-xs">Emergency systems</span>
+            <p class="meta" style="margin-top: 4px">
+              {{ codeplug.emergency.map((e) => e.name).join(', ') }}
+            </p>
+          </div>
+          <div v-if="codeplug.analog" class="grid sm:grid-cols-2" style="gap: 13px">
+            <div v-if="codeplug.analog.dtmfCodes.length">
+              <span class="label-xs">DTMF codes</span>
+              <p class="meta" style="margin-top: 4px">{{ codeplug.analog.dtmfCodes.join(', ') }}</p>
+            </div>
+            <div v-if="codeplug.analog.dtmfSpecialCodes.length">
+              <span class="label-xs">DTMF special codes</span>
+              <p class="meta" style="margin-top: 4px">{{ codeplug.analog.dtmfSpecialCodes.join(', ') }}</p>
+            </div>
+            <div v-if="codeplug.analog.contacts.length">
+              <span class="label-xs">Analog contacts</span>
+              <p class="meta" style="margin-top: 4px">{{ codeplug.analog.contacts.join(', ') }}</p>
+            </div>
+            <div v-if="codeplug.analog.bdcContacts.length">
+              <span class="label-xs">MDC1200 contacts</span>
+              <p class="meta" style="margin-top: 4px">
+                {{ codeplug.analog.bdcContacts.map((c) => `${c.name} (${c.number})`).join(', ') }}
+              </p>
+            </div>
+          </div>
+        </div>
+        <p class="note">
+          These are decoded so a backup is complete and so you can see what the radio holds. They are written
+          back exactly as they were found — their fields are documented as derived rather than confirmed, and
+          a control for a byte whose meaning is a guess is worse than none.
+        </p>
+      </section>
     </template>
   </div>
 </template>

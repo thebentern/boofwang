@@ -63,6 +63,7 @@ export const UV82_SCHEMA: RadioSchema = {
     rxGroups: false,
     scanLists: false,
     radioIds: false,
+    messages: false,
     encryption: false,
   },
 

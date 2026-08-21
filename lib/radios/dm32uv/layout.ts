@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { array, ascii, bcdFreqLE, bits, bytes, chirpBits, u8, u16le, u24le } from '../../codec/fields.js'
+import { array, ascii, bcdFreqLE, bcdLE, bits, bytes, chirpBits, u16le, u24le, u8 } from '../../codec/fields.js'
 import { at, defineStruct } from '../../codec/struct.js'
 import { ctcss, dtcs, type ToneSpec } from '../../model/tones.js'
 
@@ -710,7 +710,15 @@ export const DM32_ANALOG_CONTACT = defineStruct(ANALOG_CONTACT_SIZE, {
 
 export const DM32_BDC_CONTACT = defineStruct(BDC_SIZE, {
   name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
-  number: at(0x10, u8),
+  /**
+   * Packed BCD, not a plain byte.
+   *
+   * Nine of this radio's ten records read 01-09, where hex and decimal
+   * coincide and nothing is settled. The tenth is the discriminator: it holds
+   * 0x10 against a name ending "10", which is 16 read as a byte. The same
+   * encoding the frequencies use.
+   */
+  number: at(0x10, bcdLE(1)),
 })
 
 /**

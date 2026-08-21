@@ -9,7 +9,13 @@ import { REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import {
   RXGROUP_BLOCK,
+  MESSAGE_BLOCK,
+  MESSAGE_HEADER,
+  ROAMCHANNEL_BLOCK,
+  ROAMCHANNEL_COUNT_AT,
+  TXCONTACT_BLOCK_HIGH,
   TXCONTACT_BLOCK_LOW,
+  TXCONTACT_HIGH_LIMIT,
   SCANLIST_BLOCK,
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
@@ -193,6 +199,28 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
         })
       }
 
+      // Text messages and roaming channels, both newly writable.
+      const messagesWere = [...doc.messages]
+      if (doc.messages.length > 0) doc.messages[0] = 'HW BOOF MSG'
+      const roamWas = doc.roamChannels[0]
+      if (roamWas) {
+        doc.roamChannels[0] = { ...roamWas, name: 'HW ROAM', colorCode: 7, timeSlot: roamWas.timeSlot === 1 ? 2 : 1 }
+      }
+
+      // A channel above 2047, which is what block 0x43 exists for. 2550 lands
+      // in channel block 0x30, which this radio allocates.
+      const template = [...doc.channels.values()].find((c) => c.modulation === 'DMR')
+      const highChannel = 2550
+      const canGoHigh = template !== undefined && !doc.channels.has(highChannel)
+      if (canGoHigh) {
+        doc.channels.set(highChannel, {
+          ...template!,
+          index: highChannel,
+          name: 'HW HIGH',
+          extras: { ...template!.extras, vendor: { ...template!.extras.vendor, txContact: '4' } },
+        })
+      }
+
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
       doc.settings['callsignColour.colour'] = 5
@@ -303,6 +331,51 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
         const moved = [...nowPage.keys()].filter((i) => nowPage[i] !== wasPage[i])
         expect(moved.every((i) => i === at || i === at + 1), `bytes moved: ${moved}`).toBe(true)
       }
+
+      if (messagesWere.length > 0) {
+        expect(back.messages[0], 'the message did not reach the radio').toBe('HW BOOF MSG')
+        expect(back.messages.slice(1)).toEqual(messagesWere.slice(1))
+        // The length byte and the text must agree, or the radio shows garbage.
+        const rec = block(after, MESSAGE_BLOCK)
+        expect(rec[MESSAGE_HEADER], 'the length byte').toBe('HW BOOF MSG'.length)
+      }
+
+      if (roamWas) {
+        const now = back.roamChannels[0]!
+        expect(now.name, 'the roaming channel did not reach the radio').toBe('HW ROAM')
+        expect(now.colorCode).toBe(7)
+        expect(now.timeSlot).toBe(roamWas.timeSlot === 1 ? 2 : 1)
+        expect(now.rxFreq, 'the frequency moved').toBe(roamWas.rxFreq)
+        // The count trailer, and the bytes after it.
+        expect(block(after, ROAMCHANNEL_BLOCK)[ROAMCHANNEL_COUNT_AT]).toBe(back.roamChannels.length)
+        expect(
+          equalBytes(
+            block(after, ROAMCHANNEL_BLOCK).subarray(ROAMCHANNEL_COUNT_AT + 1),
+            block(baseline, ROAMCHANNEL_BLOCK).subarray(ROAMCHANNEL_COUNT_AT + 1),
+          ),
+          'the bytes after the count trailer were rewritten',
+        ).toBe(true)
+      }
+
+      if (canGoHigh) {
+        // Block 0x43, which had never been written before.
+        const now = back.channels.get(highChannel)
+        expect(now?.name, 'the channel above 2047 did not reach the radio').toBe('HW HIGH')
+        expect(Number(now?.extras.vendor?.txContact), 'its talk group').toBe(4)
+        // And the stale zone records in that block's tail are untouched.
+        expect(
+          equalBytes(
+            block(after, TXCONTACT_BLOCK_HIGH).subarray(TXCONTACT_HIGH_LIMIT),
+            block(baseline, TXCONTACT_BLOCK_HIGH).subarray(TXCONTACT_HIGH_LIMIT),
+          ),
+          'the residue in block 0x43 was disturbed',
+        ).toBe(true)
+      }
+
+      // Decoded but never written, so a codeplug edit must not move them.
+      expect(driver.decode(after).emergency).toEqual(driver.decode(baseline).emergency)
+      expect(driver.decode(after).analog).toEqual(driver.decode(baseline).analog)
+      expect(driver.decode(after).roamZones).toEqual(driver.decode(baseline).roamZones)
 
       expect(back.settings.powerOnLine1).toBe('HW BOOF')
       expect(back.settings['callsignColour.colour']).toBe(5)

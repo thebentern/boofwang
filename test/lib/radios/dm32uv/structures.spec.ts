@@ -22,6 +22,8 @@ import {
   SCANLIST_SIZE,
   SETTINGS_BLOCK,
   ANALOG_BLOCK,
+  BDC_BASE,
+  BDC_SIZE,
   EMERGENCY_SIZE,
   EMERGENCY_SLOTS,
   KEY_AREA,
@@ -1114,5 +1116,21 @@ describe('the structures decoded but never written', () => {
     const img = image()
     const out = d.encode(d.decode(img), img)
     expect(equalBytes(page(out, ANALOG_BLOCK), page(img, ANALOG_BLOCK))).toBe(true)
+  })
+})
+
+describe('the BDC contact number is BCD', () => {
+  it('reads contact 10 as ten, not sixteen', () => {
+    // Nine of this radio's ten records read 01-09, where hex and decimal
+    // coincide and nothing is settled. The tenth holds 0x10 against a name
+    // ending "10", which a plain byte read turns into 16.
+    const a = d.decode(image()).analog!
+    expect(a.bdcContacts.map((c) => c.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(a.bdcContacts[9]!.name).toBe('BDC Cotnacts 10')
+  })
+
+  it('is the byte the radio actually holds', () => {
+    const data = page(image(), ANALOG_BLOCK)
+    expect(data[BDC_BASE + 9 * BDC_SIZE + 0x10], 'the tenth record’s number byte').toBe(0x10)
   })
 })

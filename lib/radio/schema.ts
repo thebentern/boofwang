@@ -149,6 +149,16 @@ export interface RadioSchema {
     readonly rxGroups: false | { readonly max: number }
     readonly scanLists: false | { readonly max: number; readonly channelsPer: number }
     readonly radioIds: false | { readonly max: number }
+    /**
+     * Canned text messages, when the radio stores them.
+     *
+     * A feature flag rather than "does this codeplug happen to have any": a
+     * radio with none still needs somewhere to add the first, and a radio that
+     * has no such memory must not be offered the control at all. Without this
+     * the messages panel appeared for every radio, and on one that cannot store
+     * them a typed message was accepted and then dropped by the encoder.
+     */
+    readonly messages: false | { readonly max: number; readonly maxChars: number }
     readonly encryption:
       | false
       | { readonly slots: number; readonly types: readonly string[]; readonly nameLength: number }

@@ -190,6 +190,7 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
     rxGroups: false,
     scanLists: false,
     radioIds: false,
+    messages: false,
     encryption: false,
   },
 

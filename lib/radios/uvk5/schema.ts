@@ -84,6 +84,7 @@ export const UVK5_SCHEMA: RadioSchema = {
     rxGroups: false,
     scanLists: { max: 2, channelsPer: 200 },
     radioIds: false,
+    messages: false,
     encryption: false,
   },
 

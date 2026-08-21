@@ -28,6 +28,11 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   const rxGroups = shallowRef<readonly Codeplug['rxGroups'][number][]>([])
   const radioIds = shallowRef<readonly Codeplug['radioIds'][number][]>([])
   const contacts = shallowRef<readonly Codeplug['contacts'][number][]>([])
+  const messages = shallowRef<readonly string[]>([])
+  const roamChannels = shallowRef<readonly Codeplug['roamChannels'][number][]>([])
+  const roamZones = shallowRef<readonly Codeplug['roamZones'][number][]>([])
+  const emergency = shallowRef<readonly Codeplug['emergency'][number][]>([])
+  const analog = shallowRef<Codeplug['analog']>(null)
   const settings = shallowRef<Readonly<Record<string, unknown>>>({})
   const diagnostics = shallowRef<readonly Diagnostic[]>([])
   const revision = ref(0)
@@ -58,6 +63,11 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     rxGroups.value = Object.freeze(decoded.rxGroups.map((g) => Object.freeze(g)))
     radioIds.value = Object.freeze(decoded.radioIds.map((r) => Object.freeze(r)))
     contacts.value = Object.freeze(decoded.contacts.map((c) => Object.freeze(c)))
+    messages.value = Object.freeze([...decoded.messages])
+    roamChannels.value = Object.freeze(decoded.roamChannels.map((c) => Object.freeze(c)))
+    roamZones.value = Object.freeze(decoded.roamZones.map((z) => Object.freeze(z)))
+    emergency.value = Object.freeze(decoded.emergency.map((e) => Object.freeze(e)))
+    analog.value = decoded.analog ? Object.freeze(decoded.analog) : null
     settings.value = Object.freeze({ ...decoded.settings })
     diagnostics.value = Object.freeze(driver.validate(decoded))
     revision.value++
@@ -76,6 +86,11 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     rxGroups.value = []
     radioIds.value = []
     contacts.value = []
+    messages.value = []
+    roamChannels.value = []
+    roamZones.value = []
+    emergency.value = []
+    analog.value = null
     settings.value = {}
     diagnostics.value = []
     dirty.value = false
@@ -229,6 +244,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     rxGroups.value = Object.freeze(cp.rxGroups.map((g) => Object.freeze(g)))
     radioIds.value = Object.freeze(cp.radioIds.map((r) => Object.freeze(r)))
     contacts.value = Object.freeze(cp.contacts.map((c) => Object.freeze(c)))
+    messages.value = Object.freeze([...cp.messages])
+    roamChannels.value = Object.freeze(cp.roamChannels.map((c) => Object.freeze(c)))
     settings.value = Object.freeze({ ...cp.settings })
     revalidate()
     revision.value++
@@ -350,6 +367,40 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     const i = cp.contacts.findIndex((c) => c.id === id)
     if (i < 0) return
     cp.contacts.splice(i, 1)
+    republish()
+  }
+
+  function setMessage(index: number, text: string) {
+    const cp = doc.value
+    if (!cp || cp.messages[index] === text) return
+    cp.messages[index] = text
+    republish()
+  }
+
+  function addMessage() {
+    const cp = doc.value
+    const limit = schema.value?.features.messages
+    // Refuse at the radio's own limit rather than letting the encoder throw:
+    // a DriverError surfaces as a write blocker, which is a dead end reached by
+    // clicking a button the interface offered.
+    if (!cp || !limit || cp.messages.length >= limit.max) return
+    cp.messages.push('')
+    republish()
+  }
+
+  function removeMessage(index: number) {
+    const cp = doc.value
+    if (!cp || index < 0 || index >= cp.messages.length) return
+    cp.messages.splice(index, 1)
+    republish()
+  }
+
+  function updateRoamChannel(id: string, patch: Partial<Codeplug['roamChannels'][number]>) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.roamChannels.findIndex((c) => c.id === id)
+    if (i < 0) return
+    cp.roamChannels[i] = { ...cp.roamChannels[i]!, ...patch }
     republish()
   }
 
@@ -477,6 +528,10 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     updateContact,
     addContact,
     removeContact,
+    setMessage,
+    addMessage,
+    removeMessage,
+    updateRoamChannel,
     setSetting,
     setEncryptionKey,
     removeEncryptionKey,
@@ -488,6 +543,11 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     rxGroups,
     radioIds,
     contacts,
+    messages,
+    roamChannels,
+    roamZones,
+    emergency,
+    analog,
     settings,
     diagnostics,
     diagnosticsByChannel,

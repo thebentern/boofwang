@@ -321,7 +321,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
             'text messages, roaming channels, radio settings and encryption keys',
           // Everything the driver decodes is written now bar one derived index,
           // so the exclusions are the short half and the chip uses them.
-          writeExcept: 'roaming zone membership, emergency systems and DTMF',
+          writeExcept: 'roaming zones, the talk-group ordering, emergency systems and DTMF',
         },
       }
     : DM32UV_SCHEMA
