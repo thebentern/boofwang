@@ -2,7 +2,15 @@
 import { parseCsv } from './csv-text.js'
 import { CSV_COLUMNS } from './chirp-csv.js'
 import type { Channel, TxSpec } from '../model/channel.js'
-import { CTCSS_DECIHZ, DTCS_CODES, NO_TONE, ctcss, dtcs, type TonePair, type ToneSpec } from '../model/tones.js'
+import {
+  DTCS_CODES,
+  NO_TONE,
+  ctcss,
+  dtcs,
+  nearestCtcss,
+  type TonePair,
+  type ToneSpec,
+} from '../model/tones.js'
 import { hz, mW, type Hz } from '../model/units.js'
 
 /**
@@ -44,14 +52,6 @@ function parseCtcss(s: string): number | null {
   const v = Number.parseFloat(s.trim())
   if (!Number.isFinite(v)) return null
   return Math.round(v * 10)
-}
-
-function nearestCtcss(deciHz: number): number {
-  let best = CTCSS_DECIHZ[0]!
-  for (const t of CTCSS_DECIHZ) {
-    if (Math.abs(t - deciHz) < Math.abs(best - deciHz)) best = t
-  }
-  return best
 }
 
 /**
