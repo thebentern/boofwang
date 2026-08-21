@@ -712,9 +712,27 @@ high nibble — and `0xFFFF` ends it.
 
 Two details that matter. The name order is **byte-wise**, not case-insensitive:
 `ZZZ` sorts before `aaa` because `0x5A < 0x61`, and a test pins exactly that
-pair. And entries are cleared only as far as the table previously reached —
-filling to the table's derived end would run into the gaps beyond it, which are
-`0xFF` in every capture but were never established as unused.
+pair. And both tables are written **whole**, every time: the live rows, then
+`0xFF` out to row 128.
+
+That is a correction. Entries used to be cleared only as far as the table
+previously reached, on the reasoning that filling to the derived end would run
+into gaps that are `0xFF` in every capture but were never established as unused.
+The trouble is that "previously reached" comes from the count byte *before* the
+write while `talkGroupIndexRanges` sized its claim from the count *after*, so
+removing a talk group cleared rows the driver had just stopped claiming. The
+diff filed them as changes outside `ownedRanges`, and the write gate reports
+that as a defect in boofwang and refuses the whole write. Cloning a codeplug
+with fewer talk groups than the radio's hit it every time, and so did the
+editor's own Remove button.
+
+The gaps are now established. Each table is 128 rows of two bytes, so by-name
+occupies `0x100`–`0x200` and by-number `0x740`–`0x840`; the space between them
+is 1,344 bytes that neither reaches. On this radio's live read every byte past
+the six live rows inside both extents is already `0xFF`, so writing `0xFF` there
+writes what is already there — confirmed by the round-trip staying byte-exact
+over all 64 regions. Encoder and claim now cover the same bytes by construction,
+which is what stops them disagreeing again.
 
 The index is written immediately after the bank it describes. It is derived from
 those records, and committing it against a bank that then failed to write would
@@ -725,6 +743,46 @@ same reason: this radio's bank has gaps at slots 2, 5, 8 and 9 — wiped records
 that keep their call type — and a channel's TX contact points at a slot number,
 so packing the bank would silently repoint every channel after a gap. A new
 group takes the lowest free slot, which on this radio is 2.
+
+### Cloning another radio's codeplug — verified session, 2026-08-21
+
+The first write driven from a donor codeplug rather than an edit. Read the
+radio, take a codeplug from another unit, keep everything that belongs to this
+one, write the rest.
+
+The donor was derived from this radio's own read with its calibration page
+XORed, which is what makes it another unit as far as every check here is
+concerned. Two of them fired, and they are different checks:
+
+- `writeImage` refused the donor's **image** with `ImageRadioMismatchError`,
+  having re-read the live calibration page and found it different. This is the
+  refusal that makes document-cloning necessary in the first place.
+- With the image replaced by a transplanted document, the **backup** gate then
+  refused because the `BackupRef` carried no `unitHash`. `identHash` covers
+  model, firmware and build date, so it cannot tell two DM-32UVs apart; the
+  backup has to carry `sha256(calibration)` as well.
+
+The donor carried 3 talk groups against this radio's 6 — the shrink that used to
+refuse outright. What was sent:
+
+| | |
+|---|---|
+| Donor lists applied | 45 channels, 4 zones, 2 scan lists, 3 talk groups, 5 RX groups, 147 contacts, 5 messages |
+| Held back | 1 DMR radio ID, 22 encryption keys, 224 settings |
+| Diff | 581 bytes, **0 outside `ownedRanges`** |
+| Pages written | 3 — `0x44` talk groups, `0x0B` talk group ordering, `0x12` channels |
+| Verify | every page read back and compared whole |
+| Full re-read | 262,144 bytes, 0 differing from what was sent |
+| Restore | back to `c3486fcf…`, byte-identical, 6 talk groups and the original names |
+
+Two further things this settled. The recipient's calibration is untouched and
+its `unitFingerprint` unchanged after the clone, against a donor whose unowned
+bytes were **all** made to differ — 112,701 of them, none of which reached the
+image. And this unit reports an address book where the committed fixture does
+not: 5 pages read, room for 220, holding 147. `encodeContacts` refusing an
+overflow is therefore reachable here, and its message now says what actually
+helps, because a re-read returns the pages your own contacts fill plus one spare
+and so never grows the region.
 
 ## Session of 2026-08-21 — the rest of block 0x04, block 0x03, and roaming zones
 
