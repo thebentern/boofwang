@@ -477,10 +477,29 @@ export const useCodeplugStore = defineStore('codeplug', () => {
    * pending change and the write page must still show the diff and ask for the
    * word. Refused when nothing is open, because there would be no base image to
    * render it onto and no way to write it.
+   *
+   * The history goes, for the same reason it goes on `load`, and it is the same
+   * hazard rather than a similar one: every recorded patch names slots in the
+   * codeplug being replaced. Cloning a club codeplug over your own and then
+   * pressing undo would apply one of those patches to the club's channel bank -
+   * it would not fail, it would put one of your old channels back in among
+   * theirs. The other half is `dirty`: an entry carries the flag as it stood
+   * before its action, so undoing past the merge would clear it and re-lock the
+   * write gate with an unwritten clone sitting in the document.
+   *
+   * So the merge cannot be taken back with undo. That is a real cost and the
+   * dialog says so plainly. It is not worth buying back by teaching this
+   * history to hold a whole document: the entries are channel slots, a
+   * transplant also moves zones, talk groups and contacts, and an undo that
+   * restored the channels while leaving the donor's zones pointing at them
+   * would be a codeplug nobody made. Nothing has been sent to the radio at this
+   * point either way - the write page still shows the diff and still asks for
+   * the word.
    */
   function replaceDocument(next: Codeplug) {
     if (!doc.value || !driverRef.value) return
     publish(next)
+    clearHistory()
     revision.value++
     dirty.value = true
   }

@@ -299,6 +299,8 @@ async function applyToOpen() {
         <p class="mt-3" style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
           Applying this sends nothing. It becomes an unsaved edit, and goes to the radio through the same write
           page as any other, with the backup check, the line-by-line diff and the typed confirmation.
+          <span style="color: var(--tx)">Undo will not take it back</span>, because it replaces the whole
+          codeplug rather than editing part of one. Your radio keeps what it has until you write.
         </p>
       </template>
 

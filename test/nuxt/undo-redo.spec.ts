@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { transplantCodeplug } from '#core/radio/transplant.js'
 import { createUv5rMiniDriver } from '#core/radios/uv5rmini/driver.js'
 import { VARIANTS } from '#core/radios/uv5rmini/protocol.js'
 import type { EncryptionKey } from '#core/model/codeplug.js'
@@ -261,6 +262,70 @@ describe('load', () => {
 
     expect(store.canUndo).toBe(false)
     expect(store.canRedo).toBe(false)
+  })
+})
+
+/**
+ * Cloning someone else's codeplug replaces the whole document at once, and it
+ * is the same hazard as reading a different radio rather than a similar one.
+ *
+ * Every entry in this history names channel slots. Applying one of them to a
+ * channel bank that has just been replaced wholesale does not fail - which is
+ * exactly the problem, because what it does instead is put one of your own
+ * channels back in among your friend's, and nothing says so.
+ */
+describe('applying a donor codeplug', () => {
+  /** The merge the open-file dialog builds, with channels nothing like the recipient's. */
+  function cloneOnto(store: Store, slot: number) {
+    const donor = driver.decode(blankImage())
+    donor.channels = new Map([[slot, { ...store.doc!.channels.values().next().value!, index: slot, name: 'CLUB' }]])
+    const { codeplug } = transplantCodeplug({
+      donor,
+      recipient: store.doc!,
+      schema: driver.schema,
+      now: '2026-08-21T00:00:00.000Z',
+    })
+    store.replaceDocument(codeplug)
+  }
+
+  it('forgets every action recorded against the codeplug it replaced', () => {
+    const store = open()
+    withChannels(store, 3)
+    store.updateChannel(1, { name: 'MINE' })
+    expect(store.canUndo).toBe(true)
+
+    cloneOnto(store, 7)
+
+    expect(store.canUndo, 'a patch naming slots in the pre-clone codeplug survived the merge').toBe(false)
+    expect(store.canRedo).toBe(false)
+  })
+
+  it('cannot have an undo put one of your channels back among the donor’s', () => {
+    const store = open()
+    withChannels(store, 3)
+    store.updateChannel(1, { name: 'MINE' })
+
+    cloneOnto(store, 7)
+    store.undo()
+
+    expect(
+      [...store.doc!.channels.keys()].sort((a, b) => a - b),
+      'undo resurrected a channel the clone had removed',
+    ).toEqual([7])
+  })
+
+  it('stays unwritten, so the write gate still offers the clone', () => {
+    // An entry carries `dirty` as it stood before its action. Undoing past the
+    // merge would restore the flag from before it and re-lock the write gate
+    // with a whole cloned codeplug sitting unsent.
+    const store = open()
+    withChannels(store, 3)
+    store.updateChannel(1, { name: 'MINE' })
+
+    cloneOnto(store, 7)
+    while (store.canUndo) store.undo()
+
+    expect(store.dirty, 'the write gate re-locked with an unwritten clone in the document').toBe(true)
   })
 })
 
