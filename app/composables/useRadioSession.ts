@@ -4,6 +4,7 @@ import { toStoredBackup } from '#core/storage/db.js'
 import { encodeBwp, encodeRawBin } from '#core/io/bwp.js'
 import { encodeChirpImg } from '#core/io/chirp-img.js'
 import { exportChirpCsv, defaultHeader } from '#core/io/chirp-csv.js'
+import { buildSummary, summaryHtml, summaryMarkdown } from '#core/io/summary.js'
 import type { RadioId } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { evaluateWriteGate } from '#core/radio/write-gate.js'
@@ -503,6 +504,41 @@ export function useRadioSession() {
     await saveFile(text, `${baseName()}.csv`, 'text/csv')
   }
 
+  /**
+   * The channel plan in a form that can be sent to a person.
+   *
+   * Built from the edited document rather than the image, like the CSV beside
+   * it, because what someone is asked to check is the plan as it stands. The
+   * radio's name comes from the schema so the file says "Baofeng DM-32UV"
+   * rather than `dm32uv`, and the firmware from the image so a reader can tell
+   * whether their radio is the one this was written against.
+   *
+   * `buildSummary` never reads the codeplug's keys - see the note in
+   * `lib/io/summary.ts` - so there is nothing to redact here.
+   */
+  function currentSummary() {
+    const doc = codeplug.doc
+    if (!doc) return null
+    const schema = codeplug.schema
+    const firmware = codeplug.image?.variant
+    return buildSummary(doc, {
+      ...(schema === null ? {} : { radio: `${schema.vendor} ${schema.model}` }),
+      ...(firmware === undefined ? {} : { firmware }),
+    })
+  }
+
+  async function downloadSummaryHtml() {
+    const summary = currentSummary()
+    if (!summary) return
+    await saveFile(summaryHtml(summary), `${baseName()}-summary.html`, 'text/html')
+  }
+
+  async function downloadSummaryMarkdown() {
+    const summary = currentSummary()
+    if (!summary) return
+    await saveFile(summaryMarkdown(summary), `${baseName()}-summary.md`, 'text/markdown')
+  }
+
   async function downloadTrace() {
     const json = device.traceJson()
     if (!json) return
@@ -519,6 +555,8 @@ export function useRadioSession() {
     downloadRawBin,
     downloadChirpImg,
     downloadCsv,
+    downloadSummaryHtml,
+    downloadSummaryMarkdown,
     downloadTrace,
   }
 }

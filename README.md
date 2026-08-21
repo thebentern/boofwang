@@ -45,6 +45,7 @@ preserved and never sent back.
 | CHIRP `.img` | Yes | Yes |
 | CHIRP CSV | Yes | Yes |
 | Raw `.bin` | Yes | Yes |
+| Channel summary — one self-contained `.html`, or a Markdown table | No | Yes |
 
 CSV output is byte-identical to CHIRP's own, checked by loading it with
 `chirp.generic_csv.CSVRadio` and diffing CHIRP's re-export
@@ -52,6 +53,15 @@ CSV output is byte-identical to CHIRP's own, checked by loading it with
 
 `.img` files carry CHIRP's metadata trailer and open in CHIRP. The DM-32UV is
 excluded, because CHIRP cannot open a radio it has no driver for.
+
+A summary is the channel plan rather than the codeplug: the radio, the firmware,
+the channel count and the channel list, in one file that references nothing
+outside itself and can be emailed or pasted into a wiki. It never carries
+encryption keys, in any form, including the names of the slots they sit in - a
+`.bwp` is what to send when the whole radio is genuinely wanted. The channels
+page also prints, dropping the interface and the virtualised window so that
+every channel reaches the paper with its receive-only marking still legible in
+black and white.
 
 ## Development
 
@@ -107,7 +117,7 @@ lib/          framework-agnostic core; no Vue or Nuxt imports, runs in plain Nod
   radio/      driver interface, registry, image model, write gate, diffing
   radios/     one directory per radio: protocol, layout, schema, driver
   model/      channels, tones, units, codeplug document
-  io/         CHIRP CSV, CHIRP .img, .bwp, raw .bin
+  io/         CHIRP CSV, CHIRP .img, .bwp, raw .bin, shareable summary
   storage/    IndexedDB backups
   platform/   browser capability checks
 app/          Nuxt 4 UI, rendered from radio schemas rather than per-radio code

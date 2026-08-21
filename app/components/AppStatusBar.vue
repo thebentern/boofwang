@@ -63,9 +63,14 @@ const hint = computed(() => {
 </script>
 
 <template>
+  <!--
+    Not printed: every segment here is about the live session - whether a port
+    is open, whether there are unwritten edits, whether a way back exists - and
+    all four are stale the moment the page leaves the screen.
+  -->
   <div
     v-if="codeplug.isOpen"
-    class="flex items-center flex-wrap"
+    class="flex items-center flex-wrap print-hide"
     style="height: 36px; background: var(--pn2); border-bottom: 1px solid var(--ln)"
   >
     <div class="mx-auto w-full max-w-[1400px] px-4 flex items-center gap-0 h-full">

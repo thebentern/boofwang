@@ -23,6 +23,7 @@ const emit = defineEmits<{ edit: [Channel]; create: [number] }>()
 
 const codeplug = useCodeplugStore()
 const session = useRadioSession()
+const { printing, print } = usePrintMode()
 
 type Facet = 'all' | 'rx' | 'err' | 'edit' | 'empty'
 type EditCol = 'name' | 'rx'
@@ -62,8 +63,14 @@ const OPTIONAL_COLUMNS = [
 const FIXED_COLUMNS = '26px 20px 34px minmax(90px,1fr) 82px 54px 82px'
 const FIXED_WIDTH = 26 + 20 + 34 + 90 + 82 + 54 + 82
 
+/** The same spine without the selection column, which selects nothing on paper. */
+const PRINT_COLUMNS = FIXED_COLUMNS.slice('26px '.length)
+
 const gridColumns = computed(() =>
-  [FIXED_COLUMNS, ...OPTIONAL_COLUMNS.filter((c) => optional[c.key]).map((c) => `${c.width}px`)].join(' '),
+  [
+    printing.value ? PRINT_COLUMNS : FIXED_COLUMNS,
+    ...OPTIONAL_COLUMNS.filter((c) => optional[c.key]).map((c) => `${c.width}px`),
+  ].join(' '),
 )
 
 /**
@@ -74,6 +81,9 @@ const gridColumns = computed(() =>
  * reader has no way to know a value existed.
  */
 const minWidth = computed(() => {
+  // A sheet of paper cannot be scrolled sideways, so the floor that protects a
+  // narrow laptop would only push the last columns off the edge of the page.
+  if (printing.value) return 0
   const shown = OPTIONAL_COLUMNS.filter((c) => optional[c.key])
   const px = FIXED_WIDTH + shown.reduce((n, c) => n + c.width, 0)
   return px + 8 * (6 + shown.length) + 20
@@ -325,11 +335,20 @@ function stateOf(r: SlotRow): RowState {
   return 'ok'
 }
 
-const GUTTER: Record<Exclude<RowState, 'ok'>, { icon: string; color: string; title: string }> = {
-  'error': { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', title: 'Transmit lands in a receive-only allocation' },
-  'receive-only': { icon: 'i-lucide-lock', color: 'var(--cn)', title: 'Receive-only — transmit disabled' },
-  'edited': { icon: 'i-lucide-pencil', color: 'var(--in)', title: 'Changed, not yet written' },
-  'empty': { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', title: 'Empty slot' },
+/**
+ * The gutter's four states, in two alphabets.
+ *
+ * `mark` is the printed one, and it exists because the screen one cannot be
+ * printed: an icon here is a `mask-image`, which a printer drops along with
+ * every other background graphic unless the person printing went looking for
+ * the setting. A receive-only channel is the one row state where losing the
+ * marking is dangerous rather than untidy, so on paper it is two letters.
+ */
+const GUTTER: Record<Exclude<RowState, 'ok'>, { icon: string; color: string; title: string; mark: string }> = {
+  'error': { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', title: 'Transmit lands in a receive-only allocation', mark: '!' },
+  'receive-only': { icon: 'i-lucide-lock', color: 'var(--cn)', title: 'Receive-only — transmit disabled', mark: 'RX' },
+  'edited': { icon: 'i-lucide-pencil', color: 'var(--in)', title: 'Changed, not yet written', mark: '*' },
+  'empty': { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', title: 'Empty slot', mark: '·' },
 }
 
 /** The offset column. The absolute transmit frequency is the next column along, so this stays short. */
@@ -349,7 +368,7 @@ interface RowView {
   state: RowState
   dim: boolean
   background: string
-  gutter: { icon: string; color: string; title: string } | null
+  gutter: { icon: string; color: string; title: string; mark: string } | null
   name: string
   rx: string
   shift: string
@@ -441,12 +460,68 @@ const virtualizer = useVirtualizer(
 
 const totalHeight = computed(() => virtualizer.value.getTotalSize())
 
-const visibleRows = computed(() =>
-  virtualizer.value.getVirtualItems().map((item) => {
+/**
+ * What goes on the paper: every channel the filter admits, and no empty slots.
+ *
+ * "Every channel" rather than "every slot" is the literal reading and also the
+ * kind one - a DM-32UV holds 4,000 slots and a club plan fills two hundred, so
+ * printing the memory map rather than the plan would turn eight pages into a
+ * hundred and thirty of dashes. The one filter that means the empties *are* the
+ * subject is honoured, because a person who ticked "Empty" and pressed print
+ * asked for exactly that.
+ */
+const printRows = computed<SlotRow[]>(() =>
+  facet.value === 'empty' ? rows.value : rows.value.filter((r) => r.channel !== null),
+)
+
+/**
+ * The rows that actually get mounted.
+ *
+ * On screen this is the virtualiser's window - forty-odd rows, which is what
+ * keeps four thousand slots scrollable. While printing it is the whole list,
+ * laid out in normal flow so the browser can paginate it: absolutely positioned
+ * rows inside a fixed-height box print as one screenful and lose the rest,
+ * which is the failure this exists to prevent. Rendering four thousand rows
+ * once is affordable; doing it on every keystroke is not, which is why this is
+ * a mode rather than a setting.
+ */
+const renderedRows = computed(() => {
+  if (printing.value) {
+    return printRows.value.map((row) => ({ key: row.index, start: 0, size: ROW_HEIGHT, row, view: view(row) }))
+  }
+  return virtualizer.value.getVirtualItems().map((item) => {
     const row = rows.value[item.index]!
     return { key: row.index, start: item.start, size: item.size, row, view: view(row) }
-  }),
+  })
+})
+
+/** The spacer the virtualiser needs, and that print must not inherit. */
+const bodyStyle = computed(() =>
+  printing.value
+    ? { position: 'relative' as const }
+    : { height: `${totalHeight.value}px`, minWidth: `${minWidth.value}px`, position: 'relative' as const },
 )
+
+function rowStyle(r: { start: number; size: number; row: SlotRow; view: RowView }) {
+  const base = {
+    gridTemplateColumns: gridColumns.value,
+    gap: '8px',
+    padding: '0 10px',
+    height: `${r.size}px`,
+    cursor: r.row.channel ? 'pointer' : 'default',
+    borderBottom: '1px solid var(--ln)',
+    background: r.view.background,
+  }
+  if (printing.value) return base
+  return {
+    ...base,
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    transform: `translateY(${r.start}px)`,
+  }
+}
 
 /**
  * Scroll a row clear of the sticky header.
@@ -735,6 +810,11 @@ const exportItems = computed(() => [
     icon: 'i-lucide-file-down',
     run: exportCsv,
   },
+  // The two summaries sit next to the CSV because they answer the same
+  // question - "send me the channel list" - and the CSV is what people were
+  // using for it. Neither carries key material; the CSV never did either.
+  { label: 'Shareable summary (.html)', icon: 'i-lucide-globe', run: () => session.downloadSummaryHtml() },
+  { label: 'Summary table (.md)', icon: 'i-lucide-type', run: () => session.downloadSummaryMarkdown() },
   { label: 'Codeplug (.bwp)', icon: 'i-lucide-save', run: () => session.downloadBwp() },
   { label: 'CHIRP image (.img)', icon: 'i-lucide-file-down', run: () => session.downloadChirpImg() },
   { label: 'Raw (.bin)', icon: 'i-lucide-binary', run: () => session.downloadRawBin() },
@@ -767,16 +847,55 @@ const headerStyle = computed(() => ({
   letterSpacing: '.04em',
   textTransform: 'uppercase' as const,
   color: 'var(--fn)',
-  position: 'sticky' as const,
+  // Sticky is a scrolling affordance, and a page that is not scrolled has none:
+  // left sticky, the header would be painted over the first row of every sheet.
+  position: (printing.value ? 'static' : 'sticky') as 'static' | 'sticky',
   top: '0',
   zIndex: 2,
 }))
+
+const radioName = computed(() => {
+  const s = codeplug.schema
+  return s ? `${s.vendor} ${s.model}` : 'Codeplug'
+})
+
+/**
+ * Recomputed each time print mode is entered, which is the point.
+ *
+ * A timestamp captured when the component mounted would be the moment the
+ * codeplug was opened, and someone reading the sheet a week later would take it
+ * for when it was printed.
+ */
+const printedFacts = computed(() => {
+  if (!printing.value) return ''
+  const parts: string[] = []
+  const firmware = codeplug.image?.variant
+  if (firmware) parts.push(firmware)
+  parts.push(`${codeplug.channelCount} channel(s)`)
+  if (codeplug.rxOnlyCount > 0) parts.push(`${codeplug.rxOnlyCount} receive-only`)
+  if (printRows.value.length !== codeplug.channelCount) parts.push(`filtered to ${printRows.value.length}`)
+  parts.push(`printed ${new Date().toLocaleString()}`)
+  return parts.join(' · ')
+})
 </script>
 
 <template>
   <div>
+    <!--
+      The page has no heading on screen, because the status bar above already
+      says which radio this is. On paper there is no status bar, so the sheet
+      has to introduce itself - and say what its two letters in the gutter mean.
+    -->
+    <div class="print-only" style="margin-bottom: 10px">
+      <h1 style="font-size: 16px; font-weight: 600; letter-spacing: -0.01em">{{ radioName }} channel plan</h1>
+      <p style="font-size: 11px; color: var(--mu); margin-top: 2px">{{ printedFacts }}</p>
+      <p style="font-size: 11px; color: var(--mu); margin-top: 2px">
+        RX = receive-only, transmit disabled. ! = transmit error. * = edited, not yet written to the radio.
+      </p>
+    </div>
+
     <!-- Toolbar -->
-    <div class="flex items-center flex-wrap" style="gap: 9px; margin-bottom: 9px">
+    <div class="flex items-center flex-wrap print-hide" style="gap: 9px; margin-bottom: 9px">
       <div
         class="flex items-center"
         style="height: 33px; gap: 7px; padding: 0 9px; border: 1px solid var(--ln2); border-radius: 6px; background: var(--pn)"
@@ -857,6 +976,22 @@ const headerStyle = computed(() => ({
           />
         </div>
 
+        <!--
+          Its own button rather than an entry in the Export menu: printing is a
+          verb, not a file. It also takes the deterministic path into print
+          mode, which Ctrl+P cannot.
+        -->
+        <button
+          type="button"
+          class="inline-flex items-center"
+          style="height: 31px; padding: 0 10px; gap: 6px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13.5px"
+          title="Print every channel, without the interface around it"
+          @click="print()"
+        >
+          <UIcon name="i-lucide-rows-3" style="width: 12px; height: 12px; color: var(--fn)" />
+          Print
+        </button>
+
         <UPopover>
           <button
             type="button"
@@ -909,7 +1044,7 @@ const headerStyle = computed(() => ({
                 {{ x.label }}
               </button>
               <p style="padding: 4px 8px 2px; font-size: 12.5px; color: var(--fn); max-width: 30ch; white-space: normal">
-                Exports change nothing on the radio.
+                Exports change nothing on the radio. A summary never includes encryption keys.
               </p>
             </div>
           </template>
@@ -959,7 +1094,7 @@ const headerStyle = computed(() => ({
         >{{ slotRanges(g.slots) }}</button>
         <button
           type="button"
-          class="ms-auto inline-flex items-center whitespace-nowrap"
+          class="ms-auto inline-flex items-center whitespace-nowrap print-hide"
           :style="{
             flex: 'none',
             height: '23px',
@@ -982,10 +1117,10 @@ const headerStyle = computed(() => ({
     </div>
 
     <!-- Table -->
-    <div style="border: 1px solid var(--ln); border-radius: 7px; overflow: hidden; background: var(--pn)">
-      <div ref="scroller" class="overflow-auto" style="max-height: calc(100vh - 300px); min-height: 180px">
+    <div class="ch-frame" style="border: 1px solid var(--ln); border-radius: 7px; overflow: hidden; background: var(--pn)">
+      <div ref="scroller" class="overflow-auto ch-scroll" style="max-height: calc(100vh - 300px); min-height: 180px">
         <div ref="headerEl" :style="headerStyle">
-          <span>
+          <span v-if="!printing">
             <button
               type="button"
               role="checkbox"
@@ -1018,32 +1153,19 @@ const headerStyle = computed(() => ({
           <span v-if="optional.flag" />
         </div>
 
-        <div :style="{ height: `${totalHeight}px`, minWidth: `${minWidth}px`, position: 'relative' }">
+        <div :style="bodyStyle">
           <div
-            v-for="r in visibleRows"
+            v-for="r in renderedRows"
             :key="r.key"
             class="grid items-center ch-row"
-            :style="{
-              gridTemplateColumns: gridColumns,
-              gap: '8px',
-              padding: '0 10px',
-              height: `${r.size}px`,
-              cursor: r.row.channel ? 'pointer' : 'default',
-              borderBottom: '1px solid var(--ln)',
-              background: r.view.background,
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              transform: `translateY(${r.start}px)`,
-            }"
+            :style="rowStyle(r)"
             :tabindex="0"
             :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty — click to program it`"
             @click="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
             @keydown.enter.self="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
           >
             <!-- Selection -->
-            <span class="flex items-center justify-center" @click.stop>
+            <span v-if="!printing" class="flex items-center justify-center" @click.stop>
               <button
                 v-if="r.row.channel"
                 type="button"
@@ -1070,8 +1192,14 @@ const headerStyle = computed(() => ({
               <UIcon
                 v-if="r.view.gutter"
                 :name="r.view.gutter.icon"
+                class="print-hide"
                 :style="{ width: '11px', height: '11px', color: r.view.gutter.color }"
               />
+              <span
+                v-if="r.view.gutter"
+                class="print-only font-mono"
+                style="font-size: 9px; font-weight: 600; color: var(--tx)"
+              >{{ r.view.gutter.mark }}</span>
             </span>
 
             <span
@@ -1187,6 +1315,7 @@ const headerStyle = computed(() => ({
               <UIcon
                 v-if="r.view.flagIcon"
                 :name="r.view.flagIcon"
+                class="print-hide"
                 style="width: 10px; height: 10px; flex: none"
               />
               <span class="truncate">{{ r.view.flag }}</span>
@@ -1199,9 +1328,9 @@ const headerStyle = computed(() => ({
         </p>
       </div>
 
-      <!-- Footer -->
+      <!-- Footer: an editing hint and a legend of colours, neither of which survives the trip to paper. -->
       <div
-        class="flex items-center flex-wrap"
+        class="flex items-center flex-wrap print-hide"
         style="border-top: 1px solid var(--ln); background: var(--pn2); padding: 7px 12px; gap: 14px"
       >
         <span class="flex items-center" style="gap: 6px; font-size: 13px; color: var(--fn)">

@@ -36,7 +36,7 @@ const isDark = computed(() => colorMode.value === 'dark')
 
 <template>
   <div class="min-h-screen flex flex-col" style="background: var(--bg); color: var(--tx)">
-    <header class="sticky top-0 z-20" style="background: var(--pn); border-bottom: 1px solid var(--ln)">
+    <header class="sticky top-0 z-20 print-hide" style="background: var(--pn); border-bottom: 1px solid var(--ln)">
       <div class="mx-auto max-w-[1400px] px-4 flex items-center gap-5" style="height: 52px">
         <NuxtLink to="/" class="flex items-center gap-2 shrink-0">
           <UIcon name="i-lucide-radio-tower" style="width: 15px; height: 15px; color: var(--tx)" />
@@ -89,7 +89,8 @@ const isDark = computed(() => colorMode.value === 'dark')
       <slot />
     </main>
 
-    <footer style="border-top: 1px solid var(--ln)">
+    <!-- Neither the nav above nor the links below can be followed off a sheet of paper. -->
+    <footer class="print-hide" style="border-top: 1px solid var(--ln)">
       <div
         class="mx-auto max-w-[1400px] px-4 py-5 flex flex-wrap items-center gap-x-4 gap-y-1.5"
         style="font-size: 13px; color: var(--fn)"

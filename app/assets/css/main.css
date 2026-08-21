@@ -167,3 +167,103 @@ body {
   border-radius: 4px;
   white-space: nowrap;
 }
+
+/*
+ * Paper.
+ *
+ * A codeplug that cannot leave the browser cannot be agreed in advance, which
+ * is how a club actually programmes eight radios to one plan. So the channel
+ * table has a second medium, and it is a different medium rather than the same
+ * one photographed: the chrome that helps someone edit - the nav, the status
+ * bar, the toolbar, the footer legend - is furniture on a page nobody can click,
+ * and every one of them is marked `print-hide` at the point it is written.
+ *
+ * Two decisions are worth spelling out.
+ *
+ * The palette is repointed at paper wholesale, so a dark theme does not print
+ * as a black rectangle. Doing it in the tokens rather than per component means
+ * every inline `var(--tx)` in the app comes with it, including the ones written
+ * after this block.
+ *
+ * The row tints go to `transparent` and take nothing with them, because the two
+ * states that carry consequence - a receive-only channel and a transmit error -
+ * are also spelled out in words. Colour was never their only carrier on screen
+ * either; on paper it is not a carrier at all, since a printer drops background
+ * graphics by default and drops an icon with it, an icon here being a
+ * `mask-image` rather than a character. That is why the table prints letters in
+ * its status gutter instead.
+ */
+.print-only {
+  display: none;
+}
+
+@media print {
+  :root,
+  :root.light,
+  .light {
+    --bg: #ffffff;
+    --pn: #ffffff;
+    --pn2: #ffffff;
+    --pn3: #ffffff;
+
+    --ln: #c6ced4;
+    --ln2: #9aa3a9;
+
+    --tx: #000000;
+    --mu: #22282c;
+    --fn: #4b5359;
+
+    --ok: #1a5c2c;
+    --cn: #6b4a00;
+    --dg: #8f1d17;
+    --in: #0a3f86;
+
+    /* Tints exist to be seen on a screen; a printer either drops them or turns
+       them into a grey wash over the text they were meant to set apart. */
+    --okB: transparent;
+    --cnB: transparent;
+    --dgB: transparent;
+    --inB: transparent;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #ffffff;
+    color: #000000;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Back to whatever the element would have been: `inline` for a span, `block`
+     for a div, without this rule having to know which it was given to. */
+  .print-only {
+    display: revert !important;
+  }
+
+  /*
+   * The scroll box is the whole reason a virtualised table exists, and on paper
+   * it is a guillotine: a fixed height with `overflow: auto` prints one screen
+   * and silently drops the other 3,960 channels. The heights are set inline, so
+   * undoing them takes `!important`.
+   */
+  .ch-frame {
+    overflow: visible !important;
+    border: 0 !important;
+  }
+
+  .ch-scroll {
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .ch-row {
+    break-inside: avoid;
+  }
+}
