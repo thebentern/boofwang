@@ -39,6 +39,24 @@ export type ClampRule =
   | 'power'
   | 'step'
 
+/** Every rule, in the order they run, so a caller can offer them all. */
+export const ALL_CLAMP_RULES: readonly ClampRule[] = [
+  'rx-band', 'tx-band', 'tx-inhibit', 'name', 'modulation', 'bandwidth', 'tone', 'power', 'step',
+]
+
+/** What each rule is called where a person can see it. */
+export const CLAMP_RULE_LABELS: Readonly<Record<ClampRule, string>> = {
+  'rx-band': 'Receive frequency',
+  'tx-band': 'Transmit frequency',
+  'tx-inhibit': 'Receive-only',
+  name: 'Name',
+  modulation: 'Mode',
+  bandwidth: 'Bandwidth',
+  tone: 'Tones',
+  power: 'Power',
+  step: 'Tuning step',
+}
+
 /** One field this pipeline would change, and why. */
 export interface ClampChange {
   /** The slot the channel came from, so a row can be found again. */

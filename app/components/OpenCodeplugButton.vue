@@ -2,6 +2,14 @@
 import { openImageFile, type OpenedImage } from '#core/io/open-image.js'
 import { createDriver } from '#core/radio/registry.js'
 import { transplantCodeplug, type TransplantResult } from '#core/radio/transplant.js'
+import {
+  acceptTranslation,
+  translateChannels,
+  ALL_CLAMP_RULES,
+  CLAMP_RULE_LABELS,
+  type ClampRule,
+} from '#core/radio/translate.js'
+import type { RadioId } from '#core/model/index.js'
 import type { Codeplug } from '#core/model/codeplug.js'
 import type { RadioDriver } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
@@ -28,6 +36,19 @@ const donor = shallowRef<{ opened: OpenedImage; doc: Codeplug; driver: RadioDriv
 
 const copyRadioIds = ref(false)
 const copyKeys = ref(false)
+
+/**
+ * A file from a *different* model, held while its channels are reviewed.
+ *
+ * Same-model is a transplant: the whole document moves. Across models nothing
+ * can move wholesale, because most of what a channel carries has to be checked
+ * against what the target can actually represent - so this is a copy of the
+ * channels, one row at a time, with every adjustment shown before any of it
+ * lands.
+ */
+const foreign = shallowRef<{ doc: Codeplug; from: RadioId } | null>(null)
+/** Rules the user has not unticked. Refusing one drops the rows that needed it. */
+const acceptedRules = ref(new Set<ClampRule>(ALL_CLAMP_RULES))
 
 /**
  * Could this file be applied to the radio already open, rather than replacing it?
@@ -103,6 +124,61 @@ const cannotWrite = computed<string | null>(() => {
 })
 
 /**
+ * What copying this file's channels onto the open radio would do.
+ *
+ * The same call the button makes, not a description of it: a hand-written
+ * summary of a clamp pipeline is a second implementation of the pipeline, and
+ * the two drift.
+ */
+const crossModel = computed(() => {
+  const f = foreign.value
+  if (!f || !codeplug.schema) return null
+  return translateChannels({
+    channels: [...f.doc.channels.values()].sort((a, b) => a.index - b.index),
+    target: codeplug.schema,
+    carries: {
+      talkGroups: f.doc.talkGroups.length,
+      contacts: f.doc.contacts.length,
+      radioIds: f.doc.radioIds.length,
+    },
+  })
+})
+
+/** The rows that would actually land, given what is still ticked. */
+const crossModelTaken = computed(() =>
+  crossModel.value ? acceptTranslation(crossModel.value, { rules: acceptedRules.value }) : [],
+)
+
+/** One line per rule, with a real example rather than a description of one. */
+const ruleSummary = computed(() => {
+  const changes = crossModel.value?.changes ?? []
+  return ALL_CLAMP_RULES.filter((rule) => changes.some((c) => c.rule === rule)).map((rule) => {
+    const hits = changes.filter((c) => c.rule === rule)
+    const first = hits[0]!
+    return {
+      rule,
+      label: CLAMP_RULE_LABELS[rule],
+      count: hits.length,
+      why: first.why,
+      sample: `slot ${first.index}: ${first.before} → ${first.after}`,
+    }
+  })
+})
+
+function toggleRule(rule: ClampRule) {
+  const next = new Set(acceptedRules.value)
+  if (next.has(rule)) next.delete(rule)
+  else next.add(rule)
+  acceptedRules.value = next
+}
+
+/** Where they go: after everything already programmed, never over it. */
+const firstFreeSlot = computed(() => {
+  const used = codeplug.doc ? [...codeplug.doc.channels.keys()] : []
+  return used.length === 0 ? (codeplug.schema?.memory.firstIndex ?? 1) : Math.max(...used) + 1
+})
+
+/**
  * The same merge with both opt-ins off.
  *
  * The reasons for holding something back come from the merge itself, so the
@@ -134,6 +210,16 @@ async function onPick(event: Event) {
       copyRadioIds.value = false
       copyKeys.value = false
       donor.value = { opened, doc: driver.decode(opened.image), driver }
+      return
+    }
+
+    // A different model, with something already open. Its image cannot be
+    // written here and its document cannot be transplanted, but its channels
+    // can be copied one at a time - which is the only part of it that means
+    // anything on another radio.
+    if (codeplug.isOpen && codeplug.schema && opened.image.radioId !== codeplug.image?.radioId) {
+      acceptedRules.value = new Set(ALL_CLAMP_RULES)
+      foreign.value = { doc: driver.decode(opened.image), from: opened.image.radioId }
       return
     }
 
@@ -201,6 +287,47 @@ async function openInstead({ image, note }: OpenedImage, driver: RadioDriver) {
  * the backup check, the diff and the typed word in front of a change this
  * large.
  */
+/**
+ * Copy the accepted rows into free slots, as one undoable action.
+ *
+ * They go after everything already programmed rather than over it: this is a
+ * copy, not a clone, and quietly overwriting the channels somebody already had
+ * is not something a person asked for by opening a file.
+ */
+async function copyForeignChannels() {
+  const result = crossModel.value
+  if (!result || !codeplug.doc) return
+  const taken = crossModelTaken.value
+  if (taken.length === 0) return
+
+  let slot = firstFreeSlot.value
+  const limit = codeplug.schema?.memory.channelCount ?? 0
+  let placed = 0
+  codeplug.transact('copy from another radio', () => {
+    for (const ch of taken) {
+      if (limit > 0 && slot > limit) break
+      codeplug.setChannelRecord(slot, { ...ch, index: slot })
+      slot++
+      placed++
+    }
+  })
+
+  const from = foreign.value?.from
+  foreign.value = null
+  if (input.value) input.value.value = ''
+
+  toast.add({
+    title: `Copied ${placed} channel(s) from the ${from}`,
+    description:
+      (placed < taken.length ? `${taken.length - placed} did not fit and were left out. ` : '') +
+      'Nothing has been sent to the radio yet.',
+    icon: 'i-lucide-copy',
+    color: 'success',
+    duration: 12_000,
+  })
+  await navigateTo('/channels')
+}
+
 async function applyToOpen() {
   const result = build(copyRadioIds.value, copyKeys.value)
   if (!result || cannotWrite.value !== null) return
@@ -248,6 +375,132 @@ async function applyToOpen() {
       variant="subtle"
       @click="input?.click()"
     />
+
+    <!--
+      A file from another model. Its image cannot go on this radio and its
+      document cannot be transplanted, but its channels can be copied, and the
+      whole point is that every adjustment is on screen before any of it lands.
+    -->
+    <UModal
+      :open="foreign !== null"
+      :title="`Copy channels from a ${foreign?.from ?? 'radio'} onto your ${model}`"
+      :ui="{ content: 'max-w-3xl' }"
+      @update:open="(v: boolean) => { if (!v) foreign = null }"
+    >
+      <template #body>
+        <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 74ch">
+          Different radios, so nothing moves wholesale. The channels are checked one at a time against what
+          your radio can actually do, and anything that has to change is listed below. They are added after
+          the channels you already have, from slot
+          <span class="font-mono tabular">{{ firstFreeSlot }}</span>, and nothing you have is overwritten.
+        </p>
+
+        <div class="mt-4 flex flex-wrap" style="gap: 6px">
+          <span class="chip" style="background: var(--okB); color: var(--ok)">
+            <span class="font-mono tabular">{{ crossModelTaken.length }}</span> coming across
+          </span>
+          <span
+            v-if="(crossModel?.refusals.length ?? 0) > 0"
+            class="chip"
+            style="background: var(--dgB); color: var(--dg)"
+          >
+            <span class="font-mono tabular">{{ crossModel!.refusals.length }}</span> refused
+          </span>
+        </div>
+
+        <!-- Refusals first: these are not adjustments, they are rows that cannot go. -->
+        <div
+          v-if="(crossModel?.refusals.length ?? 0) > 0"
+          class="mt-3 rounded-[7px]"
+          style="border: 1px solid var(--dg); background: var(--dgB); padding: 11px 13px"
+        >
+          <div class="label-xs" style="color: var(--dg); letter-spacing: 0.08em; margin-bottom: 6px">
+            Cannot come across at all
+          </div>
+          <p
+            v-for="r in crossModel!.refusals.slice(0, 6)"
+            :key="`${r.index}-${r.rule}`"
+            style="font-size: 13px; line-height: 1.5; color: var(--tx)"
+          >
+            <span class="font-mono tabular">{{ r.index }}</span> — {{ r.why }}
+          </p>
+          <p
+            v-if="crossModel!.refusals.length > 6"
+            style="font-size: 13px; color: var(--fn); margin-top: 4px"
+          >
+            and {{ crossModel!.refusals.length - 6 }} more.
+          </p>
+        </div>
+
+        <!-- The adjustments, per rule, each of which can be refused. -->
+        <div v-if="(crossModel?.changes.length ?? 0) > 0" class="mt-3 rounded-[7px]" style="border: 1px solid var(--ln)">
+          <div
+            class="label-xs"
+            style="color: var(--fn); letter-spacing: 0.08em; padding: 11px 13px 7px; background: var(--pn2)"
+          >
+            What would change — untick a rule to refuse it, and the rows that needed it stay behind
+          </div>
+          <div style="max-height: 300px; overflow-y: auto">
+            <div
+              v-for="rule in ruleSummary"
+              :key="rule.rule"
+              style="border-top: 1px solid var(--ln); padding: 10px 13px"
+            >
+              <label class="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  :checked="acceptedRules.has(rule.rule)"
+                  style="width: 15px; height: 15px; margin-top: 2px; accent-color: var(--cn)"
+                  @change="toggleRule(rule.rule)"
+                >
+                <span class="min-w-0 flex-1">
+                  <span style="font-size: 14px; color: var(--tx)">
+                    {{ rule.label }}
+                    <span class="font-mono tabular" style="color: var(--fn)">({{ rule.count }})</span>
+                  </span>
+                  <span style="display: block; font-size: 13px; line-height: 1.5; color: var(--fn)">
+                    {{ rule.why }}
+                  </span>
+                  <span
+                    class="font-mono"
+                    style="display: block; font-size: 12px; color: var(--mu); margin-top: 3px"
+                  >
+                    {{ rule.sample }}
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="(crossModel?.dropped.length ?? 0) > 0"
+          class="mt-3"
+          style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch"
+        >
+          Left behind, because your radio has no concept of them:
+          {{ crossModel!.dropped.join('; ') }}.
+        </div>
+
+        <p class="mt-3" style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
+          Copying sends nothing. It becomes an unsaved edit and goes to the radio through the same write page
+          as any other, and it takes back in one step with undo.
+        </p>
+      </template>
+
+      <template #footer>
+        <div class="flex flex-wrap items-center" style="gap: 8px">
+          <RiskAction
+            risk="caution"
+            icon="i-lucide-copy"
+            :label="`Copy ${crossModelTaken.length} channel(s) across`"
+            :disabled="crossModelTaken.length === 0"
+            @click="copyForeignChannels"
+          />
+          <RiskAction risk="neutral" ghost label="Cancel" @click="foreign = null" />
+        </div>
+      </template>
+    </UModal>
 
     <!--
       Two verbs for one file, and the difference is worth a dialog.
