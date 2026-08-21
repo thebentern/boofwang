@@ -193,7 +193,15 @@ export interface RadioDriver {
    * the DM-32UV writer merges only these ranges onto the live page, and the
    * coverage report is derived from them.
    */
-  ownedRanges(regionStart: number): readonly (readonly [number, number])[]
+  /**
+   * The bytes of a region this driver claims to understand.
+   *
+   * `image` is optional and most drivers ignore it. It exists for the DM-32UV,
+   * whose DMR address book is a raw region with no logical id: which page of it
+   * a region is - and so whether its first four bytes are a record count or the
+   * start of a name - can only be told by where it sits relative to the others.
+   */
+  ownedRanges(regionStart: number, image?: RadioImage): readonly (readonly [number, number])[]
 }
 
 export class DriverError extends Error {

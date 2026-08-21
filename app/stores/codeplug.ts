@@ -228,6 +228,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     scanLists.value = Object.freeze(cp.scanLists.map((l) => Object.freeze(l)))
     rxGroups.value = Object.freeze(cp.rxGroups.map((g) => Object.freeze(g)))
     radioIds.value = Object.freeze(cp.radioIds.map((r) => Object.freeze(r)))
+    contacts.value = Object.freeze(cp.contacts.map((c) => Object.freeze(c)))
     settings.value = Object.freeze({ ...cp.settings })
     revalidate()
     revision.value++
@@ -308,7 +309,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   function addRadioId() {
     const cp = doc.value
     if (!cp) return
-    cp.radioIds.push({ id: `rid-new-${cp.radioIds.length + 1}`, name: '', dmrId: 0 })
+    cp.radioIds.push({ id: `rid-new-${crypto.randomUUID()}`, name: '', dmrId: 0 })
     republish()
   }
 
@@ -318,6 +319,42 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     const i = cp.radioIds.findIndex((r) => r.id === id)
     if (i < 0) return
     cp.radioIds.splice(i, 1)
+    republish()
+  }
+
+  function updateContact(id: string, patch: Partial<Codeplug['contacts'][number]>) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.contacts.findIndex((c) => c.id === id)
+    if (i < 0) return
+    cp.contacts[i] = { ...cp.contacts[i]!, ...patch }
+    republish()
+  }
+
+  function addContact() {
+    const cp = doc.value
+    if (!cp) return
+    // Not derived from the length: removing one and adding another would reuse
+    // the id, and every edit keys on it.
+    cp.contacts.push({
+      id: `contact-new-${crypto.randomUUID()}`,
+      name: '',
+      dmrId: 0,
+      callsign: '',
+      city: '',
+      province: '',
+      country: '',
+      remark: '',
+    })
+    republish()
+  }
+
+  function removeContact(id: string) {
+    const cp = doc.value
+    if (!cp) return
+    const i = cp.contacts.findIndex((c) => c.id === id)
+    if (i < 0) return
+    cp.contacts.splice(i, 1)
     republish()
   }
 
@@ -442,6 +479,9 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     updateRadioId,
     addRadioId,
     removeRadioId,
+    updateContact,
+    addContact,
+    removeContact,
     setSetting,
     setEncryptionKey,
     removeEncryptionKey,

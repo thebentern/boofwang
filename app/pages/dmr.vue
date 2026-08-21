@@ -107,6 +107,49 @@ const parseIds = (text: string) => {
 /** Shown under the editor when part of what was typed could not be read. */
 const problem = ref('')
 
+/**
+ * The address book can hold 50,000 entries, so it is filtered rather than
+ * listed. Matching on name, callsign and number together is what someone
+ * actually wants: they know one of the three.
+ */
+const contactQuery = ref('')
+const CONTACTS_SHOWN = 100
+
+const matchingContacts = computed(() => {
+  const q = contactQuery.value.trim().toLowerCase()
+  if (!q) return codeplug.contacts
+  return codeplug.contacts.filter(
+    (c) =>
+      c.name.toLowerCase().includes(q) ||
+      c.callsign.toLowerCase().includes(q) ||
+      String(c.dmrId).includes(q) ||
+      c.city.toLowerCase().includes(q),
+  )
+})
+
+const editingContact = ref<string | null>(null)
+
+/** The first hundred matches, plus whichever one is open if it is past them. */
+const shownContacts = computed(() => {
+  const head = matchingContacts.value.slice(0, CONTACTS_SHOWN)
+  const open = editingContact.value
+  if (!open || head.some((c) => c.id === open)) return head
+  const found = matchingContacts.value.find((c) => c.id === open)
+  return found ? [...head, found] : head
+})
+
+/**
+ * Add, then show what was added.
+ *
+ * The list is capped and filtered, so a new contact appended to 147 existing
+ * ones landed past both and the button looked like it had done nothing.
+ */
+function onAddContact() {
+  contactQuery.value = ''
+  codeplug.addContact()
+  editingContact.value = codeplug.contacts.at(-1)?.id ?? null
+}
+
 function commitEdit() {
   const e = editing.value
   if (!e) return
@@ -147,6 +190,24 @@ function cancel() {
   draft.value = ''
   problem.value = ''
 }
+
+/**
+ * Widths are the struct's, not one less.
+ *
+ * There is no terminator to reserve: a full-width field simply fills its bytes,
+ * which is what the radio itself does - 39 of this radio's 147 contacts already
+ * use all sixteen, "North Little Roc" among them. Capping at fifteen quietly
+ * shortened every one of them the moment it was opened for editing.
+ */
+const CONTACT_FIELDS = [
+  { key: 'name', label: 'Name', max: 16 },
+  { key: 'dmrId', label: 'DMR ID', max: 8 },
+  { key: 'callsign', label: 'Callsign', max: 8 },
+  { key: 'city', label: 'City', max: 16 },
+  { key: 'province', label: 'State', max: 16 },
+  { key: 'country', label: 'Country', max: 16 },
+  { key: 'remark', label: 'Note', max: 16 },
+] as const
 
 const CALL_TYPE: Record<string, string> = {
   group: 'Group call',
@@ -456,41 +517,98 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
 
       <!-- Contacts -->
       <section v-if="hasContacts" style="margin-top: 18px">
-        <h2 class="sec">Contacts</h2>
+        <div class="flex items-center gap-2 flex-wrap" style="margin-bottom: 7px">
+          <h2 class="sec" style="margin: 0">Contacts</h2>
+          <span v-if="codeplug.contacts.length" style="font-size: 13px; color: var(--mu)">
+            {{ codeplug.contacts.length.toLocaleString() }}
+          </span>
+          <input
+            v-if="codeplug.contacts.length > 12"
+            v-model="contactQuery"
+            type="search"
+            placeholder="Search name, callsign, number or city"
+            class="rounded-[6px] px-2.5 outline-none"
+            style="height: 31px; min-width: 250px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px; margin-inline-start: auto"
+          >
+          <RiskAction
+            risk="neutral"
+            ghost
+            size="sm"
+            icon="i-lucide-plus"
+            label="Add"
+            :class="codeplug.contacts.length > 12 ? '' : 'ms-auto'"
+            @click="onAddContact"
+          />
+        </div>
+
         <div class="card">
           <p v-if="codeplug.contacts.length === 0" class="empty">
             This radio's address book is empty. It lives in a memory region of its own, so reading it costs
             nothing when there is nothing in it.
           </p>
+          <p v-else-if="matchingContacts.length === 0" class="empty">
+            Nothing matches “{{ contactQuery }}”.
+          </p>
           <template v-else>
             <div
-              v-for="(contact, i) in codeplug.contacts.slice(0, 200)"
+              v-for="(contact, i) in shownContacts"
               :key="contact.id"
-              class="flex items-center gap-3 flex-wrap"
-              :style="`padding: 12px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+              :style="`padding: 11px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
             >
-              <span class="idx">{{ i + 1 }}</span>
-              <span style="font-size: 14.5px; font-weight: 600; color: var(--tx)">{{ contact.name || '(unnamed)' }}</span>
-              <span v-if="contact.callsign" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
-                {{ contact.callsign }}
-              </span>
-              <span class="ms-auto font-mono shrink-0" style="font-size: 13.5px; color: var(--tx)">{{ contact.dmrId }}</span>
+              <div v-if="editingContact === contact.id" class="grid sm:grid-cols-2 lg:grid-cols-4" style="gap: 11px">
+                <label v-for="f in CONTACT_FIELDS" :key="f.key" class="grid gap-1">
+                  <span class="label-xs">{{ f.label }}</span>
+                  <input
+                    :type="f.key === 'dmrId' ? 'number' : 'text'"
+                    :value="contact[f.key]"
+                    :maxlength="f.max"
+                    :min="f.key === 'dmrId' ? 0 : undefined"
+                    :max="f.key === 'dmrId' ? 16777215 : undefined"
+                    class="rounded-[6px] px-2.5 outline-none"
+                    style="height: 31px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
+                    autocomplete="off"
+                    spellcheck="false"
+                    @change="codeplug.updateContact(contact.id, { [f.key]: f.key === 'dmrId' ? Number(($event.target as HTMLInputElement).value) : ($event.target as HTMLInputElement).value })"
+                  >
+                </label>
+                <div class="flex items-end gap-2">
+                  <RiskAction risk="neutral" size="sm" icon="i-lucide-check" label="Done" @click="editingContact = null" />
+                  <RiskAction risk="caution" ghost size="sm" icon="i-lucide-trash-2" label="Remove" @click="codeplug.removeContact(contact.id); editingContact = null" />
+                </div>
+              </div>
+
+              <div v-else class="flex items-center gap-3 flex-wrap">
+                <span style="font-size: 14.5px; font-weight: 600; color: var(--tx)">
+                  {{ contact.name || '(unnamed)' }}
+                </span>
+                <span v-if="contact.callsign" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+                  {{ contact.callsign }}
+                </span>
+                <span v-if="contact.city" class="meta">{{ contact.city }}<template v-if="contact.province">, {{ contact.province }}</template></span>
+                <span class="ms-auto font-mono shrink-0" style="font-size: 13.5px; color: var(--tx)">{{ contact.dmrId }}</span>
+                <button
+                  type="button"
+                  class="chip"
+                  style="border: 1px solid var(--ln2); background: transparent; color: var(--mu); cursor: pointer"
+                  @click="editingContact = contact.id"
+                >Edit</button>
+              </div>
             </div>
             <p
-              v-if="codeplug.contacts.length > 200"
+              v-if="matchingContacts.length > shownContacts.length"
               style="font-size: 13px; color: var(--mu); padding: 13px 16px; border-top: 1px solid var(--ln)"
             >
-              …and {{ (codeplug.contacts.length - 200).toLocaleString() }} more. All of them are in the
-              backup; only the first 200 are listed here.
+              Showing {{ CONTACTS_SHOWN }} of {{ matchingContacts.length.toLocaleString() }}. Search to narrow it
+              down; all of them are in the codeplug either way.
             </p>
           </template>
         </div>
         <p class="note">
-          Read from the radio and never written back. The address book has no memory-block id and no
-          hardware capture with more than one entry in it, so boofwang can show you what is there but will
-          not write over 4 MB of somebody's contacts on the strength of that.
+          The address book lives in a memory region of its own, outside the codeplug the rest of this page
+          comes from. It is written back only when you change something in it, and a restore puts it back.
         </p>
       </section>
+
     </template>
   </div>
 </template>

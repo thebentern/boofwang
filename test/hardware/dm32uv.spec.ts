@@ -6,6 +6,7 @@ import type { RadioImage } from '#core/radio/image.js'
 import type { IdentifyResult } from '#core/radio/driver.js'
 import { createDm32uvDriver } from '#core/radios/dm32uv/driver.js'
 import { REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
+import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import {
   RXGROUP_BLOCK,
   SCANLIST_BLOCK,
@@ -165,6 +166,14 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       const ridWas = doc.radioIds[0]
       if (ridWas) doc.radioIds[0] = { ...ridWas, name: 'HW ID', dmrId: 3_105_999 }
 
+      // The DMR address book. Editing the LAST contact is deliberate: it is on
+      // the final page, so a page-walk that straddles the 4 KiB boundary writes
+      // it somewhere else entirely and the read-back catches it.
+      const contactWas = contacts.at(-1)
+      if (contactWas) {
+        doc.contacts[doc.contacts.length - 1] = { ...contactWas, name: 'HW BOOF', callsign: 'W0AAA' }
+      }
+
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
       doc.settings['callsignColour.colour'] = 5
@@ -270,18 +279,36 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       // And the settings this build models but does not offer are unchanged.
       expect(back.settings.gpsReportInterval).toBe(settingsWere.gpsReportInterval)
 
-      // The address book is never written, so a codeplug edit must not touch it.
-      expect(driver.decode(after).contacts).toEqual(contacts)
+      // The address book, written for real.
+      if (contactWas) {
+        const now = driver.decode(after).contacts
+        expect(now, 'the address book changed length').toHaveLength(contacts.length)
+        expect(now.at(-1)!.name, 'the edited contact did not reach the radio').toBe('HW BOOF')
+        expect(now.at(-1)!.callsign).toBe('W0AAA')
+        expect(now.at(-1)!.dmrId, 'the DMR ID moved').toBe(contactWas.dmrId)
+        // Every other contact untouched, including the ones either side of a
+        // page boundary.
+        expect(now.slice(0, -1)).toEqual(contacts.slice(0, -1))
+
+        // And the bytes nobody has explained are still there.
+        const first = after.regions.find((r) => r.start === contactsStart)!.data
+        const wasFirst = baseline.regions.find((r) => r.start === contactsStart)!.data
+        expect(
+          equalBytes(first.subarray(4, 0x10), wasFirst.subarray(4, 0x10)),
+          'the twelve bytes between the count and entry 0 were rewritten',
+        ).toBe(true)
+        expect(first[0xfff], 'the last byte of the page, which here is data').toBe(wasFirst[0xfff])
+      }
 
       // Nothing outside the blocks the driver claims may have moved.
       for (const region of after.regions) {
         const id = region.start >>> 12
         const before = baseline.regions.find((r) => r.start === region.start)!.data
         if (equalBytes(region.data, before)) continue
-        expect(driver.ownedRanges(region.start).length, `block 0x${id.toString(16)} changed but is not claimed`).toBeGreaterThan(0)
+        expect(driver.ownedRanges(region.start, after).length, `block 0x${id.toString(16)} changed but is not claimed`).toBeGreaterThan(0)
         for (let i = 0; i < region.data.length; i++) {
           if (region.data[i] === before[i]) continue
-          const inside = driver.ownedRanges(region.start).some(([from, to]) => i >= from && i < to)
+          const inside = driver.ownedRanges(region.start, after).some(([from, to]) => i >= from && i < to)
           expect(inside, `block 0x${id.toString(16)} byte 0x${i.toString(16)} is outside ownedRanges`).toBe(true)
         }
       }
@@ -296,10 +323,21 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
     // And prove the restore worked, from a fresh read.
     const { image: restored } = await read()
     for (const region of restored.regions) {
-      const before = baseline.regions.find((r) => r.start === region.start)!.data
-      expect(equalBytes(region.data, before), `block 0x${(region.start >>> 12).toString(16)} did not come back`).toBe(true)
+      const before = baseline.regions.find((r) => r.start === region.start)
+      expect(before, `region 0x${region.start.toString(16)} vanished`).toBeTruthy()
+      // The zone page header carries live radio state - a cursor the radio
+      // moves on its own between sessions - and is deliberately outside
+      // ownedRanges, so it is not ours to have put back.
+      const from = region.start === logicalAddress(ZONE_BLOCK_FIRST) ? ZONE_HEADER : 0
+      expect(
+        equalBytes(region.data.subarray(from), before!.data.subarray(from)),
+        `region 0x${region.start.toString(16)} did not come back`,
+      ).toBe(true)
     }
-    expect(restored.sha256).toBe(baseline.sha256)
+    // Including the address book, which is the whole reason contacts could not
+    // be written until now.
+    expect(driver.decode(restored).contacts).toEqual(contacts)
+
   })
 })
 

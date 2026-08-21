@@ -296,6 +296,38 @@ the spec alone.
 | Settings | `0x04` | one sparse struct in a 4 KiB page | perhaps a tenth of the page is named with confidence; `ownedRanges` is computed from the struct and comes to under 200 bytes |
 | Talk group index | `0x0B` | counts, bitmask, two sorted tables | called a "Quick Access Contact List" and is not an address book — decoded, never written |
 
+### Writing the address book — verified session, 2026-08-20
+
+The reason it stayed read-only was never the decode: it was recovery. Contacts
+were not in `writeTargets`, so a restore could not put them back, and writing
+4 MB of somebody's contacts with no way back is not a trade worth making. Both
+halves are now done.
+
+The region is raw — real physical addresses, no logical id, no translation
+layer — so it needed a write path of its own: no page-map lookup, no tail-byte
+check, and no rescan after writing, because nothing can relocate it. A rescan is
+200 one-byte probes, and on a radio with 50,000 contacts that would be one per
+page.
+
+Preserved because nobody has explained them: the twelve bytes between the count
+and entry 0, byte `0x13` of every record, the tail of each page past the last
+entry, and byte `0xFFF`, which here is data rather than a block id. `0x13` reads
+`0xF0` on all 147 entries of this radio and in the reference's own sample — 148
+for 148 — so a record that was erased gets that rather than the `0xFF` an erased
+region is filled with, which would otherwise make it the only record on the
+radio that differs.
+
+One page more than the contacts fill is read, always at least one. The encoder
+can only write pages the reader brought back, so without the spare there is
+nowhere to put a contact the user adds — and a radio with an empty address book
+had no page at all, which silently dropped every one.
+
+Verified on the radio: contact 147 renamed and given a callsign, written,
+independently read back, then restored. Both hashes came back exactly —
+`1b47540a…` for the 59 config pages and `0937de53…` for the four contact pages.
+Editing the *last* contact is deliberate: it sits on the final page, so a walk
+that straddled the 4 KiB boundary would put it somewhere else entirely.
+
 ### The address book, on this radio
 
 Verified against real data, which is the part a fixture cannot give: this radio
@@ -368,9 +400,10 @@ covers the highest occupied slot rather than how many entries there are.
   slot has not been established.
 - **Scan list membership.** See the two readings above; the name is written and
   the membership is not.
-- **Writing the DMR address book.** Read only. There is no hardware sample with
-  more than one entry in it, and the walk past the first page rests entirely on
-  the reference implementation.
+- **Growing the address book past the pages that were read.** One spare page is
+  brought back, so up to 44 contacts can be added; beyond that the write is
+  refused by name rather than truncating. Reading the whole 4.4 MiB region to
+  avoid that would cost about seven minutes on every read.
 - **Block `0x0B`**, the radio's own talk-group index. Decoded, never written:
   regenerating it means keeping two counts, a bitmask and two sorted tables in
   step, and no observed radio has ever had them out of step. Renaming a talk

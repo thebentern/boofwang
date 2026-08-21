@@ -83,8 +83,8 @@ export interface RadioSchema {
      * the whole codeplug.
      *
      * The DM-32UV reaches channels, zones, talk groups, scan list names, RX
-     * groups, settings and key slots - but not its DMR address book, not scan
-     * list membership, and not the blocks nothing has decoded.
+     * groups, settings, its DMR address book and key slots - but not scan list
+     * membership, and not the blocks nothing has decoded.
      * Without saying so, editing something outside that on that radio looks
      * like it worked - the table updates, the write button lights up - and the
      * write then reports "nothing has changed", which is both false and

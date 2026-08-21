@@ -505,9 +505,22 @@ export const CONTACT_REGION_HEADER = 16
  */
 export const CONTACTS_PER_PAGE = 44
 
+/**
+ * What byte 0x13 of a contact record holds.
+ *
+ * Unexplained, and not the top of the DMR ID - that would put every id above
+ * four billion, and they are 24-bit. It reads 0xF0 on all 147 entries of the
+ * development radio and in the reference's only sample, so 148 for 148. An
+ * existing record keeps whatever it has; a brand-new one gets this, because
+ * leaving the 0xFF that an erased region is filled with would make it the only
+ * record on the radio that differs.
+ */
+export const CONTACT_UNKNOWN_13 = 0xf0
+
 export const DM32_CONTACT = defineStruct(CONTACT_SIZE, {
   name: at(0x00, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
   dmrId: at(0x10, u24le),
+  unknown13: at(0x13, u8),
   callsign: at(0x14, ascii(8, { pad: 0xff, terminators: [0x00, 0xff] })),
   city: at(0x1c, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),
   province: at(0x2c, ascii(16, { pad: 0xff, terminators: [0x00, 0xff] })),

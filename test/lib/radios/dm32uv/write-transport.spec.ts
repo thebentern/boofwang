@@ -4,11 +4,12 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { equalBytes } from '#core/codec/struct.js'
 import { sha256Hex } from '#core/codec/checksum.js'
-import type { BackupRef, DriverCtx } from '#core/radio/driver.js'
+import type { BackupRef, DriverCtx, IdentifyResult } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createDm32uvDriver } from '#core/radios/dm32uv/driver.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import { PAGE_SIZE, PAGE_TAIL } from '#core/radios/dm32uv/protocol.js'
+import { DM32_CONTACT, contactSlot } from '#core/radios/dm32uv/layout.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { FakeSerialPort } from '#core/transport/fake-serial-port.js'
 
@@ -21,18 +22,36 @@ const INDEX = JSON.parse(
 
 const writable = createDm32uvDriver({ enableWrite: true })
 
+const CONTACTS_BASE = 0x278000
+const CONTACT_COUNT = 60
+const CONTACT_PAGES = 2
+
 function image(): RadioImage {
   return {
     radioId: 'dm32uv',
     variant: INDEX.firmware,
     layout: INDEX.model,
     createdAt: '2026-08-19T22:00:00.000Z',
-    regions: INDEX.blocks.map((b) => ({
-      start: logicalAddress(b.id),
-      data: BLOB.slice(b.offset, b.offset + PAGE_SIZE),
-      readOnly: b.id === 0x02,
-      label: `block 0x${b.id.toString(16)}`,
-    })),
+    regions: [
+      ...INDEX.blocks.map((b) => ({
+        start: logicalAddress(b.id),
+        data: BLOB.slice(b.offset, b.offset + PAGE_SIZE),
+        readOnly: b.id === 0x02,
+        label: `block 0x${b.id.toString(16)}`,
+      })),
+      ...Array.from({ length: CONTACT_PAGES }, (_, i) => {
+        const data = new Uint8Array(PAGE_SIZE).fill(0xff)
+        if (i === 0) data.set([CONTACT_COUNT, 0, 0, 0], 0)
+        for (let n = 0; n < CONTACT_COUNT; n++) {
+          const slot = contactSlot(n)
+          if (slot.page !== i) continue
+          DM32_CONTACT.write(data, slot.offset, {
+            name: `Contact ${n + 1}`, dmrId: 3_105_000 + n, callsign: '', city: '', province: '', country: '', remark: '',
+          })
+        }
+        return { start: CONTACTS_BASE + i * PAGE_SIZE, data, label: `contacts page ${i + 1}` }
+      }),
+    ],
     meta: {},
     sha256: '',
   }
@@ -53,6 +72,8 @@ function fakeRadio(base = 0x1000) {
   const writes: { addr: number; data: Uint8Array }[] = []
   /** Full-page reads only - the one-byte tail reads of a map scan are not these. */
   const pageReads: number[] = []
+  /** One-byte tail probes, which is what a page-map scan is made of. */
+  let tailReads = 0
 
   INDEX.blocks.forEach((b, i) => {
     const page = BLOB.slice(b.offset, b.offset + PAGE_SIZE)
@@ -60,6 +81,21 @@ function fakeRadio(base = 0x1000) {
     pages.set(base + i * PAGE_SIZE, page)
   })
   const end = base + INDEX.blocks.length * PAGE_SIZE - 1
+
+  // The DMR address book: a raw region at a real address, no logical id in the
+  // page, so its 0xFFF byte is ordinary data rather than a tag.
+  for (let i = 0; i < CONTACT_PAGES; i++) {
+    const page = new Uint8Array(PAGE_SIZE).fill(0xff)
+    if (i === 0) page.set([CONTACT_COUNT, 0, 0, 0], 0)
+    for (let n = 0; n < CONTACT_COUNT; n++) {
+      const slot = contactSlot(n)
+      if (slot.page !== i) continue
+      DM32_CONTACT.write(page, slot.offset, {
+        name: `Contact ${n + 1}`, dmrId: 3_105_000 + n, callsign: '', city: '', province: '', country: '', remark: '',
+      })
+    }
+    pages.set(CONTACTS_BASE + i * PAGE_SIZE, page)
+  }
 
   const respond = (frame: Uint8Array): Uint8Array | null => {
     // Programming-mode entry.
@@ -74,6 +110,7 @@ function fakeRadio(base = 0x1000) {
       const pageBase = addr & ~(PAGE_SIZE - 1)
       const page = pages.get(pageBase)
       if (len === PAGE_SIZE) pageReads.push(addr)
+      if (len === 1) tailReads++
       const out = new Uint8Array(len)
       if (page) out.set(page.subarray(addr - pageBase, addr - pageBase + len))
       else out.fill(0xff) // an unallocated page reads as erased
@@ -91,7 +128,7 @@ function fakeRadio(base = 0x1000) {
     return null
   }
 
-  return { pages, writes, pageReads, respond, base, end }
+  return { pages, writes, pageReads, respond, base, end, get tailReads() { return tailReads } }
 }
 
 async function connect(radio: ReturnType<typeof fakeRadio>) {
@@ -361,5 +398,164 @@ describe('writeImage, against a radio made of pages', () => {
     // No base means "put this image on the radio": every writable block has to
     // be read to find out whether it already matches.
     expect(radio.pageReads.length).toBeGreaterThan(10)
+  })
+
+  it('sends a contacts page when a contact is edited, and only that page', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const img = image()
+    const doc = writable.decode(img)
+    expect(doc.contacts).toHaveLength(CONTACT_COUNT)
+    // Entry 50 is on the second page: 44 per page, and they do not straddle.
+    doc.contacts[50] = { ...doc.contacts[50]!, name: 'EDITED' }
+
+    await writable.writeImage(t, writable.encode(doc, img), ctxFor(radio, await backupFor(radio), img))
+
+    expect(radio.writes).toHaveLength(1)
+    expect(radio.writes[0]!.addr).toBe(CONTACTS_BASE + PAGE_SIZE)
+    expect(writable.decode({
+      ...img,
+      regions: img.regions.map((r) => (radio.pages.has(r.start) ? { ...r, data: radio.pages.get(r.start)! } : r)),
+    }).contacts[50]!.name).toBe('EDITED')
+  })
+
+  it('does not rescan the page map for a raw region', async () => {
+    // The address book cannot relocate - no translation layer touches it - and
+    // a rescan is 200 one-byte reads. On a radio with 50,000 contacts that
+    // would be a rescan per page.
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const img = image()
+    const doc = writable.decode(img)
+    doc.contacts[0] = { ...doc.contacts[0]!, name: 'ONE' }
+
+    const before = radio.tailReads
+    await writable.writeImage(t, writable.encode(doc, img), ctxFor(radio, await backupFor(radio), img))
+    // One scan before the write, and none after it for the contacts page.
+    expect(radio.writes).toHaveLength(1)
+    expect(radio.tailReads - before).toBeLessThanOrEqual(INDEX.blocks.length + 1)
+  })
+
+  it('leaves the twelve unexplained bytes and the page tail alone', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const img = image()
+    const before = new Map([...radio.pages].map(([a, p]) => [a, p.slice()]))
+    const doc = writable.decode(img)
+    doc.contacts.splice(20)
+
+    await writable.writeImage(t, writable.encode(doc, img), ctxFor(radio, await backupFor(radio), img))
+
+    const page0 = radio.pages.get(CONTACTS_BASE)!
+    const was = before.get(CONTACTS_BASE)!
+    expect(equalBytes(page0.subarray(4, 0x10), was.subarray(4, 0x10)), 'the twelve bytes after the count').toBe(true)
+    expect(page0[PAGE_SIZE - 1], 'the last byte, which here is data').toBe(was[PAGE_SIZE - 1])
+  })
+
+  it('restores the address book from a backup', async () => {
+    // The reason contacts could not be written before: a restore had no way to
+    // put them back. It does now.
+    const radio = fakeRadio()
+    const pristine = new Map([...radio.pages].map(([a, p]) => [a, p.slice()]))
+    const img = image()
+
+    const doc = writable.decode(img)
+    doc.contacts[3] = { ...doc.contacts[3]!, name: 'CLOBBERED' }
+    const t1 = await connect(radio)
+    await writable.writeImage(t1, writable.encode(doc, img), ctxFor(radio, await backupFor(radio), img))
+    expect(radio.pages.get(CONTACTS_BASE)).not.toEqual(pristine.get(CONTACTS_BASE))
+
+    // Now restore the original image, the way the restore page does: no base.
+    const t2 = await connect(radio)
+    const ctx = ctxFor(radio, await backupFor(radio), img)
+    await writable.writeImage(t2, img, { ...ctx, baseImage: undefined })
+
+    for (const [addr, page] of radio.pages) {
+      expect(equalBytes(page, pristine.get(addr)!), `page 0x${addr.toString(16)}`).toBe(true)
+    }
+  })
+
+})
+
+/**
+ * `readImage` against the same fake radio.
+ *
+ * The address book being tagged read-only lived here, and every fixture that
+ * could have caught it built its contact pages by hand - a shape the real read
+ * path never produces. So these drive the read path itself.
+ */
+describe('readImage, and the shape it hands the rest of the app', () => {
+  const identFor = (radio: ReturnType<typeof fakeRadio>, contacts = true): IdentifyResult => ({
+    radioId: 'dm32uv',
+    variant: INDEX.firmware,
+    layout: INDEX.model,
+    identHash: 'ident',
+    raw: new Uint8Array(0),
+    caps: { read: true, write: true },
+    meta: {
+      model: INDEX.model,
+      configStart: radio.base,
+      configEnd: radio.end,
+      ...(contacts ? { contactsStart: CONTACTS_BASE, contactsEnd: CONTACTS_BASE + 0x3b_cfff } : {}),
+    },
+  })
+
+  it('brings the address book back writable', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const img = await writable.readImage(t, identFor(radio), {})
+
+    const pages = img.regions.filter((r) => r.start >= CONTACTS_BASE)
+    expect(pages.length).toBeGreaterThan(0)
+    for (const p of pages) {
+      expect(p.readOnly, 'a contacts page came back read-only and cannot be written').toBeFalsy()
+    }
+    expect(writable.decode(img).contacts).toHaveLength(CONTACT_COUNT)
+  })
+
+  it('reads one page more than the contacts fill, so one can be added', async () => {
+    // The encoder can only write pages the reader brought back. 60 contacts fit
+    // in two pages exactly at 44 per page, so without the spare there is
+    // nowhere to put a 61st.
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const img = await writable.readImage(t, identFor(radio), {})
+
+    const used = Math.floor((CONTACT_COUNT - 1) / 44) + 1
+    expect(img.regions.filter((r) => r.start >= CONTACTS_BASE)).toHaveLength(used + 1)
+
+    const doc = writable.decode(img)
+    doc.contacts.push({
+      id: 'c-new', name: 'ADDED', dmrId: 3_105_999,
+      callsign: '', city: '', province: '', country: '', remark: '',
+    })
+    expect(() => writable.encode(doc, img)).not.toThrow()
+    expect(writable.decode(writable.encode(doc, img)).contacts.at(-1)!.name).toBe('ADDED')
+  })
+
+  it('reads a page even when the address book is empty', async () => {
+    // Otherwise there is no page at all and every added contact is dropped in
+    // silence - which is what a radio fresh out of the box looks like.
+    const radio = fakeRadio()
+    radio.pages.get(CONTACTS_BASE)!.set([0, 0, 0, 0], 0)
+    const t = await connect(radio)
+    const img = await writable.readImage(t, identFor(radio), {})
+
+    expect(img.regions.filter((r) => r.start >= CONTACTS_BASE).length).toBeGreaterThanOrEqual(1)
+    const doc = writable.decode(img)
+    expect(doc.contacts).toEqual([])
+    doc.contacts.push({
+      id: 'c1', name: 'FIRST', dmrId: 1234,
+      callsign: '', city: '', province: '', country: '', remark: '',
+    })
+    expect(writable.decode(writable.encode(doc, img)).contacts.map((c) => c.name)).toEqual(['FIRST'])
+  })
+
+  it('reads no contacts region when the radio reports none', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const img = await writable.readImage(t, identFor(radio, false), {})
+    expect(img.regions.filter((r) => r.start >= CONTACTS_BASE)).toEqual([])
+    expect(writable.decode(img).contacts).toEqual([])
   })
 })

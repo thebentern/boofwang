@@ -26,7 +26,7 @@ export interface ImageDiff {
 }
 
 export interface DiffDriver {
-  ownedRanges(regionStart: number): ReadonlyArray<readonly [number, number]>
+  ownedRanges(regionStart: number, image?: RadioImage): ReadonlyArray<readonly [number, number]>
   readonly writeBlockBytes: number
 }
 
@@ -67,7 +67,7 @@ export function diffImages(base: RadioImage, next: RadioImage, driver: DiffDrive
       continue
     }
 
-    const owned = driver.ownedRanges(region.start)
+    const owned = driver.ownedRanges(region.start, next)
     for (const r of changed) {
       ranges.push(r)
       if (!rangesContain(owned, r)) unowned.push(r)

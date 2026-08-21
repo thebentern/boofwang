@@ -391,6 +391,21 @@ export async function writePage(t: Transport, base: number, data: Uint8Array, op
   }
 }
 
+/**
+ * A 4 KiB page from a region that carries no logical block id.
+ *
+ * {@link readPage} checks the last byte against the id it expects, which is the
+ * right thing everywhere in the configuration region and the wrong thing in the
+ * DMR address book, where that byte is ordinary data.
+ */
+export async function readRawPage(t: Transport, base: number, opts?: ReadOpts): Promise<Uint8Array> {
+  const data = await readMemory(t, base, PAGE_SIZE, opts)
+  if (data.length !== PAGE_SIZE) {
+    throw new ProtocolError(`Short page at 0x${base.toString(16)}`, `${PAGE_SIZE} bytes`, `${data.length}`)
+  }
+  return data
+}
+
 /** Read one 4 KiB page and confirm its tail byte is the id we expected. */
 export async function readPage(t: Transport, base: number, expectedId: number, opts?: ReadOpts): Promise<Uint8Array> {
   const data = await readMemory(t, base, PAGE_SIZE, opts)

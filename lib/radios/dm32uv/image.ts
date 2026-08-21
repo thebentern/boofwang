@@ -45,3 +45,24 @@ export function totalPages(image: RadioImage): number {
 export function totalBytes(image: RadioImage): number {
   return image.regions.length * PAGE_SIZE
 }
+
+/**
+ * The pages of the DMR address book, ascending.
+ *
+ * Found from the regions themselves rather than from `image.meta`, which is not
+ * carried by a stored backup and not carried by a `.bwp`. A config page is
+ * addressed as `blockId << 12` and so always sits below 0x100000; the address
+ * book is at a real physical address an order of magnitude higher. Nothing else
+ * in a DM-32UV image is up there.
+ *
+ * Doing it this way means an image that has been round-tripped through a backup
+ * still knows where its contacts are, which the meta-based version did not.
+ */
+export function contactPages(image: RadioImage): ImageRegion[] {
+  return image.regions.filter((r) => blockIdOf(r.start) > 0xff).sort((a, b) => a.start - b.start)
+}
+
+/** Where the address book starts, or null if this image carries none. */
+export function contactsBase(image: RadioImage): number | null {
+  return contactPages(image)[0]?.start ?? null
+}

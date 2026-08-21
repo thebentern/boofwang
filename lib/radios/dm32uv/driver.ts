@@ -22,7 +22,7 @@ import {
 import type { RadioImage } from '../../radio/image.js'
 import type { RadioSchema } from '../../radio/schema.js'
 import type { Transport } from '../../transport/transport.js'
-import { blockData, blockIds, logicalAddress } from './image.js'
+import { blockData, blockIds, contactPages, contactsBase, logicalAddress } from './image.js'
 import { cloneImage } from '../../radio/image.js'
 import {
   CALL_TYPE_ALL,
@@ -32,6 +32,9 @@ import {
   CHANNEL_BLOCK_LAST,
   CHANNEL_HEADER,
   CHANNEL_SIZE,
+  CONTACTS_PER_PAGE,
+  CONTACT_REGION_HEADER,
+  CONTACT_UNKNOWN_13,
   CONTACT_SIZE,
   DM32_CHANNEL,
   DM32_CONTACT,
@@ -95,6 +98,7 @@ import {
   parseRange,
   readMemory,
   readPage,
+  readRawPage,
   vframe,
   writePage,
 } from './protocol.js'
@@ -128,7 +132,10 @@ export interface Dm32uvDriverOptions {
 
 /** One 4 KiB page this driver is prepared to send, with the bytes it wants there. */
 interface WriteTarget {
+  /** The logical block id, or -1 for a raw region that has none. */
   blockId: number
+  /** Set only for a raw region, whose address is fixed and needs no page map. */
+  addr?: number
   desired: { start: number; data: Uint8Array }
   label: string
 }
@@ -164,6 +171,18 @@ function writeTargets(image: RadioImage): WriteTarget[] {
   // Settings decide how the radio behaves rather than what it can hear, so they
   // go after the lists but before anything that keys a transmitter.
   add(SETTINGS_BLOCK, `block 0x${SETTINGS_BLOCK.toString(16)} (settings)`)
+  // The address book. Not a block: a real address, no translation layer, and no
+  // logical id in the page. It goes before the channels because nothing in it
+  // can make a radio transmit, and after the small lists because it is by far
+  // the most bytes.
+  for (const [i, page] of contactPages(image).entries()) {
+    out.push({
+      blockId: -1,
+      addr: page.start,
+      desired: page,
+      label: `contacts page ${i + 1} @ 0x${page.start.toString(16)}`,
+    })
+  }
   for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) {
     add(id, `block 0x${id.toString(16)} (channels)`)
   }
@@ -248,13 +267,14 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           /*
            * Still a scope, just a much wider one. The write reaches channel
            * records, zones with their channel lists, talk groups, scan list
-           * names, RX groups, radio settings and key slots. It does not reach
-           * the DMR address book, the talk-group quick index, or the twenty-odd
-           * blocks nothing has decoded - so a restore is still not the full
-           * rollback the word promises, and this is the field that says so.
+           * names, RX groups, radio settings, the DMR address book and key
+           * slots. It does not reach scan list membership, the talk-group quick
+           * index, or the twenty-odd blocks nothing has decoded - so a restore
+           * is still not the full rollback the word promises, and this is the
+           * field that says so.
            */
           writeScope:
-            'channels, zones, talk groups, scan lists, RX groups, radio settings and encryption keys',
+            'channels, zones, talk groups, scan lists, RX groups, contacts, radio settings and encryption keys',
         },
       }
     : DM32UV_SCHEMA
@@ -396,8 +416,16 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         const count = parseLE(head)
         const cap = Math.floor((contactsEnd - contactsStart + 1) / CONTACT_SIZE)
 
-        if (count > 0 && count <= cap) {
-          const pages = contactSlot(count - 1).page + 1
+        if (count <= cap) {
+          // Always at least one page, and always one more than the contacts
+          // fill. A page is 4 KiB - a fraction of a second - and without the
+          // spare there is nowhere to put a contact the user adds: the encoder
+          // can only write pages the reader brought back. Without the floor of
+          // one, a radio with an empty address book had no page at all and
+          // every added contact was silently dropped.
+          const used = count === 0 ? 0 : contactSlot(count - 1).page + 1
+          const roomFor = Math.floor((contactsEnd - contactsStart + 1) / PAGE_SIZE)
+          const pages = Math.min(Math.max(used + 1, 1), roomFor)
           for (let i = 0; i < pages; i++) {
             ctx.progress?.({ phase: 'read', done: i, total: pages, label: `contacts ${i + 1}/${pages}` })
             const addr = contactsStart + i * PAGE_SIZE
@@ -407,9 +435,15 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
             if (data.length !== PAGE_SIZE) {
               throw new DriverError(`Short contacts page at 0x${addr.toString(16)}`)
             }
-            regions.push({ start: addr, data, readOnly: true, label: `contacts page ${i + 1}` })
+            // Not readOnly. That flag means "never send this", which is right
+            // for calibration and was right for this region until it became
+            // writable - and `diffImages` honours it by routing every change
+            // into `unowned`, so leaving it set made the write gate refuse
+            // every contact edit as an encoder defect while reporting it as no
+            // change at all.
+            regions.push({ start: addr, data, label: `contacts page ${i + 1}` })
           }
-        } else if (count > cap) {
+        } else {
           ctx.log?.info(`The radio reports ${count} contacts but its region holds ${cap}; not reading them.`)
         }
       }
@@ -592,8 +626,12 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
 
       for (let n = 0; n < targets.length; n++) {
         const { blockId, desired, label } = targets[n]!
+        // A raw region has a fixed address and no entry in the page map: the
+        // translation layer does not touch it, so there is nothing to look up
+        // and nothing to follow if it moves, because it cannot.
+        const raw = targets[n]!.addr !== undefined
 
-        const physical = physOf.get(blockId)
+        const physical = raw ? targets[n]!.addr! : physOf.get(blockId)
         if (physical === undefined) {
           throw withReport(
             new DriverError(
@@ -602,8 +640,9 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           )
         }
 
-        const base = ctx.baseImage?.regions.find((r) => r.start === logicalAddress(blockId))?.data
-        const owned = driver.ownedRanges(logicalAddress(blockId))
+        const regionStart = raw ? desired.start : logicalAddress(blockId)
+        const base = ctx.baseImage?.regions.find((r) => r.start === regionStart)?.data
+        const owned = driver.ownedRanges(regionStart, image)
 
         // If the user changed nothing in this block, do not even read it. The
         // merge below would produce the live page unchanged and skip it anyway,
@@ -616,13 +655,20 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         }
 
         // The live bytes are the base for the merge, never our stored image.
-        const live = await readPage(t, physical, blockId, opts)
+        //
+        // Not readPage for a raw region: that checks the last byte against the
+        // logical id, and here that byte is data.
+        const live = raw
+          ? await readRawPage(t, physical, opts)
+          : await readPage(t, physical, blockId, opts)
 
         const merged =
           blockId === KEY_BLOCK
             ? mergeKeySlots(live, desired.data, base)
             : mergeOwned(live, desired.data, base, owned)
-        merged[PAGE_SIZE - 1] = blockId // the tail byte is never ours to change
+        // The tail byte is never ours to change. On a config page it must read
+        // back as the block id; in the address book it is whatever was there.
+        if (!raw) merged[PAGE_SIZE - 1] = blockId
 
         // Belt and braces: nothing outside the ranges this driver claims may
         // differ from the live page. If it does, the merge is wrong and the
@@ -660,18 +706,28 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         operations.push(operation)
 
         try {
-          // Verify. The page may have been relocated by the write, so find it
-          // again rather than assuming it stayed put.
           ctx.progress?.({ phase: 'verify', done: n, total: targets.length, label })
-          const after = await scanPageMap(t, start, end, opts)
-          const nowAt = after.physOf.get(blockId)
-          if (nowAt === undefined) {
-            throw new WriteVerifyError(physical, `${label} present`, 'the block vanished from the map', blocksWritten)
+
+          // A raw region cannot relocate, so there is no map to rescan - which
+          // matters: a rescan is 200 reads, and the address book can be dozens
+          // of pages.
+          let nowAt = physical
+          if (!raw) {
+            // The page may have been relocated by the write, so find it again
+            // rather than assuming it stayed put.
+            const after = await scanPageMap(t, start, end, opts)
+            const found = after.physOf.get(blockId)
+            if (found === undefined) {
+              throw new WriteVerifyError(physical, `${label} present`, 'the block vanished from the map', blocksWritten)
+            }
+            // Keep the map current: a relocation moves other pages too, and the
+            // next block in this loop must not be written to a stale address.
+            physOf = after.physOf
+            nowAt = found
           }
-          // Keep the map current: a relocation moves other pages too, and the
-          // next block in this loop must not be written to a stale address.
-          physOf = after.physOf
-          const readBack = await readPage(t, nowAt, blockId, opts)
+          const readBack = raw
+            ? await readRawPage(t, nowAt, opts)
+            : await readPage(t, nowAt, blockId, opts)
           // Compare the whole page. All 4096 bytes were sent, so verifying only
           // the ones we meant to change would call a page verified while the
           // rest went unchecked.
@@ -807,6 +863,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       encodeRxGroups(out, doc.rxGroups)
       encodeRadioIds(out, doc.radioIds)
       encodeSettings(out, doc.settings)
+      encodeContacts(out, doc.contacts)
 
       return { ...out, sha256: '' }
     },
@@ -854,7 +911,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
      * these is a defect in the encoder, and on this radio that is the only
      * thing standing between a bug and 22 blocks of unrecoverable memory.
      */
-    ownedRanges: (regionStart: number) => {
+    ownedRanges: (regionStart: number, image?: RadioImage) => {
       if (regionStart === logicalAddress(KEY_BLOCK)) return [KEY_AREA]
 
       const blockId = regionStart >>> 12
@@ -896,6 +953,20 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // established meaning. The claim is exactly the fields that are modelled,
       // taken from the struct rather than restated here.
       if (blockId === SETTINGS_BLOCK) return DM32_SETTINGS.ranges()
+
+      // A contacts page. These are not blocks: the id space stops at 0xFF and
+      // this region sits at a real physical address well above it.
+      //
+      // Which page it is decides what the first four bytes mean - the record
+      // count on page 0, the start of a name on every other - and that can only
+      // be told from where it sits relative to the rest of the region. Without
+      // the image there is no way to know, and claiming nothing is the safe
+      // answer: a byte changing outside a claimed range stops the write.
+      if (blockId > 0xff) {
+        const base = image ? contactsBase(image) : null
+        if (base === null || regionStart < base || (regionStart - base) % PAGE_SIZE !== 0) return []
+        return contactPageRanges((regionStart - base) / PAGE_SIZE)
+      }
       return []
     },
   }
@@ -1661,14 +1732,14 @@ export function encodeSettings(image: RadioImage, settings: Record<string, unkno
 /**
  * The DMR address book, if the image carries one.
  *
- * Read-only. The region has no logical block id, no flash translation layer and
- * no hardware sample with more than one entry in it - the walk past the first
- * page rests entirely on the reference implementation. Reading it is free;
- * writing it would be a guess about 4.4 MiB of somebody's contacts.
+ * The region has no logical block id and no flash translation layer: real
+ * physical addresses that stay put. The walk past the first page came from the
+ * reference implementation alone until this radio turned out to hold 147
+ * contacts across four pages, which exercises every boundary.
  */
 export function decodeContacts(image: RadioImage): Codeplug['contacts'] {
-  const start = (image.meta as { contactsStart?: number }).contactsStart
-  if (typeof start !== 'number') return []
+  const start = contactsBase(image)
+  if (start === null) return []
 
   const pageAt = (n: number) => image.regions.find((r) => r.start === start + n * PAGE_SIZE)?.data
   const first = pageAt(0)
@@ -1694,4 +1765,94 @@ export function decodeContacts(image: RadioImage): Codeplug['contacts'] {
     })
   }
   return out
+}
+
+/**
+ * Write the DMR address book back.
+ *
+ * The region is raw: real physical addresses, no logical block id, no
+ * translation layer. Four things are preserved because nobody has explained
+ * them, and one because the reference says the radio's own software does:
+ *
+ * - bytes 0x004-0x00F of the first page, twelve bytes that are 0xFF in every
+ *   capture. The reference implementation zero-fills them and diverges from the
+ *   OEM CPS in doing so.
+ * - byte 0x13 of each record, which reads 0xF0 on all 147 entries of this radio
+ *   and in the reference's own sample, and is demonstrably not the top of a
+ *   24-bit DMR ID.
+ * - the tail of each page past the last entry.
+ * - byte 0xFFF, which here is data rather than a block id.
+ *
+ * Entries do not straddle a page: 44 x 92 = 4048 of 4096. Getting that wrong is
+ * the difference between reading this radio's contact 44 as "Matthew D." and
+ * reading it as the middle of "Stuart".
+ */
+export function encodeContacts(image: RadioImage, contacts: Codeplug['contacts']): void {
+  const pages = contactPages(image)
+  if (pages.length === 0) return
+
+  const capacity = pages.length * CONTACTS_PER_PAGE
+  if (contacts.length > capacity) {
+    throw new DriverError(
+      `This image carries ${pages.length} contact page(s), which hold ${capacity} contacts; ` +
+        `the codeplug has ${contacts.length}. Read the radio again to grow the region.`,
+    )
+  }
+
+  const first = pages[0]!.data
+  const was = first[0]! | (first[1]! << 8) | (first[2]! << 16) | first[3]! * 0x100_0000
+
+  for (let n = 0; n < Math.max(was, contacts.length); n++) {
+    const slot = contactSlot(n)
+    const page = pages[slot.page]?.data
+    if (!page) break
+    const contact = contacts[n]
+    if (!contact) {
+      // Past the new count. Erase so a shrunken book cannot show half of a
+      // contact that used to be there.
+      if (n < was) page.fill(ERASED, slot.offset, slot.offset + CONTACT_SIZE)
+      continue
+    }
+    if (contact.dmrId < 0 || contact.dmrId > 0xff_ffff) {
+      throw new DriverError(`DMR ID ${contact.dmrId} does not fit in the 24 bits this radio stores.`)
+    }
+    // A record that was erased has 0xFF where every real one has 0xF0. Nothing
+    // explains the byte, so an existing record keeps its own; only a slot that
+    // held nothing gets the value the rest of the radio uses.
+    const current = DM32_CONTACT.read(page, slot.offset)
+    const blank = page
+      .subarray(slot.offset, slot.offset + CONTACT_SIZE)
+      .every((b) => b === 0xff || b === 0x00)
+
+    DM32_CONTACT.write(page, slot.offset, {
+      name: contact.name,
+      dmrId: contact.dmrId,
+      unknown13: blank ? CONTACT_UNKNOWN_13 : current.unknown13,
+      callsign: contact.callsign,
+      city: contact.city,
+      province: contact.province,
+      country: contact.country,
+      remark: contact.remark,
+    })
+  }
+
+  // The count last, so a write interrupted midway leaves the old, shorter,
+  // still-valid one rather than a count reaching into half-written records.
+  const total = contacts.length
+  first[0] = total & 0xff
+  first[1] = (total >>> 8) & 0xff
+  first[2] = (total >>> 16) & 0xff
+  first[3] = (total >>> 24) & 0xff
+}
+
+/** What a contacts page owns: the count on page 0, then whole records. */
+export function contactPageRanges(pageIndex: number): ReadonlyArray<readonly [number, number]> {
+  const entries = [
+    (pageIndex === 0 ? CONTACT_REGION_HEADER : 0),
+    (pageIndex === 0 ? CONTACT_REGION_HEADER : 0) + CONTACTS_PER_PAGE * CONTACT_SIZE,
+  ] as const
+  // The twelve bytes between the count and the first entry are not ours, and
+  // neither is the tail past the last one - including 0xFFF, which in this
+  // region is data rather than a block id.
+  return pageIndex === 0 ? [[0, 4] as const, entries] : [entries]
 }

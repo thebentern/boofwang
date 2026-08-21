@@ -6,7 +6,7 @@ import { equalBytes } from '#core/codec/struct.js'
 import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createDm32uvDriver, decodeTalkGroupIndex } from '#core/radios/dm32uv/driver.js'
-import { logicalAddress } from '#core/radios/dm32uv/image.js'
+import { contactPages, contactsBase, logicalAddress } from '#core/radios/dm32uv/image.js'
 import { DM32UV_SETTINGS_GROUPS as SCHEMA_SETTINGS } from '#core/radios/dm32uv/schema.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
 import {
@@ -467,28 +467,94 @@ describe('the DMR address book', () => {
     expect(first.city).toBe('')
   })
 
-  it('is never a write target', () => {
-    // The region has no block id and no hardware sample past one entry.
+  it('round-trips untouched when nothing was edited', () => {
     const img = withContacts(50)
     const out = d.encode(d.decode(img), img)
     for (const region of out.regions) {
       if (region.start < START) continue
       const before = img.regions.find((r) => r.start === region.start)!
-      expect(equalBytes(region.data, before.data)).toBe(true)
-      expect(d.ownedRanges(region.start)).toEqual([])
+      expect(equalBytes(region.data, before.data), `page 0x${region.start.toString(16)}`).toBe(true)
     }
   })
 
-  it('survives a round trip untouched even when the codeplug is edited', () => {
+  it('claims the count and the records, and nothing between or after them', () => {
+    // The twelve bytes between the count and entry 0 are 0xFF in every capture
+    // and explained by nobody; the tail past the last entry, byte 0xFFF
+    // included, is data here rather than a block id.
+    const img = withContacts(50)
+    const first = contactsBase(img)!
+    expect(d.ownedRanges(first, img)).toEqual([
+      [0, 4],
+      [CONTACT_REGION_HEADER, CONTACT_REGION_HEADER + 44 * CONTACT_SIZE],
+    ])
+    // Every later page is all records from its first byte.
+    expect(d.ownedRanges(first + PAGE_SIZE, img)).toEqual([[0, 44 * CONTACT_SIZE]])
+  })
+
+  it('claims nothing for a raw region when it cannot tell which page it is', () => {
+    // ownedRanges is handed an address and nothing else by some callers. Page 0
+    // and page 3 differ in what their first four bytes mean, so without the
+    // image the honest answer is to claim nothing - which stops a write rather
+    // than guessing at it.
+    const img = withContacts(50)
+    expect(d.ownedRanges(contactsBase(img)!)).toEqual([])
+  })
+
+  it('writes an edited contact and leaves its neighbours alone', () => {
     const img = withContacts(50)
     const doc = d.decode(img)
-    doc.settings.powerOnLine1 = 'EDITED'
-    doc.contacts[0] = { ...doc.contacts[0]!, name: 'IGNORED' }
+    doc.contacts[1] = { ...doc.contacts[1]!, name: 'RENAMED', callsign: 'W1AW' }
     const out = d.encode(doc, img)
-    for (const region of out.regions) {
-      if (region.start < START) continue
-      expect(equalBytes(region.data, img.regions.find((r) => r.start === region.start)!.data)).toBe(true)
+
+    const back = d.decode(out).contacts
+    expect(back[1]!.name).toBe('RENAMED')
+    expect(back[1]!.callsign).toBe('W1AW')
+    expect(back[0]).toEqual(doc.contacts[0])
+    expect(back[2]).toEqual(doc.contacts[2])
+    expect(back).toHaveLength(50)
+  })
+
+  it('moves the count when a contact is added or removed', () => {
+    const img = withContacts(50)
+    const page0 = () => img.regions.find((r) => r.start === START)!.data
+
+    const grown = d.decode(img)
+    grown.contacts.push({ id: 'contact-new', name: 'NEW', dmrId: 1234567, callsign: '', city: '', province: '', country: '', remark: '' })
+    const bigger = d.encode(grown, img)
+    expect(d.decode(bigger).contacts).toHaveLength(51)
+    expect(d.decode(bigger).contacts[50]!.name).toBe('NEW')
+
+    const shrunk = d.decode(img)
+    shrunk.contacts.splice(40)
+    const smaller = d.encode(shrunk, img)
+    expect(d.decode(smaller).contacts).toHaveLength(40)
+    expect(page0()[0], 'the base image was mutated').toBe(50)
+  })
+
+  it('never claims the twelve bytes after the count', () => {
+    const img = withContacts(50)
+    const doc = d.decode(img)
+    doc.contacts.splice(10)
+    const out = d.encode(doc, img)
+    const before = img.regions.find((r) => r.start === START)!.data
+    const after = out.regions.find((r) => r.start === START)!.data
+    expect(equalBytes(after.subarray(4, CONTACT_REGION_HEADER), before.subarray(4, CONTACT_REGION_HEADER))).toBe(true)
+  })
+
+  it('refuses more contacts than the pages it has', () => {
+    const img = withContacts(50)
+    const doc = d.decode(img)
+    while (doc.contacts.length < 200) {
+      doc.contacts.push({ id: `c${doc.contacts.length}`, name: 'X', dmrId: 1, callsign: '', city: '', province: '', country: '', remark: '' })
     }
+    expect(() => d.encode(doc, img)).toThrow(/contact page/)
+  })
+
+  it('refuses a DMR ID too large for 24 bits', () => {
+    const img = withContacts(50)
+    const doc = d.decode(img)
+    doc.contacts[0] = { ...doc.contacts[0]!, dmrId: 20_000_000 }
+    expect(() => d.encode(doc, img)).toThrow(/24 bits/)
   })
 })
 
@@ -590,5 +656,100 @@ describe('radio IDs keep their slots', () => {
     const img = withIdAt(5, 3_105_999, 'SIXTH', 6)
     const out = d.encode(d.decode(img), img)
     expect(page(out, RADIOID_BLOCK)[0], 'a gap still consumes its index').toBe(6)
+  })
+})
+
+describe('the write gate sees a contact edit', () => {
+  const START = 0x278000
+
+  /** An image shaped the way readImage really produces one. */
+  function readAsRadio(contacts = 60, readOnly = false): RadioImage {
+    const img = image()
+    const pages = Math.ceil((CONTACT_REGION_HEADER + contacts * CONTACT_SIZE) / PAGE_SIZE) || 1
+    const regions = [...img.regions]
+    for (let p = 0; p < pages; p++) {
+      const data = new Uint8Array(PAGE_SIZE).fill(0xff)
+      if (p === 0) data.set([contacts & 0xff, (contacts >> 8) & 0xff, 0, 0], 0)
+      regions.push({ start: START + p * PAGE_SIZE, data, label: '', ...(readOnly ? { readOnly } : {}) })
+    }
+    for (let n = 0; n < contacts; n++) {
+      const slot = contactSlot(n)
+      const page = regions.find((r) => r.start === START + slot.page * PAGE_SIZE)!.data
+      DM32_CONTACT.write(page, slot.offset, {
+        name: `Contact ${n + 1}`, dmrId: 3_105_000 + n, unknown13: 0xf0,
+        callsign: '', city: '', province: '', country: '', remark: '',
+      })
+    }
+    return { ...img, regions }
+  }
+
+  it('counts the bytes and names the page, rather than calling it unowned', () => {
+    // The flag that broke this said "never send". diffImages honours it by
+    // routing every change into `unowned`, so the gate refused a contact edit
+    // as an encoder defect and reported it as no change at all - in the same
+    // breath as capabilities.writeScope promising contacts were writable.
+    const img = readAsRadio()
+    const doc = d.decode(img)
+    doc.contacts[0] = { ...doc.contacts[0]!, name: 'EDITED' }
+
+    const diff = diffImages(img, d.encode(doc, img), d)
+    expect(diff.unowned, 'a contact edit is not an encoder defect').toEqual([])
+    expect(diff.changedBytes, 'a contact edit must count as a change').toBeGreaterThan(0)
+    expect(diff.changedBlocks.length).toBe(1)
+  })
+
+  it('is what the read path actually produces', () => {
+    // The bug lived in readImage, and the fixtures that would have caught it
+    // built their contact pages by hand without the flag - a shape the real
+    // read path never produced.
+    const img = readAsRadio()
+    for (const page of contactPages(img)) {
+      expect(page.readOnly, 'contacts pages must be writable now that they are written').toBeFalsy()
+    }
+  })
+
+  it('would be blocked if the pages were still read-only', () => {
+    // Pins the mechanism, so the flag cannot quietly come back.
+    const img = readAsRadio(60, true)
+    const doc = d.decode(img)
+    doc.contacts[0] = { ...doc.contacts[0]!, name: 'EDITED' }
+    const diff = diffImages(img, d.encode(doc, img), d)
+    expect(diff.changedBytes).toBe(0)
+    expect(diff.unowned.length).toBeGreaterThan(0)
+  })
+
+  it('gives a new contact the byte every real one has', () => {
+    const img = readAsRadio(2)
+    const doc = d.decode(img)
+    doc.contacts.push({
+      id: 'c-new', name: 'NEW', dmrId: 3_105_999,
+      callsign: '', city: '', province: '', country: '', remark: '',
+    })
+    const out = d.encode(doc, img)
+    const slot = contactSlot(2)
+    const page = out.regions.find((r) => r.start === START + slot.page * PAGE_SIZE)!.data
+    expect(page[slot.offset + 0x13], 'a brand-new record must not be the only 0xFF one').toBe(0xf0)
+  })
+
+  it('keeps an existing record’s own byte rather than imposing one', () => {
+    const img = readAsRadio(2)
+    const slot = contactSlot(1)
+    const page = img.regions.find((r) => r.start === START + slot.page * PAGE_SIZE)!.data
+    page[slot.offset + 0x13] = 0x77
+
+    const doc = d.decode(img)
+    doc.contacts[1] = { ...doc.contacts[1]!, name: 'RENAMED' }
+    const out = d.encode(doc, img)
+    const after = out.regions.find((r) => r.start === START + slot.page * PAGE_SIZE)!.data
+    expect(after[slot.offset + 0x13]).toBe(0x77)
+  })
+
+  it('carries a full-width field without shortening it', () => {
+    // 39 of this radio's 147 contacts fill all sixteen bytes. There is no
+    // terminator to reserve, and the radio writes them that way itself.
+    const img = readAsRadio(2)
+    const doc = d.decode(img)
+    doc.contacts[0] = { ...doc.contacts[0]!, city: 'North Little Roc' }
+    expect(d.decode(d.encode(doc, img)).contacts[0]!.city).toBe('North Little Roc')
   })
 })
