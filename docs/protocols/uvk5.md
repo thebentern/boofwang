@@ -83,6 +83,56 @@ image, and the driver writes whichever blocks differ from what it reads off the
 radio. Without that, the safety check would have made recovery impossible — the
 one operation that has to work when everything else has gone wrong.
 
+### 2026-08-21 — stock settings, read and written
+
+The stock firmware's settings are now decoded, offered and written. Egzumer's
+were already; stock's had never been touched, and the two are not a
+rearrangement of each other - stock keeps its settings in **seven small blocks**
+where egzumer gathers them into one window:
+
+| Block | What |
+|---|---|
+| `0x0E70` | squelch, VOX, mic gain, battery save, dual watch, backlight, cross-band, call channel |
+| `0x0E90` | beep, the four side-key actions, scan resume, auto keypad lock, power-on screen |
+| `0x0E98` | the eight password bytes, **not modelled** |
+| `0x0EA0` | voice prompts, menu language |
+| `0x0EA8` | alarm mode, end-of-talk tone, repeater tail elimination |
+| `0x0EB0` | the two 16-character welcome lines |
+| `0x0F18` | default scan list, and the two priority-scan pairs |
+| `0x0F40` | `flock`, the 200/350/500 MHz transmit locks, `en350`, `enscramble`, `killed` |
+
+Transcribed from `MEM_FORMAT` and `get_settings` in CHIRP's `uvk5.py`, and
+checked against CHIRP rather than against itself: all 44 fields agree with what
+CHIRP's own `bitwise` engine reads from the same image, plus both welcome lines.
+`scripts/dump-uvk5-settings.py` derives that fixture.
+
+Two things are decoded and never offered. `killed` is the DTMF remote-kill flag,
+and the only thing setting it does is stop the radio working. The eight password
+bytes at `0x0E98` are not modelled at all, so they round-trip because nothing
+names them - a test asserts that range is neither claimed nor rewritten.
+
+On the radio, firmware `2.01.32`:
+
+```
+round trip on the live image      byte-for-byte, PASS
+change   squelch 4->5, mic gain 2->3, beep on->off, welcome WELCOME->BOOFWANG
+diff     19 bytes, 0 outside ownedRanges
+write    2 blocks, 256 bytes, verified
+read back 0 differing from what was sent, 19 from the backup
+restore  a0dfe2ab, byte-identical, 31 channels untouched
+```
+
+Nineteen bytes is exactly right: three setting bytes plus the sixteen-byte
+welcome line.
+
+One thing worth writing down about the write path. This driver reads the radio
+fresh at step 3 whatever the caller says, and uses `ctx.baseImage` only to check
+the caller's belief against reality - a mismatch is `RadioChangedError`. So a
+restore must **not** pass `baseImage`: the radio deliberately differs from the
+image being put back, and claiming otherwise is refused, correctly. That is a
+better shape than taking the caller's word for it, and the refusal fired first
+time when a test harness got it wrong.
+
 ## The egzumer custom firmware
 
 Detected by the `EGZUMER ` prefix on the hello reply, and decoded as a layout of
