@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import type { SerialOpenOptions, SerialPortLike } from './transport.js'
+import type { SerialOpenOptions, SerialPortLike, TransportKind } from './transport.js'
 
 /**
  * A `SerialPortLike` backed by the development bridge in `tools/serial-bridge`.
@@ -22,6 +22,16 @@ export interface BridgePortInfo {
   serialNumber: string | null
   vendorId: number | null
   productId: number | null
+  /**
+   * What the far end of the bridge actually is.
+   *
+   * Absent from the serial bridge, which predates the distinction, so it falls
+   * back to `'serial'`. It matters because a driver may change behaviour on it:
+   * the UV-5R Mini sends 0x80 upload blocks over Bluetooth where the cable
+   * takes 0x40, and a Bluetooth bridge reporting itself as serial would write
+   * the wrong size while looking entirely healthy.
+   */
+  kind?: TransportKind | null
 }
 
 export class BridgeError extends Error {
@@ -89,6 +99,7 @@ export class BridgeSerialPort implements SerialPortLike {
 
   #url: string
   #path: string
+  #kind: TransportKind
   #info: { usbVendorId?: number; usbProductId?: number }
   #ws: WebSocket | null = null
   #pending: Pending | null = null
@@ -97,6 +108,7 @@ export class BridgeSerialPort implements SerialPortLike {
   constructor(url: string, port: BridgePortInfo) {
     this.#url = url
     this.#path = port.path
+    this.#kind = port.kind ?? 'serial'
     this.#info = {
       ...(port.vendorId === null ? {} : { usbVendorId: port.vendorId }),
       ...(port.productId === null ? {} : { usbProductId: port.productId }),
@@ -105,6 +117,11 @@ export class BridgeSerialPort implements SerialPortLike {
 
   get path(): string {
     return this.#path
+  }
+
+  /** Reported to the transport, and from there to any driver that varies on it. */
+  get kind(): TransportKind {
+    return this.#kind
   }
 
   getInfo(): { usbVendorId?: number; usbProductId?: number } {

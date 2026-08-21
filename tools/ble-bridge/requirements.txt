@@ -1,0 +1,5 @@
+# The Bluetooth bridge is Python because bleak works on macOS where noble does
+# not. Pinned loosely: both libraries are stable and this is a dev tool, not a
+# shipped dependency.
+bleak>=0.22
+websockets>=12

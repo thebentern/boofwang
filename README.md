@@ -120,6 +120,33 @@ Constraints: binds to 127.0.0.1, rejects non-localhost origins, is never started
 by the app or the build, and the client side requires both a dev build and an
 explicit `?bridge` query parameter.
 
+### Bluetooth
+
+The same idea, over the air. Web Bluetooth has the same chooser problem as Web
+Serial and a narrower set of browsers that implement it at all, so the browser
+is taken out of the Bluetooth path during development: a second bridge holds the
+GATT connection and speaks the same protocol, and `BridgeSerialPort` cannot tell
+the difference.
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r tools/ble-bridge/requirements.txt
+pnpm bridge:ble                   # one terminal
+pnpm dev                          # another
+# http://localhost:3000/?bridge
+```
+
+It is Python rather than Node beside its sibling because `bleak` works on macOS
+and has read a whole codeplug off a real radio, where `noble` is fragile there.
+The scan filters on the CPS service by default; `--all` lists everything.
+
+The bridge reports `kind: "bluetooth"`, which is not cosmetic - the UV-5R Mini
+sends 0x80 upload blocks over Bluetooth where the cable takes 0x40, and a bridge
+that failed to say so would write the wrong size while looking healthy.
+
+macOS refuses Bluetooth to an application that has not been granted it, and
+refuses by killing the process rather than returning an error. An instant exit
+with no message is that, not a fault in the bridge.
+
 ## Layout
 
 ```
