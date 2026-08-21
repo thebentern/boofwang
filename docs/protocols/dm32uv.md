@@ -994,7 +994,55 @@ claiming *less* than the driver writes — the direction that reads as safe and 
 not, because it tells someone a restore rolls back more than it can. A test now
 checks every parenthesised noun the writer emits appears in the sentence.
 
+## The startup image — written, not yet sent to a radio, 2026-08-21
+
+The region V-frame `0x0E` reports, `0x150000–0x175FFF`, holds 153,600 bytes of
+raw BGR565: 240 × 320 portrait, no header. `lib/io/boot-image.ts` converts
+between that and RGBA, and `lib/radios/dm32uv/boot-image.ts` reads and writes
+the region. **Nothing in the application reaches either of them**, and a test in
+`test/lib/radios/dm32uv/boot-image.spec.ts` resolves every import under `lib/`
+and `app/` to keep it that way.
+
+Two reasons for that. The 2,048-byte write is `DERIVED` in the reference and
+appears in neither capture, and the rule this feature needs most — read and
+store the factory image *before* the first write — has nowhere to live yet.
+**This region is outside the codeplug, so it is outside every backup boofwang
+has ever taken.** No `.bwp`, no stored backup and no fixture contains it. A
+codeplug can be rebuilt from a CSV; the factory splash cannot be rebuilt from
+anything.
+
+The converter takes raw RGBA rather than an image file because `lib/` may not
+touch the DOM, and the only image decoder a browser will lend us is the one
+behind `<canvas>`. The browser decodes, `lib/` does the arithmetic, and the
+arithmetic is the part that can be silently wrong: read as RGB565 instead of
+BGR565 the same bytes still make a picture, correctly framed and correctly
+shaped, with red and blue exchanged.
+
 ## Not verified
+- **The byte order within a BGR565 pixel.** The specification names the format
+  and gives its size; it does not say which half of the 16-bit word goes into
+  memory first, and neither capture touches `0x150000` at all. Little-endian is
+  assumed, because every other multi-byte field this radio exchanges is. It is
+  decided in one place (`readWord`/`writeWord` in `lib/io/boot-image.ts`) and
+  pinned by a test, so a radio that renders a written image with stripes or a
+  hue rotation — rather than with blue skin, which is the channel swap — has one
+  line to change.
+- **The channel order itself.** `BGR565` is the specification's word, and blue
+  in the most significant bits is the conventional reading of that name. No
+  capture confirms it. Pure red encodes to `1F 00` and pure blue to `00 F8`; if
+  a radio shows those the other way round, the two are swapped.
+- **The 2,048-byte write, `57 <addr:3 LE> 00 08 <2048 bytes>`.** `DERIVED` in
+  the reference: implemented by the reference implementation, absent from both
+  captures. `writeBootImageTail()` emits exactly those bytes and its test pins
+  the frame; whether the radio ACKs it is unknown. If it wants a padded full
+  page, an erase, or a different opcode instead, that function is the only thing
+  that is wrong.
+- **Whether writing this region needs anything the codeplug write does not** —
+  an OEM read-mode sequence, or a gap between chunks. The reference's
+  `enterBootImageReadMode()` is a 5-byte `47 00 01 00 00` that matches no
+  capture, has no caller, and is documented as possibly rebooting the radio; it
+  is not copied here and not used. Chunks are written back to back, matching the
+  codeplug writer, which does the same and is hardware-verified.
 - **Growing the address book past the pages that were read.** One spare page is
   brought back, so up to 44 contacts can be added; beyond that the write is
   refused by name rather than truncating. Reading the whole 4.4 MiB region to
