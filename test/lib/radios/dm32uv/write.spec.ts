@@ -31,6 +31,7 @@ import {
   KEY_BLOCK,
   KEY_SLOTS,
   TALKGROUP_BLOCK_FIRST,
+  TG_INDEX_BLOCK,
   TALKGROUP_BLOCK_LAST,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
@@ -154,6 +155,11 @@ describe('what a key write touches', () => {
       TXCONTACT_BLOCK_HIGH,
       MESSAGE_BLOCK,
       ROAMCHANNEL_BLOCK,
+      // The index the radio keeps beside the talk group bank. It is decoded and
+      // written; it used to sit outside this set and pass anyway, because
+      // `ownedRanges` was handed no image and the claim for this block was the
+      // one that varied on having one.
+      TG_INDEX_BLOCK,
     ])
     for (let id = CHANNEL_BLOCK_FIRST; id <= CHANNEL_BLOCK_LAST; id++) decoded.add(id)
     for (let id = ZONE_BLOCK_FIRST; id <= ZONE_BLOCK_LAST; id++) decoded.add(id)

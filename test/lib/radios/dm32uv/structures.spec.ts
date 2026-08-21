@@ -10,6 +10,10 @@ import type { RadioImage } from '#core/radio/image.js'
 import { hz } from '#core/model/units.js'
 import { createDm32uvDriver, decodeTalkGroupIndex } from '#core/radios/dm32uv/driver.js'
 import {
+  TG_INDEX_BITMASK,
+  TG_INDEX_SLOTS,
+  TG_INDEX_TABLE_BY_NAME,
+  TG_INDEX_TABLE_BY_NUMBER,
   CONTACT_REGION_HEADER,
   CONTACT_SIZE,
   DM32_CONTACT,
@@ -519,8 +523,35 @@ describe('the talk group index the radio keeps for itself', () => {
     expect([...index.byName].sort((a, b) => a - b)).toEqual(index.live)
   })
 
-  it('is never written', () => {
-    expect(d.ownedRanges(logicalAddress(0x0b))).toEqual([])
+  it('claims both tables whole, so removing a group is an erase and not a defect', () => {
+    // This asserted `[]` and passed for the wrong reason: it calls
+    // `ownedRanges` with no image, and the claim for this block was the one
+    // that varied on having one. The block is decoded and written.
+    //
+    // Whole tables rather than the live rows. The encoder clears every row past
+    // the last group, so a claim trimmed to the count would be narrower than
+    // what it touches the moment a group is removed, and the write gate reads a
+    // change outside the claim as a defect in boofwang and refuses everything.
+    const claimed = d.ownedRanges(logicalAddress(0x0b))
+    expect(claimed).toEqual([
+      [0, 5],
+      [TG_INDEX_BITMASK, TG_INDEX_BITMASK + TG_INDEX_SLOTS / 8],
+      [TG_INDEX_TABLE_BY_NAME, TG_INDEX_TABLE_BY_NAME + TG_INDEX_SLOTS * 2],
+      [TG_INDEX_TABLE_BY_NUMBER, TG_INDEX_TABLE_BY_NUMBER + TG_INDEX_SLOTS * 2],
+    ])
+    // Same answer with an image, which is the form every caller actually uses.
+    expect(d.ownedRanges(logicalAddress(0x0b), image())).toEqual(claimed)
+  })
+
+  it('takes a group away without moving a byte it has not claimed', () => {
+    const img = image()
+    const doc = d.decode(img)
+    expect(doc.talkGroups.length).toBeGreaterThan(3)
+    doc.talkGroups = doc.talkGroups.slice(0, 3)
+
+    const diff = diffImages(img, d.encode(doc, img), d)
+    expect(diff.changedBytes).toBeGreaterThan(0)
+    expect(diff.unowned, 'removing a talk group reported itself as a defect in boofwang').toEqual([])
   })
 })
 
@@ -727,7 +758,11 @@ describe('the DMR address book', () => {
     while (doc.contacts.length < 200) {
       doc.contacts.push({ id: `c${doc.contacts.length}`, name: 'X', dmrId: 1, callsign: '', city: '', province: '', country: '', remark: '' })
     }
-    expect(() => d.encode(doc, img)).toThrow(/contact page/)
+    // The message changed when "Read the radio again to grow the region" turned
+    // out to be a loop: the read brings back what your own book fills plus one
+    // spare, so it returns the same pages every time. What is asserted is the
+    // refusal and that it names both numbers, not the sentence around them.
+    expect(() => d.encode(doc, img)).toThrow(/room for \d+ contacts, and this codeplug has 200/)
   })
 
   it('refuses a DMR ID too large for 24 bits', () => {

@@ -936,7 +936,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           if (!data) continue
           const ch = doc.channels.get(n)
           if (ch) {
-            encodeChannel(data, slot.offset, ch)
+            encodeChannel(data, slot.offset, ch, doc.radioIds.length)
             continue
           }
           // No channel here in the document. Erase the slot if it holds one the
@@ -970,7 +970,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       encodeContacts(out, doc.contacts)
       encodeTxContacts(out, doc)
       encodeMessages(out, doc.messages)
-      encodeVfos(out, doc.vfo)
+      encodeVfos(out, doc.vfo, doc.radioIds.length)
       encodeVfoTxContacts(out, doc.vfo)
       encodeRoamChannels(out, doc.roamChannels)
       encodeRoamZones(out, doc.roamZones)
@@ -995,6 +995,27 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
             message: `${(ch.rxFreq / 1e6).toFixed(5)} MHz is outside both bands this radio covers.`,
           })
         }
+        // A channel names its DMR identity by position in the radio-ID bank, so
+        // the two only mean anything together. Cloning a codeplug is where they
+        // come apart: the donor's channels arrive and the radio IDs stay yours
+        // on purpose, and a channel written against the donor's second ID now
+        // points past the end of your bank. `encodeChannel` falls back to your
+        // first ID so nothing transmits without one; this is what tells the
+        // person it happened, because otherwise the only symptom is other
+        // people seeing the wrong callsign.
+        const idIndex = Number(ch.extras.vendor?.radioIdIndex ?? 0)
+        if (doc.radioIds.length > 0 && Number.isFinite(idIndex) && idIndex >= doc.radioIds.length) {
+          out.push({
+            severity: 'warning',
+            ruleId: 'dmr.radio-id.missing',
+            channel: ch.index,
+            field: 'radioIdIndex',
+            message:
+              `This channel asks for DMR radio ID ${idIndex + 1}, and your radio has ` +
+              `${doc.radioIds.length}. It will use ${doc.radioIds[0]?.name || 'the first one'} instead.`,
+          })
+        }
+
         const keyId = ch.extras.vendor?.encryptionKeyId
         if (keyId !== undefined && keyId !== '0' && !keySlots.has(Number(keyId))) {
           out.push({
@@ -1068,9 +1089,10 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         return [[0, TXCONTACT_HIGH_LIMIT] as const, VFO_TXCONTACT_AREA]
       }
       if (blockId === MESSAGE_BLOCK) return [[0, PAGE_SIZE - 1] as const]
-      if (blockId === TG_INDEX_BLOCK) {
-        return image ? talkGroupIndexRanges(decodeTalkGroups(image).length) : []
-      }
+      // No longer sized from the image: the claim covers both index tables
+      // whole, which is what the encoder writes whether groups were added or
+      // removed. See `talkGroupIndexRanges`.
+      if (blockId === TG_INDEX_BLOCK) return talkGroupIndexRanges()
       // Names and codes only. The settings record between the DTMF lists and
       // the zone header beside the count are left to the radio.
       if (blockId === ANALOG_BLOCK) return image ? analogRanges(image) : []
@@ -1219,7 +1241,18 @@ export function decodeChannel(data: Uint8Array, offset: number, index: number): 
  * byte-identical, and it is the only honest way to write to a radio where 22 of
  * 59 allocated blocks have no documented meaning.
  */
-export function encodeChannel(data: Uint8Array, offset: number, ch: Channel): void {
+/**
+ * How many DMR radio IDs the document holds, for clamping the channel's pick.
+ *
+ * A channel names its DMR identity by position in the radio-ID bank, so the
+ * reference is only meaningful next to the bank it came from. Cloning a club
+ * codeplug is where the two come apart: the donor's channels arrive but the
+ * radio IDs deliberately stay yours, so a channel written against the donor's
+ * second or third ID now points past the end of your bank. The radio does not
+ * refuse that - it transmits with no valid ID, which is invisible to the
+ * operator and obvious to everyone listening.
+ */
+export function encodeChannel(data: Uint8Array, offset: number, ch: Channel, radioIdCount = 0): void {
   const digital = ch.modulation === 'DMR'
   const current = DM32_CHANNEL.read(data, offset)
 
@@ -1279,8 +1312,17 @@ export function encodeChannel(data: Uint8Array, offset: number, ch: Channel): vo
     // switched back.
     ...(digital ? {} : { rxTone: encodeToneWord(ch.tone.rx), txTone: encodeToneWord(ch.tone.tx) }),
     encryptionKeyId: num('encryptionKeyId', current.encryptionKeyId) & 0xff,
-    radioIdIndex: num('radioIdIndex', current.radioIdIndex) & 0xff,
+    // Clamped to the bank that is actually going onto the radio. `validate`
+    // says so in words; this is what stops the bytes being wrong regardless of
+    // whether anybody read it.
+    radioIdIndex: clampRadioIdIndex(num('radioIdIndex', current.radioIdIndex) & 0xff, radioIdCount),
   })
+}
+
+/** The first ID, when the one the channel asks for is not there to ask for. */
+export function clampRadioIdIndex(index: number, radioIdCount: number): number {
+  if (radioIdCount <= 0) return index
+  return index < radioIdCount ? index : 0
 }
 
 export function decodeZones(image: RadioImage): Codeplug['zones'] {
@@ -1583,8 +1625,6 @@ export function encodeTalkGroupIndex(image: RadioImage, groups: Codeplug['talkGr
     live.push({ slot: slots[i]!.n, name, number: rec.number, callType: rec.callType })
   }
 
-  const was = data[0]! | (data[1]! << 8)
-
   // Counts. The third is the All Call subset; the second is Group Call.
   data[0] = live.length & 0xff
   data[1] = (live.length >>> 8) & 0xff
@@ -1613,9 +1653,22 @@ export function encodeTalkGroupIndex(image: RadioImage, groups: Codeplug['talkGr
       data[base + i * 2] = g.slot & 0xff
       data[base + i * 2 + 1] = (g.callType << 4) & 0xff
     })
-    // Terminate, and clear only as far as the table previously reached. Filling
-    // to the table's DERIVED end would run into the gaps beyond it.
-    for (let i = rows.length; i <= Math.max(was, rows.length); i++) {
+    // Clear the rest of the table, every time, to the same end.
+    //
+    // It used to stop at whatever the count field said before this write, which
+    // meant the bytes the encoder touched depended on how many groups the radio
+    // happened to hold - while `talkGroupIndexRanges` sized its claim from how
+    // many it holds now. Removing a talk group therefore cleared rows the
+    // driver had just stopped claiming, and the diff called that a change
+    // outside `ownedRanges`, which the write gate reports as a defect in
+    // boofwang and refuses the whole write over. Cloning a codeplug with fewer
+    // talk groups than yours hit it every time, and so did the editor's own
+    // Remove button.
+    //
+    // Both tables are `TG_INDEX_SLOTS` rows and every row past the live ones is
+    // 0xFF on a real radio, so running to the end writes 0xFF over 0xFF and
+    // stops the encoder and its claim from being able to disagree.
+    for (let i = rows.length; i < TG_INDEX_SLOTS; i++) {
       data[base + i * 2] = 0xff
       data[base + i * 2 + 1] = 0xff
     }
@@ -1624,14 +1677,21 @@ export function encodeTalkGroupIndex(image: RadioImage, groups: Codeplug['talkGr
   writeTable(TG_INDEX_TABLE_BY_NUMBER, byNumber)
 }
 
-/** The five parts of block 0x0B, and nothing between or after them. */
-export function talkGroupIndexRanges(count: number): ReadonlyArray<readonly [number, number]> {
-  const rows = Math.max(count, 1) + 1
+/**
+ * The five parts of block 0x0B, and nothing between or after them.
+ *
+ * Both tables are claimed whole rather than trimmed to the live rows, because
+ * `encodeTalkGroupIndex` writes them whole: it fills the live rows and clears
+ * every row after them. A claim sized from the current count would be smaller
+ * than what the encoder touches the moment a talk group is removed, and the
+ * gate would read the difference as a defect rather than as the erase it is.
+ */
+export function talkGroupIndexRanges(): ReadonlyArray<readonly [number, number]> {
   return [
     [0, 5],
     [TG_INDEX_BITMASK, TG_INDEX_BITMASK + TG_INDEX_SLOTS / 8],
-    [TG_INDEX_TABLE_BY_NAME, TG_INDEX_TABLE_BY_NAME + rows * 2],
-    [TG_INDEX_TABLE_BY_NUMBER, TG_INDEX_TABLE_BY_NUMBER + rows * 2],
+    [TG_INDEX_TABLE_BY_NAME, TG_INDEX_TABLE_BY_NAME + TG_INDEX_SLOTS * 2],
+    [TG_INDEX_TABLE_BY_NUMBER, TG_INDEX_TABLE_BY_NUMBER + TG_INDEX_SLOTS * 2],
   ]
 }
 
@@ -2119,13 +2179,32 @@ export function decodeContacts(image: RadioImage): Codeplug['contacts'] {
  */
 export function encodeContacts(image: RadioImage, contacts: Codeplug['contacts']): void {
   const pages = contactPages(image)
-  if (pages.length === 0) return
+
+  // No address-book pages at all, which a read produces when the radio answers
+  // the region V-frame with a null range or reports more contacts than its
+  // region can hold. Returning quietly was fine while the only contacts in a
+  // document were ones the radio had just given us - there were none - but a
+  // clone brings a whole address book from somewhere else, and the write then
+  // reported success with the book still empty. Say so instead.
+  if (pages.length === 0) {
+    if (contacts.length === 0) return
+    throw new DriverError(
+      `This radio did not report an address book when it was read, so there is nowhere to put the ` +
+        `${contacts.length} contact(s) in this codeplug. Everything else can still be written; the ` +
+        `contacts cannot.`,
+    )
+  }
 
   const capacity = pages.length * CONTACTS_PER_PAGE
   if (contacts.length > capacity) {
+    // Not "read the radio again". The read brings back the pages your own
+    // address book fills plus one spare, so reading again returns the same
+    // number and the advice was a loop. What actually changes it is your
+    // radio holding more contacts, or the file holding fewer.
     throw new DriverError(
-      `This image carries ${pages.length} contact page(s), which hold ${capacity} contacts; ` +
-        `the codeplug has ${contacts.length}. Read the radio again to grow the region.`,
+      `Your radio's address book was read as ${pages.length} page(s), room for ${capacity} contacts, ` +
+        `and this codeplug has ${contacts.length}. A read brings back the pages your own contacts fill ` +
+        `plus one spare, so reading again will not make room: the file needs to carry ${capacity} or fewer.`,
     )
   }
 
@@ -2710,9 +2789,9 @@ export function decodeVfos(
  * read 0xFF on this radio, the reference's own implementation refuses to write
  * them, and a talk group for a VFO is not something this build offers.
  */
-export function encodeVfos(image: RadioImage, vfo: Codeplug['vfo']): void {
+export function encodeVfos(image: RadioImage, vfo: Codeplug['vfo'], radioIdCount = 0): void {
   const data = blockData(image, VFO_BLOCK)
   if (!data) return
-  if (vfo.a) encodeChannel(data, VFO_A, vfo.a)
-  if (vfo.b) encodeChannel(data, VFO_B, vfo.b)
+  if (vfo.a) encodeChannel(data, VFO_A, vfo.a, radioIdCount)
+  if (vfo.b) encodeChannel(data, VFO_B, vfo.b, radioIdCount)
 }

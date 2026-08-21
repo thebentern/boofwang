@@ -191,7 +191,7 @@ describe('nothing claims more than it writes', () => {
     0x04: d.ownedRanges(logicalAddress(0x04), image()), // settings: the struct's own ranges
     0x06: analogRanges(image()), // DTMF codes and both contact lists, field by field
     0x0a: [[0, PAGE_SIZE - 1]], // messages
-    0x0b: talkGroupIndexRanges(d.decode(image()).talkGroups.length), // counts, bitmask, two tables
+    0x0b: talkGroupIndexRanges(), // counts, bitmask, two tables
     0x0f: [[0, 4], [RXGROUP_HEADER, PAGE_SIZE - 1]], // RX groups: bitmask, then records
     0x10: [...emergencyNameRanges(), KEY_AREA], // emergency names, then the key slots
     0x11: [[0, PAGE_SIZE - 1]], // scan lists
