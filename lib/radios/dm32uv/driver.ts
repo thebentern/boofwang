@@ -105,6 +105,9 @@ import {
   TXCONTACT_BLOCK_HIGH,
   TXCONTACT_BLOCK_LOW,
   TXCONTACT_HIGH_LIMIT,
+  VFO_A,
+  VFO_B,
+  VFO_BLOCK,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
   ZONE_HEADER,
@@ -839,6 +842,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       cp.encryptionKeys = decodeKeys(image)
       cp.contacts = decodeContacts(image)
       cp.messages = decodeMessages(image)
+      cp.vfo = decodeVfos(image)
       cp.roamChannels = decodeRoamChannels(image)
       cp.roamZones = decodeRoamZones(image)
       cp.emergency = decodeEmergency(image)
@@ -945,6 +949,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       encodeContacts(out, doc.contacts)
       encodeTxContacts(out, doc)
       encodeMessages(out, doc.messages)
+      encodeVfos(out, doc.vfo)
       encodeRoamChannels(out, doc.roamChannels)
       encodeRoamZones(out, doc.roamZones)
       encodeEmergency(out, doc.emergency)
@@ -2349,4 +2354,29 @@ export function roamZoneNameRanges(image: RadioImage): ReadonlyArray<readonly [n
     if (off + 16 <= PAGE_SIZE - 1) out.push([off, off + 16])
   }
   return out
+}
+
+/** VFO A and VFO B, decoded as the channel records they are. */
+export function decodeVfos(image: RadioImage): Codeplug['vfo'] {
+  const data = blockData(image, VFO_BLOCK)
+  if (!data) return { a: null, b: null }
+  return {
+    a: decodeChannel(data, VFO_A, 4001),
+    b: decodeChannel(data, VFO_B, 4002),
+  }
+}
+
+/**
+ * Write the two VFOs back.
+ *
+ * The same partial patch as any other channel, at fixed offsets. Their TX
+ * contacts live in block 0x43 at 0x0FFA and 0x0FFC and are left alone: they
+ * read 0xFF on this radio, the reference's own implementation refuses to write
+ * them, and a talk group for a VFO is not something this build offers.
+ */
+export function encodeVfos(image: RadioImage, vfo: Codeplug['vfo']): void {
+  const data = blockData(image, VFO_BLOCK)
+  if (!data) return
+  if (vfo.a) encodeChannel(data, VFO_A, vfo.a)
+  if (vfo.b) encodeChannel(data, VFO_B, vfo.b)
 }

@@ -23,6 +23,7 @@ const hasContacts = computed(() => !!features.value?.contacts)
 const hasMessages = computed(() => !!features.value?.messages)
 const hasRoaming = computed(() => codeplug.roamChannels.length > 0 || codeplug.roamZones.length > 0)
 const hasReadOnlyExtras = computed(() => codeplug.emergency.length > 0 || codeplug.analog !== null)
+const hasVfos = computed(() => !!codeplug.doc?.vfo.a || !!codeplug.doc?.vfo.b)
 
 /** What the radio can hold, so Add stops rather than the encoder throwing. */
 const messageLimit = computed(() =>
@@ -731,6 +732,42 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             empty, so its own bytes cannot settle it either — so nothing here is offered for editing.
           </p>
         </template>
+      </section>
+
+      <!-- VFOs -->
+      <section v-if="hasVfos" style="margin-top: 18px">
+        <h2 class="sec">VFO</h2>
+        <div class="card">
+          <div
+            v-for="(vfo, i) in [
+              { label: 'VFO A', ch: codeplug.doc?.vfo.a },
+              { label: 'VFO B', ch: codeplug.doc?.vfo.b },
+            ]"
+            :key="vfo.label"
+            class="flex items-center gap-3 flex-wrap"
+            :style="`padding: 11px 16px; ${i ? 'border-top: 1px solid var(--ln);' : ''}`"
+          >
+            <span style="font-size: 14.5px; font-weight: 600; color: var(--tx); width: 60px">{{ vfo.label }}</span>
+            <template v-if="vfo.ch">
+              <span class="meta">{{ MHZ(vfo.ch.rxFreq) }} MHz</span>
+              <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+                {{ vfo.ch.modulation }}
+              </span>
+              <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+                {{ vfo.ch.power.label }}
+              </span>
+              <span v-if="vfo.ch.modulation === 'DMR'" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+                CC {{ vfo.ch.extras.vendor?.colorCode }} · TS {{ vfo.ch.extras.vendor?.timeSlot }}
+              </span>
+            </template>
+            <span v-else class="meta">not programmed</span>
+          </div>
+        </div>
+        <p class="note">
+          The two VFOs are ordinary channel records at fixed offsets in the last channel block, outside the
+          channel list — nothing counts them and no zone or scan list can point at one. They are read and
+          written with everything else.
+        </p>
       </section>
 
       <!-- Read only -->

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { equalBytes } from '#core/codec/struct.js'
 import { diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
+import { hz } from '#core/model/units.js'
 import { createDm32uvDriver, decodeTalkGroupIndex } from '#core/radios/dm32uv/driver.js'
 import {
   CONTACT_REGION_HEADER,
@@ -22,6 +23,11 @@ import {
   SCANLIST_SIZE,
   SETTINGS_BLOCK,
   ANALOG_BLOCK,
+  VFO_A,
+  VFO_B,
+  VFO_BLOCK,
+  CHANNEL_SIZE,
+  channelSlot,
   DTMF_SPECIAL_BASE,
   BDC_BASE,
   BDC_SIZE,
@@ -1205,5 +1211,66 @@ describe('the BDC contact number is BCD', () => {
   it('is the byte the radio actually holds', () => {
     const data = page(image(), ANALOG_BLOCK)
     expect(data[BDC_BASE + 9 * BDC_SIZE + 0x10], 'the tenth record’s number byte').toBe(0x10)
+  })
+})
+
+describe('the two VFOs', () => {
+  it('decodes them as the channel records they are', () => {
+    const cp = d.decode(image())
+    expect(cp.vfo.a, 'VFO A').toBeTruthy()
+    expect(cp.vfo.b, 'VFO B').toBeTruthy()
+    // 462.63700 analog, 432.02750 digital on this radio.
+    expect(cp.vfo.a!.rxFreq).toBe(462_637_00 * 10)
+    expect(cp.vfo.a!.modulation).toBe('FM')
+    expect(cp.vfo.b!.rxFreq).toBe(432_027_50 * 10)
+    expect(cp.vfo.b!.modulation).toBe('DMR')
+    expect(cp.vfo.b!.extras.vendor?.colorCode).toBe('1')
+  })
+
+  it('is pinned by geometry, not by the frequency', () => {
+    // Starting a byte later decodes the same frequency and runs VFO B over the
+    // block id byte. That is what settles an offset the bytes alone cannot.
+    expect(VFO_B + CHANNEL_SIZE, 'VFO B must end exactly on the id byte').toBe(PAGE_SIZE - 1)
+    expect(VFO_A + CHANNEL_SIZE).toBe(VFO_B)
+  })
+
+  it('keeps them out of the channel bank', () => {
+    // Nothing counts them and no zone can point at one, so they must not
+    // appear among the channels.
+    const cp = d.decode(image())
+    expect(cp.channels.has(4001)).toBe(false)
+    expect(cp.channels.has(4002)).toBe(false)
+  })
+
+  it('round-trips untouched', () => {
+    const img = image()
+    const out = d.encode(d.decode(img), img)
+    expect(equalBytes(page(out, VFO_BLOCK), page(img, VFO_BLOCK))).toBe(true)
+  })
+
+  it('writes a VFO without disturbing its neighbour', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.vfo = { ...doc.vfo, a: { ...doc.vfo.a!, rxFreq: hz(446_006_25 * 10), tx: { kind: 'simplex' } } }
+    const out = d.encode(doc, img)
+    const back = d.decode(out)
+    expect(back.vfo.a!.rxFreq).toBe(446_006_25 * 10)
+    expect(back.vfo.b).toEqual(doc.vfo.b)
+    // And the block id byte, which VFO B ends against.
+    expect(page(out, VFO_BLOCK)[PAGE_SIZE - 1]).toBe(page(img, VFO_BLOCK)[PAGE_SIZE - 1])
+  })
+
+  it('no channel record can reach the VFO area', () => {
+    // Block 0x41 is both the last channel block and the VFO block. The
+    // reference warns that a codeplug large enough to fill every channel block
+    // writes records straight over the VFOs - true of an implementation that
+    // allows 4079 channels, and the reason this one stops at 4000.
+    let highest = -1
+    for (let n = 1; n <= 4000; n++) {
+      const at = channelSlot(n)
+      if (at?.blockId === VFO_BLOCK) highest = Math.max(highest, at.offset + CHANNEL_SIZE)
+    }
+    expect(highest, 'no channel lands in the VFO block at all').toBeGreaterThan(0)
+    expect(highest, 'a channel record overlaps VFO A').toBeLessThanOrEqual(VFO_A)
   })
 })

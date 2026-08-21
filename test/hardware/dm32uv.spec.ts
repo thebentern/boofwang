@@ -5,11 +5,12 @@ import { hz, mW } from '#core/model/units.js'
 import type { RadioImage } from '#core/radio/image.js'
 import type { IdentifyResult } from '#core/radio/driver.js'
 import { createDm32uvDriver } from '#core/radios/dm32uv/driver.js'
-import { REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
+import { PAGE_SIZE, REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import {
   RXGROUP_BLOCK,
   ANALOG_BLOCK,
+  CHANNEL_BLOCK_LAST,
   MESSAGE_BLOCK,
   MESSAGE_HEADER,
   ROAMCHANNEL_BLOCK,
@@ -239,6 +240,10 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
         }
       }
 
+      // The two VFOs, which live at fixed offsets in the last channel block.
+      const vfoWas = doc.vfo.a
+      if (vfoWas) doc.vfo = { ...doc.vfo, a: { ...vfoWas, rxFreq: hz(446_006_25 * 10), tx: { kind: 'simplex' } } }
+
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
       doc.settings['callsignColour.colour'] = 5
@@ -424,6 +429,13 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
           equalBytes(block(after, ANALOG_BLOCK).subarray(0x100, 0x110), block(baseline, ANALOG_BLOCK).subarray(0x100, 0x110)),
           'the DTMF settings record was written',
         ).toBe(true)
+      }
+
+      if (vfoWas) {
+        expect(back.vfo.a!.rxFreq, 'the VFO did not reach the radio').toBe(446_006_25 * 10)
+        expect(back.vfo.b, 'the other VFO moved').toEqual(driver.decode(baseline).vfo.b)
+        // VFO B ends against the block id byte, which is never ours.
+        expect(block(after, CHANNEL_BLOCK_LAST)[PAGE_SIZE - 1]).toBe(block(baseline, CHANNEL_BLOCK_LAST)[PAGE_SIZE - 1])
       }
 
       expect(back.settings.powerOnLine1).toBe('HW BOOF')

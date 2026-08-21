@@ -48,6 +48,35 @@ export const DM32UV_SETTINGS_GROUPS = [
         max: 5,
       },
       { key: 'autoBacklightDuration', label: 'Backlight timeout', type: 'int', min: 0, max: 5, help: '0 is 5 seconds, each step adds 5.' },
+      { key: 'displayFlags.volumeChangePrompt', label: 'Show volume changes', type: 'bool' },
+      { key: 'displayFlags.timeDisplay', label: 'Show the clock', type: 'bool' },
+      {
+        key: 'displayFlags.dateFormat',
+        label: 'Date format',
+        type: 'enum',
+        options: [
+          { value: 0, label: 'Year / month / day' },
+          { value: 1, label: 'Day / month / year' },
+        ],
+      },
+      { key: 'menuExitTime', label: 'Menu timeout', type: 'int', min: 0, max: 30, help: 'Seconds. 0 on both radios seen so far, which the reference does not explain.' },
+    ],
+  },
+  {
+    id: 'tones',
+    label: 'Alert tones',
+    description:
+      'Which events the radio beeps for. The bit positions come from the reference implementation’s own ' +
+      'interface rather than from a capture, so they are its reading rather than an attested one.',
+    fields: [
+      { key: 'alertTones.keyPress', label: 'Key press', type: 'bool', icon: 'lucide:volume-2' },
+      { key: 'alertTones.keyRelease', label: 'Key release', type: 'bool' },
+      { key: 'alertTones.menuExit', label: 'Leaving a menu', type: 'bool' },
+      { key: 'alertTones.callEnd', label: 'End of call', type: 'bool' },
+      { key: 'alertTones.talkPermit', label: 'Talk permit', type: 'bool' },
+      { key: 'alertTones.startUpSound', label: 'Power on', type: 'bool' },
+      { key: 'alertTones.voicePrompt', label: 'Voice prompt', type: 'bool' },
+      { key: 'alertTones.scanStop', label: 'Scan stops', type: 'bool' },
     ],
   },
   {
@@ -122,12 +151,22 @@ export const DM32UV_SETTINGS_GROUPS = [
       },
       { key: 'gpsFlags.gpsDisplayFormat', label: 'Position format', type: 'enum', options: [{ value: 0, label: 'Degrees' }, { value: 1, label: 'Degrees, minutes, seconds' }] },
       { key: 'gpsReportInterval', label: 'Report interval', type: 'int', min: 5, max: 255, help: 'Seconds.' },
+      {
+        key: 'utcZone',
+        label: 'Time zone',
+        type: 'enum',
+        options: Array.from({ length: 26 }, (_, i) => ({
+          value: i,
+          label: i === 12 ? 'UTC' : `UTC${i < 12 ? '-' : '+'}${Math.abs(i - 12)}`,
+        })),
+      },
     ],
   },
   {
     id: 'power',
     label: 'Power',
     fields: [
+      { key: 'allowReset.allowReset', label: 'Allow reset from the keypad', type: 'bool' },
       {
         key: 'autoPowerOff',
         label: 'Automatic power off',

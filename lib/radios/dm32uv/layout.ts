@@ -397,7 +397,27 @@ export const DM32_SETTINGS = defineStruct(0x600, {
   powerOnInterface: at(0x00, u8),
   powerOnLine1: at(0x01, ascii(14, { pad: 0x00, terminators: [0x00] })),
   powerOnLine2: at(0x0f, ascii(14, { pad: 0x00, terminators: [0x00] })),
+  allowReset: at(0x1d, bits(1, { allowReset: [0, 1], reserved: [1, 7] })),
   autoPowerOff: at(0x1e, u8),
+  alertTones: at(
+    0x20,
+    bits(1, {
+      keyPress: [0, 1],
+      keyRelease: [1, 1],
+      menuExit: [2, 1],
+      callEnd: [3, 1],
+      talkPermit: [4, 1],
+      startUpSound: [5, 1],
+      voicePrompt: [6, 1],
+      scanStop: [7, 1],
+    }),
+  ),
+  displayFlags: at(
+    0x33,
+    bits(1, { volumeChangePrompt: [0, 1], timeDisplay: [1, 1], unknown2: [2, 1], dateFormat: [3, 1], unknownHigh: [4, 4] }),
+  ),
+  menuExitTime: at(0x36, u8),
+  utcZone: at(0x41, u8),
   backlightBrightness: at(0x30, u8),
   autoBacklightDuration: at(0x31, u8),
   callsignColour: at(0x34, bits(1, { colour: [0, 4], reserved: [4, 4] })),
@@ -535,6 +555,25 @@ export function contactSlot(n: number): { page: number; offset: number } {
   // Only the first page gives up its first sixteen bytes to the header.
   return { page, offset: (page === 0 ? CONTACT_REGION_HEADER : 0) + within * CONTACT_SIZE }
 }
+
+// ---------------------------------------------------------------- the VFOs --
+
+/**
+ * VFO A and VFO B, which are ordinary 48-byte channel records living at fixed
+ * offsets in the last channel block.
+ *
+ * The two abut and finish exactly on the block's id byte - `0x0F9F + 48 =
+ * 0x0FCF`, `0x0FCF + 48 = 0x0FFF` - and that is what pins them. Starting a byte
+ * later decodes the same frequency but runs VFO B over the id byte, so the
+ * geometry settles an offset the frequency alone cannot.
+ *
+ * The reference calls them channels 4001 and 4002. They are not in the channel
+ * bank, are not counted by its header, and a zone cannot point at them.
+ */
+export const VFO_BLOCK = CHANNEL_BLOCK_LAST
+export const VFO_A = 0x0f9f
+export const VFO_B = VFO_A + CHANNEL_SIZE
+export const VFO_AREA = [VFO_A, VFO_B + CHANNEL_SIZE] as const
 
 // ------------------------------------------------ per-channel TX contact --
 

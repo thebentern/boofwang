@@ -148,6 +148,14 @@ export interface Codeplug {
   contacts: DmrContact[]
   /** Canned text messages. */
   messages: string[]
+  /**
+   * The two VFOs, when the radio stores them as channel records.
+   *
+   * Kept apart from `channels` on purpose: they are not in the channel bank,
+   * nothing counts them, and no zone or scan list can point at one, so folding
+   * them in would make every membership list have to exclude two entries.
+   */
+  vfo: { a: Channel | null; b: Channel | null }
   roamChannels: RoamChannel[]
   roamZones: RoamZone[]
   /** Read only: decoded so a backup is complete, never written. */
@@ -171,6 +179,7 @@ export function emptyCodeplug(radio: RadioId | null, now: string): Codeplug {
     radioIds: [],
     contacts: [],
     messages: [],
+    vfo: { a: null, b: null },
     roamChannels: [],
     roamZones: [],
     emergency: [],

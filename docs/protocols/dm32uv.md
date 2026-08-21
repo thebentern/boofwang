@@ -580,6 +580,59 @@ radio's keypad, then edit one byte of that key in a codeplug read before the
 change: a byte-wise merge sends that one byte onto the radio's key and leaves it
 holding `FF1111…`, half of each.
 
+## VFO A and VFO B — 2026-08-21
+
+Not decoded until now, and easy to miss because they are not in the channel
+bank: they are ordinary 48-byte channel records at fixed offsets in the **last**
+channel block, `0x41`.
+
+```
+0f9f  VFO A    rx/tx 462.63700   0x18 = 04  analog, High
+0fcf  VFO B    rx/tx 432.02750   0x18 = 14  digital, High, colour code 1, TS1
+0fff  block id
+```
+
+The offset is pinned by geometry rather than by the frequency. Starting a byte
+later at `0x0FA0` decodes the same frequency — the BCD field is symmetric enough
+to be fooled — but runs VFO B from `0x0FD0` to `0x0FFF`, over the block id byte.
+Only `0x0F9F` has the two records abut and finish exactly on it.
+
+They are kept out of `channels` deliberately: nothing counts them, the channel
+header does not include them, and no zone or scan list can point at one, so
+folding them in would make every membership list have to exclude two entries.
+
+### The collision the reference warns about
+
+Block `0x41` is both the last channel block and the VFO block. A codeplug large
+enough to fill every channel block writes channel records straight over the
+VFOs — the reference flags it, and it is real for an implementation that allows
+the 4079 channels the geometry can hold.
+
+This build caps at 4000, and that is what keeps them apart: the highest channel
+landing in `0x41` is 4000, at offset `0xF0`, ending at `0x120` — nowhere near
+`0x0F9F`. A test pins it, because the cap is load-bearing for a reason that is
+not obvious from where the cap is written.
+
+Their TX contacts at `0x43` `0x0FFA`/`0x0FFC` are left alone: they read `0xFF`
+here, the reference's own implementation refuses to write them, and a talk group
+for a VFO is not something this build offers.
+
+## Settings coverage
+
+49 controls in 7 groups, up from 35. What was added is the set the reference
+specifies concretely — the alert-tone bits, the display flags, the date format,
+menu timeout, keypad reset and the UTC zone.
+
+What is still not offered is the set where the reference contradicts itself or
+labels nothing: the SMS format byte, whose label and scaling disagree; the DTMF
+auto-ack bias, which the hardware refutes; the one-touch call and Fun+ arrays;
+the per-menu enable bitmap. Those bytes are read, round-tripped and shown
+nowhere, which is the right answer for a control whose meaning is a guess.
+
+The alert-tone group carries its provenance in its own description: the bit
+positions come from the reference implementation's interface rather than from a
+capture.
+
 ## Not verified
 - **Zone membership.** `encodeZones` writes the name only. A zone's channel list
   is a set of indices, and what the radio does with one pointing at an emptied
