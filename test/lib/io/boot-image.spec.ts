@@ -9,6 +9,7 @@ import {
   centreCrop,
   decodeBootImage,
   encodeBootImage,
+  packBgr565,
 } from '#core/io/boot-image.js'
 
 type Rgba = [number, number, number, number]
@@ -196,5 +197,47 @@ describe('scale and crop', () => {
       expect(channel).toBeGreaterThan(115)
       expect(channel).toBeLessThan(140)
     }
+  })
+})
+
+/**
+ * Facts from the radio, without shipping the radio's picture.
+ *
+ * The factory splash is Baofeng's artwork and is not in the repository. What is
+ * pinned here is what reading it settled: the byte order, which the
+ * specification never states, and which is otherwise only an assumption that
+ * happens to be self-consistent.
+ *
+ * `docs/protocols/dm32uv.md` has the session. Rendering the same bytes as
+ * RGB565 produced the identical splash with the logo blue - perfect layout,
+ * legible text, wrong colour - which is exactly why this is a test and not a
+ * comment.
+ */
+describe('what a real DM-32UV had at 0x150000', () => {
+  it('reads its background word the way the radio meant it', () => {
+    // The image begins `c2 18`, repeated across the top rows.
+    const word = decodeBootImage(Uint8Array.from(
+      Array.from({ length: BOOT_IMAGE_BYTES }, (_, i) => (i % 2 === 0 ? 0xc2 : 0x18)),
+    ))
+    expect([word.rgba[0], word.rgba[1], word.rgba[2]]).toEqual([16, 24, 24])
+  })
+
+  it('would render that word as a different colour big-endian, which is how it was told apart', () => {
+    const swapped = decodeBootImage(Uint8Array.from(
+      Array.from({ length: BOOT_IMAGE_BYTES }, (_, i) => (i % 2 === 0 ? 0x18 : 0xc2)),
+    ))
+    expect([swapped.rgba[0], swapped.rgba[1], swapped.rgba[2]]).not.toEqual([16, 24, 24])
+  })
+
+  it('puts the logo gold rather than blue, which RGB565 would not', () => {
+    // Gold is red-high, blue-zero. The word for the brightest logo pixel the
+    // radio actually held, taken back to bytes.
+    const gold = packBgr565(222, 146, 0)
+    const bytes = new Uint8Array(BOOT_IMAGE_BYTES)
+    bytes[0] = gold & 0xff
+    bytes[1] = (gold >>> 8) & 0xff
+    const { rgba } = decodeBootImage(bytes)
+    expect(rgba[0]!).toBeGreaterThan(rgba[1]!)
+    expect(rgba[2]!).toBe(0)
   })
 })

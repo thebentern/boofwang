@@ -1018,6 +1018,63 @@ arithmetic is the part that can be silently wrong: read as RGB565 instead of
 BGR565 the same bytes still make a picture, correctly framed and correctly
 shaped, with red and blue exchanged.
 
+## The startup image - verified session, 2026-08-21
+
+Read from a real DM-32UV, firmware `DM32.01.01.040`. Everything below was a
+guess before this session; what is still a guess is said so at the end.
+
+| | |
+|---|---|
+| V-frame `0x0E` answered | `0x150000` - `0x175FFF`, 155,648 bytes |
+| Transfer | 38 chunks: 37 x 4,096 then 2,048 at `0x175000` |
+| Read | 153,600 bytes, every chunk first time |
+
+Three things this settled.
+
+**The 2,048-byte read works.** `03-COMMANDS.md` §4.2 marks that length "neonplug
+only" and it appears in neither hardware capture. It is an ordinary `52` read
+with a 16-bit length, and the radio answers it like any other.
+
+**The picture is little-endian BGR565**, which the specification never states -
+"BGR565" appears twice across the seven documents with no diagram and no byte
+order. Settled by rendering the factory splash three ways:
+
+| Reading | What appears |
+|---|---|
+| little-endian BGR565 | the Baofeng splash, gold lettering on near-black |
+| little-endian RGB565 | the same splash with the logo **blue** |
+| big-endian BGR565 | magenta noise |
+
+The middle row is the mistake the feature was written to avoid, and it is worth
+seeing how plausible it looks: the layout is perfect, the text is legible, and
+only the colour is wrong. Nobody would catch that without something to compare
+against.
+
+The first word is `c2 18`, which is `0x18C2` little-endian and decodes to r=16
+g=24 b=24 - the near-black background. That is the same pair `docs` already read
+as "dark grey" in block `0x51`, which only works little-endian.
+
+**The converter round-trips real bytes.** `decodeBootImage` then
+`encodeBootImage` over the radio's own 153,600 bytes differs in **0** of them.
+The brightest pixel in the logo band is r=222 g=146 b=0, which is gold rather
+than blue, so the channel order is right and not merely self-consistent.
+
+### Reads need programming mode, and the symptom is confusing
+
+`identify` does the handshake and the V-frames; entering programming mode is
+`readImage`'s job. A `52` read sent outside it does not time out - the radio
+answers `90 fe 98 fe`, four bytes where six are expected, and every read after
+that is one reply out of step. Worth knowing, because it looks like a desync
+rather than a missing mode.
+
+### Still not verified
+
+The **2,048-byte write**. `03-COMMANDS.md` marks it DERIVED, no capture contains
+it, and nothing in the app can reach it. The read half is now settled, which
+means a way back exists before anyone tries the write: the factory splash is
+outside every codeplug backup, so reading it first is the only thing that makes
+the first write recoverable.
+
 ## Not verified
 - **The byte order within a BGR565 pixel.** The specification names the format
   and gives its size; it does not say which half of the 16-bit word goes into
