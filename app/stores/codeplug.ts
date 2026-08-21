@@ -54,26 +54,55 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     // markRaw: a reactive typed array of this size creates a dependency entry
     // per byte and freezes the tab.
     image.value = markRaw(newImage)
-    const decoded = driver.decode(newImage)
-    doc.value = markRaw(decoded)
     schema.value = markRaw(driver.schema)
-    channels.value = Object.freeze(sortedChannels(decoded).map((c) => Object.freeze(c)))
-    zones.value = Object.freeze(decoded.zones.map((z) => Object.freeze(z)))
-    talkGroups.value = Object.freeze(decoded.talkGroups.map((g) => Object.freeze(g)))
-    scanLists.value = Object.freeze(decoded.scanLists.map((l) => Object.freeze(l)))
-    rxGroups.value = Object.freeze(decoded.rxGroups.map((g) => Object.freeze(g)))
-    radioIds.value = Object.freeze(decoded.radioIds.map((r) => Object.freeze(r)))
-    contacts.value = Object.freeze(decoded.contacts.map((c) => Object.freeze(c)))
-    messages.value = Object.freeze([...decoded.messages])
-    roamChannels.value = Object.freeze(decoded.roamChannels.map((c) => Object.freeze(c)))
-    roamZones.value = Object.freeze(decoded.roamZones.map((z) => Object.freeze(z)))
-    callList.value = Object.freeze(decoded.callList.map((c) => Object.freeze(c)))
-    emergency.value = Object.freeze(decoded.emergency.map((e) => Object.freeze(e)))
-    analog.value = decoded.analog ? Object.freeze(decoded.analog) : null
-    settings.value = Object.freeze({ ...decoded.settings })
-    diagnostics.value = Object.freeze(driver.validate(decoded))
+    publish(driver.decode(newImage))
     revision.value++
     dirty.value = false
+  }
+
+  /**
+   * Point every rendered list at a different document.
+   *
+   * Split out of `load` because a document does not only ever arrive by
+   * decoding an image: a codeplug transplanted from another radio of the same
+   * model is built from two documents and never had an image of its own. The
+   * image the store holds stays the one that was read from *this* radio, which
+   * is what `encode(doc, base)` needs to keep the calibration and the
+   * undecoded bytes belonging to the unit in front of the user.
+   */
+  function publish(next: Codeplug) {
+    doc.value = markRaw(next)
+    channels.value = Object.freeze(sortedChannels(next).map((c) => Object.freeze(c)))
+    zones.value = Object.freeze(next.zones.map((z) => Object.freeze(z)))
+    talkGroups.value = Object.freeze(next.talkGroups.map((g) => Object.freeze(g)))
+    scanLists.value = Object.freeze(next.scanLists.map((l) => Object.freeze(l)))
+    rxGroups.value = Object.freeze(next.rxGroups.map((g) => Object.freeze(g)))
+    radioIds.value = Object.freeze(next.radioIds.map((r) => Object.freeze(r)))
+    contacts.value = Object.freeze(next.contacts.map((c) => Object.freeze(c)))
+    messages.value = Object.freeze([...next.messages])
+    roamChannels.value = Object.freeze(next.roamChannels.map((c) => Object.freeze(c)))
+    roamZones.value = Object.freeze(next.roamZones.map((z) => Object.freeze(z)))
+    callList.value = Object.freeze(next.callList.map((c) => Object.freeze(c)))
+    emergency.value = Object.freeze(next.emergency.map((e) => Object.freeze(e)))
+    analog.value = next.analog ? Object.freeze(next.analog) : null
+    settings.value = Object.freeze({ ...next.settings })
+    revalidate()
+  }
+
+  /**
+   * Adopt a document built elsewhere as an unsaved edit.
+   *
+   * Deliberately marked dirty rather than treated as a fresh read: the radio
+   * has not been told any of this yet, so the write gate must still see a
+   * pending change and the write page must still show the diff and ask for the
+   * word. Refused when nothing is open, because there would be no base image to
+   * render it onto and no way to write it.
+   */
+  function replaceDocument(next: Codeplug) {
+    if (!doc.value || !driverRef.value) return
+    publish(next)
+    revision.value++
+    dirty.value = true
   }
 
   function close() {
@@ -634,6 +663,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     errorCount,
     warningCount,
     load,
+    replaceDocument,
     close,
     updateChannel,
   }
