@@ -838,6 +838,46 @@ Block 0x04 changed **exactly eleven bytes** — 0x37, 0x81, 0x200, 0x275,
 0x32E-0x330, 0x332-0x334, 0x500 — and nothing else. All seven deliberately
 unclaimed sites came back identical.
 
+### The VFO talk group, which the reference reads and refuses to write
+
+The two VFOs keep their talk group four bytes from the end of block 0x43,
+nowhere near the records they belong to. The reference implementation reads
+them and disables the write in as many words — *"we don't write it here to
+avoid potential corruption … disabled until properly debugged"* — and notes the
+consequence, that VFO talk group changes do not persist.
+
+That was a judgement about its own writer rather than about the addresses,
+which are better attested than most of that block: its read capture's tail is
+`00 00 00 01 01 01 00 43` and its write capture's is `ff ff 0e 01 0e 01 ff 43`,
+two independent captures putting identical two-byte records at exactly 0x0FFA
+and 0x0FFC with the block's metadata byte untouched at 0x0FFF.
+
+They sit far past `TXCONTACT_HIGH_LIMIT`, so they are claimed as their own
+range rather than by widening the record claim over the residue between — the
+"Zone 1" strings the flash layer left behind stay unclaimed.
+
+Two things had to be got right. Erased fill here is 0xFF, not the 0x00 a channel
+record uses, and read as a record `FF FF` is slot 4095 on a digital VFO — which
+this radio has in both slots, so a decoder taking it at face value would write
+4095 back on the next upload. And the three undecoded bits of the first byte are
+preserved, as they are for channels.
+
+Writing slot 3 to both, read back with the independent raw reader:
+
+```
+0FF8  ff ff 0e 03 0f 03 ff 43      after
+0FF8  ff ff ff ff ff ff ff 43      baseline
+```
+
+**Exactly four bytes changed in the whole page** — 0x0FFA-0x0FFD. VFO A decodes
+as slot 3 analog, VFO B as slot 3 digital, 0x0FFE and the block id untouched.
+
+Note `0e` in the first byte. That is not a number anyone chose: preserving the
+three undecoded bits from erased 0xFF fill sets all three. The OEM CPS's own
+write capture holds `0e 01` at the same offset, so it read-modify-writes the
+same way over the same fill. Reproducing a capture nobody was aiming at is the
+strongest evidence in this repository that the bit layout is right.
+
 ### The 22 remaining blocks are not codeplug data
 
 A second attempt, with a different method than the last one. Entropy runs 6.6 to
@@ -879,9 +919,10 @@ checks every parenthesised noun the writer emits appears in the sentence.
   brought back, so up to 44 contacts can be added; beyond that the write is
   refused by name rather than truncating. Reading the whole 4.4 MiB region to
   avoid that would cost about seven minutes on every read.
-- **Writing block `0x43`**, the TX contact for channels above 2047. Decoded and
-  never written: its tail on this radio holds `"Zone 1"` strings rather than
-  contact data.
+- **Writing block `0x43`'s channel records**, the TX contact for channels above
+  2047. Decoded and never written: its tail on this radio holds `"Zone 1"`
+  strings rather than contact data. The two VFO talk-group slots in the same
+  block *are* written, and verified on hardware — see above.
 - **Roaming zone membership**, and every emergency and DTMF field past the name
   or code. See above — each is left alone for a stated reason, not for lack of
   effort. For roaming zones the reason is now sharper than "unresolved": the
@@ -890,8 +931,9 @@ checks every parenthesised noun the writer emits appears in the sentence.
   in block `0x06`, neither decoded — and neither decodable from this radio: the
   first is 608 bytes holding exactly one non-zero byte, and the second is six
   bytes with no structure to infer.
-- **Hardware-writing block `0x43`.** Unit-verified against this radio's image;
-  see above for why it is not exercised on the radio itself.
+- **Hardware-writing block `0x43`'s channel records.** Unit-verified against
+  this radio's image; see above for why they are not exercised on the radio
+  itself. Its VFO slots are hardware-verified.
 - The meaning of 22 allocated blocks — twice attempted, and now positively
   characterised as not-codeplug rather than merely unread. See above.
 - **What the two block 0x03 reference fields point at.** Five pairs from four

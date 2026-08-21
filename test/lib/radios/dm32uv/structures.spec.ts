@@ -53,6 +53,8 @@ import {
   ROAMZONE_NAME_AT,
   ROAMZONE_SIZE,
   TXCONTACT_HIGH_LIMIT,
+  VFO_A_TXCONTACT,
+  VFO_B_TXCONTACT,
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
   ZONE_SIZE,
@@ -1004,17 +1006,92 @@ describe('which talk group a channel transmits to', () => {
     expect(moved).toEqual([(lr.index - 1) * 2 + 1])
   })
 
-  it('claims the high block only as far as the residue', () => {
+  it('claims the high block’s records and the VFO slots, but not the residue between', () => {
     // From 0x0EF6 block 0x43 holds two stale zone records the flash layer left
     // behind. Claiming them would disarm the check that stops a write when a
     // byte moves outside what this build models - which is why 0x43's claim is
-    // deliberately not 0x42's.
-    expect(d.ownedRanges(logicalAddress(0x43))).toEqual([[0, TXCONTACT_HIGH_LIMIT]])
+    // deliberately not 0x42's. The two VFO talk-group slots sit past all of it,
+    // in the tail, and are claimed on their own rather than by widening the
+    // first range over the residue.
+    expect(d.ownedRanges(logicalAddress(0x43))).toEqual([
+      [0, TXCONTACT_HIGH_LIMIT],
+      [VFO_A_TXCONTACT, VFO_B_TXCONTACT + 2],
+    ])
     expect(d.ownedRanges(logicalAddress(0x42))).toEqual([[0, PAGE_SIZE - 1]])
+
+    // Nothing claims the residue, and the block's own metadata byte is outside.
+    const claimed = d.ownedRanges(logicalAddress(0x43))
+    for (const off of [TXCONTACT_HIGH_LIMIT, 0x0ef6, 0x0f00, 0x0ff9, 0x0ffe, PAGE_SIZE - 1]) {
+      expect(claimed.some(([a, b]) => off >= a && off < b), `0x${off.toString(16)}`).toBe(false)
+    }
 
     const img = image()
     const out = d.encode(d.decode(img), img)
     expect(equalBytes(page(out, 0x43), page(img, 0x43))).toBe(true)
+  })
+
+  it('leaves an erased VFO talk-group slot alone rather than writing 4095 into it', () => {
+    // Erased fill here is 0xFF, not the 0x00 a channel record uses. Read as a
+    // record, 0xFFFF is slot 4095 on a digital VFO - and this radio has both
+    // slots erased, so a decoder that took it at face value would write that
+    // number back on the next upload.
+    const img = image()
+    const data = page(img, 0x43)
+    expect([data[VFO_A_TXCONTACT], data[VFO_A_TXCONTACT + 1]]).toEqual([0xff, 0xff])
+    const doc = d.decode(img)
+    expect(doc.vfo.a?.extras.vendor?.txContact).toBeUndefined()
+    expect(doc.vfo.b?.extras.vendor?.txContact).toBeUndefined()
+    const out = page(d.encode(doc, img), 0x43)
+    expect([out[VFO_A_TXCONTACT], out[VFO_A_TXCONTACT + 1]]).toEqual([0xff, 0xff])
+  })
+
+  it('writes a VFO talk group where both OEM captures put it', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.vfo.a = { ...doc.vfo.a!, extras: { ...doc.vfo.a!.extras, vendor: { txContact: '1' } } }
+    doc.vfo.b = { ...doc.vfo.b!, modulation: 'DMR', extras: { ...doc.vfo.b!.extras, vendor: { txContact: '1' } } }
+    const out = page(d.encode(doc, img), 0x43)
+
+    /*
+     * `0e 01` is not an arbitrary result - it is what the OEM write capture
+     * holds at this exact offset.
+     *
+     * Bits 3-1 of the first byte are undecoded and preserved, and this radio's
+     * slot is erased, so preserving them from 0xFF sets all three: slot 1,
+     * analog, `0x0E`. The OEM CPS evidently read-modify-writes the same way
+     * over the same fill, because its capture reads `ff ff 0e 01 0e 01 ff 43`.
+     * Reproducing a capture nobody was aiming at is the strongest evidence in
+     * this file that the bit layout is right.
+     */
+    expect([out[VFO_A_TXCONTACT], out[VFO_A_TXCONTACT + 1]]).toEqual([0x0e, 0x01])
+    // The same slot with the digital bit set, as the read capture's VFO B has.
+    expect([out[VFO_B_TXCONTACT], out[VFO_B_TXCONTACT + 1]]).toEqual([0x0f, 0x01])
+    expect(decodeTxContact(out[VFO_A_TXCONTACT]!, out[VFO_A_TXCONTACT + 1]!)).toEqual({
+      slot: 1,
+      digital: false,
+    })
+    expect(decodeTxContact(out[VFO_B_TXCONTACT]!, out[VFO_B_TXCONTACT + 1]!)).toEqual({
+      slot: 1,
+      digital: true,
+    })
+    // 0x0FFE is unused in both captures and the metadata byte follows it.
+    expect(out[0x0ffe]).toBe(page(img, 0x43)[0x0ffe])
+    expect(out[0x0fff]).toBe(0x43)
+
+    expect(d.decode(d.encode(doc, img)).vfo.b?.extras.vendor?.txContact).toBe('1')
+  })
+
+  it('preserves the three undecoded bits of the VFO slot’s first byte', () => {
+    const img = image()
+    // The OEM write capture stores 0x0E there, whose bits 1-3 carry data.
+    page(img, 0x43)[VFO_A_TXCONTACT] = 0x0e
+    page(img, 0x43)[VFO_A_TXCONTACT + 1] = 0x01
+    const doc = d.decode(img)
+    expect(doc.vfo.a?.extras.vendor?.txContact).toBe('1')
+    doc.vfo.a = { ...doc.vfo.a!, extras: { ...doc.vfo.a!.extras, vendor: { txContact: '2' } } }
+    const out = page(d.encode(doc, img), 0x43)
+    expect(out[VFO_A_TXCONTACT]! & 0b1110).toBe(0x0e & 0b1110)
+    expect(out[VFO_A_TXCONTACT + 1]).toBe(0x02)
   })
 
   it('refuses a channel whose entry lands in that residue', () => {

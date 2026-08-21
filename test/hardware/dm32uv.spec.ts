@@ -23,7 +23,11 @@ import {
   RXGROUP_BLOCK,
   SCANLIST_BLOCK,
   SETTINGS_BLOCK,
+  decodeTxContact,
   TXCONTACT_BLOCK_HIGH,
+  TXCONTACT_HIGH_LIMIT,
+  VFO_A_TXCONTACT,
+  VFO_B_TXCONTACT,
   TXCONTACT_BLOCK_LOW,
   ZONE_BLOCK_FIRST,
   ZONE_HEADER,
@@ -263,6 +267,20 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       const callWas = doc.callList[1]?.name
       if (doc.callList[1]) doc.callList[1] = { ...doc.callList[1], name: 'HW CALL' }
 
+      /*
+       * The VFO talk group, which the reference implementation reads and
+       * refuses to write - "disabled until properly debugged", with the noted
+       * consequence that VFO talk group changes do not persist. Both its
+       * captures pin the offsets; nobody had put a byte there.
+       */
+      const vfoTxWas = doc.vfo.a?.extras.vendor?.txContact
+      if (doc.vfo.a) {
+        doc.vfo.a = {
+          ...doc.vfo.a,
+          extras: { ...doc.vfo.a.extras, vendor: { ...doc.vfo.a.extras.vendor, txContact: '1' } },
+        }
+      }
+
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
       doc.settings['callsignColour.colour'] = 5
@@ -427,12 +445,25 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
         ).toBe(true)
       }
 
-      // Block 0x43 is never written by this run, so it must not have moved -
-      // including the stale zone records in its tail.
-      expect(
-        equalBytes(block(after, TXCONTACT_BLOCK_HIGH), block(baseline, TXCONTACT_BLOCK_HIGH)),
-        'block 0x43 moved without being asked to',
-      ).toBe(true)
+      /*
+       * Block 0x43 holds no channel this radio has, so the only thing this run
+       * writes in it is VFO A's talk-group slot. Everything else - the record
+       * area, the stale zone records in the residue, VFO B, the unused byte at
+       * 0x0FFE and the block id - has to be exactly as it was.
+       *
+       * Checked as "every byte outside the four the VFO slots occupy", rather
+       * than by listing the parts, so a write that strays anywhere in the page
+       * fails here.
+       */
+      {
+        const now = block(after, TXCONTACT_BLOCK_HIGH)
+        const was = block(baseline, TXCONTACT_BLOCK_HIGH)
+        const moved: number[] = []
+        for (let i = 0; i < PAGE_SIZE; i++) {
+          if (now[i] !== was[i] && (i < VFO_A_TXCONTACT || i >= VFO_B_TXCONTACT + 2)) moved.push(i)
+        }
+        expect(moved.map((i) => `0x${i.toString(16)}`), 'block 0x43 moved outside the VFO slots').toEqual([])
+      }
 
       // Anything in these three that was NOT edited above must be unchanged -
       // only names and codes are written, never the derived fields beside them.
@@ -512,6 +543,30 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       for (const [key, value] of Object.entries(NEW_SETTINGS)) {
         expect(back.settings[key], `${key} did not reach the radio`).toBe(value)
       }
+
+      if (doc.vfo.a) {
+        expect(back.vfo.a?.extras.vendor?.txContact, 'the VFO talk group did not reach the radio').toBe('1')
+        const raw = block(after, TXCONTACT_BLOCK_HIGH)
+        expect(decodeTxContact(raw[VFO_A_TXCONTACT]!, raw[VFO_A_TXCONTACT + 1]!)).toEqual({
+          slot: 1,
+          digital: doc.vfo.a.modulation === 'DMR',
+        })
+        // VFO B untouched, and the residue between the records and the slots
+        // left exactly as the flash layer left it.
+        expect([raw[VFO_B_TXCONTACT], raw[VFO_B_TXCONTACT + 1]]).toEqual([
+          block(baseline, TXCONTACT_BLOCK_HIGH)[VFO_B_TXCONTACT],
+          block(baseline, TXCONTACT_BLOCK_HIGH)[VFO_B_TXCONTACT + 1],
+        ])
+        expect(
+          equalBytes(
+            raw.subarray(TXCONTACT_HIGH_LIMIT, VFO_A_TXCONTACT),
+            block(baseline, TXCONTACT_BLOCK_HIGH).subarray(TXCONTACT_HIGH_LIMIT, VFO_A_TXCONTACT),
+          ),
+          'the block 0x43 residue was written',
+        ).toBe(true)
+        expect(raw[0x0fff], 'the block id was overwritten').toBe(TXCONTACT_BLOCK_HIGH)
+      }
+      void vfoTxWas
 
       if (callWas !== undefined) {
         expect(back.callList[1]!.name, 'the call list name did not reach the radio').toBe('HW CALL')

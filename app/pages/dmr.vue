@@ -32,6 +32,26 @@ const messageLimit = computed(() =>
 const messagesFull = computed(() => codeplug.messages.length >= messageLimit.value)
 
 const MHZ = (hz: number) => (hz / 1_000_000).toFixed(5)
+
+/**
+ * The VFO's talk group, named rather than numbered.
+ *
+ * The stored value is a physical slot in the talk group bank, not a position in
+ * the list - this radio's bank has gaps at slots 2, 5, 8 and 9 - so the lookup
+ * goes through the id, which carries the slot, exactly as the channel editor
+ * does. A slot the bank has no record for is shown as the number: a dangling
+ * reference is worth seeing rather than hiding behind a blank.
+ */
+function vfoTalkGroup(ch: { extras: { vendor?: Record<string, unknown> } }): string {
+  const raw = ch.extras.vendor?.txContact
+  if (raw === undefined) return 'no talk group'
+  const slot = Number(raw)
+  const tg = codeplug.talkGroups.find((g) => {
+    const m = /^tg-[0-9a-fx]+-(\d+)$/.exec(g.id)
+    return m ? Number(m[1]) === slot : false
+  })
+  return tg ? `TG ${tg.name || tg.number}` : `talk group slot ${slot}`
+}
 const supported = computed(
   () =>
     hasZones.value ||
@@ -843,14 +863,18 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               <span v-if="vfo.ch.modulation === 'DMR'" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
                 CC {{ vfo.ch.extras.vendor?.colorCode }} · TS {{ vfo.ch.extras.vendor?.timeSlot }}
               </span>
+              <span class="meta ms-auto">
+                {{ vfoTalkGroup(vfo.ch) }}
+              </span>
             </template>
             <span v-else class="meta">not programmed</span>
           </div>
         </div>
         <p class="note">
           The two VFOs are ordinary channel records at fixed offsets in the last channel block, outside the
-          channel list — nothing counts them and no zone or scan list can point at one. They are read and
-          written with everything else.
+          channel list — nothing counts them and no zone or scan list can point at one. Their talk group is
+          the exception: it lives four bytes from the end of a different block entirely, which is why the
+          reference implementation reads it and does not write it. boofwang writes it.
         </p>
       </section>
 

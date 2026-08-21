@@ -832,6 +832,7 @@ export const VFO_A = 0x0f9f
 export const VFO_B = VFO_A + CHANNEL_SIZE
 export const VFO_AREA = [VFO_A, VFO_B + CHANNEL_SIZE] as const
 
+
 // ------------------------------------------------ per-channel TX contact --
 
 /**
@@ -863,6 +864,30 @@ export const TXCONTACT_SPLIT = 2047
  * which no radio this has been read from allocates.
  */
 export const TXCONTACT_HIGH_LIMIT = 0x0ef6
+
+/**
+ * Where the two VFOs keep their talk group: block 0x43, not beside the records.
+ *
+ * Two independent OEM captures pin these offsets. The read capture's tail is
+ * `00 00 00 01 01 01 00 43` - VFO A at 0x0FFA reading `00 01`, VFO B at 0x0FFC
+ * reading `01 01` - and the write capture's is `ff ff 0e 01 0e 01 ff 43`, two
+ * identical records framed by fill at exactly the same two offsets, with the
+ * block's own metadata byte at 0x0FFF untouched by both.
+ *
+ * The reference implementation reads these and refuses to write them, saying so
+ * in as many words: *"we don't write it here to avoid potential corruption …
+ * disabled until properly debugged"*, and notes the consequence - VFO talk
+ * group changes do not persist. That is a decision about its own confidence,
+ * not about the offsets, which are better attested than most of this block.
+ *
+ * They sit far past `TXCONTACT_HIGH_LIMIT`, so they are claimed separately
+ * rather than by widening the channel range over the residue in between.
+ */
+export const VFO_TXCONTACT_BLOCK = TXCONTACT_BLOCK_HIGH
+export const VFO_A_TXCONTACT = 0x0ffa
+export const VFO_B_TXCONTACT = 0x0ffc
+export const VFO_TXCONTACT_AREA = [VFO_A_TXCONTACT, VFO_B_TXCONTACT + 2] as const
+
 
 /** Where channel `n` (1-based) keeps its TX contact, or null if it has nowhere. */
 export function txContactSlot(n: number): { blockId: number; offset: number } | null {

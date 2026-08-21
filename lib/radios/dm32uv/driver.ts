@@ -113,8 +113,12 @@ import {
   TXCONTACT_BLOCK_LOW,
   TXCONTACT_HIGH_LIMIT,
   VFO_A,
+  VFO_A_TXCONTACT,
   VFO_B,
+  VFO_B_TXCONTACT,
   VFO_BLOCK,
+  VFO_TXCONTACT_AREA,
+  VFO_TXCONTACT_BLOCK,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
   ZONE_HEADER,
@@ -857,7 +861,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       cp.encryptionKeys = decodeKeys(image)
       cp.contacts = decodeContacts(image)
       cp.messages = decodeMessages(image)
-      cp.vfo = decodeVfos(image)
+      cp.vfo = decodeVfos(image, decodeVfoTxContacts(image))
       cp.roamChannels = decodeRoamChannels(image)
       cp.roamZones = decodeRoamZones(image)
       cp.callList = decodeCallList(image)
@@ -967,6 +971,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       encodeTxContacts(out, doc)
       encodeMessages(out, doc.messages)
       encodeVfos(out, doc.vfo)
+      encodeVfoTxContacts(out, doc.vfo)
       encodeRoamChannels(out, doc.roamChannels)
       encodeRoamZones(out, doc.roamZones)
       encodeCallList(out, doc.callList)
@@ -1056,7 +1061,12 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // 208 bytes that are demonstrably not contact data - and claiming them
       // would disarm the check that stops a write when a byte moves outside
       // what this build models.
-      if (blockId === TXCONTACT_BLOCK_HIGH) return [[0, TXCONTACT_HIGH_LIMIT] as const]
+      // Channel records up to the residue, then the two VFO talk-group slots
+      // in the tail. The gap between them is firmware residue - "Zone 1"
+      // strings on this radio - and is claimed by nothing.
+      if (blockId === TXCONTACT_BLOCK_HIGH) {
+        return [[0, TXCONTACT_HIGH_LIMIT] as const, VFO_TXCONTACT_AREA]
+      }
       if (blockId === MESSAGE_BLOCK) return [[0, PAGE_SIZE - 1] as const]
       if (blockId === TG_INDEX_BLOCK) {
         return image ? talkGroupIndexRanges(decodeTalkGroups(image).length) : []
@@ -2622,12 +2632,73 @@ export function roamZoneNameRanges(image: RadioImage): ReadonlyArray<readonly [n
 }
 
 /** VFO A and VFO B, decoded as the channel records they are. */
-export function decodeVfos(image: RadioImage): Codeplug['vfo'] {
+/**
+ * The two VFOs' talk groups, which live in block 0x43 rather than beside them.
+ *
+ * Read-only in the reference implementation, which says why: *"we don't write
+ * it here to avoid potential corruption … disabled until properly debugged"*.
+ * The offsets themselves are pinned by both of its captures - see the layout -
+ * so what it lacked was confidence in its own writer, not the addresses.
+ */
+export function decodeVfoTxContacts(image: RadioImage): { a: number | null; b: number | null } {
+  const data = blockData(image, VFO_TXCONTACT_BLOCK)
+  if (!data) return { a: null, b: null }
+  const read = (off: number) => {
+    const b0 = data[off]!
+    const b1 = data[off + 1]!
+    // Erased flash, which here is 0xFF rather than the 0x00 a channel record
+    // uses. Read as a record it decodes to slot 4095 on a digital VFO, and the
+    // encoder would then write that back over fill nobody set.
+    if (b0 === 0xff && b1 === 0xff) return null
+    const tx = decodeTxContact(b0, b1)
+    // Same test the channels use for an unset slot.
+    if (tx.slot === 0 && !tx.digital) return null
+    return tx.slot
+  }
+  return { a: read(VFO_A_TXCONTACT), b: read(VFO_B_TXCONTACT) }
+}
+
+/**
+ * Write them back, preserving the three bits of byte 0 nobody has decoded.
+ *
+ * The same encoder the channels use, so the one bit layout is verified in one
+ * place. A VFO with no talk group set leaves its slot alone rather than
+ * stamping a zero over erased fill.
+ */
+export function encodeVfoTxContacts(image: RadioImage, vfo: Codeplug['vfo']): void {
+  const data = blockData(image, VFO_TXCONTACT_BLOCK)
+  if (!data) return
+  for (const [channel, off] of [
+    [vfo.a, VFO_A_TXCONTACT],
+    [vfo.b, VFO_B_TXCONTACT],
+  ] as const) {
+    const raw = channel?.extras.vendor?.txContact
+    if (raw === undefined) continue
+    const slot = Number(raw)
+    if (!Number.isInteger(slot) || slot < 0 || slot > 0xfff) {
+      throw new DriverError(`Talk group slot ${raw} is outside the 12 bits this radio stores.`)
+    }
+    const [b0, b1] = encodeTxContact(slot, channel!.modulation === 'DMR', data[off]!)
+    data[off] = b0
+    data[off + 1] = b1
+  }
+}
+
+export function decodeVfos(
+  image: RadioImage,
+  txContacts: { a: number | null; b: number | null } = { a: null, b: null },
+): Codeplug['vfo'] {
   const data = blockData(image, VFO_BLOCK)
   if (!data) return { a: null, b: null }
+  // The talk group comes from block 0x43, so it is joined on here rather than
+  // read out of the record - same shape the channels use.
+  const withTx = (ch: Channel | null, slot: number | null) =>
+    ch && slot !== null
+      ? { ...ch, extras: { ...ch.extras, vendor: { ...ch.extras.vendor, txContact: String(slot) } } }
+      : ch
   return {
-    a: decodeChannel(data, VFO_A, 4001),
-    b: decodeChannel(data, VFO_B, 4002),
+    a: withTx(decodeChannel(data, VFO_A, 4001), txContacts.a),
+    b: withTx(decodeChannel(data, VFO_B, 4002), txContacts.b),
   }
 }
 

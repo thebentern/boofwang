@@ -34,6 +34,7 @@ import {
   TALKGROUP_BLOCK_FIRST,
   TALKGROUP_BLOCK_LAST,
   TXCONTACT_HIGH_LIMIT,
+  VFO_TXCONTACT_AREA,
   ZONE_BLOCK_FIRST,
   ZONE_BLOCK_LAST,
   ZONE_HEADER,
@@ -195,7 +196,9 @@ describe('nothing claims more than it writes', () => {
     0x10: [...emergencyNameRanges(), KEY_AREA], // emergency names, then the key slots
     0x11: [[0, PAGE_SIZE - 1]], // scan lists
     0x42: [[0, PAGE_SIZE - 1]], // TX contact, channels 1-2047
-    0x43: [[0, TXCONTACT_HIGH_LIMIT]], // TX contact, high - stops before the residue
+    // TX contact, high: records, then the two VFO talk-group slots in the
+    // tail. The residue between them is claimed by nothing.
+    0x43: [[0, TXCONTACT_HIGH_LIMIT], VFO_TXCONTACT_AREA],
     0x65: roamZoneNameRanges(image()), // names only - membership is unresolved
     0x66: [
       [0, ROAMCHANNEL_SLOTS * ROAMCHANNEL_SIZE],
