@@ -3,6 +3,7 @@ import { hexDump, sha256Hex } from '../../codec/checksum.js'
 import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { txFrequency } from '../../model/channel.js'
+import { validateChannels } from '../../validate/rules.js'
 import { CTCSS_DECIHZ, ctcss, dtcs, NO_TONE, type TonePair, type ToneSpec } from '../../model/tones.js'
 import { hz } from '../../model/units.js'
 import {
@@ -477,61 +478,7 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
     },
 
     validate(doc: Codeplug): Diagnostic[] {
-      const out: Diagnostic[] = []
-      for (const ch of doc.channels.values()) {
-        const band = UV82_SCHEMA.rf.bands.find((b) => ch.rxFreq >= b.loHz && ch.rxFreq <= b.hiHz)
-        if (!band) {
-          out.push({
-            severity: 'error',
-            ruleId: 'radio.band.rx-out-of-range',
-            channel: ch.index,
-            field: 'rxFreq',
-            message: `${(ch.rxFreq / 1e6).toFixed(5)} MHz is outside both bands this radio covers.`,
-          })
-        }
-        /*
-         * Where it transmits, not only where it listens.
-         *
-         * This radio checked the receive frequency and stopped, so a channel
-         * with a repeater shift that dragged transmit out of band was an error
-         * on the UV-K5 and silent here - the same illegal channel, two answers,
-         * depending on which radio happened to be plugged in. `txFrequency`
-         * resolves the shift, so a minus offset that lands below the band edge
-         * is caught where reading `rxFreq` alone cannot see it.
-         */
-        const txHz = ch.txAllowed ? txFrequency(ch) : null
-        if (txHz !== null) {
-          const txBand = UV82_SCHEMA.rf.bands.find((b) => txHz >= b.loHz && txHz <= b.hiHz)
-          if (!txBand) {
-            out.push({
-              severity: 'error',
-              ruleId: 'radio.band.tx-out-of-range',
-              channel: ch.index,
-              field: 'tx',
-              message: `This channel transmits on ${(txHz / 1e6).toFixed(5)} MHz, which is outside both bands this radio covers.`,
-            })
-          } else if (!txBand.txAllowed) {
-            out.push({
-              severity: 'error',
-              ruleId: 'regulatory.band.tx-not-permitted',
-              channel: ch.index,
-              field: 'tx',
-              message: `This channel transmits on ${(txHz / 1e6).toFixed(5)} MHz, in a band marked receive-only.`,
-            })
-          }
-        }
-
-        if (ch.name.length > UV82_SCHEMA.memory.nameLength) {
-          out.push({
-            severity: 'warning',
-            ruleId: 'radio.name.too-long',
-            channel: ch.index,
-            field: 'name',
-            message: `Name is ${ch.name.length} characters; the radio shows ${UV82_SCHEMA.memory.nameLength}.`,
-          })
-        }
-      }
-      return out
+      return validateChannels(doc, UV82_SCHEMA)
     },
 
     ownedRanges: (regionStart: number) => (regionStart === 0 ? uv82OwnedRanges() : []),

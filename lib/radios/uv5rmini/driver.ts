@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
+import { validateChannels } from '../../validate/rules.js'
 import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { NO_TONE, type TonePair } from '../../model/tones.js'
@@ -439,37 +440,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
     },
 
     validate(doc: Codeplug): Diagnostic[] {
-      const out: Diagnostic[] = []
-      for (const ch of doc.channels.values()) {
-        const band = UV5RMINI_SCHEMA.rf.bands.find((b) => ch.rxFreq >= b.loHz && ch.rxFreq <= b.hiHz)
-        if (!band) {
-          out.push({
-            severity: 'error',
-            ruleId: 'radio.band.rx-out-of-range',
-            channel: ch.index,
-            field: 'rxFreq',
-            message: `${(ch.rxFreq / 1e6).toFixed(5)} MHz is outside every band this radio covers.`,
-          })
-        } else if (!band.txAllowed && ch.txAllowed) {
-          out.push({
-            severity: 'error',
-            ruleId: 'radio.band.tx-not-allowed',
-            channel: ch.index,
-            field: 'txAllowed',
-            message: `${band.label} is receive-only, but this channel is set to transmit.`,
-          })
-        }
-        if (ch.name.length > UV5RMINI_SCHEMA.memory.nameLength) {
-          out.push({
-            severity: 'warning',
-            ruleId: 'radio.name.too-long',
-            channel: ch.index,
-            field: 'name',
-            message: `Name is ${ch.name.length} characters; the radio shows ${UV5RMINI_SCHEMA.memory.nameLength}.`,
-          })
-        }
-      }
-      return out
+      return validateChannels(doc, UV5RMINI_SCHEMA)
     },
 
     /**

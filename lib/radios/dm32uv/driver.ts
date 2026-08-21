@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
+import { validateChannels } from '../../validate/rules.js'
 import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { NO_TONE, type TonePair } from '../../model/tones.js'
@@ -982,19 +983,11 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
     },
 
     validate(doc: Codeplug): Diagnostic[] {
-      const out: Diagnostic[] = []
+      // The shared rules, plus the two that mean nothing on an analog radio.
+      const out: Diagnostic[] = [...validateChannels(doc, DM32UV_SCHEMA)]
       const keySlots = new Set(doc.encryptionKeys.map((k) => k.slot))
+
       for (const ch of doc.channels.values()) {
-        const band = DM32UV_SCHEMA.rf.bands.find((b) => ch.rxFreq >= b.loHz && ch.rxFreq <= b.hiHz)
-        if (!band) {
-          out.push({
-            severity: 'error',
-            ruleId: 'radio.band.rx-out-of-range',
-            channel: ch.index,
-            field: 'rxFreq',
-            message: `${(ch.rxFreq / 1e6).toFixed(5)} MHz is outside both bands this radio covers.`,
-          })
-        }
         // A channel names its DMR identity by position in the radio-ID bank, so
         // the two only mean anything together. Cloning a codeplug is where they
         // come apart: the donor's channels arrive and the radio IDs stay yours

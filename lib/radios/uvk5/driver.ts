@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
 import { diffRanges, equalBytes } from '../../codec/struct.js'
-import { emptyCodeplug, txFrequency, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
+import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { NO_TONE, type TonePair } from '../../model/tones.js'
 import { hz, type Hz } from '../../model/units.js'
 import {
@@ -47,6 +47,7 @@ import {
   VFO_CHANNEL_NAMES,
 } from './layout.js'
 import { MEM_BLOCK, MEM_SIZE, readMem, resetRadio, sayHello, writeMem } from './protocol.js'
+import { validateChannels } from '../../validate/rules.js'
 import { decodeStockSettings, decodeTone, encodeInto } from './encode.js'
 import {
   EGZUMER_BANDS_STANDARD_HZ,
@@ -507,75 +508,12 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
     },
 
     validate(doc: Codeplug): Diagnostic[] {
-      const out: Diagnostic[] = []
-      const bands = bandsFor(doc)
-      for (const ch of doc.channels.values()) {
-        const band = bands.find((b) => ch.rxFreq >= b.loHz && ch.rxFreq <= b.hiHz)
-        if (!band) {
-          out.push({
-            severity: 'error',
-            ruleId: 'radio.band.rx-out-of-range',
-            channel: ch.index,
-            field: 'rxFreq',
-            message: `${(ch.rxFreq / 1e6).toFixed(5)} MHz is outside every band this radio covers.`,
-          })
-        }
-
-        // The transmit frequency, not the receive one: a repeater shift can
-        // move transmit into a band where transmitting is not allowed even
-        // though the channel is perfectly legal to listen on.
-        //
-        // Slots past the memory range are the radio's own VFO band presets, not
-        // user channels, and they are exempt. Every stock UV-K5 ships with its
-        // F2 preset parked on 108.250 MHz in the air band, so applying the rule
-        // there gives every radio two permanent errors about data the user did
-        // not create. Worse, the only remedy on offer - "mark the channel
-        // receive-only" - has no meaning for a VFO, and acting on it would
-        // stamp a minus shift and an offset into the radio's factory band
-        // preset. CHIRP has no equivalent rule at all.
-        const txHz = ch.index > NAMED_CHANNEL_COUNT ? null : txFrequency(ch)
-        if (txHz !== null) {
-          const txBand = bands.find((b) => txHz >= b.loHz && txHz <= b.hiHz)
-          if (!txBand) {
-            out.push({
-              severity: 'error',
-              ruleId: 'radio.band.tx-out-of-range',
-              channel: ch.index,
-              field: 'tx',
-              message: `This channel transmits on ${(txHz / 1e6).toFixed(5)} MHz, which is outside every band this radio covers.`,
-            })
-          } else if (!txBand.txAllowed) {
-            // The air band is the case that matters here: AM aviation spectrum,
-            // which no amateur licence authorises transmitting on. The schema
-            // marks it receive-only; this is what makes that marking do
-            // something rather than merely document an intention.
-            out.push({
-              severity: 'error',
-              ruleId: 'regulatory.band.tx-not-permitted',
-              channel: ch.index,
-              field: 'tx',
-              message:
-                `This channel can transmit on ${(txHz / 1e6).toFixed(5)} MHz, in the ${txBand.label} band, ` +
-                'which is receive-only. Mark the channel receive-only before writing it to a radio.',
-            })
-          }
-        }
-        // The VFO pseudo-channels have no name storage; their names are the
-        // radio's own fixed labels ("F3(136M-174M)B"), which are longer than
-        // the user-name limit by design. Complaining about them would be
-        // complaining about the radio.
-        const isSpecial = ch.index > NAMED_CHANNEL_COUNT
-        if (!isSpecial && ch.name.length > UVK5_SCHEMA.memory.nameLength) {
-          out.push({
-            severity: 'warning',
-            ruleId: 'radio.name.too-long',
-            channel: ch.index,
-            field: 'name',
-            message: `Name is ${ch.name.length} characters; the radio shows ${UVK5_SCHEMA.memory.nameLength}.`,
-          })
-        }
-      }
-      return out
+      // The shared rules, with this radio's bands rather than the schema's: an
+      // egzumer build compiled with wide receive legitimately reaches
+      // frequencies the stock table does not list. Nothing here is
+      // UV-K5-specific any more, including the VFO exemption - the schema lists
+      // those slots in `memory.specialChannels` and the rules skip them.
+      return validateChannels(doc, UVK5_SCHEMA, { bands: bandsFor(doc) })
     },
 
     ownedRanges(regionStart: number, image?: RadioImage) {
