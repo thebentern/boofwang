@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { Hz, Milliwatts } from '../model/units.js'
 import type { Modulation, RadioId } from '../model/index.js'
+import type { TransportKind } from '../transport/transport.js'
 
 /**
  * A declarative description of what a radio can do.
@@ -87,6 +88,23 @@ export interface RadioSchema {
   readonly capabilities: {
     readonly read: boolean
     readonly write: boolean
+
+    /**
+     * The carriers this radio can actually be reached over.
+     *
+     * A cable works on all four. Bluetooth is one radio and one profile so far:
+     * the UV-5R Mini answers on an HM-10 style FFE0, established by enumerating
+     * a real radio and sending it its own identify magic. Nobody has read a
+     * service UUID off the other three, and `requestDevice` filters the chooser
+     * on exactly that number, so offering Bluetooth for them opens a chooser
+     * that lists nothing - indistinguishable from a radio that is switched off,
+     * which is the failure this project has already misdiagnosed twice.
+     *
+     * Declared rather than inferred because nothing else says it: no codeplug,
+     * no USB id and no other schema field tells the connect screen whether a
+     * radio has a BLE module in it.
+     */
+    readonly transports: readonly TransportKind[]
     /** Non-empty when writing needs an explicit per-feature unlock. */
     readonly writeRequiresUnlock?: string
     /**

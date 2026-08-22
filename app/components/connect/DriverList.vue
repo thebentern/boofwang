@@ -67,6 +67,18 @@ function memoryOf(schema: RadioSchema | null): string {
   return parts.join(' · ')
 }
 
+/**
+ * Whether this row can be reached without a cable.
+ *
+ * Read off the schema rather than named here, so the day a second radio gets a
+ * Bluetooth profile this list is already right. The header used to say "pick
+ * the one on your cable", which was the whole truth until one of these stopped
+ * needing one.
+ */
+function wirelessOf(schema: RadioSchema | null): boolean {
+  return schema?.capabilities.transports.includes('bluetooth') === true
+}
+
 const CHIP_STYLES: Record<ChipTone, { border: string; background: string; color: string }> = {
   ok: { border: 'var(--okL)', background: 'var(--okB)', color: 'var(--ok)' },
   cn: { border: 'var(--cnL)', background: 'var(--cnB)', color: 'var(--cn)' },
@@ -81,6 +93,7 @@ const rows = computed(() =>
       id,
       name: schema ? `${schema.vendor} ${schema.model}` : id,
       memory: memoryOf(schema),
+      wireless: wirelessOf(schema),
       status: statusOf(id, schema),
       /** A row you can pick. A driver with no implementation has no handshake to send. */
       usable: isImplemented(id) && schema?.capabilities.read === true,
@@ -95,7 +108,7 @@ const rows = computed(() =>
       <UIcon name="i-lucide-list" style="width: 13px; height: 13px; color: var(--fn)" />
       <span class="label-xs">Radios boofwang knows</span>
       <span class="ms-auto hidden sm:inline" style="font-size: 13px; color: var(--fn)">
-        Pick the one on your cable.
+        Pick the one you are connecting to.
       </span>
     </div>
 
@@ -123,6 +136,15 @@ const rows = computed(() =>
           class="font-mono tabular whitespace-nowrap hidden sm:inline"
           style="font-size: 12.5px; color: var(--fn)"
         >{{ row.memory }}</span>
+        <span
+          v-if="row.wireless"
+          class="items-center gap-1 whitespace-nowrap hidden sm:flex"
+          style="font-size: 12.5px; color: var(--fn)"
+          title="This radio can also be read over Bluetooth."
+        >
+          <UIcon name="i-lucide-bluetooth" style="width: 11px; height: 11px" />
+          Bluetooth
+        </span>
         <span
           class="chip ms-auto shrink-0"
           :style="{

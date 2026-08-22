@@ -538,7 +538,7 @@ export const UVK5_SCHEMA: RadioSchema = {
   aliases: ['UV-K5(8)', 'UV-K6', 'Retevis RA79', 'Quansheng UV-5R Plus'],
   status: 'read-only',
 
-  capabilities: { read: true, write: false },
+  capabilities: { read: true, write: false, transports: ['serial'] },
 
   memory: {
     channelCount: 200,

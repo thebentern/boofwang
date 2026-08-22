@@ -393,8 +393,8 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
       if (!found) throw new DriverError('UV-5R Mini image has no channel region')
 
       // A copy of the bytes that came off the radio, patched in place. There is
-      // no way to build one from nothing: the settings, the VFOs and the two
-      // small tail regions this build does not decode survive only because they
+      // no way to build one from nothing: the VFO entries, the ANI and PTT-ID
+      // region and the gap this build does not decode survive only because they
       // are carried through untouched.
       const mem = found.region.data.slice()
       const variant = variantOf(base.layout)
@@ -444,11 +444,11 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
     },
 
     /**
-     * The channel array, and nothing else.
+     * The channel array and the settings block, and nothing else.
      *
-     * Settings, the VFOs and the two small tail regions are read and preserved
-     * but not decoded, so a change landing there means the encoder has a bug
-     * rather than that the user edited something.
+     * The VFO entries, the ANI and PTT-ID region at 0xA000 and the gap before
+     * 0x8000 are read and preserved but not decoded, so a change landing there
+     * means the encoder has a bug rather than that the user edited something.
      */
     ownedRanges: (regionStart: number) =>
       regionStart === CHANNEL_BASE

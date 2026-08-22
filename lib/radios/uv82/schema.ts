@@ -147,7 +147,7 @@ export const UV82_SCHEMA: RadioSchema = {
   aliases: ['UV-82X3', 'UV-82HP', 'Radioddity UV-82X3'],
   status: 'read-only',
 
-  capabilities: { read: true, write: false },
+  capabilities: { read: true, write: false, transports: ['serial'] },
 
   memory: {
     channelCount: CHANNEL_COUNT,

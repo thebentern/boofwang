@@ -19,11 +19,12 @@ import type { PortChoice } from '~/composables/useWebSerial'
  * link from a cable, which is what made this a small change rather than a
  * parallel stack.
  *
- * A radio has answered over this link, but only as far as the handshake. The
- * service and characteristic were captured from a UV-5R Mini in wireless CPS
- * mode and confirmed by sending it its own identify magic, which came back
- * acknowledged. A full codeplug read over Bluetooth has not been done, and
- * writing over it is deliberately not offered at all.
+ * A radio has answered over this link and a whole codeplug has come back down
+ * it. The service and characteristic were captured from a UV-5R Mini in
+ * wireless CPS mode and confirmed by sending it its own identify magic; the
+ * full 33,344-byte read followed on 2026-08-21, at about 928 B/s, and matches
+ * the cable read on all 999 channel records. Writing over Bluetooth is still
+ * deliberately not offered - read first, prove the round trip, then write.
  */
 
 export function bluetoothAvailable(): boolean {

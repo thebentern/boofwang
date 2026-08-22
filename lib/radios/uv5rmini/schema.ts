@@ -117,7 +117,13 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
   aliases: ['UV-5RM', '5RM', 'K5-Plus', 'MaxTalker P15', 'MT-5RM'],
   status: 'read-only',
 
-  capabilities: { read: true, write: false },
+  /*
+   * The only radio here with a Bluetooth profile anybody has read off
+   * hardware. A whole codeplug came back over it on 2026-08-21 - 33,344
+   * bytes, matching the cable read on all 999 channel records - and writing
+   * over it is still not offered. See docs/protocols/uv5rmini.md.
+   */
+  capabilities: { read: true, write: false, transports: ['serial', 'bluetooth'] },
 
   memory: {
     // The larger of the two: the UV-5R Mini has 999, the 5RM 1000.

@@ -30,9 +30,17 @@ const props = defineProps<{
   confirmed: boolean
   options: readonly { id: RadioId; label: string }[]
   busy?: boolean
+  /**
+   * Whether this radio can also be reached over Bluetooth.
+   *
+   * A granted cable used to hide that question entirely: `hasPort` goes true
+   * for any adapter and never goes back, so this card was the end of the road
+   * and the one radio with a wireless profile had nowhere to be reached from.
+   */
+  bluetooth?: boolean
 }>()
 
-const emit = defineEmits<{ read: []; otherPort: []; choose: [RadioId] }>()
+const emit = defineEmits<{ read: []; otherPort: []; choose: [RadioId]; bluetooth: [] }>()
 
 const items = computed(() =>
   props.options.map((o) => ({
@@ -88,6 +96,20 @@ const items = computed(() =>
           @click="emit('read')"
         />
         <RiskAction risk="neutral" ghost label="Other port" :disabled="busy" @click="emit('otherPort')" />
+        <!--
+          Ghost and last, for the same reason it is ghost on the fault cards:
+          the cable is the route that has been proved, and this card exists
+          because it is already working.
+        -->
+        <RiskAction
+          v-if="bluetooth"
+          risk="neutral"
+          ghost
+          label="Bluetooth"
+          icon="i-lucide-bluetooth"
+          :disabled="busy"
+          @click="emit('bluetooth')"
+        />
       </div>
     </div>
 

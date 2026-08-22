@@ -769,7 +769,7 @@ export const DM32UV_SCHEMA: RadioSchema = {
   aliases: ['DP570UV'],
   status: 'read-only',
 
-  capabilities: { read: true, write: false },
+  capabilities: { read: true, write: false, transports: ['serial'] },
 
   memory: {
     // The reference implementation's ceiling; the largest codeplug actually

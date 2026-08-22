@@ -484,17 +484,34 @@ function onAction(key: string) {
 const bleLabel = bluetoothProfile().verified ? 'Connect over Bluetooth' : 'Try Bluetooth (untested)'
 
 /**
+ * Whether the radio in hand can be reached without a cable at all.
+ *
+ * Null selection counts, because on a browser with no Web Serial the Bluetooth
+ * offer is the only route on screen and hiding it until somebody has picked a
+ * radio would hide the way forward behind the way that cannot work.
+ */
+const radioDoesBluetooth = computed(
+  () => radioId.value === null || SCHEMAS[radioId.value]?.capabilities.transports.includes('bluetooth') === true,
+)
+
+/**
  * Where the Bluetooth offer belongs.
  *
- * The three cards where somebody is deciding how to connect and the answer is
- * not yet a cable. Not while a transfer is running, not on the healthy serial
- * card - a second route is a distraction from the button that already works -
- * and not on the Bluetooth fault cards, which carry their own "try again" and
- * would otherwise show two buttons for the same action.
+ * Every card where somebody is deciding how to connect, which now includes the
+ * healthy serial one. It did not, and the reasoning was that a second route is
+ * a distraction from the button that already works - true of the button, and
+ * wrong about the state, because `hasPort` goes true for *any* granted adapter
+ * and never goes back. One cable granted once, for any radio, and the only
+ * radio here with a Bluetooth profile had no way to be reached over it short of
+ * revoking the port or typing `?ble=` into the address bar.
+ *
+ * Still not while a transfer is running, and still not on the Bluetooth fault
+ * cards, which carry their own "try again" and would otherwise show two buttons
+ * for the same action.
  */
-const BLE_OFFER_STATES: readonly FaultState[] = ['first', 'empty', 'unsupported']
+const BLE_OFFER_STATES: readonly (FaultState | 'ready')[] = ['first', 'empty', 'unsupported', 'ready']
 const offerBluetooth = computed(
-  () => bluetooth.value.supported && link.value !== 'ready' && BLE_OFFER_STATES.includes(link.value),
+  () => bluetooth.value.supported && radioDoesBluetooth.value && BLE_OFFER_STATES.includes(link.value),
 )
 
 /**
@@ -509,6 +526,16 @@ const offerBluetooth = computed(
  */
 const bleNote = computed(() => {
   if (!bluetooth.value.supported) return bluetooth.value.advice
+  /*
+   * The browser can do Bluetooth and this radio cannot, which is a different
+   * sentence and has to be said. Otherwise the card offers a route, the button
+   * beside it is absent, and the reader is left looking for a control that was
+   * deliberately withheld.
+   */
+  if (!radioDoesBluetooth.value) {
+    return `This browser does have Web Bluetooth, but the ${radioName.value} is programmed over a cable only. ` +
+      'The Baofeng UV-5R Mini is the one radio here that has been read wirelessly.'
+  }
   if (bluetoothProfile().verified) return 'This browser does have Web Bluetooth, so try connecting that way instead.'
   return (
     'This browser does have Web Bluetooth, which is a different API, so there is one more thing to try ' +
@@ -542,9 +569,11 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       :confirmed="confirmed !== null"
       :options="radioOptions"
       :busy="connecting"
+      :bluetooth="offerBluetooth"
       @read="readRadio"
       @other-port="pickPort"
       @choose="chosen = $event"
+      @bluetooth="connectBluetooth"
     />
 
     <ConnectLinkFault

@@ -13,7 +13,7 @@ const ident: IdentifyResult = {
   identHash: 'abc123',
 }
 
-const WRITABLE_SCHEMA = { ...UVK5_SCHEMA, capabilities: { read: true, write: true } }
+const WRITABLE_SCHEMA = { ...UVK5_SCHEMA, capabilities: { ...UVK5_SCHEMA.capabilities, write: true } }
 
 const ok = (over: Partial<GateInput> = {}): GateInput => ({
   schema: WRITABLE_SCHEMA,
@@ -139,7 +139,7 @@ describe('edits that this radio cannot write', () => {
   const SCOPED = {
     ...WRITABLE_SCHEMA,
     model: 'DM-32UV',
-    capabilities: { read: true, write: true, writeScope: 'encryption key slots' },
+    capabilities: { ...UVK5_SCHEMA.capabilities, write: true, writeScope: 'encryption key slots' },
   }
 
   it('says what can be written, rather than claiming nothing changed', () => {

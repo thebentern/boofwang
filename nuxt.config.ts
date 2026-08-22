@@ -12,6 +12,7 @@ const SCHEMA_ICONS = [
   'lucide:arrow-up-right',
   'lucide:badge-check',
   'lucide:binary',
+  'lucide:bluetooth',
   'lucide:box',
   'lucide:bug',
   'lucide:cable',
