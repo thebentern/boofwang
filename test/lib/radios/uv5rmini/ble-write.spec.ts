@@ -332,9 +332,15 @@ describe('writing over Bluetooth is off by default', () => {
   it('refuses a GATT transport', async () => {
     const driver = createUv5rMiniDriver({ enableWrite: true })
     const ble = scriptedRadio('bluetooth')
-    await expect(
-      driver.writeImage(ble.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() }),
-    ).rejects.toThrow(/Bluetooth/)
+    const attempt = driver.writeImage(ble.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() })
+    // The whole sentence, not a keyword. Matching /Bluetooth/ alone passed on
+    // "Writing Bluetooth. Reading over ... is not supported. This area of
+    // memory is not understood well enough to modify safely." - the old
+    // WriteBlockedError appended that last clause to every refusal, so the
+    // user read a false sentence about memory under an ungrammatical one.
+    await expect(attempt).rejects.toThrow(/^This radio cannot be written over Bluetooth yet\./)
+    await expect(attempt).rejects.toThrow(/Use the cable to write\.$/)
+    await expect(attempt).rejects.not.toThrow(/not understood well enough/)
   })
 
   it('still writes over a cable', async () => {

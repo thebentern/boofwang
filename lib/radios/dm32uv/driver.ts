@@ -581,7 +581,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
     async writeImage(t: Transport, image: RadioImage, ctx: DriverCtx = {}): Promise<WriteReport> {
       if (image.radioId !== 'dm32uv') throw new DriverError(`Not a DM-32UV image: ${image.radioId}`)
       if (!schema.capabilities.write && !ctx.dryRun) {
-        throw new WriteBlockedError(`the ${schema.model}. Writing is not enabled in this build`)
+        throw new WriteBlockedError(`Writing the ${schema.model} is not enabled in this build.`)
       }
       if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('dm32uv')
 
@@ -612,7 +612,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // unwritable would otherwise have been written anyway.
       if (!ctx.dryRun && !ident.caps.write) {
         throw new WriteBlockedError(
-          ident.caps.reason ?? `firmware ${ident.variant}, which this build cannot write`,
+          ident.caps.reason ?? `This build does not write firmware ${ident.variant}.`,
         )
       }
       if (ctx.backup && ctx.backup.identHash !== ident.identHash) throw new BackupRequiredError('dm32uv')
@@ -945,7 +945,19 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           // leave it alone, because a slot the decoder already ignored may hold
           // bytes nobody has explained.
           const held = decodeChannel(data, slot.offset, n) !== null
-          if (n > total || held) data.fill(ERASED, slot.offset, slot.offset + CHANNEL_SIZE)
+          if (n > total || held) {
+            data.fill(ERASED, slot.offset, slot.offset + CHANNEL_SIZE)
+            /*
+             * And the talk group that went with it. This lived only in
+             * `encodeTxContacts`, which walks the channels in the document -
+             * so a deleted channel's two bytes in block 0x42 stayed exactly as
+             * they were, and the next channel placed in the slot with no talk
+             * group of its own inherited them. On the fixture: delete "TAC 1"
+             * from 28, put a fresh channel there, and it decodes with talk
+             * group 4. Invisible in the diff, because 0x42 never changed.
+             */
+            clearTxContact(out, n)
+          }
         }
 
         // The count is a 16-bit little-endian word at the top of the first
@@ -2296,10 +2308,36 @@ export function decodeTxContacts(image: RadioImage): Map<number, { slot: number;
  * page whose contents contradict its documented purpose is not a guess worth
  * making for channel numbers nobody has.
  */
+/**
+ * Clear one channel's talk group entry, keeping the bits nobody has decoded.
+ *
+ * Slot 0 is "no talk group" - the same value the editor writes for a channel
+ * set to none - written through `encodeTxContact` so bits 3-1 of the first
+ * byte survive, the way they do on every other write.
+ */
+function clearTxContact(image: RadioImage, index: number): void {
+  const at = txContactSlot(index)
+  if (!at) return
+  if (at.blockId === TXCONTACT_BLOCK_HIGH && at.offset >= TXCONTACT_HIGH_LIMIT) return
+  if (at.offset + 2 > PAGE_SIZE - 1) return
+  const data = blockData(image, at.blockId)
+  if (!data) return
+  const [b0, b1] = encodeTxContact(0, false, data[at.offset]!)
+  data[at.offset] = b0
+  data[at.offset + 1] = b1
+}
+
 export function encodeTxContacts(image: RadioImage, doc: Codeplug): void {
   for (const channel of doc.channels.values()) {
     const raw = channel.extras.vendor?.txContact
-    if (raw === undefined) continue
+    // A channel here with no talk group is a channel with no talk group, not
+    // one that keeps whatever the slot held before it arrived. `createChannel`,
+    // preset staging, CSV import and the repeater directories all place
+    // channels with no `txContact`; only the editor wrote an explicit zero.
+    if (raw === undefined) {
+      clearTxContact(image, channel.index)
+      continue
+    }
     const slot = Number(raw)
     if (!Number.isInteger(slot) || slot < 0 || slot > 0xfff) {
       throw new DriverError(`Talk group slot ${raw} is outside the 12 bits this radio stores.`)

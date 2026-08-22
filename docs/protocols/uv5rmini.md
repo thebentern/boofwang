@@ -381,13 +381,16 @@ producing a plausible codeplug.
 - **Whether anything distinguishes two units in the chooser.** Two Minis both
   advertise `walkie-talkie`; only their addresses differ, and boofwang cannot
   read an address before connecting. See above.
-- **Writing over Bluetooth.** Built, unit-tested against a fake, and refused.
-  `writeImage` throws on a GATT transport unless the driver is constructed with
-  `allowBluetoothWrite`, which nothing in the application passes. The path
-  exists because `uploadBlockSize` assembles it either way; the refusal is what
-  makes "not offered" true in the driver rather than only in the interface. Read
-  first, prove the round trip, then turn it on — the order every other radio
-  here followed.
+- **Writing over Bluetooth.** Reachable, refused, and explained. The session
+  reconnects over whichever carrier it last used, so after a Bluetooth read the
+  write page tries Bluetooth; `writeImage` throws on a GATT transport unless the
+  driver is constructed with `allowBluetoothWrite`, which nothing in the
+  application passes. The write gate reads `capabilities.writeTransports`
+  (`['serial']` here) and shows a blocker with the remedy "connect over the
+  cable" before the token can be typed, so the two halves read one fact. Read
+  first, prove the round trip, then add `bluetooth` to `writeTransports` and
+  pass `allowBluetoothWrite` — both in the same commit, with the wire byte
+  counts recorded here.
 - The `0x80` upload block size and its `0xFF` padding are transcribed from
   CHIRP and exercised against a fake. No radio has been written to over BLE.
 - Throughput is about a fortieth of the cable's. The transport's timeouts were

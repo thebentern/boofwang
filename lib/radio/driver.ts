@@ -301,11 +301,20 @@ export class BackupRequiredError extends DriverError {
   }
 }
 
+/**
+ * A write the driver will not perform, for a reason it states.
+ *
+ * Takes the whole sentence. It used to take a subject and append "is not
+ * supported. This area of memory is not understood well enough to modify
+ * safely." to everything - which was true of the one call that existed when it
+ * was written and false of most of the eight that exist now: a refusal over
+ * Bluetooth, a firmware this build will not write, a radio whose write path is
+ * not verified. Every one of those came out as "Writing <reason>. is not
+ * supported. This area of memory..." - ungrammatical, and ending in a sentence
+ * about memory that had nothing to do with the reason.
+ */
 export class WriteBlockedError extends DriverError {
   override readonly name = 'WriteBlockedError'
-  constructor(what: string) {
-    super(`Writing ${what} is not supported. This area of memory is not understood well enough to modify safely.`)
-  }
 }
 
 /**

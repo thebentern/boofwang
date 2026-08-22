@@ -23,8 +23,10 @@ import type { PortChoice } from '~/composables/useWebSerial'
  * it. The service and characteristic were captured from a UV-5R Mini in
  * wireless CPS mode and confirmed by sending it its own identify magic; the
  * full 33,344-byte read followed on 2026-08-21, at about 928 B/s, and matches
- * the cable read on all 999 channel records. Writing over Bluetooth is still
- * deliberately not offered - read first, prove the round trip, then write.
+ * the cable read on all 999 channel records. The session will reconnect over
+ * Bluetooth for a write, and the UV-5R Mini driver refuses it there - the
+ * write gate shows why before the token is typed. Read first, prove the round
+ * trip, then turn it on.
  */
 
 export function bluetoothAvailable(): boolean {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { Diagnostic, IdentifyResult } from './driver.js'
 import type { RadioSchema } from './schema.js'
+import type { TransportKind } from '../transport/transport.js'
 
 /**
  * Everything that must be true before bytes go to a radio, decided in one pure
@@ -24,6 +25,7 @@ export type BlockerCode =
   | 'encode-failed'
   | 'unowned-bytes-changed'
   | 'validation-errors'
+  | 'transport-write-unverified'
 
 export interface Blocker {
   code: BlockerCode
@@ -74,6 +76,14 @@ export interface GateInput {
    * saying nothing at all.
    */
   documentDirty: boolean
+  /**
+   * What the session is connected by, or will reconnect by.
+   *
+   * The device store keeps the last carrier through a disconnect precisely so
+   * the write can reuse it; this is that value. Null when the caller does not
+   * know, in which case no transport check is made - the driver still refuses.
+   */
+  transport?: TransportKind | null
 }
 
 export interface GateResult {
@@ -90,6 +100,25 @@ export function evaluateWriteGate(input: GateInput): GateResult {
     blockers.push({
       code: 'write-unsupported',
       message: `Writing to the ${input.schema.model} is not enabled in this build.`,
+    })
+  }
+
+  /*
+   * The carrier. `writeTransports` is the schema's statement of which carriers
+   * the driver will write over; the UV-5R Mini's driver refuses Bluetooth for
+   * itself, and without this the gate said "allowed", the user typed the
+   * token, and the write threw in the driver. Read from the same fact the
+   * driver enforces so the two cannot disagree.
+   */
+  const writeOver = input.schema.capabilities.writeTransports ?? input.schema.capabilities.transports
+  if (input.transport && !writeOver.includes(input.transport)) {
+    const other = writeOver.length === 1 ? writeOver[0] : writeOver.join(' or ')
+    blockers.push({
+      code: 'transport-write-unverified',
+      message:
+        `Writing to the ${input.schema.model} over ${input.transport === 'bluetooth' ? 'Bluetooth' : input.transport} ` +
+        'has not been verified on a radio, so this build will not do it.',
+      remedy: `Connect over ${other === 'serial' ? 'the cable' : other} to write.`,
     })
   }
 

@@ -302,7 +302,8 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
 
       if (!schema.capabilities.write && !ctx.dryRun) {
         throw new WriteBlockedError(
-          `the ${schema.model}. The write path has not been verified against hardware in this build`,
+          `Writing the ${schema.model} is not enabled in this build: the write path has not been ` +
+            'verified against hardware.',
         )
       }
       if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('uvk5')

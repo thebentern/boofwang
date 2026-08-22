@@ -175,6 +175,7 @@ export function useRadioSession() {
       changedBytes: codeplug.pendingWrite?.changedBytes ?? 0,
       unownedRanges: codeplug.pendingWrite?.unowned ?? [],
       documentDirty: codeplug.dirty,
+      transport: device.lastKind,
     })
     if (!gate.allowed) {
       toast.add({

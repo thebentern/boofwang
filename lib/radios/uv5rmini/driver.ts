@@ -200,7 +200,9 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
 
     async writeImage(t: Transport, image: RadioImage, ctx: DriverCtx = {}): Promise<WriteReport> {
       if (image.radioId !== 'uv5rmini') throw new DriverError(`Not a UV-5R Mini image: ${image.radioId}`)
-      if (!schema.capabilities.write && !ctx.dryRun) throw new WriteBlockedError('the UV-5R Mini')
+      if (!schema.capabilities.write && !ctx.dryRun) {
+        throw new WriteBlockedError('Writing the UV-5R Mini is not enabled in this build.')
+      }
       if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('uv5rmini')
 
       /*
@@ -220,15 +222,17 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
        * one. So the refusal lives here rather than in the page that hides the
        * button, per the rule that the gate explains and the driver enforces.
        *
-       * Today nothing in the app can reach this: a read disconnects in its
-       * `finally`, so the write path reconnects over Web Serial. That is one
-       * removed `finally` away from being false, which is the kind of thing a
-       * guard is for.
+       * The app reaches this. A read disconnects in its `finally` but the
+       * session remembers it was on Bluetooth and reconnects the same way for
+       * the write - so without this guard the upload would have gone out. The
+       * write gate reads `capabilities.writeTransports` and says "Blocked"
+       * before anyone types a token; this is the enforcement behind that.
        */
       if (!ctx.dryRun && t.kind === 'bluetooth' && !options.allowBluetoothWrite) {
         throw new WriteBlockedError(
-          'Bluetooth. Reading over Bluetooth is proven; writing is not, and this radio erases a whole ' +
-            'flash page per block. Use the cable to write.',
+          'This radio cannot be written over Bluetooth yet. Reading over Bluetooth is proven; writing ' +
+            'is not, and the UV-5R Mini erases a whole flash page per block, so a link that drops ' +
+            'halfway leaves a wiped radio rather than a half-written one. Use the cable to write.',
         )
       }
 
@@ -238,7 +242,9 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
       const ident = ctx.ident ?? (await driver.identify(t, ctx))
       if (ctx.backup && ctx.backup.identHash !== ident.identHash) throw new BackupRequiredError('uv5rmini')
       if (!ctx.dryRun && !ident.caps.write) {
-        throw new WriteBlockedError(ident.caps.reason ?? `firmware ${ident.variant}`)
+        throw new WriteBlockedError(
+          ident.caps.reason ?? `This build does not write firmware ${ident.variant}.`,
+        )
       }
 
       const variant = variantOf(image.layout)

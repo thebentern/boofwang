@@ -170,3 +170,55 @@ describe('edits that this radio cannot write', () => {
     expect(codes(ok({ schema: SCOPED, changedBytes: 9, documentDirty: true }))).not.toContain('edits-not-writable')
   })
 })
+
+/**
+ * The carrier, which the gate used to know nothing about.
+ *
+ * Two changes landed on the same day from different hands: one taught the app
+ * to reconnect over Bluetooth and offer the write, the other taught the UV-5R
+ * Mini driver to refuse one. The gate - whose whole job is to explain what the
+ * driver will enforce - said "allowed", the user typed WRITE, and the driver
+ * threw. This is the assertion that makes the two halves read one fact.
+ */
+describe('the carrier the session is on', () => {
+  const BLE_SCHEMA = {
+    ...WRITABLE_SCHEMA,
+    capabilities: {
+      ...WRITABLE_SCHEMA.capabilities,
+      transports: ['serial', 'bluetooth'] as const,
+      writeTransports: ['serial'] as const,
+    },
+  }
+
+  it('blocks a write over a carrier the driver will not write over', () => {
+    const r = evaluateWriteGate(ok({ schema: BLE_SCHEMA, transport: 'bluetooth' }))
+    expect(r.allowed).toBe(false)
+    expect(r.blockers.map((b) => b.code)).toContain('transport-write-unverified')
+    const b = r.blockers.find((x) => x.code === 'transport-write-unverified')!
+    expect(b.message).toMatch(/Bluetooth/)
+    expect(b.remedy).toMatch(/cable/)
+  })
+
+  it('allows the same write over the cable', () => {
+    expect(codes(ok({ schema: BLE_SCHEMA, transport: 'serial' }))).not.toContain('transport-write-unverified')
+  })
+
+  it('does not block when the schema writes over every carrier it reads over', () => {
+    // writeTransports omitted means "every carrier in transports".
+    const both = { ...WRITABLE_SCHEMA, capabilities: { ...WRITABLE_SCHEMA.capabilities, transports: ['serial', 'bluetooth'] as const } }
+    expect(codes(ok({ schema: both, transport: 'bluetooth' }))).not.toContain('transport-write-unverified')
+  })
+
+  it('makes no transport claim when the caller does not know the carrier', () => {
+    // The driver still refuses; the gate just has nothing to explain yet.
+    expect(codes(ok({ schema: BLE_SCHEMA, transport: null }))).not.toContain('transport-write-unverified')
+    expect(codes(ok({ schema: BLE_SCHEMA }))).not.toContain('transport-write-unverified')
+  })
+
+  it('is the same fact the UV-5R Mini driver enforces', async () => {
+    // Not a copy of the driver's rule - the schema the driver is built from.
+    const { UV5RMINI_SCHEMA } = await import('#core/radios/uv5rmini/schema.js')
+    expect(UV5RMINI_SCHEMA.capabilities.transports).toContain('bluetooth')
+    expect(UV5RMINI_SCHEMA.capabilities.writeTransports).toEqual(['serial'])
+  })
+})

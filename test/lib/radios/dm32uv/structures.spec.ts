@@ -1848,3 +1848,79 @@ describe('where a key of each type lands in the 32-byte field', () => {
     expect(equalBytes(page(d.encode(doc, img), KEY_BLOCK), data)).toBe(true)
   })
 })
+
+describe('a deleted channel takes its talk group with it', () => {
+  /*
+   * Block 0x42 holds a two-byte talk-group entry per channel, beside the
+   * record rather than inside it. `encodeTxContacts` walked the channels in
+   * the document, so a deleted channel's entry was never touched - and the next
+   * channel placed in that slot with no talk group of its own inherited it.
+   * Every placement path but the editor places channels that way:
+   * `createChannel`, preset staging, CSV import, the repeater directories.
+   *
+   * The diff cannot show it, because block 0x42 is byte-identical before and
+   * after. A DMR channel keying up on a talk group the user never chose is the
+   * failure this file exists to prevent.
+   */
+  const SLOT = 28 // "TAC 1", talk group 4, on the fixture
+
+  it('starts from a slot that has a talk group', () => {
+    const ch = d.decode(image()).channels.get(SLOT)!
+    expect(ch.name).toBe('TAC 1')
+    expect(ch.extras.vendor?.txContact).toBe('4')
+  })
+
+  it('clears the 0x42 entry when the record is erased', () => {
+    const img = image()
+    const doc = d.decode(img)
+    doc.channels.delete(SLOT)
+    const out = d.encode(doc, img)
+    const at = txContactSlot(SLOT)!
+    const data = page(out, at.blockId)
+    expect(decodeTxContact(data[at.offset]!, data[at.offset + 1]!).slot).toBe(0)
+  })
+
+  it('does not hand the talk group to the next occupant of the slot', () => {
+    const img = image()
+    const doc = d.decode(img)
+    const was = doc.channels.get(SLOT)!
+    doc.channels.delete(SLOT)
+    const afterDelete = d.encode(doc, img)
+
+    // A fresh channel with no talk group, the way createChannel places one.
+    const doc2 = d.decode(afterDelete)
+    doc2.channels.set(SLOT, { ...was, name: 'NEW', extras: { vendor: {} } })
+    const back = d.decode(d.encode(doc2, afterDelete)).channels.get(SLOT)!
+    expect(back.name).toBe('NEW')
+    expect(back.extras.vendor?.txContact).toBeUndefined()
+  })
+
+  it('treats a present channel with no talk group as none, not as leave-alone', () => {
+    // Even without a delete in between: overwrite the slot directly with a
+    // channel that carries no txContact, as a CSV import into an occupied slot
+    // would. The old entry must not survive underneath.
+    const img = image()
+    const doc = d.decode(img)
+    const was = doc.channels.get(SLOT)!
+    doc.channels.set(SLOT, { ...was, extras: { vendor: {} } })
+    const back = d.decode(d.encode(doc, img)).channels.get(SLOT)!
+    expect(back.extras.vendor?.txContact).toBeUndefined()
+  })
+
+  it('keeps the undecoded bits of the entry when clearing it', () => {
+    // Bits 3-1 of byte 0 carry data in the OEM capture and are preserved on
+    // every other write; clearing must not be the one place they are zeroed.
+    const img = image()
+    const at = txContactSlot(SLOT)!
+    page(img, at.blockId)[at.offset] = 0x0e | 0x01 // bits 3-1 set, digital
+    const doc = d.decode(img)
+    doc.channels.delete(SLOT)
+    const out = page(d.encode(doc, img), at.blockId)
+    expect(out[at.offset]! & 0b1110).toBe(0b1110)
+  })
+
+  it('still round-trips the fixture untouched', () => {
+    const img = image()
+    expect(equalBytes(page(d.encode(d.decode(img), img), 0x42), page(img, 0x42))).toBe(true)
+  })
+})

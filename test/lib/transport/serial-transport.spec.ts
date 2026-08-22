@@ -384,3 +384,57 @@ describe('desync fails reads that were already queued', () => {
     await t.close()
   })
 })
+
+/**
+ * Failing to open must not leave the port open.
+ *
+ * `open()` called `port.open()` and then `port.setSignals()` before its state
+ * became 'open', so a throw from setSignals left state at 'closed' - and
+ * `close()` returns on its first line in that state, so nothing ever closed the
+ * port that `port.open()` had just opened. Every driver passes signals, so the
+ * path was live on every connect. Web Serial hands back the same SerialPort for
+ * a grant and refuses to re-open one that is open, which turned one transient
+ * failure into a cable that was dead until reload.
+ */
+describe('a failed open does not leak the port', () => {
+  class SignalsThrow extends FakeSerialPort {
+    override async setSignals(): Promise<void> {
+      throw new Error('the adapter refused the signal lines')
+    }
+  }
+
+  it('closes the port when setSignals throws', async () => {
+    const port = new SignalsThrow()
+    const t = new SerialTransport(port)
+    await expect(t.open({ baudRate: 9600, signals: { dataTerminalReady: true } })).rejects.toThrow(/signal lines/)
+    expect(port.closed, 'port.open() succeeded and nothing closed it').toBe(true)
+  })
+
+  it('can be opened again afterwards', async () => {
+    // The consequence that matters: the next attempt must not meet a port that
+    // is still open underneath.
+    const port = new SignalsThrow()
+    const t = new SerialTransport(port)
+    await t.open({ baudRate: 9600, signals: { dataTerminalReady: true } }).catch(() => {})
+    expect(port.openCount).toBe(1)
+    expect(port.closed).toBe(true)
+    // A second, signal-less open on a fresh transport over the same port works.
+    const again = new SerialTransport(port)
+    await expect(again.open({ baudRate: 9600 })).resolves.toBeUndefined()
+    await again.close()
+  })
+
+  it('does not touch the port when open itself throws', async () => {
+    // If port.open() never succeeded there is nothing to close; a close call
+    // here would be a double-close on a port that is not ours.
+    class OpenThrows extends FakeSerialPort {
+      override async open(): Promise<void> {
+        throw new Error('no such device')
+      }
+    }
+    const port = new OpenThrows()
+    const t = new SerialTransport(port)
+    await expect(t.open({ baudRate: 9600 })).rejects.toThrow(/no such device/)
+    expect(port.closed).toBe(false)
+  })
+})

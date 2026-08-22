@@ -120,10 +120,20 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
   /*
    * The only radio here with a Bluetooth profile anybody has read off
    * hardware. A whole codeplug came back over it on 2026-08-21 - 33,344
-   * bytes, matching the cable read on all 999 channel records - and writing
-   * over it is still not offered. See docs/protocols/uv5rmini.md.
+   * bytes, matching the cable read on all 999 channel records. Writing over
+   * it is reachable, refused by the driver, and explained by the write gate
+   * through `writeTransports` below. See docs/protocols/uv5rmini.md.
    */
-  capabilities: { read: true, write: false, transports: ['serial', 'bluetooth'] },
+  capabilities: {
+    read: true,
+    write: false,
+    transports: ['serial', 'bluetooth'],
+    // Reading over Bluetooth is verified; writing over it is not, and this
+    // radio erases a whole flash page per block. The driver refuses the same
+    // thing - see `allowBluetoothWrite` - and this is what lets the gate say so
+    // before anyone types a confirmation for a write that will not happen.
+    writeTransports: ['serial'],
+  },
 
   memory: {
     // The larger of the two: the UV-5R Mini has 999, the 5RM 1000.

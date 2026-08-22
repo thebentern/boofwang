@@ -247,7 +247,9 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
 
     async writeImage(t: Transport, image: RadioImage, ctx: DriverCtx = {}): Promise<WriteReport> {
       if (image.radioId !== 'uv82') throw new DriverError(`Not a UV-82 image: ${image.radioId}`)
-      if (!schema.capabilities.write && !ctx.dryRun) throw new WriteBlockedError('the UV-82')
+      if (!schema.capabilities.write && !ctx.dryRun) {
+        throw new WriteBlockedError('Writing the UV-82 is not enabled in this build.')
+      }
       if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('uv82')
 
       const timeoutMs = ctx.readTimeoutMs ?? DEFAULT_DRIVER_TIMEOUT_MS
@@ -262,7 +264,9 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
       const ident = ctx.ident ?? (await driver.identify(t, ctx))
       if (ctx.backup && ctx.backup.identHash !== ident.identHash) throw new BackupRequiredError('uv82')
       if (!ctx.dryRun && !ident.caps.write) {
-        throw new WriteBlockedError(ident.caps.reason ?? `firmware ${ident.variant}`)
+        throw new WriteBlockedError(
+          ident.caps.reason ?? `This build does not write firmware ${ident.variant}.`,
+        )
       }
 
       /*

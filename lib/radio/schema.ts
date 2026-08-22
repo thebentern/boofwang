@@ -105,6 +105,19 @@ export interface RadioSchema {
      * radio has a BLE module in it.
      */
     readonly transports: readonly TransportKind[]
+    /**
+     * Which of those carriers the driver will WRITE over.
+     *
+     * A subset of `transports`, and it exists because the two halves of the
+     * write path disagreed about it for a day: one change taught the app to
+     * reconnect over Bluetooth and offer the write, another taught the UV-5R
+     * Mini driver to refuse one, and neither knew about the other - so the
+     * write gate said allowed, the user typed WRITE, and the driver threw. The
+     * gate explains and the driver enforces, and this is the single fact both
+     * read so they cannot disagree again. Omitted means every carrier in
+     * `transports`.
+     */
+    readonly writeTransports?: readonly TransportKind[]
     /** Non-empty when writing needs an explicit per-feature unlock. */
     readonly writeRequiresUnlock?: string
     /**

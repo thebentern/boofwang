@@ -82,8 +82,23 @@ export class SerialTransport implements Transport {
     this.#opts = opts
     await this.#port.open(opts)
 
-    if (opts.signals && this.#port.setSignals) {
-      await this.#port.setSignals(opts.signals)
+    /*
+     * From here until state becomes 'open', a throw leaks the port: `close()`
+     * returns on its first line while state is still 'closed', so nothing
+     * closes what `port.open()` just opened. Web Serial hands back the same
+     * SerialPort object for a grant and refuses to re-open one that is already
+     * open, so one transient failure here - and `setSignals` is where it would
+     * come from, since every driver passes signals - made the cable unusable
+     * until a reload. Over Bluetooth it left the radio captured in its wireless
+     * programming mode by a tab that had given up on it.
+     */
+    try {
+      if (opts.signals && this.#port.setSignals) {
+        await this.#port.setSignals(opts.signals)
+      }
+    } catch (e) {
+      await this.#port.close().catch(() => {})
+      throw e
     }
 
     const readable = this.#port.readable

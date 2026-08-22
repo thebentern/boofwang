@@ -52,6 +52,7 @@ const gate = computed(() => {
     changedBytes: pending?.changedBytes ?? 0,
     unownedRanges: pending?.unowned ?? [],
     documentDirty: codeplug.dirty,
+    transport: device.lastKind,
   })
 })
 
