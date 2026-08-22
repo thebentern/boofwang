@@ -112,21 +112,6 @@ earlier — so the fault was at the plug rather than the adapter. The 2.5 mm
 connector was not fully seated. Reseating it fixed it, and the wire-level echo
 test is what distinguished "the plug is not in" from "the firmware is wrong".
 
-## Not verified
-
-- Writing. `writeImage` and `encode` throw.
-- The `5RM` variant. Its ident, region map, channel count and power table are
-  transcribed from CHIRP and exercised by unit tests, but no `5RM` has been on
-  the cable — only the UV-5R Mini.
-- Tones, repeater shifts and named channels on real hardware: this unit is
-  factory default, so every channel is simplex, unnamed and tone-less. Those
-  paths are covered by synthesised records cross-checked against CHIRP.
-- Anything outside the channel array. Settings, VFOs and the two small tail
-  regions are read and preserved but not decoded.
-- **Bluetooth, in its entirety.** The 0x80 upload block and the 0xFF padding are
-  transcribed from CHIRP and exercised by unit tests against a fake GATT link,
-  and no radio has ever been on the far end of one.
-
 ## Writing
 
 **This radio cannot take a sparse write.** It erases a flash page before
@@ -239,6 +224,10 @@ The radio was restored to `0b029cf2...` byte for byte afterwards.
   was verified on hardware: 24 bytes changed, all inside the slot, and CHIRP
   read back `scramble 0, fhss 0, sqmode 0, bcl 0` with the four unknown bytes
   clear - the erased-flash bits are cleared rather than inherited.
+- Anything outside the channel array and the settings block: the two VFO entries
+  at image `0x8000` and `0x8020`, the ANI and PTT-ID region at `0xA000`, and the
+  gap before `0x8000`. All are read and preserved, none is decoded, and
+  `ownedRanges` claims none of them. See below.
 
 ## The rest of the image
 

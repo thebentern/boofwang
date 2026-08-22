@@ -221,8 +221,6 @@ to be caught by comparing the reply against what was just sent.
 
 ## Not yet verified on hardware
 
-- **Writing anything.** `writeImage` and `encode` deliberately throw. Nothing
-  has been sent to a radio beyond hello and read commands.
 - DTCS tones, cross tone modes, split duplex, and the transmit-inhibit encoding
   (minus shift with the offset equal to the receive frequency). The test radio
   had none of these programmed, so they rest on synthetic fixtures and on

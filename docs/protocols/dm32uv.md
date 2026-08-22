@@ -1093,6 +1093,12 @@ before reading them, and having never read them there would have been no way to
 tell erased-by-you from erased-at-the-factory.
 
 Verified sequence, twice: 38 pages out, 38 pages read back, every page matching.
+That also answers what this region needs that the codeplug write does not:
+nothing. Chunks go out back to back with no gap, exactly as the codeplug writer
+sends them, and no OEM read-mode sequence precedes them. The reference has an
+`enterBootImageReadMode()` - a 5-byte `47 00 01 00 00` that matches no capture,
+has no caller there, and is documented as possibly rebooting the radio. It is
+not copied here, and the region reads and writes without it.
 
 **Uploading a picture is not enough to see one.** The radio has a
 `powerOnInterface` setting - 0 Picture, 1 Custom message, 2 Battery voltage -
@@ -1109,21 +1115,11 @@ remains in the file, unused and unverified, for a radio that some day reports a
 region that is not a whole number of pages.
 
 ## Not verified
-- **The 2,048-byte short write.** Not needed and so not tried: the region is a
-  whole number of 4 KiB pages, so `writeBootImageRegion` sends 38 confirmed page
-  writes. `writeBootImageTail` is retained, unused, for a radio that reports a
-  region that is not.
 - **The 2,048-byte write, `57 <addr:3 LE> 00 08 <2048 bytes>`.** Still `DERIVED`
-  and still untried, because it turned out to be avoidable: the region is 38
-  whole pages, so the confirmed 4 KiB form covers all of it.
+  and still untried, because it turned out to be avoidable: the boot image
+  region is 38 whole 4 KiB pages, so the confirmed page form covers all of it.
   `writeBootImageTail()` emits the frame and its test pins the bytes; whether
-  the radio would ACK it is unknown and no longer needs to be.
-- **Whether writing this region needs anything the codeplug write does not** —
-  an OEM read-mode sequence, or a gap between chunks. The reference's
-  `enterBootImageReadMode()` is a 5-byte `47 00 01 00 00` that matches no
-  capture, has no caller, and is documented as possibly rebooting the radio; it
-  is not copied here and not used. Chunks are written back to back, matching the
-  codeplug writer, which does the same and is hardware-verified.
+  the radio would ACK it is unknown and no longer needs to be. See above.
 - **Growing the address book past the pages that were read.** One spare page is
   brought back, so up to 44 contacts can be added; beyond that the write is
   refused by name rather than truncating. Reading the whole 4.4 MiB region to
@@ -1140,9 +1136,6 @@ region that is not a whole number of pages.
   in block `0x06`, neither decoded — and neither decodable from this radio: the
   first is 608 bytes holding exactly one non-zero byte, and the second is six
   bytes with no structure to infer.
-- **Hardware-writing block `0x43`'s channel records.** Unit-verified against
-  this radio's image; see above for why they are not exercised on the radio
-  itself. Its VFO slots are hardware-verified.
 - The meaning of 22 allocated blocks — twice attempted, and now positively
   characterised as not-codeplug rather than merely unread. See above.
 - **What the two block 0x03 reference fields point at.** Five pairs from four
