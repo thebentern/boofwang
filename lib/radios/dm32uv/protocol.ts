@@ -189,6 +189,19 @@ async function finishHandshake(t: Transport, model: string, opts?: ReadOpts): Pr
  * 0x0D, which returns nothing unless asked for 0x40 bytes.
  */
 export async function vframe(t: Transport, id: number, hint = 0x00, opts?: ReadOpts): Promise<Uint8Array> {
+  /*
+   * Drain first, like every other step that speaks to this radio.
+   *
+   * The handshake drains around its own steps, so the five V-frames read
+   * immediately after it were always safe. The startup-image range is not read
+   * then - it is read when someone presses the button, which can be minutes
+   * later, by which time the radio has emitted several `90 fe 98 fe`
+   * heartbeats. `readExactly(3)` then returns `90 fe 98` and the frame is
+   * rejected for a bad header, which is exactly what it looks like from the
+   * outside: reading and writing the picture both fail on a radio that is
+   * working perfectly.
+   */
+  await t.resync(120, { timeoutMs: 1500, ...(opts?.signal ? { signal: opts.signal } : {}) }).catch(() => {})
   await t.write(Uint8Array.from([0x56, 0x00, 0x00, hint, id]), opts)
   await delay(STEP_DELAY_MS, opts?.signal)
   const header = await t.readExactly(3, opts)
