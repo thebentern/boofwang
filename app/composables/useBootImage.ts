@@ -214,8 +214,9 @@ export function useBootImage() {
     }
     const held = backup.value
     if (!held) {
-      // Not a nag. There is genuinely no other copy of what is about to be
-      // overwritten, anywhere.
+      // Said here so the person gets a warning toast rather than a thrown
+      // error; the refusal itself is in `writeBootImageRegion`, which will
+      // not write without the held region whatever this function does.
       toast.add({
         title: 'Read the radio first',
         description:
@@ -238,7 +239,7 @@ export function useBootImage() {
           `This radio reports a ${range.end - range.start + 1}-byte region and the backup is ${region.length}.`,
         )
       }
-      await writeBootImageRegion(t, range, region, {
+      await writeBootImageRegion(t, range, region, held, {
         signal,
         progress: (done, total) =>
           transfer.report({ phase: done <= total / 2 ? 'write' : 'verify', done, total, label: 'Startup picture' }),

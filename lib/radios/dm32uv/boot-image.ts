@@ -283,9 +283,34 @@ export async function writeBootImageRegion(
   t: Transport,
   range: { start: number; end: number },
   region: Uint8Array,
+  held: Uint8Array | null | undefined,
   opts?: BootImageOpts,
 ): Promise<void> {
   const expected = range.end - range.start + 1
+
+  /*
+   * Refuse without the region that is about to be overwritten.
+   *
+   * This is the rule the project holds every codeplug write to - `writeImage`
+   * throws BackupRequiredError before any I/O - and it lived one layer up, in
+   * the composable, where anything that imports this function could skip it.
+   * It matters more here than anywhere: the factory splash is in no `.bwp`, no
+   * stored backup and no fixture, so the copy read before the first write is
+   * the only one that will ever exist. The gate explains; the driver enforces.
+   */
+  if (!held) {
+    throw new ProtocolError(
+      'The startup picture on the radio has not been read, so it cannot be replaced. ' +
+        'Nothing else boofwang stores contains it.',
+    )
+  }
+  if (held.length !== expected) {
+    throw new ProtocolError(
+      'The startup picture held as the way back does not match the region the radio reports',
+      `${expected} bytes`,
+      `${held.length} bytes`,
+    )
+  }
   if (region.length !== expected) {
     throw new ProtocolError(
       `This radio's startup-image region is ${expected} bytes; got ${region.length}`,

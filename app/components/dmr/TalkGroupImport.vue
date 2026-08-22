@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import type { TalkGroupRecord } from '#core/data/source.js'
+import { sourceById } from '#core/data/registry.js'
+
+const source = sourceById('brandmeister')
 
 /**
  * Bringing talk groups in from a directory.
@@ -108,7 +111,7 @@ function apply() {
     <RiskAction
       risk="neutral" ghost size="sm"
       :icon="loading ? 'i-lucide-loader-circle' : 'i-lucide-download'"
-      :label="loading ? 'Fetching' : 'Import'"
+      :label="loading ? 'Fetching from BrandMeister' : 'Import from BrandMeister'"
       :disabled="loading"
       @click="open ? (open = false) : fetchAll()"
     />
@@ -133,6 +136,16 @@ function apply() {
           {{ matching.length }} of {{ fetched.length }}
         </span>
       </div>
+
+      <!--
+        Said where the data is, as the repeaters page does. `lib/data/source.ts`
+        promises attribution "wherever data from this source is displayed", and
+        this list named BrandMeister only in its failure toast.
+      -->
+      <p v-if="source" style="margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: var(--mu)">
+        <span class="label-xs" style="color: var(--fn)">Source</span>
+        {{ source.attribution }} · {{ source.licence }}
+      </p>
 
       <div style="max-height: 260px; overflow-y: auto">
         <label

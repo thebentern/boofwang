@@ -153,14 +153,14 @@ async function send() {
                 label="Download it"
                 @click="downloadCurrent"
               />
-              <RiskAction
+              <ConfirmTyped
                 v-if="boot.backup.value"
-                risk="caution"
-                ghost
-                icon="i-lucide-undo-2"
+                token="RESTORE"
                 label="Put it back on the radio"
+                risk="caution"
+                icon="i-lucide-undo-2"
                 :disabled="boot.busy.value"
-                @click="boot.restore()"
+                @confirm="boot.restore()"
               />
             </div>
           </div>
@@ -208,15 +208,27 @@ async function send() {
         </div>
         <BootImageEditor @picture="staged = $event" />
 
-        <div class="mt-4 flex flex-wrap items-center" style="gap: 8px">
-          <RiskAction
+        <!--
+          Destructive, per the risk register: this discards the picture on the
+          radio now, which no backup boofwang takes anywhere else covers, so the
+          confirmation names that and asks for the word. A plain button here was
+          the one write in the application that did not.
+        -->
+        <div class="mt-4">
+          <p v-if="staged && boot.backup.value" style="margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--mu); max-width: 70ch">
+            This replaces the picture the radio shows when it starts. The one it has now was read at
+            the top of this page and is the only copy - keep that download if you might want it back.
+          </p>
+          <ConfirmTyped
+            v-if="staged && boot.backup.value"
+            token="REPLACE"
+            label="Write it to the radio"
             risk="destructive"
             icon="i-lucide-upload"
-            label="Write it to the radio"
-            :disabled="!staged || boot.busy.value || !boot.backup.value"
-            @click="send"
+            :disabled="boot.busy.value"
+            @confirm="send"
           />
-          <span v-if="!boot.backup.value" style="font-size: 13px; color: var(--fn)">
+          <span v-else-if="!boot.backup.value" style="font-size: 13px; color: var(--fn)">
             Read the radio first, so there is a way back.
           </span>
         </div>

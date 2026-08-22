@@ -144,8 +144,23 @@ export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}
     throw e
   }
 
+  // Granted only once the link has proved the service is there. Assigning it
+  // first meant a non-radio picked in the chooser was "granted" for the rest
+  // of the session, and every later write tried to reconnect to it.
+  const choice = await linkTo(device, profile)
   granted = device
-  return await linkTo(device, profile)
+  return choice
+}
+
+/**
+ * Drop the remembered grant, so the next Bluetooth write opens the chooser.
+ *
+ * For a reconnect that was refused - the radio is off, out of range, or was
+ * never a radio. The grant is still held by the browser; this only stops
+ * boofwang reaching for it first.
+ */
+export function forgetBluetoothGrant(): void {
+  granted = null
 }
 
 /**

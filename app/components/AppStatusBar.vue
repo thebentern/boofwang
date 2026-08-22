@@ -83,21 +83,28 @@ const hint = computed(() => {
     is open, whether there are unwritten edits, whether a way back exists - and
     all four are stale the moment the page leaves the screen.
   -->
+  <!--
+    Wraps. At 375px the single 36px row measured 659px wide and the document
+    scrolled sideways, with undo and "Write to radio" off the right edge - on
+    the phone that is the one place the Bluetooth flow is meant to run.
+    `min-height` instead of `height` lets a second row exist; the segments keep
+    their own height so the single-row case looks exactly as it did.
+  -->
   <div
     v-if="codeplug.isOpen"
     class="flex items-center flex-wrap print-hide"
-    style="height: 36px; background: var(--pn2); border-bottom: 1px solid var(--ln)"
+    style="min-height: 36px; background: var(--pn2); border-bottom: 1px solid var(--ln)"
   >
-    <div class="mx-auto w-full max-w-[1400px] px-4 flex items-center gap-0 h-full">
+    <div class="mx-auto w-full max-w-[1400px] px-4 flex items-center flex-wrap gap-y-1" style="min-height: 36px">
       <!-- Radio -->
-      <div class="flex items-center gap-2 pe-3.5 h-full" style="border-right: 1px solid var(--ln)">
+      <div class="flex items-center gap-2 pe-3.5" style="height: 36px; border-right: 1px solid var(--ln)">
         <UIcon name="i-lucide-radio" class="size-3.5 shrink-0" style="color: var(--fn)" />
         <span style="font-size: 14px; font-weight: 600; color: var(--tx)">{{ radioName }}</span>
         <span v-if="firmware" class="font-mono tabular" style="font-size: 12.5px; color: var(--fn)">{{ firmware }}</span>
       </div>
 
       <!-- Edits -->
-      <div class="flex items-center gap-2 px-3.5 h-full" style="border-right: 1px solid var(--ln)">
+      <div class="flex items-center gap-2 px-3.5" style="height: 36px; border-right: 1px solid var(--ln)">
         <span class="label-xs">Edits</span>
         <span
           class="chip"
@@ -108,7 +115,7 @@ const hint = computed(() => {
       </div>
 
       <!-- Way back -->
-      <div class="flex items-center gap-2 px-3.5 h-full" style="border-right: 1px solid var(--ln)">
+      <div class="flex items-center gap-2 px-3.5" style="height: 36px; border-right: 1px solid var(--ln)">
         <span class="label-xs">Way back</span>
         <span
           v-if="backupPending"

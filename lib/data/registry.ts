@@ -22,8 +22,9 @@ const BRANDMEISTER: DataSource = {
   name: 'BrandMeister',
   attribution: 'BrandMeister DMR network',
   licence:
-    'No published data licence. The API is open and needs no account, and boofwang asks it only for '
-    + 'what you search for.',
+    'No published data licence. The API is open and needs no account. boofwang fetches its whole '
+    + 'repeater list once per session, around 10 MB, and searches it in your browser; what you search '
+    + 'for never leaves the browser.',
   homepage: 'https://brandmeister.network/',
   enabled: true,
   // Its API reflects the requesting origin, so a browser can reach it directly.

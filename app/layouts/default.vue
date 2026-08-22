@@ -32,6 +32,12 @@ const activePath = computed(() => {
   return p
 })
 
+/** The same links, for the small-screen menu. `onSelect` navigates in-app. */
+const smallNav = computed(() =>
+  nav.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => navigateTo(item.to) })),
+)
+const currentLabel = computed(() => nav.find((n) => n.to === activePath.value)?.label ?? 'Menu')
+
 const colorMode = useColorMode()
 const isDark = computed(() => colorMode.value === 'dark')
 </script>
@@ -44,6 +50,26 @@ const isDark = computed(() => colorMode.value === 'dark')
           <UIcon name="i-lucide-radio-tower" style="width: 15px; height: 15px; color: var(--ac)" />
           <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">boofwa.ng</span>
         </NuxtLink>
+
+        <!--
+          Below the sm breakpoint the nav was display:none with nothing in its
+          place, so on a phone - the one place the UV-5R Mini Bluetooth flow is
+          meant to run - Presets, Zones, Keys and Settings had no inbound link
+          anywhere and the user who had just read a radio could not leave the
+          channel table. A menu with the same items, same order.
+        -->
+        <UDropdownMenu :items="smallNav" :ui="{ content: 'w-52' }" class="sm:hidden">
+          <button
+            type="button"
+            class="flex items-center gap-1.5 rounded-[5px] px-2"
+            style="height: 28px; font-size: 14px; color: var(--tx); border: 1px solid var(--ln2); background: var(--pn)"
+            aria-label="Open navigation"
+          >
+            <UIcon name="i-lucide-menu" style="width: 15px; height: 15px" />
+            <span style="font-weight: 600">{{ currentLabel }}</span>
+            <UIcon name="i-lucide-chevron-down" style="width: 13px; height: 13px; color: var(--fn)" />
+          </button>
+        </UDropdownMenu>
 
         <nav class="hidden sm:flex items-center gap-0.5">
           <NuxtLink

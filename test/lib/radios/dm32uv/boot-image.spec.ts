@@ -301,6 +301,14 @@ describe('writeBootImage', () => {
  * factory picture cannot be rebuilt from anything - and the only copy that will
  * ever exist is the one read before the first write. A route to the radio that
  * skips that read is a one-way door with no handle on the other side.
+ *
+ * The rule used to live only in the composable. It is enforced in
+ * `writeBootImageRegion` now - the function takes the held region and throws
+ * without it, the way `writeImage` throws BackupRequiredError - and what the
+ * composable keeps is the explanation: a warning toast instead of a thrown
+ * error. The gate explains; the driver enforces. The checks below on the
+ * composable are about that explanation still being in place, not about it
+ * being the thing that keeps the radio safe.
  */
 describe('the way to the radio goes through the backup rule', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url))
@@ -337,9 +345,10 @@ describe('the way to the radio goes through the backup rule', () => {
     expect(importers().map((f) => f.slice(root.length))).toEqual(['app/composables/useBootImage.ts'])
   })
 
-  it('refuses to write when nothing has been read', () => {
-    // A source check, because there is no Vue harness in this suite and what is
-    // being guarded is that the branch exists at all.
+  it('explains, before the driver refuses, when nothing has been read', () => {
+    // A source check, because there is no Vue harness in this suite. This is
+    // the explaining half; the enforcing half is tested against a fake radio
+    // in the describe below, and is what actually stops the write.
     const text = readFileSync(GATEKEEPER, 'utf8')
     const write = text.slice(text.indexOf('async function writeToRadio'))
     const body = write.slice(0, write.indexOf('\n  }') + 1)
@@ -363,6 +372,45 @@ describe('the way to the radio goes through the backup rule', () => {
     expect(resolves(join(root, 'app/pages/dmr.vue'), '#core/radios/dm32uv/boot-image.js')).toBe(true)
     expect(resolves(driver, './protocol.js')).toBe(false)
     expect(resolves(join(root, 'app/x.vue'), '#core/io/boot-image.js')).toBe(false)
+  })
+})
+
+/**
+ * The enforcing half, against a fake radio.
+ *
+ * `writeBootImageRegion` will not write without the region that is about to be
+ * overwritten. This is in lib, where anything that imports the function meets
+ * it - the composable's toast can be bypassed by the next caller, this cannot.
+ */
+describe('writeBootImageRegion refuses without the picture it is replacing', () => {
+  const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_END }
+
+  it('throws before any frame goes out when nothing is held', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    await expect(writeBootImageRegion(t, range, pattern(REGION_SIZE), null)).rejects.toThrow(/has not been read/)
+    await expect(writeBootImageRegion(t, range, pattern(REGION_SIZE), undefined)).rejects.toThrow(/has not been read/)
+    expect(radio.writes, 'a frame was sent before the refusal').toEqual([])
+    await t.close()
+  })
+
+  it('throws when the held region is not the size the radio reports', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    await expect(
+      writeBootImageRegion(t, range, pattern(REGION_SIZE), new Uint8Array(REGION_SIZE - 4096)),
+    ).rejects.toThrow(/does not match the region/)
+    expect(radio.writes).toEqual([])
+    await t.close()
+  })
+
+  it('writes when the held region is present and the right size', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const want = pattern(REGION_SIZE)
+    await writeBootImageRegion(t, range, want, new Uint8Array(REGION_SIZE).fill(0xff))
+    expect(radio.writes).toHaveLength(REGION_SIZE / PAGE_SIZE)
+    await t.close()
   })
 })
 
@@ -411,7 +459,7 @@ describe('a startup-image write cannot leave its region', () => {
     // to fire before any frame goes on the wire.
     const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_START + PAGE_SIZE - 1 }
     await expect(
-      writeBootImageRegion(t, range, new Uint8Array(REGION_SIZE).fill(0xab)),
+      writeBootImageRegion(t, range, new Uint8Array(REGION_SIZE).fill(0xab), new Uint8Array(REGION_SIZE).fill(0xab)),
     ).rejects.toThrow(ProtocolError)
     await t.close()
   })
@@ -420,7 +468,7 @@ describe('a startup-image write cannot leave its region', () => {
     const radio = fakeRadio()
     const t = await connect(radio)
     const range = { start: BOOT_IMAGE_REGION_START + 1, end: BOOT_IMAGE_REGION_START + REGION_SIZE }
-    await expect(writeBootImageRegion(t, range, new Uint8Array(REGION_SIZE))).rejects.toThrow(ProtocolError)
+    await expect(writeBootImageRegion(t, range, new Uint8Array(REGION_SIZE), new Uint8Array(REGION_SIZE))).rejects.toThrow(ProtocolError)
     expect(radio.writes, 'a frame went out before the check').toEqual([])
     await t.close()
   })
@@ -438,7 +486,7 @@ describe('writing the whole region', () => {
     const want = pattern(REGION_SIZE)
     const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_END }
 
-    await writeBootImageRegion(t, range, want)
+    await writeBootImageRegion(t, range, want, want)
 
     expect(radio.writes).toHaveLength(REGION_SIZE / PAGE_SIZE)
     expect(radio.writes.every((w) => w.length === PAGE_SIZE)).toBe(true)
@@ -454,7 +502,7 @@ describe('writing the whole region', () => {
     const radio = fakeRadio()
     const t = await connect(radio)
     const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_END }
-    await writeBootImageRegion(t, range, pattern(REGION_SIZE))
+    await writeBootImageRegion(t, range, pattern(REGION_SIZE), pattern(REGION_SIZE))
     for (const w of radio.writes) {
       expect(w.address).toBeGreaterThanOrEqual(range.start)
       expect(w.address + w.length - 1).toBeLessThanOrEqual(range.end)
@@ -468,7 +516,7 @@ describe('writing the whole region', () => {
     const radio = fakeRadio({ dropWrites: true })
     const t = await connect(radio)
     const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_END }
-    await expect(writeBootImageRegion(t, range, pattern(REGION_SIZE))).rejects.toThrow(ProtocolError)
+    await expect(writeBootImageRegion(t, range, pattern(REGION_SIZE), pattern(REGION_SIZE))).rejects.toThrow(ProtocolError)
     expect(radio.writes.length, 'it should have sent the pages first').toBeGreaterThan(0)
     await t.close()
   })
