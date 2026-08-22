@@ -322,10 +322,13 @@ browser ORs `{ services: [ffe0] }` with the `namePrefix` entries and does not
 report which one hit. Both are therefore kept. Settling it needs a scanner
 reading the raw advertisement, not another experiment in the app.
 
-**One radio lists twice**, under two addresses - a public one and a static
-random one, `68:3D:96:BB:A1:54` and `FF:09:B7:26:58:6B` on this unit. Whether
-both accept a GATT connection is untested; the rows are indistinguishable in the
-chooser, so somebody hitting this may simply have to try the other.
+**The advertised name belongs to the model, not the unit.** Two different
+UV-5R Minis in range both listed as `walkie-talkie`, at `68:3D:96:BB:A1:54` and
+`FF:09:B7:26:58:6B`. That is what makes the name worth filtering on at all - it
+is not one radio's label - and it is also the limit of what the chooser can tell
+you: two units are two identical rows separated only by an address, and nothing
+on that screen says which is which. Anyone with a pair of them has to know the
+address, or connect and read the identify reply to find out.
 
 The bridge has the same trap from the other end. `tools/ble-bridge/server.py`
 filters its scan on the advertised service and takes `--all` to stop doing so,
@@ -375,10 +378,9 @@ producing a plausible codeplug.
 - **Which half of the chooser filter matches.** The pair works; the browser does
   not say whether it was FFE0 or the name, and only a scanner reading the raw
   advertisement can.
-- **Whether both of the addresses one radio lists under will connect.** See
-  above. Only that the chooser shows two.
-- **Whether every unit advertises the same name.** One radio has been seen, and
-  the chooser labelled it `walkie-talkie`.
+- **Whether anything distinguishes two units in the chooser.** Two Minis both
+  advertise `walkie-talkie`; only their addresses differ, and boofwang cannot
+  read an address before connecting. See above.
 - **Writing over Bluetooth.** Not implemented and not offered. Read first, prove
   the round trip, then write — the order every other radio here followed.
 - The `0x80` upload block size and its `0xFF` padding are transcribed from

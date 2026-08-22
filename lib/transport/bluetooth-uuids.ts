@@ -186,8 +186,12 @@ export const UV5RM_BLE: BluetoothProfile = {
   write: normaliseUuid('ffe1'),
   notify: normaliseUuid('ffe1'),
   /*
-   * `walkie-talkie` is what Chrome labels the radio in an unfiltered chooser,
-   * and these are prefixes of it rather than the whole string.
+   * `walkie-talkie` is what Chrome labels these radios in a chooser, and these
+   * are prefixes of it rather than the whole string.
+   *
+   * Two different UV-5R Minis both advertised it, which is what makes it worth
+   * filtering on: it is the model's name, not one unit's, so the filter holds
+   * for somebody else's radio too.
    *
    * These filters work. With the profile substitution fixed, a chooser carrying
    * them listed the radio and nothing else - the first time any request had
