@@ -49,11 +49,12 @@ const ROW_HEIGHT = 30
  * codeplug can hide to get more room for names on a narrow laptop - a choice,
  * never a default: the table opens with every column the radio has.
  */
-const optional = reactive({ tone: true, mode: true, step: true, power: true, flag: true })
+const optional = reactive({ tone: true, mode: true, bandwidth: true, step: true, power: true, flag: true })
 
 const OPTIONAL_COLUMNS = [
   { key: 'tone', label: 'Tone', width: 52 },
   { key: 'mode', label: 'Mode', width: 44 },
+  { key: 'bandwidth', label: 'BW', width: 52 },
   { key: 'step', label: 'Step', width: 44 },
   { key: 'power', label: 'Power', width: 48 },
   { key: 'flag', label: 'State', width: 104 },
@@ -380,6 +381,7 @@ interface RowView {
   txWeight: number
   tone: string
   mode: string
+  bandwidth: string
   step: string
   power: string
   flag: string
@@ -429,6 +431,9 @@ function view(r: SlotRow): RowView {
     // and the column is 52px: "162.2 Hz" clipped mid-unit says less than "162.2".
     tone: c ? describeTone(c.tone.tx).replace(' Hz', '') : '—',
     mode: c ? chirpMode(c) : '—',
+    // In kHz, because that is how the rules are written: 47 CFR 95.2763 says
+    // 11.25 kHz, not "narrow". Mode carries the same fact rounded to a word.
+    bandwidth: c ? (c.bandwidthHz / 1000).toFixed(2) : '—',
     step: c ? (c.tuningStep / 1000).toFixed(2) : '—',
     power: c ? (c.power.label ?? formatPower(c.power.mW)) : '—',
     flag,
@@ -1161,6 +1166,7 @@ const printedFacts = computed(() => {
           <span style="text-align: right">Transmit</span>
           <span v-if="optional.tone">Tone</span>
           <span v-if="optional.mode">Mode</span>
+          <span v-if="optional.bandwidth" style="text-align: right">BW kHz</span>
           <span v-if="optional.step" style="text-align: right">Step</span>
           <span v-if="optional.power" style="text-align: right">Power</span>
           <span v-if="optional.flag" />
@@ -1308,6 +1314,11 @@ const printedFacts = computed(() => {
               class="truncate"
               :style="{ fontSize: '12px', color: r.view.dim ? 'var(--ln2)' : 'var(--mu)' }"
             >{{ r.view.mode }}</span>
+            <span
+              v-if="optional.bandwidth"
+              class="font-mono tabular"
+              :style="{ fontSize: '12px', textAlign: 'right', color: r.view.dim ? 'var(--ln2)' : 'var(--fn)' }"
+            >{{ r.view.bandwidth }}</span>
             <span
               v-if="optional.step"
               class="font-mono tabular"
