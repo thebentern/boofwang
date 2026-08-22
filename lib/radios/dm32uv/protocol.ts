@@ -297,6 +297,44 @@ export const VFRAME_MAX_CONTACTS = 0x10
  * exit: the radio leaves programming mode when the port closes, which is why
  * this driver's abort policy is a power cycle.
  */
+/**
+ * Read a reply, skipping any idle heartbeats that arrived in front of it.
+ *
+ * The steps inside programming-mode entry cannot be drained - they sit 10 ms
+ * apart and a timed drain costs two seconds, after which the radio has left
+ * the window. That leaves each reply read exposed to a heartbeat landing first:
+ * on a real radio the final ACK read returned `90` and the startup-picture
+ * read failed for it. Consuming a complete `90 fe 98 fe` costs nothing and
+ * keeps the timing, where a drain would not.
+ *
+ * Only a whole heartbeat is skipped, and only at the front. A partial match is
+ * left in place to be reported by the caller, because `90` on its own is not
+ * a heartbeat and pretending otherwise would hide a real protocol fault.
+ */
+async function readSkippingHeartbeats(t: Transport, n: number, opts?: ReadOpts): Promise<Uint8Array> {
+  for (;;) {
+    const head = await t.readExactly(1, opts)
+    if (head[0] !== IDLE_HEARTBEAT[0]) {
+      if (n === 1) return head
+      const rest = await t.readExactly(n - 1, opts)
+      const out = new Uint8Array(n)
+      out[0] = head[0]!
+      out.set(rest, 1)
+      return out
+    }
+    // Looks like the start of a heartbeat: confirm the other three bytes before
+    // throwing it away, so a real `90` reply is not silently eaten.
+    const tail = await t.readExactly(IDLE_HEARTBEAT.length - 1, opts)
+    const isHeartbeat = tail.every((b, i) => b === IDLE_HEARTBEAT[i + 1])
+    if (!isHeartbeat) {
+      const out = new Uint8Array(1 + tail.length)
+      out[0] = head[0]!
+      out.set(tail, 1)
+      return out.subarray(0, n)
+    }
+  }
+}
+
 export async function enterProgrammingMode(t: Transport, opts?: ReadOpts): Promise<void> {
   const signalOpt = opts?.signal ? { signal: opts.signal } : {}
   const quiet = () => t.resync(120, { timeoutMs: 1500, ...signalOpt }).catch(() => {})
@@ -314,7 +352,7 @@ export async function enterProgrammingMode(t: Transport, opts?: ReadOpts): Promi
   await delay(10, opts?.signal)
   await t.write(Uint8Array.from([0x02]), opts)
   await delay(STEP_DELAY_MS, opts?.signal)
-  const b = await t.readExactly(8, opts)
+  const b = await readSkippingHeartbeats(t, 8, opts)
   if (!b.every((x) => x === 0xff)) {
     throw new ProtocolError('Mode 02 failed', 'eight 0xFF bytes', hexDump(b))
   }
@@ -322,7 +360,7 @@ export async function enterProgrammingMode(t: Transport, opts?: ReadOpts): Promi
   await delay(10, opts?.signal)
   await t.write(Uint8Array.from([ACK]), opts)
   await delay(STEP_DELAY_MS, opts?.signal)
-  const c = await t.readExactly(1, opts)
+  const c = await readSkippingHeartbeats(t, 1, opts)
   if (c[0] !== ACK) throw new ProtocolError('The final programming-mode ACK failed', '06', hexDump(c))
   await delay(10, opts?.signal)
 }
