@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
@@ -32,7 +32,7 @@ function vueFiles(dir: string): string[] {
 
 const files = vueFiles(app).map((path) => ({
   path,
-  name: path.slice(app.length + 1),
+  name: path.slice(app.length + 1).split(sep).join('/'),
   source: readFileSync(path, 'utf8'),
 }))
 

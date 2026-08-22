@@ -1,0 +1,21 @@
+# Line endings are LF everywhere, including on a Windows checkout.
+#
+# Several tests in this suite read their own source and look for exact strings -
+# `indexOf('\n  }\n')` to find the end of a function body, for instance. With
+# git's default autocrlf on Windows those files arrive with CRLF, every one of
+# those searches misses, and the failure reads `expected '' to contain ...`,
+# which points at the code under test rather than at the checkout. That cost an
+# afternoon the first time the suite ran on Windows, which was the day this
+# project started shipping a Windows binary.
+* text=auto eol=lf
+
+# Binary, and must not be touched by any of the above. The hardware captures in
+# particular are the ground truth every driver is tested against: a single byte
+# rewritten by a line-ending filter would invalidate the round-trip invariant
+# and look like a decoder bug.
+*.bin binary
+*.png binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.zip binary

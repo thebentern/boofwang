@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { readFileSync, readdirSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { equalBytes } from '#core/codec/struct.js'
@@ -342,7 +342,10 @@ describe('the way to the radio goes through the backup rule', () => {
     })
 
   it('is reached from exactly one place, the composable that enforces the rule', () => {
-    expect(importers().map((f) => f.slice(root.length))).toEqual(['app/composables/useBootImage.ts'])
+    // Separators normalised: this compares paths as text, and on Windows they
+    // arrive with backslashes.
+    const seen = importers().map((f) => f.slice(root.length).split(sep).join('/'))
+    expect(seen).toEqual(['app/composables/useBootImage.ts'])
   })
 
   it('explains, before the driver refuses, when nothing has been read', () => {

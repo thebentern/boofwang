@@ -66,9 +66,15 @@ jobs:
   release:
     name: Release
     needs: build
+    # `always()` because `needs` otherwise requires every matrix job, and this
+    # workflow deliberately sets `fail-fast: false` so one platform failing does
+    # not hide the others. The first tagged run proved the point: macOS and
+    # Linux built, Windows failed the suite, and the release went out with
+    # nothing attached at all. Publish what exists and say what is missing.
+    #
     # Only a tag makes a release. A manual run builds and leaves the archives on
     # the run, which is what you want when checking whether it still builds.
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: always() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +87,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${GITHUB_REF_NAME}" \
-            $(find artifacts -type f \( -name '*.zip' -o -name '*.AppImage' -o -name '*.tar.gz' \)) \
-            --clobber
+          set -euo pipefail
+          mapfile -t files < <(find artifacts -type f \
+            \( -name '*.zip' -o -name '*.AppImage' -o -name '*.tar.gz' \) | sort)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No archives were built. Not touching the release." >&2
+            exit 1
+          fi
+          printf 'attaching %s\n' "${files[@]}"
+          gh release upload "${GITHUB_REF_NAME}" "${files[@]}" --clobber
+
+      - name: Say which platforms are missing
+        if: ${{ needs.build.result != 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "::warning::At least one platform did not build. The release has only the archives that did."
+
