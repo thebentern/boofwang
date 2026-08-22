@@ -137,9 +137,8 @@ const credits = [
       </div>
 
       <p :style="BODY" style="margin-top: 10px">
-        The FRS, GMRS and MURS channel tables come from 47 CFR Part 95 at the eCFR, the weather channels
-        from NOAA/NWS, and the per-state public-safety frequencies from the FCC ULS bulk downloads, all
-        United States Government work, in the public domain.
+        The FRS, GMRS and MURS channel tables come from 47 CFR Part 95 at the eCFR and the weather
+        channels from NOAA/NWS, both United States Government work, in the public domain.
         <a
           href="https://github.com/thebentern/boofwang/blob/main/docs/provenance.md"
           target="_blank"

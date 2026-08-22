@@ -17,12 +17,32 @@ redistributing this code to be able to trace that.
 | [infamy/DM32-Protocol-Spec](https://github.com/infamy/DM32-Protocol-Spec) | MIT | The entirety of what boofwang knows about the Baofeng DM-32UV: serial handshake, command set, the logical-block page map, record layouts and the encryption key slot format. There is no CHIRP driver for this radio; this specification is the only public documentation of it. |
 | [sq5bpf/uvk5-reverse-engineering](https://github.com/sq5bpf/uvk5-reverse-engineering) | CC-BY-SA-4.0 | Jacek Lipkowski SQ5BPF's original analysis of the UV-K5: packet obfuscation table, CRC, command opcodes and the EEPROM map. |
 | [eCFR](https://www.ecfr.gov/) — 47 CFR Part 95 | Public domain (US Government) | FRS, GMRS and MURS channel tables, power limits and bandwidth limits. |
-| [FCC ULS bulk downloads](https://www.fcc.gov/wireless/data/public-access-files-database-downloads) | Public domain (17 U.S.C. §105) | Derived per-state public-safety frequency data. |
 | [NOAA/NWS](https://www.weather.gov/nwr/) | Public domain (US Government) | Weather radio channel frequencies. |
 
 Because CHIRP is GPL-3.0, files in `lib/radios/uvk5/` and `lib/radios/uv5rmini/`
 that transcribe its layout tables are derivative works of CHIRP. That is
 compatible with boofwang's own licence, and this table is the attribution.
+
+## Fetched at runtime, never bundled
+
+boofwang can query these directories when the user asks it to. Nothing from them
+is committed to this repository, nothing is cached beyond the browser session,
+and every channel staged from one carries its source's attribution, which the
+presets screen shows above the channel table.
+
+`enabled` in `lib/data/registry.ts` is the off switch. A publisher who asks us
+to stop is one line, not a refactor.
+
+| Source | Reachable from | What it says about reuse | Verified |
+|---|---|---|---|
+| [BrandMeister](https://brandmeister.network/) | the browser - its API reflects the requesting origin | Publishes no data licence. The API is open and needs no account. | 2026-08-22: 1,833 talk groups and 33,167 repeaters, fetched from a browser page with no CORS error |
+| [hearham](https://hearham.com/) | the desktop shell only - sends no CORS headers | **Publishes no data licence.** Its `/terms` is a privacy policy. Widely described elsewhere as free to use in applications, but the site itself has never said so. Used on that understanding, with credit, pending an answer from its owner. | 2026-08-22: 22,635 repeaters; no `Access-Control-Allow-Origin` on any response |
+| [RadioID](https://radioid.net/) | the desktop shell only - sends no CORS headers | Lookups permitted. Mirroring, republishing, bulk export and competing directories need written permission. boofwang queries by callsign only and has no code path that walks the database. | 2026-08-22: per-callsign lookups answered without authentication |
+
+The hearham row is a judgement call and is recorded as one. If its owner
+objects, set `enabled: false` and the source disappears from both the reachable
+and the unreachable list - withdrawn is not the same as unreachable, and nobody
+should be told to install an app to reach something we have stopped offering.
 
 ## Deliberately not used
 
@@ -32,7 +52,6 @@ compatible with boofwang's own licence, and this table is the attribution.
 | [RepeaterBook](https://www.repeaterbook.com/) | Its terms explicitly prohibit *"offline bundling, mirroring, redistribution"*, and its API requires a token that must not appear in browser JavaScript, sends no CORS headers, and requires a `User-Agent` a browser cannot set. No RepeaterBook data is bundled and none is fetched at runtime. Users import their own exports instead. |
 | [RadioReference](https://www.radioreference.com/) | SOAP-only, no CORS, requires each end user's paid Premium credentials, and redistribution requires a paid commercial licence. |
 | [myGMRS](https://mygmrs.com/) | No public API and no licence grant for its repeater database. |
-| [hearham.com](https://hearham.com/) | Free to use in applications, but publishes no SPDX licence and sends no CORS headers. Would need written permission before bundling. |
 
 ## Local reference material
 

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import type { PresetSet } from '#core/io/preset-data.js'
 import type { StoredBackup, StoredSession } from '#core/storage/db.js'
-import { DB_NAME, DB_VERSION, STORE_BACKUPS, STORE_PREFS, STORE_SESSIONS } from '#core/storage/db.js'
+import { DB_NAME, DB_VERSION, STORE_BACKUPS, STORE_PREFS, STORE_PRESETS, STORE_SESSIONS } from '#core/storage/db.js'
 
 /**
  * IndexedDB plumbing.
@@ -19,6 +20,7 @@ interface BoofwangSchema extends DBSchema {
   }
   [STORE_SESSIONS]: { key: string; value: StoredSession }
   [STORE_PREFS]: { key: string; value: unknown }
+  [STORE_PRESETS]: { key: string; value: PresetSet }
 }
 
 let dbPromise: Promise<IDBPDatabase<BoofwangSchema>> | null = null
@@ -33,9 +35,22 @@ function db() {
       }
       if (!d.objectStoreNames.contains(STORE_SESSIONS)) d.createObjectStore(STORE_SESSIONS, { keyPath: 'id' })
       if (!d.objectStoreNames.contains(STORE_PREFS)) d.createObjectStore(STORE_PREFS)
+      if (!d.objectStoreNames.contains(STORE_PRESETS)) d.createObjectStore(STORE_PRESETS, { keyPath: 'id' })
     },
   })
   return dbPromise
+}
+
+/**
+ * Whether a thrown value is the browser saying it is out of room.
+ *
+ * Worth distinguishing, because the alternative is what boofwang used to do:
+ * report a storage failure in whatever words the surrounding operation
+ * happened to use. Someone told "could not read the radio" reseats a cable;
+ * someone told the browser is out of room frees some.
+ */
+export function isQuotaError(e: unknown): boolean {
+  return e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)
 }
 
 export function useBoofwangDb() {
@@ -63,6 +78,18 @@ export function useBoofwangDb() {
       return all
         .filter((b) => b.identHash === identHash)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    },
+
+    async putPreset(s: PresetSet) {
+      await (await db()).put(STORE_PRESETS, s)
+    },
+
+    async listPresets(): Promise<PresetSet[]> {
+      return (await db()).getAll(STORE_PRESETS)
+    },
+
+    async deletePreset(id: string) {
+      await (await db()).delete(STORE_PRESETS, id)
     },
 
     async putSession(s: StoredSession) {

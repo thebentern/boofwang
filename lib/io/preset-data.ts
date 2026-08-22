@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import type { Channel, TxSpec } from '../model/channel.js'
+import type { Channel, ChannelExtras, Modulation, TxSpec } from '../model/channel.js'
 import type { TonePair } from '../model/tones.js'
 import { NO_TONE, ctcss } from '../model/tones.js'
 import { kHz, mHz, mW, watts, type Hz, type Milliwatts } from '../model/units.js'
@@ -22,6 +22,15 @@ import { clampPower, type RadioSchema } from '../radio/schema.js'
  * more power than the rule allows.
  */
 
+/**
+ * Stand-in for a set that states no power limit.
+ *
+ * Higher than any radio boofwang supports, and `clampPower` only ever goes
+ * down, so this resolves to whatever the target radio's maximum is rather than
+ * to a number from nowhere.
+ */
+const UNSTATED_POWER = watts(50)
+
 export type PresetGroupId = 'us' | 'other' | 'saved'
 export type PresetSource = 'Bundled' | 'Non-US' | 'Saved here'
 
@@ -41,8 +50,67 @@ export interface PresetChannel {
   readonly tone: TonePair
   /** Authorised bandwidth in hertz, as the rules write it rather than as "wide"/"narrow". */
   readonly bandwidthHz: number
-  /** The transmit limit the rule sets, before any radio is involved. */
-  readonly powerMW: Milliwatts
+  /**
+   * The transmit limit the rule sets, before any radio is involved.
+   *
+   * Absent when the source does not set one, which is the case for every
+   * fetched repeater: a directory records where a repeater listens, and knows
+   * nothing about what power the person holding the radio should use. Recording
+   * a number there would be boofwang inventing one, and the table would show it
+   * as though somebody had decided it.
+   */
+  readonly powerMW?: Milliwatts
+  /**
+   * Absent for the bundled regulatory sets, which are all FM.
+   *
+   * Set by fetched repeater data, which knows its own mode. Left optional
+   * rather than defaulted so that adding it could not silently change any of
+   * the six sets that existed before it.
+   */
+  readonly modulation?: Modulation
+  /** Only for a digital channel, and only what a repeater listing can honestly supply. */
+  readonly dmr?: PresetDmr
+}
+
+/**
+ * The DMR settings a preset can carry.
+ *
+ * Deliberately a small subset of what the DM-32UV stores per channel. A
+ * repeater directory knows the colour code and the timeslot because they are
+ * properties of the repeater; it does not know your radio ID, your encryption
+ * key or whether you work alone, and a preset has no business setting those.
+ */
+export interface PresetDmr {
+  readonly colorCode: number
+  readonly timeSlot?: 1 | 2
+  /**
+   * Carried for display, not written to the radio.
+   *
+   * The DM-32UV's channel record points at a *contact slot index*, not at a
+   * talk group number, so turning this into `txContact` needs the contact list
+   * to already hold it. Until the talk group import fills that in, setting it
+   * would mean pointing a channel at whatever contact happened to occupy that
+   * slot.
+   */
+  readonly talkgroup?: number
+}
+
+/**
+ * The per-channel DMR settings, in the shape the DM-32UV driver reads back.
+ *
+ * Keys and encoding transcribed from `decodeChannel` in
+ * `lib/radios/dm32uv/driver.ts` - `timeSlot` is 1-based there, and everything
+ * in `extras.vendor` is a stringified number. A driver that does not recognise
+ * these ignores them, which is what makes this safe to set for any radio.
+ */
+function dmrExtras(dmr: PresetDmr | undefined): ChannelExtras {
+  if (dmr === undefined) return {}
+  return {
+    vendor: {
+      colorCode: String(dmr.colorCode),
+      ...(dmr.timeSlot === undefined ? {} : { timeSlot: String(dmr.timeSlot) }),
+    },
+  }
 }
 
 export interface PresetSet {
@@ -342,7 +410,12 @@ export function presetToChannel(
   schema: RadioSchema | null,
   importedAt: string,
 ): Channel {
-  const level = schema ? clampPower(schema, source.powerMW) : null
+  // With no stated limit, take the radio's own highest level: `clampPower`
+  // never rounds up, so asking for more than any radio has yields exactly what
+  // that radio can do. With no schema either there is nothing to clamp against,
+  // and the channel carries no power rather than a made-up one.
+  const asked = source.powerMW ?? UNSTATED_POWER
+  const level = schema ? clampPower(schema, asked) : null
   return {
     index,
     name: schema ? source.name.slice(0, schema.memory.nameLength) : source.name,
@@ -353,13 +426,13 @@ export function presetToChannel(
       ? {}
       : { txInhibitReason: set.receiveOnlyReason ?? 'This channel is receive-only in the set it came from.' }),
     tone: source.tone,
-    modulation: 'FM',
+    modulation: source.modulation ?? 'FM',
     bandwidthHz: source.bandwidthHz,
-    power: level === null ? { mW: source.powerMW } : { mW: level.mW, label: level.label },
+    power: level === null ? { mW: source.powerMW ?? UNSTATED_POWER } : { mW: level.mW, label: level.label },
     tuningStep: set.stepHz,
     skip: 'none',
     comment: '',
-    extras: {},
+    extras: dmrExtras(source.dmr),
     provenance: { sourceId: set.id, attribution: set.attribution, importedAt },
   }
 }

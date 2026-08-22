@@ -10,6 +10,7 @@ const nav = [
   { label: 'Connect', to: '/', icon: 'i-lucide-usb' },
   { label: 'Channels', to: '/channels', icon: 'i-lucide-list' },
   { label: 'Presets', to: '/presets', icon: 'i-lucide-layers' },
+  { label: 'Repeaters', to: '/repeaters', icon: 'i-lucide-radio-tower' },
   { label: 'Zones', to: '/dmr', icon: 'i-lucide-folder-tree' },
   { label: 'Settings', to: '/settings', icon: 'i-lucide-sliders-horizontal' },
   { label: 'Keys', to: '/keys', icon: 'i-lucide-key-round' },

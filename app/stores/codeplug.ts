@@ -886,6 +886,66 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     republish()
   }
 
+  /**
+   * Add many talk groups at once, from a directory.
+   *
+   * Not wrapped in `transact`, deliberately, and this is worth stating because
+   * wrapping it looks obviously right. The undo history records channel slots
+   * and list membership; talk groups, contacts, radio IDs and messages have
+   * never been on it, so `transact` here would produce an entry with nothing in
+   * it and `closeBatch` would discard it - an import that appeared undoable and
+   * was not. Consistent with `addTalkGroup` beside it. Making list entities
+   * undoable is a change to the history model, not to this function.
+   *
+   * The cap is a real constraint here and not an edge case: BrandMeister
+   * publishes about 1,800 talk groups and the DM-32UV holds 800, so a bulk
+   * import is impossible by construction. What is refused is reported back with
+   * a count rather than silently truncated, because a list that stops at 800
+   * without saying so looks exactly like a list that fitted.
+   *
+   * Existing numbers are left alone rather than updated. Someone who renamed a
+   * talk group did it deliberately, and an import is not the moment to overrule
+   * them.
+   */
+  function importTalkGroups(
+    entries: readonly { number: number; name: string }[],
+  ): { added: number; alreadyPresent: number; noRoom: number } {
+    const cp = doc.value
+    const limit = schema.value?.features.talkGroups
+    if (!cp || !limit) return { added: 0, alreadyPresent: 0, noRoom: entries.length }
+
+    const nameLength = limit.nameLength
+    const present = new Set(cp.talkGroups.map((g) => g.number))
+    let added = 0
+    let alreadyPresent = 0
+    let noRoom = 0
+
+    for (const e of entries) {
+      if (present.has(e.number)) {
+        alreadyPresent++
+        continue
+      }
+      if (cp.talkGroups.length >= limit.max) {
+        noRoom++
+        continue
+      }
+      cp.talkGroups.push({
+        id: `tg-import-${crypto.randomUUID()}`,
+        name: e.name.slice(0, nameLength),
+        number: e.number,
+        callType: 'group',
+      })
+      present.add(e.number)
+      added++
+    }
+    // Once, after the whole import, rather than per row: republish rebuilds
+    // every frozen list, and doing that eight hundred times is eight hundred
+    // rebuilds of lists nothing touched.
+    republish()
+
+    return { added, alreadyPresent, noRoom }
+  }
+
   function removeTalkGroup(id: string) {
     const cp = doc.value
     if (!cp) return
@@ -1046,6 +1106,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     addZone,
     removeZone,
     addTalkGroup,
+    importTalkGroups,
     removeTalkGroup,
     updateTalkGroup,
     setZoneChannels,
