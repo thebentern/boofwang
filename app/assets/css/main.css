@@ -36,22 +36,27 @@
 
   /*
    * Surfaces. The palette hands us two slates that are already a step apart -
-   * #202C39 and #283845, 1.18:1 - so the page and the card it carries are the
-   * palette itself rather than an interpretation of it, and `--pn2`/`--pn3`
-   * simply keep walking in the direction those two set.
+   * #202C39 and #283845 - so they are the card and the panel raised above it,
+   * used as given rather than interpreted.
+   *
+   * The page itself sits below both, darker than anything in the palette. That
+   * is deliberate: a ground that is merely the lightest available dark leaves
+   * a card with nowhere to stand, and the whole interface is cards on a page.
+   * Going under the palette buys the separation, and every text tier gained
+   * contrast in the process rather than spending it.
    */
-  --bg: #202C39;
-  --pn: #283845;
-  --pn2: #324556;
-  --pn3: #3C5266;
+  --bg: #141A22;
+  --pn: #202C39;
+  --pn2: #283845;
+  --pn3: #324556;
 
   /*
    * Lines, drawn from the same slate rather than from the accents. Kept near
    * the weights they have always had - a hairline that gains contrast turns a
    * calm table into a grid, and this one has four thousand rows.
    */
-  --ln: #334657;
-  --ln2: #445D73;
+  --ln: #2E3D4B;
+  --ln2: #3A4C5E;
 
   /* Text, in descending emphasis. Warm, to sit on a warm ground. */
   --tx: #EAF0F6;

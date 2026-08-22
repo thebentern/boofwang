@@ -93,11 +93,13 @@ describe('the palette is the one that was chosen', () => {
   })
 
   it('uses both slates as the surface ramp they already are', () => {
-    // The palette hands over two darks one step apart. Using them as the page
-    // and the card it carries is the whole reason this scheme needed no
-    // invented background.
-    expect(THEMES.dark.bg).toBe(PALETTE.slateDeep)
-    expect(THEMES.dark.pn).toBe(PALETTE.slate)
+    // The palette hands over two darks one step apart, and they are the card
+    // and the panel raised above it. The page sits below both - darker than
+    // anything in the palette - because a ground that is only the lightest
+    // available dark leaves a card with nowhere to stand.
+    expect(THEMES.dark.pn).toBe(PALETTE.slateDeep)
+    expect(THEMES.dark.pn2).toBe(PALETTE.slate)
+    expect(luminance(THEMES.dark.bg!)).toBeLessThan(luminance(PALETTE.slateDeep))
   })
 
   it('reads on paper in the palette’s own darkest', () => {
