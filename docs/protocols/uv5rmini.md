@@ -310,16 +310,22 @@ bug rather than the intent, which is why moving the default twice never turned
 the suite red. There is now one `DEFAULT_PROFILE`, the initialiser and the reset
 both use it, and the test compares against it rather than against a literal.
 
-### What is actually known, and what is not
+### What the fixed chooser does
 
-Known: with the filters off, Chrome lists the radio as `walkie-talkie`, and the
-protocol over BLE reads a whole codeplug.
+With the substitution gone, a filtered request carrying this radio's own numbers
+worked first time: the chooser listed the radio and nothing else. So the radio
+*is* reachable by filter, and every conclusion above to the contrary was an
+artefact of the bug rather than a fact about the hardware.
 
-**Not** known: whether this radio advertises FFE0, or a local name, or anything
-filterable at all. No filter carrying its numbers has ever reached it. The
-chooser now sends the service and the name prefixes together, and "show every
-device" is kept precisely because that question is open - an empty chooser still
-has to be distinguishable from a radio that is not there.
+Which half of the filter matched is not known, and a chooser cannot say - the
+browser ORs `{ services: [ffe0] }` with the `namePrefix` entries and does not
+report which one hit. Both are therefore kept. Settling it needs a scanner
+reading the raw advertisement, not another experiment in the app.
+
+**One radio lists twice**, under two addresses - a public one and a static
+random one, `68:3D:96:BB:A1:54` and `FF:09:B7:26:58:6B` on this unit. Whether
+both accept a GATT connection is untested; the rows are indistinguishable in the
+chooser, so somebody hitting this may simply have to try the other.
 
 The bridge has the same trap from the other end. `tools/ble-bridge/server.py`
 filters its scan on the advertised service and takes `--all` to stop doing so,
@@ -366,10 +372,11 @@ producing a plausible codeplug.
 
 ### Still not verified
 
-- **Whether the chooser can be filtered for this radio at all.** See above: no
-  filter carrying this radio's numbers has ever been sent, because the profile
-  was being substituted before the request was built. The service and the name
-  are both sent now and neither has been confirmed against hardware.
+- **Which half of the chooser filter matches.** The pair works; the browser does
+  not say whether it was FFE0 or the name, and only a scanner reading the raw
+  advertisement can.
+- **Whether both of the addresses one radio lists under will connect.** See
+  above. Only that the chooser shows two.
 - **Whether every unit advertises the same name.** One radio has been seen, and
   the chooser labelled it `walkie-talkie`.
 - **Writing over Bluetooth.** Not implemented and not offered. Read first, prove

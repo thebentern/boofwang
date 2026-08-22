@@ -189,12 +189,13 @@ export const UV5RM_BLE: BluetoothProfile = {
    * `walkie-talkie` is what Chrome labels the radio in an unfiltered chooser,
    * and these are prefixes of it rather than the whole string.
    *
-   * Whether a filter can reach this radio at all is genuinely unknown. Three
-   * attempts said it could not - one service filter and two name filters, each
-   * producing an empty chooser - and all three were invalid, because
-   * `resetBluetoothProfile()` was swapping this profile for Nordic UART on
-   * every load that carried no `?ble=` override. The filters that came back
-   * empty were Nordic's. None of the numbers in this record had been sent.
+   * These filters work. With the profile substitution fixed, a chooser carrying
+   * them listed the radio and nothing else - the first time any request had
+   * actually been built from this record rather than from Nordic UART.
+   *
+   * Which half matched is not known and cannot be told from a chooser: the
+   * browser ORs the filters and does not say which one hit. So the service
+   * stays alongside the names rather than being assumed redundant.
    */
   namePrefixes: ['walkie', 'Walkie', 'WALKIE'],
   advertisedName: 'walkie-talkie',
