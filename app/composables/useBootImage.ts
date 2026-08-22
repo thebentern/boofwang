@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { recoveryAdvice } from '#core/radio/recovery.js'
 import {
   queryBootImageRange,
   writeBootImageRegion,
@@ -65,9 +66,19 @@ export function useBootImage() {
       await enterProgrammingMode(t, { signal })
       return await fn(t, range, signal)
     } catch (e) {
+      /*
+       * What went wrong, then what to do about it.
+       *
+       * A desync is sticky: the transport refuses everything until the port is
+       * reopened, so without the second line every button pressed afterwards
+       * fails the same way and the screen never says why. The precise error
+       * still leads, because that is the half worth putting in a bug report.
+       */
+      const advice = recoveryAdvice(e, device.driverOrNull())
+      const said = e instanceof Error ? e.message : String(e)
       toast.add({
         title: `Could not ${what.toLowerCase()}`,
-        description: e instanceof Error ? e.message : String(e),
+        description: advice ? `${said}\n\n${advice}` : said,
         icon: 'i-lucide-circle-alert',
         color: 'error',
         duration: 0,

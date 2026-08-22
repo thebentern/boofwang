@@ -40,6 +40,18 @@ export const useDeviceStore = defineStore('device', () => {
 
   const connected = computed(() => state.value === 'connected')
 
+  /**
+   * The driver if there is one, rather than a throw.
+   *
+   * `currentDriver` is right for the transfer paths, which cannot proceed
+   * without one. Error handling is the opposite case: it runs when something
+   * has already gone wrong, sometimes after a disconnect, and it wants to ask
+   * the driver a question without that question becoming a second failure.
+   */
+  function driverOrNull(): RadioDriver | null {
+    return driver
+  }
+
   function currentDriver(): RadioDriver {
     if (!driver) throw new Error('No radio is connected')
     return driver
@@ -129,6 +141,7 @@ export const useDeviceStore = defineStore('device', () => {
     disconnect,
     captureFailure,
     currentDriver,
+    driverOrNull,
     currentTransport,
     traceJson,
     hasPort: () => port !== null,
