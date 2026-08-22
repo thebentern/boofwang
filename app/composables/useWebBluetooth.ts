@@ -96,11 +96,12 @@ export function describeBluetoothDevice(name: string | null | undefined): string
  * opens belongs to the browser - we cannot style it, read it, or tell whether
  * anything was in it.
  *
- * The chooser lists only what its filters match, and a service filter matches
- * only a service the device puts in its **advertisement** - which this radio
- * does not, so a filter of `[{ services: [ffe0] }]` listed nothing at all. The
- * name prefixes are what actually match it. `everyDevice` drops the filters
- * entirely, for a radio advertising a name nobody has recorded yet.
+ * The chooser lists only what its filters match, and those filters are matched
+ * against the device's **advertisement**. The UV-5R Mini advertises neither its
+ * service nor a name, so no filter reaches it and `profile.filterable` is false
+ * - which makes `acceptAllDevices` the route rather than the fallback. The cost
+ * is a chooser holding every Bluetooth device in range, which is why the card
+ * tells the user what the radio calls itself.
  */
 export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}): Promise<PortChoice | null> {
   if (!bluetoothAvailable()) throw new Error('This browser does not support Web Bluetooth.')
@@ -108,21 +109,18 @@ export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}
   const { profile, scan } = resolveBluetoothProfile()
 
   /*
-   * Filters are OR-ed by the browser, so this asks for "advertises the service,
-   * or is named like one of these". Keeping the service filter costs nothing
-   * and covers a unit or firmware that does advertise it.
+   * `optionalServices` is what the two branches share and the reason neither
+   * can be dropped: Web Bluetooth will not hand over a service that was not
+   * named up front, whether or not it was filtered on.
    */
-  const filters = [
-    ...profile.namePrefixes.map((namePrefix) => ({ namePrefix })),
-    { services: [profile.service] },
-  ]
+  const everyDevice = scan || opts.everyDevice || !profile.filterable
 
   let device: BluetoothDevice
   try {
     device = await navigator.bluetooth.requestDevice(
-      scan || opts.everyDevice
+      everyDevice
         ? { acceptAllDevices: true, optionalServices: [profile.service] }
-        : { filters, optionalServices: [profile.service] },
+        : { filters: [{ services: [profile.service] }], optionalServices: [profile.service] },
     )
   } catch (e) {
     // The user dismissing the chooser is not an error worth surfacing, which is

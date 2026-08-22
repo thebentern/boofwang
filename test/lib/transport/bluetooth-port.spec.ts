@@ -332,38 +332,40 @@ describe('the UUIDs themselves', () => {
     expect(UV5RM_BLE.verified).toBe(true)
   })
 
-  it('carries a name to filter the chooser on, because the service is not advertised', () => {
+  it('records that this radio cannot be filtered for', () => {
     /*
-     * The one that cost a session. `requestDevice` matches a service filter
-     * only against the device's **advertisement**, and this radio advertises
-     * no services at all - FFE0 was found by a GATT enumeration, which happens
-     * after connecting. So the chooser filtered on FFE0 listed nothing, on a
-     * radio sitting in wireless CPS mode a foot away, which is exactly the
-     * "empty chooser is indistinguishable from a radio that is off" failure
-     * this file's header warns about. With the filter dropped it appeared at
-     * once, as `walkie-talkie`.
+     * The one that cost an evening. `requestDevice` matches its filters against
+     * the device's advertisement, and this radio advertises neither its service
+     * nor a name.
      *
-     * So a profile good enough to be the default has to bring something that
-     * actually matches an advertisement. A verified profile with no name is a
-     * chooser that lists nothing.
+     * Filtering on FFE0 listed nothing - FFE0 came from a GATT enumeration,
+     * which happens after connecting. Filtering on `walkie`, `Walkie` and
+     * `WALKIE` listed nothing either, which is the surprising half, because
+     * `walkie-talkie` is what Chrome itself prints for the radio once the
+     * filters come off. That name reaches the chooser from the OS or from GATT
+     * rather than from the advertisement, so it is visible in the list and
+     * useless as a filter.
+     *
+     * Both attempts produced an empty chooser, indistinguishable from a radio
+     * switched off. `filterable: false` is what stops the next person sending a
+     * filter that cannot match.
      */
-    expect(UV5RM_BLE.namePrefixes.length).toBeGreaterThan(0)
-    expect(UV5RM_BLE.namePrefixes).toContain('walkie-talkie')
-    expect(bluetoothProfile().namePrefixes.length).toBeGreaterThan(0)
+    expect(UV5RM_BLE.filterable).toBe(false)
+    expect(bluetoothProfile().filterable).toBe(false)
   })
 
-  it('enumerates the casings, because namePrefix is case-sensitive', () => {
-    // Web Bluetooth has no case-insensitive name filter, and one wrong capital
-    // reproduces the empty chooser exactly.
-    const lower = UV5RM_BLE.namePrefixes.map((n) => n.toLowerCase())
-    expect(new Set(lower).size, 'the prefixes differ by more than case').toBe(1)
-    expect(UV5RM_BLE.namePrefixes.length).toBeGreaterThan(1)
+  it('keeps the advertised name, for the person reading the list', () => {
+    // Not a filter - that was tried. With `acceptAllDevices` the chooser holds
+    // every device in range, and this is the only thing saying which row is
+    // the radio.
+    expect(UV5RM_BLE.advertisedName).toBe('walkie-talkie')
   })
 
-  it('puts no name on a hand-entered profile', () => {
-    // Somebody pasting UUIDs is chasing a radio this build does not know, and
-    // a name prefix from a different one would filter theirs straight back out.
-    expect(parseBluetoothProfile('ffe0,ffe1').namePrefixes).toEqual([])
+  it('filters a hand-entered profile on its service', () => {
+    // Somebody pasting UUIDs has read them off a radio and wants the chooser
+    // narrowed to it. `?ble=scan` is the next thing to try if that lists
+    // nothing, and it is one edit away in the same address bar.
+    expect(parseBluetoothProfile('ffe0,ffe1').filterable).toBe(true)
   })
 
   it('never defaults to the AE30 characteristic, which is a loopback', () => {

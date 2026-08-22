@@ -52,25 +52,24 @@ describe('the Bluetooth offer', () => {
 })
 
 /**
- * What the chooser is allowed to filter on.
+ * How the chooser asks for this radio.
  *
- * A service filter matches only a service the device puts in its
- * advertisement, and this radio puts none there: FFE0 came from a GATT
- * enumeration, which happens after connecting. Filtering on it alone listed
- * nothing with the radio a foot away in wireless CPS mode. The name is what
- * matches, so a chooser that has gone back to service-only is the bug
- * returning, and an empty chooser with no way out is what made it expensive.
+ * It cannot be filtered for. `requestDevice` matches its filters against the
+ * advertisement, and this radio advertises neither its service nor a name -
+ * both were tried against real hardware and both listed nothing. So the
+ * request has to be `acceptAllDevices`, and the screen has to name what the
+ * radio calls itself, because the list is then every Bluetooth device in
+ * range. A filter creeping back in is an empty chooser returning.
  */
 describe('the Bluetooth chooser', () => {
-  it('filters on the advertised name, not only on the service', () => {
-    expect(CHOOSER).toMatch(/namePrefixes\.map\(\(namePrefix\) => \(\{ namePrefix \}\)\)/)
+  it('does not send a filter a device cannot match', () => {
+    expect(CHOOSER).toMatch(/!profile\.filterable/)
   })
 
-  it('keeps a way out of an empty chooser', () => {
-    // `acceptAllDevices` is the escape hatch for a radio advertising a name
-    // nobody has recorded. Reachable from the card, not only from a query
-    // string somebody has to be told about.
-    expect(CHOOSER).toMatch(/everyDevice/)
-    expect(PAGE).toMatch(/'bluetooth-all'/)
+  it('tells the reader which row is theirs', () => {
+    // With every device listed, the advertised name is the only thing that
+    // distinguishes the radio from the headphones next to it.
+    expect(PAGE).toMatch(/advertisedName/)
+    expect(PAGE).toMatch(/:ble-name="bleName"/)
   })
 })

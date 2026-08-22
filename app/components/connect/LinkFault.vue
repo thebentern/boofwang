@@ -91,6 +91,14 @@ const props = defineProps<{
   advice?: string
   /** Where Bluetooth stands for this browser: an alternative, or why not. */
   bleNote?: string
+  /**
+   * What the radio calls itself in the browser's device list.
+   *
+   * Needed because the chooser cannot be filtered for this radio, so the list
+   * is every Bluetooth device in range and the name is the only thing telling
+   * someone which row is theirs.
+   */
+  bleName?: string
   /** What the middle hop is for this session, unless the state overrides it. */
   via?: HopVia
   /** The transport's own record of this failure. Never invented here. */
@@ -276,9 +284,9 @@ const STATES: Record<FaultState, FaultCopy> = {
     title: '{browser} is showing its own Bluetooth device list',
     body:
       'That list belongs to the browser and we cannot style it, read it, or tell whether your radio is in ' +
-      'it. It shows devices named like a UV-5R Mini in wireless CPS mode, or advertising the service one ' +
-      'was read on. A radio that is switched off, already paired to a phone, or advertising some other ' +
-      'name will not be there.',
+      'it. It holds every Bluetooth device in range, because this radio advertises nothing the chooser can ' +
+      'filter on: look for {bleName}. A radio that is switched off or already paired to a phone will not ' +
+      'be there at all.',
   },
 
   'ble-empty': {
@@ -289,27 +297,20 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['warn', 'none'],
     title: 'No radio was listed',
     body:
-      'boofwang filters the chooser on the name a UV-5R Mini advertises in wireless CPS mode, and on the ' +
-      'service one was read on. An empty list usually means the radio is not in wireless CPS mode or is ' +
-      'already paired to a phone. It can also mean this one advertises a name nobody has recorded, which ' +
-      'is what "show every device" is for.',
+      'The chooser was not filtered - it offers every Bluetooth device in range, because this radio ' +
+      'advertises nothing that can be filtered on. So an empty list is not a filter that missed: nothing ' +
+      'at all was advertising. The usual causes are the radio not being in wireless CPS mode, being ' +
+      'switched off, or already being paired to a phone, which stops it advertising to anything else.',
     steps: [
-      ['i-lucide-radio', 'Check the radio has Bluetooth switched on and is not already paired to a phone.'],
+      ['i-lucide-radio', 'Put the radio into wireless CPS mode, and check it is not already paired to a phone.'],
+      ['i-lucide-bluetooth', 'Try again, and look for {bleName} among the devices listed.'],
       [
-        'i-lucide-bluetooth',
-        'Show every device, and look for the radio by name. This radio filters out a service filter ' +
-          'because it does not advertise its service at all, only its name.',
-      ],
-      [
-        'i-lucide-git-branch',
-        'A name that works belongs in lib/transport/bluetooth-uuids.ts, so the next person gets a chooser ' +
-          'with their radio in it rather than every device in the room.',
+        'i-lucide-search',
+        'If it is still not there, a Bluetooth scanner (nRF Connect, or chrome://bluetooth-internals) will ' +
+          'say whether the radio is advertising at all, which is the part this screen cannot see.',
       ],
     ],
-    actions: [
-      { key: 'bluetooth', label: 'Try again', icon: 'i-lucide-arrow-right' },
-      { key: 'bluetooth-all', label: 'Show every device', icon: 'i-lucide-bluetooth' },
-    ],
+    actions: [{ key: 'bluetooth', label: 'Try again', icon: 'i-lucide-arrow-right' }],
   },
 
   'ble-off': {
@@ -344,6 +345,7 @@ function fill(text: string): string {
     .replaceAll('{model}', props.model)
     .replaceAll('{browser}', props.browserName)
     .replaceAll('{advice}', props.advice ?? '')
+    .replaceAll('{bleName}', props.bleName ?? 'the radio')
 }
 
 const copy = computed(() => STATES[props.state])

@@ -526,6 +526,17 @@ const offerBluetooth = computed(
  * wrong. And on iOS, where nothing will work, the sentence has to say that
  * rather than leave someone hunting for a setting.
  */
+/**
+ * What the radio calls itself in the browser's device list.
+ *
+ * The chooser cannot be filtered for this radio - it advertises neither its
+ * service nor a name - so the list is every Bluetooth device in range and this
+ * is the only thing that tells somebody which row is theirs. Quoted from the
+ * profile rather than written here, so a radio whose name nobody has recorded
+ * says "the radio" instead of naming the wrong one.
+ */
+const bleName = computed(() => bluetoothProfile().advertisedName)
+
 const bleNote = computed(() => {
   if (!bluetooth.value.supported) return bluetooth.value.advice
   /*
@@ -585,6 +596,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       :browser-name="support.browser"
       :advice="support.advice"
       :ble-note="bleNote"
+      :ble-name="bleName"
       :via="via"
       :log="log"
       :progress="progress"
