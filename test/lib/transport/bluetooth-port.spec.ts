@@ -7,6 +7,7 @@ import { RecordingTransport } from '#core/transport/recording-transport.js'
 import { DeviceDisconnectedError } from '#core/transport/errors.js'
 import {
   BluetoothUuidError,
+  DEFAULT_PROFILE,
   KNOWN_PROFILES,
   NORDIC_UART,
   UV5RM_AE30_ECHO,
@@ -332,40 +333,47 @@ describe('the UUIDs themselves', () => {
     expect(UV5RM_BLE.verified).toBe(true)
   })
 
-  it('records that this radio cannot be filtered for', () => {
+  it('resets to the profile it starts on, not to some other constant', () => {
     /*
-     * The one that cost an evening. `requestDevice` matches its filters against
-     * the device's advertisement, and this radio advertises neither its service
-     * nor a name.
+     * The bug that made three separate diagnoses wrong.
      *
-     * Filtering on FFE0 listed nothing - FFE0 came from a GATT enumeration,
-     * which happens after connecting. Filtering on `walkie`, `Walkie` and
-     * `WALKIE` listed nothing either, which is the surprising half, because
-     * `walkie-talkie` is what Chrome itself prints for the radio once the
-     * filters come off. That name reaches the chooser from the OS or from GATT
-     * rather than from the advertisement, so it is visible in the list and
-     * useless as a filter.
+     * `resetBluetoothProfile` assigned `NORDIC_UART` literally - correct when
+     * it was written and Nordic was the default, never revisited once the
+     * initialiser became a captured profile. `resolveBluetoothProfile()` calls
+     * it on every load carrying no `?ble=` override, which is every ordinary
+     * one, so the shipped chooser filtered on a service nobody has ever seen
+     * advertised and listed nothing at all, with a radio a foot away.
      *
-     * Both attempts produced an empty chooser, indistinguishable from a radio
-     * switched off. `filterable: false` is what stops the next person sending a
-     * filter that cannot match.
+     * Every "the filter does not match" conclusion drawn before this was
+     * measuring Nordic. This is the assertion that would have said so.
      */
-    expect(UV5RM_BLE.filterable).toBe(false)
-    expect(bluetoothProfile().filterable).toBe(false)
+    setBluetoothProfile(parseBluetoothProfile('1234,5678'))
+    resetBluetoothProfile()
+    expect(bluetoothProfile()).toBe(DEFAULT_PROFILE)
+    expect(bluetoothProfile()).toBe(UV5RM_BLE)
+    expect(bluetoothProfile().id).toBe('uv5rm-ffe0')
   })
 
-  it('keeps the advertised name, for the person reading the list', () => {
-    // Not a filter - that was tried. With `acceptAllDevices` the chooser holds
-    // every device in range, and this is the only thing saying which row is
-    // the radio.
+  it('carries a name to filter on as well as a service', () => {
+    // A service filter matches only a service the device advertises, and FFE0
+    // came from a GATT enumeration, which happens after connecting. Whether
+    // either reaches this radio is still untested - see the profile.
+    expect(UV5RM_BLE.namePrefixes).toContain('walkie')
     expect(UV5RM_BLE.advertisedName).toBe('walkie-talkie')
   })
 
-  it('filters a hand-entered profile on its service', () => {
-    // Somebody pasting UUIDs has read them off a radio and wants the chooser
-    // narrowed to it. `?ble=scan` is the next thing to try if that lists
-    // nothing, and it is one edit away in the same address bar.
-    expect(parseBluetoothProfile('ffe0,ffe1').filterable).toBe(true)
+  it('stops each prefix before any separator', () => {
+    // Every character a prefix covers is a character that can be wrong, and a
+    // name shown as `walkie-talkie` may hold a hyphen that is not U+002D.
+    for (const prefix of UV5RM_BLE.namePrefixes) {
+      expect(prefix, `${prefix} reaches past the first word`).toMatch(/^[A-Za-z]+$/)
+    }
+  })
+
+  it('puts no name on a hand-entered profile', () => {
+    // Somebody pasting UUIDs is chasing a radio this build does not know, and
+    // a name prefix from a different one would filter theirs straight back out.
+    expect(parseBluetoothProfile('ffe0,ffe1').namePrefixes).toEqual([])
   })
 
   it('never defaults to the AE30 characteristic, which is a loopback', () => {
@@ -411,10 +419,17 @@ describe('the UUIDs themselves', () => {
   })
 
   it('can be overridden and put back', () => {
+    /*
+     * This asserted `NORDIC_UART` for as long as the bug existed, which is how
+     * the bug survived two changes of default: the reset was measured against
+     * a literal rather than against the profile the module actually starts on,
+     * so moving the default moved only half of the pair and the suite stayed
+     * green. `DEFAULT_PROFILE` is now the one name for both.
+     */
     const custom = parseBluetoothProfile('ffe0,ffe1')
     setBluetoothProfile(custom)
     expect(bluetoothProfile()).toBe(custom)
     resetBluetoothProfile()
-    expect(bluetoothProfile()).toBe(NORDIC_UART)
+    expect(bluetoothProfile()).toBe(DEFAULT_PROFILE)
   })
 })

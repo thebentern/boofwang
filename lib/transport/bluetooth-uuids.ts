@@ -66,25 +66,27 @@ export interface BluetoothProfile {
   /** The characteristic the radio notifies on - Nordic's "TX". */
   readonly notify: string
   /**
-   * Whether any chooser filter can match this device at all.
+   * Names this radio has been seen advertising, as chooser filter prefixes.
    *
-   * `requestDevice` matches its filters against the device's **advertisement**,
-   * and nothing else. A device that advertises no service UUID and no local
-   * name cannot be filtered for by any means the API offers, and the only way
-   * to list it is `acceptAllDevices`.
+   * A service filter is not always enough: `requestDevice` matches a service
+   * only when the device puts it in its **advertisement**, and FFE0 was found
+   * by a GATT enumeration, which happens after connecting and says nothing
+   * about what is broadcast. Filters are OR-ed, so naming both asks the chooser
+   * for "advertises the service, or is called this".
    *
-   * False here is a measurement, not caution. See `UV5RM_BLE` below for what
-   * was tried and what it cost.
+   * `namePrefix` is an exact, case-sensitive prefix with no case-insensitive
+   * form, so the casings are enumerated rather than assumed, and each stops
+   * before the separator: a name rendered `walkie-talkie` on screen may hold a
+   * hyphen that is not U+002D, and a filter carrying the wrong one matches
+   * nothing while reading correctly here.
    */
-  readonly filterable: boolean
+  readonly namePrefixes: readonly string[]
   /**
-   * What the chooser labels this radio, when it labels it at all.
+   * What the chooser labels this radio, for when the filters come off.
    *
-   * Not a filter - that was tried and does not work. This is for telling a
-   * person which row is theirs, which is the whole problem with
-   * `acceptAllDevices`: the list is every Bluetooth device in range, and
-   * without a name to look for the radio is one anonymous row among the
-   * headphones.
+   * `?ble=scan` and the "show every device" button both drop them, and then the
+   * list is every Bluetooth device in range. This is what tells somebody which
+   * row is theirs.
    */
   readonly advertisedName?: string
   /** True only once a radio has answered a handshake over this profile. */
@@ -142,9 +144,8 @@ export const NORDIC_UART: BluetoothProfile = {
   service: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
   write: '6e400002-b5a3-f393-e0a9-e50e24dcca9e',
   notify: '6e400003-b5a3-f393-e0a9-e50e24dcca9e',
-  // Untested, and a Nordic device conventionally does advertise its service,
-  // so the filter is worth sending. Nothing here has been measured.
-  filterable: true,
+  // No radio has ever been seen advertising this, let alone under a name.
+  namePrefixes: [],
   verified: false,
 }
 
@@ -185,22 +186,17 @@ export const UV5RM_BLE: BluetoothProfile = {
   write: normaliseUuid('ffe1'),
   notify: normaliseUuid('ffe1'),
   /*
-   * This radio cannot be filtered for. Both filters the API offers were tried
-   * against a real one in wireless CPS mode, a foot from the machine.
+   * `walkie-talkie` is what Chrome labels the radio in an unfiltered chooser,
+   * and these are prefixes of it rather than the whole string.
    *
-   * Filtering on FFE0 listed nothing, because FFE0 is not advertised - it was
-   * found by a GATT enumeration, which happens after connecting. Filtering on
-   * `walkie`, `Walkie` and `WALKIE` listed nothing either, and that is the
-   * surprising half: `walkie-talkie` is the name Chrome itself prints for this
-   * radio once the filters come off. That name reaches the chooser from the
-   * operating system or from GATT, not from the advertisement `namePrefix` is
-   * matched against, so it is visible in the list and unusable as a filter.
-   *
-   * Both attempts produced an empty chooser, which is indistinguishable from a
-   * radio switched off. Recorded here as a property of the radio so the next
-   * person does not spend the same evening on it.
+   * Whether a filter can reach this radio at all is genuinely unknown. Three
+   * attempts said it could not - one service filter and two name filters, each
+   * producing an empty chooser - and all three were invalid, because
+   * `resetBluetoothProfile()` was swapping this profile for Nordic UART on
+   * every load that carried no `?ble=` override. The filters that came back
+   * empty were Nordic's. None of the numbers in this record had been sent.
    */
-  filterable: false,
+  namePrefixes: ['walkie', 'Walkie', 'WALKIE'],
   advertisedName: 'walkie-talkie',
   verified: true,
 }
@@ -217,9 +213,7 @@ export const UV5RM_AE30_ECHO: BluetoothProfile = {
   service: normaliseUuid('ae30'),
   write: normaliseUuid('ae01'),
   notify: normaliseUuid('ae02'),
-  // Never a default, so this is never asked. Left true rather than inventing a
-  // measurement nobody took.
-  filterable: true,
+  namePrefixes: [],
   verified: false,
 }
 
@@ -262,13 +256,7 @@ export function parseBluetoothProfile(spec: string): BluetoothProfile {
    * chasing a radio this build does not know, and a name prefix from a
    * different one would filter theirs straight back out.
    */
-  /*
-   * A hand-entered profile is filtered on its service. Somebody pasting UUIDs
-   * has read them off a radio and wants a chooser narrowed to it; if that
-   * lists nothing, `?ble=scan` is the next thing to try and is one edit away
-   * in the same address bar.
-   */
-  return { id: 'custom', label: 'Custom profile', service, write, notify, filterable: true, verified: false }
+  return { id: 'custom', label: 'Custom profile', service, write, notify, namePrefixes: [], verified: false }
 }
 
 /**
@@ -284,7 +272,24 @@ export function parseBluetoothProfile(spec: string): BluetoothProfile {
  * Filtering the chooser on a service the radio does not advertise lists nothing
  * at all, which is indistinguishable from the radio being switched off.
  */
-let active: BluetoothProfile = UV5RM_BLE
+/**
+ * One name for the default, because the reset below drifted away from it.
+ *
+ * `resetBluetoothProfile` used to assign `NORDIC_UART` literally. That was
+ * right when it was written and Nordic was the default; two commits later the
+ * initialiser was a captured profile and the reset was never touched. And
+ * `resolveBluetoothProfile()` calls the reset on **every load carrying no
+ * `?ble=` override** - which is every ordinary one - so the shipped app spent
+ * every session filtering its chooser on a service nobody has seen advertised,
+ * listing nothing, with a radio a foot away. That is the exact failure the
+ * header of this file warns about, caused by the file itself.
+ *
+ * Naming the default once is what stops it happening again, and a test asserts
+ * the reset lands back on it.
+ */
+export const DEFAULT_PROFILE: BluetoothProfile = UV5RM_BLE
+
+let active: BluetoothProfile = DEFAULT_PROFILE
 
 export function bluetoothProfile(): BluetoothProfile {
   return active
@@ -296,5 +301,5 @@ export function setBluetoothProfile(profile: BluetoothProfile): void {
 
 /** Undo an override; used by tests and by `?ble=off`. */
 export function resetBluetoothProfile(): void {
-  active = NORDIC_UART
+  active = DEFAULT_PROFILE
 }

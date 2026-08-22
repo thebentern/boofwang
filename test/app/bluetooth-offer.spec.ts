@@ -54,21 +54,28 @@ describe('the Bluetooth offer', () => {
 /**
  * How the chooser asks for this radio.
  *
- * It cannot be filtered for. `requestDevice` matches its filters against the
- * advertisement, and this radio advertises neither its service nor a name -
- * both were tried against real hardware and both listed nothing. So the
- * request has to be `acceptAllDevices`, and the screen has to name what the
- * radio calls itself, because the list is then every Bluetooth device in
- * range. A filter creeping back in is an empty chooser returning.
+ * Two things have to hold, and the second is the one that broke.
+ *
+ * A service filter matches only a service the device advertises, and FFE0 came
+ * from a GATT enumeration - after connecting - so the name prefixes have to go
+ * alongside it. And the profile those filters come from has to be the radio's:
+ * `resetBluetoothProfile()` ran on every load without a `?ble=` override and
+ * substituted Nordic UART, so the shipped chooser filtered on a service nobody
+ * has seen advertised and listed nothing at all.
  */
 describe('the Bluetooth chooser', () => {
-  it('does not send a filter a device cannot match', () => {
-    expect(CHOOSER).toMatch(/!profile\.filterable/)
+  it('filters on the advertised name, not only on the service', () => {
+    expect(CHOOSER).toMatch(/namePrefixes\.map\(\(namePrefix\) => \(\{ namePrefix \}\)\)/)
   })
 
-  it('tells the reader which row is theirs', () => {
-    // With every device listed, the advertised name is the only thing that
-    // distinguishes the radio from the headphones next to it.
+  it('keeps a way out of a filter that cannot match', () => {
+    // Neither filter is confirmed against this radio's advertisement, so an
+    // empty chooser has to be distinguishable from a radio that is not there.
+    expect(CHOOSER).toMatch(/everyDevice/)
+    expect(PAGE).toMatch(/'bluetooth-all'/)
+  })
+
+  it('names the radio for the unfiltered list', () => {
     expect(PAGE).toMatch(/advertisedName/)
     expect(PAGE).toMatch(/:ble-name="bleName"/)
   })

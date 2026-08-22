@@ -97,11 +97,10 @@ export function describeBluetoothDevice(name: string | null | undefined): string
  * anything was in it.
  *
  * The chooser lists only what its filters match, and those filters are matched
- * against the device's **advertisement**. The UV-5R Mini advertises neither its
- * service nor a name, so no filter reaches it and `profile.filterable` is false
- * - which makes `acceptAllDevices` the route rather than the fallback. The cost
- * is a chooser holding every Bluetooth device in range, which is why the card
- * tells the user what the radio calls itself.
+ * against the device's **advertisement** - not against anything discoverable
+ * after connecting. FFE0 came from a GATT enumeration, so the name prefixes sit
+ * alongside it rather than trusting it alone. `everyDevice` drops both, for a
+ * radio advertising neither.
  */
 export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}): Promise<PortChoice | null> {
   if (!bluetoothAvailable()) throw new Error('This browser does not support Web Bluetooth.')
@@ -109,18 +108,19 @@ export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}
   const { profile, scan } = resolveBluetoothProfile()
 
   /*
-   * `optionalServices` is what the two branches share and the reason neither
-   * can be dropped: Web Bluetooth will not hand over a service that was not
-   * named up front, whether or not it was filtered on.
+   * Filters are OR-ed by the browser: "advertises the service, or is named like
+   * one of these". `optionalServices` is on both branches because Web Bluetooth
+   * will not hand over a service that was not named up front, whether or not it
+   * was filtered on.
    */
-  const everyDevice = scan || opts.everyDevice || !profile.filterable
+  const filters = [...profile.namePrefixes.map((namePrefix) => ({ namePrefix })), { services: [profile.service] }]
 
   let device: BluetoothDevice
   try {
     device = await navigator.bluetooth.requestDevice(
-      everyDevice
+      scan || opts.everyDevice
         ? { acceptAllDevices: true, optionalServices: [profile.service] }
-        : { filters: [{ services: [profile.service] }], optionalServices: [profile.service] },
+        : { filters, optionalServices: [profile.service] },
     )
   } catch (e) {
     // The user dismissing the chooser is not an error worth surfacing, which is

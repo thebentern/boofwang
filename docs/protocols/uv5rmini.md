@@ -275,43 +275,55 @@ The protocol is unchanged. Same identify string, same three magics, same `0x52`
 block reads, same `CO 7` obfuscation — only the carrier differs, which is why
 the driver needed no Bluetooth-specific code above the port.
 
-### The radio cannot be filtered for, and that is the whole story
+### The chooser was filtering on Nordic UART the whole time
 
-This is what made the browser chooser unusable long after the protocol worked,
-and it is worth separating from the section below.
+The browser chooser listed nothing for months while the protocol over BLE
+worked perfectly, and the reason turned out to be four lines away from the
+profile table rather than anywhere near the radio.
 
-`navigator.bluetooth.requestDevice` matches its filters against the device's
-**advertisement**, and nothing else. Two filters exist. Both were tried against
-a real radio in wireless CPS mode, a foot from the machine, and both listed
-nothing at all:
+`resetBluetoothProfile()` assigned `NORDIC_UART` literally. That was right when
+it was written, because Nordic was the default then. Two commits later the
+default was a captured profile and the reset was never touched. And
+`resolveBluetoothProfile()` calls the reset on **every load that carries no
+`?ble=` override**, which is every ordinary one - so the shipped app filtered
+its chooser on `6e400001-…`, a service nobody has ever seen this radio
+advertise, and listed nothing at all.
 
-| Filter | Result |
-|---|---|
-| `{ services: ['0000ffe0-…'] }` | empty chooser |
-| `{ namePrefix: 'walkie' }`, and the `Walkie`/`WALKIE` casings | empty chooser |
-| no filter, `acceptAllDevices` | **radio appears, as `walkie-talkie`** |
+Three separate diagnoses were drawn from that empty chooser before the cause was
+found, and all three were wrong:
 
-The service one is explicable: FFE0 came from a GATT enumeration, which happens
-after connecting and says nothing about what is broadcast. The name one is the
-surprise, because `walkie-talkie` is what Chrome itself prints for the radio in
-the unfiltered list. That name reaches the chooser from the operating system or
-from GATT after connecting - not from the advertisement `namePrefix` is matched
-against. It is visible in the list and unusable as a filter.
+| Attempt | Concluded | Actually sent |
+|---|---|---|
+| filter on FFE0 | the service is not advertised | Nordic's service |
+| filter on `walkie`/`Walkie`/`WALKIE` | the name is not advertised either | Nordic's service |
+| `acceptAllDevices` when "unfilterable" | the radio advertises nothing | Nordic's service |
 
-So the radio advertises nothing a browser can filter on, `filterable` is false
-in `bluetooth-uuids.ts`, and `acceptAllDevices` is the route rather than the
-fallback. The cost is a chooser holding every Bluetooth device in range, which
-is why `advertisedName` is kept and why the connect screen quotes it: with the
-list unfiltered, the name is the only thing telling somebody which row is
-theirs.
+Every one of them looked like a measurement and none of them sent the numbers
+being measured. The third is the sharpest: the request was supposed to drop all
+filters, and could not, because the flag deciding that was read off the wrong
+profile.
 
-Each empty chooser is indistinguishable from a radio switched off, which is why
-this is written down as a property of the radio rather than left to be
-rediscovered.
+Two things kept it alive. An empty chooser is indistinguishable from a radio
+that is switched off, so every failure had an innocent explanation to hand. And
+a test asserted `resetBluetoothProfile()` landed on `NORDIC_UART` - pinning the
+bug rather than the intent, which is why moving the default twice never turned
+the suite red. There is now one `DEFAULT_PROFILE`, the initialiser and the reset
+both use it, and the test compares against it rather than against a literal.
+
+### What is actually known, and what is not
+
+Known: with the filters off, Chrome lists the radio as `walkie-talkie`, and the
+protocol over BLE reads a whole codeplug.
+
+**Not** known: whether this radio advertises FFE0, or a local name, or anything
+filterable at all. No filter carrying its numbers has ever reached it. The
+chooser now sends the service and the name prefixes together, and "show every
+device" is kept precisely because that question is open - an empty chooser still
+has to be distinguishable from a radio that is not there.
 
 The bridge has the same trap from the other end. `tools/ble-bridge/server.py`
-filters its scan on the same advertised service and takes `--all` to stop doing
-so, which is how the verified read below was taken. That is why the read could
+filters its scan on the advertised service and takes `--all` to stop doing so,
+which is how the verified read below was taken. That is why the read could
 succeed while the browser chooser had never once worked: two different discovery
 paths, and only one of them had been exercised.
 
@@ -354,10 +366,12 @@ producing a plausible codeplug.
 
 ### Still not verified
 
+- **Whether the chooser can be filtered for this radio at all.** See above: no
+  filter carrying this radio's numbers has ever been sent, because the profile
+  was being substituted before the request was built. The service and the name
+  are both sent now and neither has been confirmed against hardware.
 - **Whether every unit advertises the same name.** One radio has been seen, and
-  the chooser labelled it `walkie-talkie`. Nothing depends on that string - the
-  list is unfiltered either way - but the connect screen quotes it, so a unit
-  calling itself something else would send somebody looking for the wrong row.
+  the chooser labelled it `walkie-talkie`.
 - **Writing over Bluetooth.** Not implemented and not offered. Read first, prove
   the round trip, then write — the order every other radio here followed.
 - The `0x80` upload block size and its `0xFF` padding are transcribed from
