@@ -22,6 +22,7 @@ const route = useRoute()
 const db = useBoofwangDb()
 const session = useRadioSession()
 const transfer = useTransferStore()
+const device = useDeviceStore()
 
 const backup = ref<StoredBackup | null>(null)
 const loading = ref(true)
@@ -101,7 +102,7 @@ async function confirmRestore() {
       </div>
 
       <p style="font-size: 13px; line-height: 1.55; color: var(--fn)">
-        Each block is written, read back and compared. Leave the cable connected and the radio switched on.
+        Each block is written, read back and compared. {{ device.keepLinkUp }} until it finishes.
       </p>
     </div>
   </div>
@@ -169,7 +170,7 @@ async function confirmRestore() {
           the answer to most of what could go wrong.
         -->
         <p v-if="canWrite" style="font-size: 13px; line-height: 1.6; color: var(--cn); margin-bottom: 13px">
-          An interrupted restore can leave the radio unable to start. Keep it powered and the cable in until
+          An interrupted restore can leave the radio unable to start. {{ device.keepLinkUp }} until
           this finishes; if it stops part way, run it again rather than reaching for the radio's own menus.
         </p>
 

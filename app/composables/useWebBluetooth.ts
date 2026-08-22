@@ -102,6 +102,19 @@ export function describeBluetoothDevice(name: string | null | undefined): string
  * alongside it rather than trusting it alone. `everyDevice` drops both, for a
  * radio advertising neither.
  */
+/**
+ * The last radio the user granted, kept so a write does not ask again.
+ *
+ * A `BluetoothDevice` stays granted for as long as the page holds it, and
+ * `gatt.connect()` on one needs no transient activation - unlike
+ * `requestDevice`. That is the whole reason this is worth keeping: reading
+ * closes the port and `BluetoothPort` drops the GATT link deliberately, so by
+ * the time someone has edited a channel there is no live link, and without
+ * this the write would have to raise a second chooser for a radio the user
+ * has already picked once.
+ */
+let granted: BluetoothDevice | null = null
+
 export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}): Promise<PortChoice | null> {
   if (!bluetoothAvailable()) throw new Error('This browser does not support Web Bluetooth.')
 
@@ -129,6 +142,32 @@ export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}
     throw e
   }
 
+  granted = device
+  return await linkTo(device, profile)
+}
+
+/**
+ * Reconnect the radio already granted this session, if there is one.
+ *
+ * Null rather than a throw when there is nothing to reconnect: the caller's
+ * next move is to open the chooser, and a missing grant is the ordinary state
+ * on a fresh page rather than a fault.
+ */
+export async function reconnectBluetoothRadio(): Promise<PortChoice | null> {
+  if (!bluetoothAvailable() || !granted) return null
+  const { profile } = resolveBluetoothProfile()
+  return await linkTo(granted, profile)
+}
+
+/**
+ * Connect a granted device and wrap it as a port.
+ *
+ * Shared by the chooser and the reconnect, because everything below the
+ * chooser is identical: the same GATT connect, the same service, the same two
+ * characteristics. Splitting it the other way - a reconnect that re-ran the
+ * chooser - is what would put a second dialogue in front of a write.
+ */
+async function linkTo(device: BluetoothDevice, profile: BluetoothProfile): Promise<PortChoice> {
   const server = await device.gatt?.connect()
   if (!server) throw new Error(`${device.name ?? 'That device'} would not accept a GATT connection.`)
 

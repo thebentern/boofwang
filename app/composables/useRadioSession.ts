@@ -9,6 +9,8 @@ import type { RadioId } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { evaluateWriteGate } from '#core/radio/write-gate.js'
 import type { PortChoice } from '~/composables/useWebSerial'
+import type { TransportKind } from '#core/transport/transport.js'
+import { reconnectBluetoothRadio, requestBluetoothRadio } from '~/composables/useWebBluetooth'
 
 /**
  * What `device.connect` needs to label the connection.
@@ -18,6 +20,33 @@ import type { PortChoice } from '~/composables/useWebSerial'
  */
 function connectInfo(choice: PortChoice) {
   return { ...choice.info, ...(choice.label === undefined ? {} : { label: choice.label }) }
+}
+
+/**
+ * Get a port back, over the carrier this session last used.
+ *
+ * Writing and restoring both have to reconnect, because reading closes the
+ * port when it finishes and editing takes as long as it takes. What they must
+ * not do is decide *how* on the caller's behalf: `acquirePort` opens the
+ * serial chooser, and asking someone holding a radio paired over Bluetooth to
+ * pick a cable is not a prompt they can answer.
+ *
+ * The Bluetooth branch tries the granted device first, which needs no chooser
+ * and no transient activation. Falling through to `requestBluetoothRadio` is
+ * for the grant being gone - a reload between the read and the write - and it
+ * has to stay the last thing awaited on that path so the click's activation
+ * still covers it.
+ */
+async function acquireLike(kind: TransportKind): Promise<PortChoice | null> {
+  if (kind !== 'bluetooth') return await acquirePort()
+  return (await reconnectBluetoothRadio()) ?? (await requestBluetoothRadio())
+}
+
+/** What went wrong opening a link, in the terms of the carrier it was over. */
+function acquireFailure(kind: TransportKind) {
+  return kind === 'bluetooth'
+    ? { title: 'Could not reach the radio over Bluetooth', icon: 'i-lucide-signal' }
+    : { title: 'Could not open a serial port', icon: 'i-lucide-cable' }
 }
 
 /**
@@ -82,17 +111,17 @@ export function useRadioSession() {
     // Reading disconnects when it finishes, so by the time someone has edited a
     // channel there is usually no live port. Reconnecting here rather than
     // demanding it first keeps the button about intent: the click is itself the
-    // user gesture `requestPort` needs, so this works on real Web Serial and not
-    // only through the dev bridge.
+    // transient activation a chooser needs, so this works on real Web Serial
+    // and Web Bluetooth and not only through the dev bridge.
     if (!device.connected) {
-      let choice: Awaited<ReturnType<typeof acquirePort>>
+      const kind = device.lastKind
+      let choice: PortChoice | null
       try {
-        choice = await acquirePort()
+        choice = await acquireLike(kind)
       } catch (e) {
         toast.add({
-          title: 'Could not open a serial port',
+          ...acquireFailure(kind),
           description: e instanceof Error ? e.message : String(e),
-          icon: 'i-lucide-cable',
           color: 'error',
           duration: 0,
         })
@@ -212,14 +241,14 @@ export function useRadioSession() {
    */
   async function restoreToRadio(image: RadioImage) {
     if (!device.connected) {
-      let choice: Awaited<ReturnType<typeof acquirePort>>
+      const kind = device.lastKind
+      let choice: PortChoice | null
       try {
-        choice = await acquirePort()
+        choice = await acquireLike(kind)
       } catch (e) {
         toast.add({
-          title: 'Could not open a serial port',
+          ...acquireFailure(kind),
           description: e instanceof Error ? e.message : String(e),
-          icon: 'i-lucide-cable',
           color: 'error',
           duration: 0,
         })

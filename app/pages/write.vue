@@ -230,7 +230,7 @@ async function send() {
       Read a radio first. The read changes nothing, and it saves the backup this page will not write without.
     </p>
     <div class="mt-4">
-      <RiskAction risk="safe" icon="i-lucide-usb" label="Go to Connect" size="lg" @click="navigateTo('/')" />
+      <RiskAction risk="safe" icon="i-lucide-radio" label="Go to Connect" size="lg" @click="navigateTo('/')" />
     </div>
   </div>
 
@@ -270,7 +270,7 @@ async function send() {
           real radios, not a specification from the manufacturer. A write that is interrupted, or that turns
           out to have been wrong about a byte, can leave a radio that will not boot or will not transmit.
           Recovery usually means writing a known-good backup back over it, which is why one is required
-          before anything is sent. Keep the radio powered and the cable in until it finishes.
+          before anything is sent. {{ device.keepLinkUp }} until it finishes.
         </p>
       </div>
     </div>
@@ -562,7 +562,7 @@ async function send() {
       </div>
 
       <p style="font-size: 13px; line-height: 1.55; color: var(--fn)">
-        Every block is read back and compared before the write is called done. Leave the cable connected and the radio switched on.
+        Every block is read back and compared before the write is called done. {{ device.keepLinkUp }} until it finishes.
       </p>
     </div>
   </section>

@@ -5,7 +5,7 @@ import { RecordingTransport } from '#core/transport/recording-transport.js'
 import type { IdentifyResult, RadioDriver } from '#core/radio/driver.js'
 import type { RadioId } from '#core/model/codeplug.js'
 import { createDriver } from '#core/radio/registry.js'
-import type { SerialPortLike } from '#core/transport/transport.js'
+import type { SerialPortLike, TransportKind } from '#core/transport/transport.js'
 
 export type ConnState = 'idle' | 'requesting' | 'opening' | 'identifying' | 'connected' | 'error' | 'lost'
 
@@ -33,12 +33,43 @@ export const useDeviceStore = defineStore('device', () => {
   const radioId = ref<RadioId | null>(null)
   const portLabel = ref<string>('')
 
+  /**
+   * What the last connection was carried by, kept after it ends.
+   *
+   * Deliberately not cleared by `disconnect()`, because the question it answers
+   * is asked when nothing is connected. Reading closes the port when it
+   * finishes, so by the time someone has edited a channel and pressed write
+   * there is no live link to ask - and the write used to reach for the serial
+   * chooser regardless, which put a cable dialogue in front of someone holding
+   * a radio connected over Bluetooth.
+   *
+   * A port that does not declare a carrier is a cable: `SerialPortLike.kind` is
+   * optional so that a fake port in a test need not answer, and the cable is
+   * what every driver assumes when it gets no answer.
+   */
+  const lastKind = ref<TransportKind>('serial')
+
   let port: SerialPortLike | null = null
   let transport: RecordingTransport | null = null
   let driver: RadioDriver | null = null
   let offDisconnect: (() => void) | null = null
 
   const connected = computed(() => state.value === 'connected')
+
+  /**
+   * How to keep the link up while a transfer runs, in the carrier's own terms.
+   *
+   * Every screen that sends bytes says this, and each said "leave the cable
+   * connected" - advice that names a thing a Bluetooth user does not have, on
+   * the one path where the useful warning is about range rather than a plug.
+   * One phrase in one place because three screens carrying their own wording
+   * is how one of them ends up still talking about cables.
+   */
+  const keepLinkUp = computed(() =>
+    lastKind.value === 'bluetooth'
+      ? 'Keep the radio switched on and in range'
+      : 'Keep the radio switched on and the cable connected',
+  )
 
   /**
    * The driver if there is one, rather than a throw.
@@ -73,6 +104,7 @@ export const useDeviceStore = defineStore('device', () => {
       port = chosen
       driver = createDriver(id)
       radioId.value = id
+      lastKind.value = chosen.kind ?? 'serial'
       // A caller that knows what it connected to says so. Only a USB port has
       // an identity worth deriving, and a Bluetooth link derives as "an
       // unidentified serial port", which reads as a fault rather than a fact.
@@ -135,6 +167,8 @@ export const useDeviceStore = defineStore('device', () => {
     ident,
     radioId,
     portLabel,
+    lastKind,
+    keepLinkUp,
     connected,
     lastFailureTrace,
     connect,

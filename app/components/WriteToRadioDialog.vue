@@ -131,8 +131,8 @@ async function write() {
       />
 
       <p class="text-xs text-muted">
-        {{ backupAge }} Every block is read back and compared after writing. Leave the cable connected
-        and the radio switched on until it finishes.
+        {{ backupAge }} Every block is read back and compared after writing. {{ device.keepLinkUp }}
+        until it finishes.
       </p>
     </template>
 
