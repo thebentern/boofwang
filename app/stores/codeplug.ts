@@ -392,13 +392,24 @@ export const useCodeplugStore = defineStore('codeplug', () => {
    * first, so what `closeBatch` hands back is precisely the patch that would
    * restore things as they are now. Undo and redo are therefore the same code
    * moving an entry between the two stacks.
+   *
+   * Slots and memberships are replayed differently, and the difference is not
+   * cosmetic. A slot patch is absolute - `batch.slots` is keyed by slot and
+   * first write wins - so those can go back in any order. A membership patch
+   * is a *position* in a list, recorded against the list as it stood when that
+   * patch was made, so the patches only make sense played back the way they
+   * were laid down: last one first. Forwards, deleting channels 2 and 4 from a
+   * zone holding 1,2,3,4 undid to 1,2,4,3 - every channel present, the order
+   * silently wrong, which on the radio is a zone whose entries have moved.
+   * This never showed while the table deleted one channel at a time; the bulk
+   * delete is what made two positional edits in one action ordinary.
    */
   function replay(entry: HistoryEntry): HistoryEntry | null {
     const cp = doc.value
     if (!cp) return null
     openBatch(entry.label, false)
     for (const p of entry.slots) writeSlot(p.slot, p.record)
-    for (const m of entry.members) applyMember(cp, m)
+    for (let i = entry.members.length - 1; i >= 0; i--) applyMember(cp, entry.members[i]!)
     const inverse = closeBatch()
 
     // `dirty` walks back with the edits, but only as far as the edits explain.

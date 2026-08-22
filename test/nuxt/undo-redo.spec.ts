@@ -373,3 +373,104 @@ describe('what an undo costs the table', () => {
     expect(store.doc!.zones[0]!.channels, 'the channel came back but its zone did not').toEqual([1, 2, 3])
   })
 })
+
+/**
+ * Deleting a selection, which is the table's bulk action composed out of the
+ * single one.
+ *
+ * `deleteChannel` opens its own transaction, so the whole question here is
+ * whether nesting actually collapses: forty deletes that cost forty undo
+ * presses would be a history nobody uses, and the failure is invisible until
+ * somebody needs the second press. The membership half matters for the same
+ * reason - a zone is a list of absolute slots, and half-restoring one leaves a
+ * codeplug that looks right in every list and is wrong on the air.
+ */
+describe('deleting a selection', () => {
+  it('costs the history one step, whatever the size of the selection', () => {
+    const store = open()
+    withChannels(store, 20)
+    const slots = [2, 5, 6, 7, 11, 19]
+
+    store.transact(`delete ${slots.length} channels`, () => {
+      for (const slot of slots) store.deleteChannel(slot)
+    })
+    expect(store.channelCount).toBe(14)
+
+    store.undo()
+
+    expect(store.channelCount, 'six deletes undid as six steps').toBe(20)
+    expect(store.canUndo, 'the setup action should be all that is left').toBe(true)
+    expect(store.canRedo).toBe(true)
+  })
+
+  it('puts every membership back, across more than one list', () => {
+    const store = open()
+    withChannels(store, 6)
+    store.doc!.zones.push({ id: 'z1', name: 'Local', channels: [1, 2, 3, 4] })
+    store.doc!.zones.push({ id: 'z2', name: 'Simplex', channels: [4, 5, 6] })
+    store.doc!.scanLists.push({ id: 's1', name: 'Scan', channels: [2, 4, 6] })
+
+    store.transact('delete 2 channels', () => {
+      for (const slot of [2, 4]) store.deleteChannel(slot)
+    })
+
+    expect(store.doc!.zones[0]!.channels).toEqual([1, 3])
+    expect(store.doc!.zones[1]!.channels).toEqual([5, 6])
+    expect(store.doc!.scanLists[0]!.channels).toEqual([6])
+
+    store.undo()
+
+    expect(store.doc!.zones[0]!.channels, 'zone 1 did not come back whole').toEqual([1, 2, 3, 4])
+    expect(store.doc!.zones[1]!.channels, 'zone 2 did not come back whole').toEqual([4, 5, 6])
+    expect(store.doc!.scanLists[0]!.channels, 'the scan list did not come back whole').toEqual([2, 4, 6])
+  })
+
+  it('redoes the same order it undid, so the round trip is stable', () => {
+    const store = open()
+    withChannels(store, 6)
+    store.doc!.zones.push({ id: 'z1', name: 'Local', channels: [1, 2, 3, 4] })
+
+    store.transact('delete 2 channels', () => {
+      for (const slot of [2, 4]) store.deleteChannel(slot)
+    })
+    const afterDelete = [...store.doc!.zones[0]!.channels]
+
+    store.undo()
+    store.redo()
+
+    expect(store.doc!.zones[0]!.channels, 'redo did not land where the delete did').toEqual(afterDelete)
+
+    store.undo()
+
+    expect(store.doc!.zones[0]!.channels, 'a second undo drifted').toEqual([1, 2, 3, 4])
+  })
+
+  it('leaves the slots it was not given alone, and does not renumber', () => {
+    const store = open()
+    withChannels(store, 8)
+    const survivor = store.channels.find((c) => c.index === 8)!
+
+    store.transact('delete 3 channels', () => {
+      for (const slot of [1, 2, 3]) store.deleteChannel(slot)
+    })
+
+    expect(store.channels.map((c) => c.index)).toEqual([4, 5, 6, 7, 8])
+    // Identity, not equality: deleting the rows below slot 8 must not rebuild it.
+    expect(store.channels.find((c) => c.index === 8)).toBe(survivor)
+  })
+
+  it('ignores a slot that holds nothing, rather than recording an empty step', () => {
+    const store = open()
+    withChannels(store, 3)
+
+    store.transact('delete 2 channels', () => {
+      for (const slot of [2, 99]) store.deleteChannel(slot)
+    })
+
+    expect(store.channelCount).toBe(2)
+
+    store.undo()
+
+    expect(store.channelCount, 'the missing slot cost a step of its own').toBe(3)
+  })
+})

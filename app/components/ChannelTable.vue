@@ -779,6 +779,89 @@ function toggleAllVisible() {
   for (const r of programmed) selected.value.add(r.index)
 }
 
+/**
+ * The selection, narrowed to slots that still hold a channel.
+ *
+ * Selection is a set of numbers and nothing prunes it: undo, redo, opening
+ * another file and deleting a row all leave slots ticked that no longer hold
+ * anything. Everything downstream reads this rather than `selected`, so a
+ * stale tick can never inflate a count or a delete.
+ */
+const selectedProgrammed = computed(() =>
+  [...selected.value].filter((s) => bySlot.value.has(s)).sort((a, b) => a - b),
+)
+
+/**
+ * Ticks are dropped when a different codeplug is loaded, not carried over.
+ *
+ * Slot numbers are absolute, so a selection made on one radio addresses real
+ * slots on the next one - the set would survive the swap and mean something
+ * entirely different without looking any different.
+ */
+watch(
+  () => codeplug.image,
+  () => selected.value.clear(),
+)
+
+// -------------------------------------------------------------- bulk delete
+
+const confirmingDelete = ref(false)
+
+/**
+ * What deleting the selection would cost, counted before it is offered.
+ *
+ * The counting is the point of the dialog. Selection survives the filter and
+ * the search box, so someone can tick forty rows under "Receive-only", clear
+ * the facet, and now be looking at a table where nothing they are about to
+ * delete is on screen. A bare "delete 40 channels?" is not something anyone
+ * can check, so the dialog names the slots and the two things that go with
+ * them silently: the receive-only rows, which are the ones worth pausing over,
+ * and the zone and scan list entries `deleteChannel` takes out in the same
+ * edit.
+ */
+const deletePlan = computed(() => {
+  const slots = selectedProgrammed.value
+  const doc = codeplug.doc
+  const rxOnly = slots.filter((s) => bySlot.value.get(s)?.txAllowed === false)
+  const wanted = new Set(slots)
+
+  const memberships = (lists: readonly { name: string; channels: readonly number[] }[]) => {
+    const hit: string[] = []
+    for (const l of lists) {
+      const n = l.channels.filter((c) => wanted.has(c)).length
+      if (n > 0) hit.push(`${l.name || 'unnamed'} (${n})`)
+    }
+    return hit
+  }
+
+  return {
+    slots,
+    rxOnly,
+    zones: doc ? memberships(doc.zones) : [],
+    scanLists: doc ? memberships(doc.scanLists) : [],
+  }
+})
+
+/**
+ * Delete every selected slot as one undoable action.
+ *
+ * `deleteChannel` opens its own transaction, and nesting joins the group
+ * already open rather than starting another - which is what makes this one
+ * entry in the history instead of forty. Doing it any other way would leave
+ * someone pressing undo forty times to take back one decision.
+ */
+function deleteSelected() {
+  const slots = deletePlan.value.slots
+  confirmingDelete.value = false
+  if (slots.length === 0) return
+
+  const label = `delete ${slots.length} channel${slots.length === 1 ? '' : 's'}`
+  codeplug.transact(label, () => {
+    for (const slot of slots) codeplug.deleteChannel(slot)
+  })
+  selected.value.clear()
+}
+
 // ------------------------------------------------------------------- export
 
 /**
@@ -1069,6 +1152,139 @@ const printedFacts = computed(() => {
         </UPopover>
       </div>
     </div>
+
+    <!--
+      The selection bar, which exists only while something is ticked.
+
+      A delete button that is always on screen is one that eventually gets
+      clicked by someone reaching for Export. This appears with the first tick
+      and goes with the last, so the only time it can be hit is the only time
+      it means anything - and it carries the count, because the ticks
+      themselves can be scrolled or filtered out of sight.
+    -->
+    <div
+      v-if="selectedProgrammed.length > 0"
+      class="flex items-center flex-wrap print-hide"
+      style="gap: 9px; margin-bottom: 9px; padding: 7px 11px; border: 1px solid var(--inL); background: var(--inB); border-radius: 7px"
+    >
+      <span style="font-size: 13px; color: var(--tx)">
+        <span class="font-mono tabular" style="font-weight: 600">{{ selectedProgrammed.length }}</span>
+        selected
+      </span>
+      <span v-if="deletePlan.rxOnly.length > 0" class="flex items-center" style="gap: 5px; font-size: 12.5px; color: var(--cn)">
+        <UIcon name="i-lucide-lock" style="width: 11px; height: 11px" />
+        {{ deletePlan.rxOnly.length }} receive-only
+      </span>
+
+      <div class="ms-auto flex items-center" style="gap: 6px">
+        <RiskAction
+          risk="neutral"
+          ghost
+          size="sm"
+          icon="i-lucide-x"
+          label="Clear selection"
+          @click="selected.clear()"
+        />
+        <RiskAction
+          risk="destructive"
+          ghost
+          size="sm"
+          icon="i-lucide-trash-2"
+          :label="`Delete ${selectedProgrammed.length} channel${selectedProgrammed.length === 1 ? '' : 's'}`"
+          @click="confirmingDelete = true"
+        />
+      </div>
+    </div>
+
+    <!--
+      Names what is lost before it is lost, which is the whole job here.
+
+      No typed word: this is an edit to the document, not a write, and undo
+      takes it back in full. The typed word is reserved for the two things that
+      cannot be undone from inside the app - writing to a radio and restoring
+      over one - and spending it on something reversible is how it stops
+      meaning anything on the two that need it.
+    -->
+    <UModal
+      v-model:open="confirmingDelete"
+      :title="`Delete ${deletePlan.slots.length} channel${deletePlan.slots.length === 1 ? '' : 's'}?`"
+      :ui="{ content: 'max-w-xl' }"
+    >
+      <template #body>
+        <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 68ch">
+          The slots are emptied in the codeplug you have open. Nothing is sent to the radio, and
+          <span style="color: var(--tx)">{{ undoHint }}</span> puts every one of them back in a single step.
+          Other channels keep their slot numbers.
+        </p>
+
+        <div
+          class="mt-3 rounded-[7px]"
+          style="border: 1px solid var(--ln); background: var(--pn); padding: 10px 13px"
+        >
+          <div class="label-xs" style="color: var(--fn); letter-spacing: 0.08em; margin-bottom: 6px">
+            Slots
+          </div>
+          <p class="font-mono tabular" style="font-size: 13px; line-height: 1.6; color: var(--tx); word-break: break-word">
+            {{ deletePlan.slots.slice(0, 40).join(', ') }}<template v-if="deletePlan.slots.length > 40">
+              and {{ deletePlan.slots.length - 40 }} more</template>
+          </p>
+        </div>
+
+        <div
+          v-if="deletePlan.rxOnly.length > 0"
+          class="mt-3 rounded-[7px]"
+          style="border: 1px solid var(--cnL); background: var(--cnB); padding: 10px 13px"
+        >
+          <div class="flex items-center" style="gap: 6px; color: var(--cn); margin-bottom: 4px">
+            <UIcon name="i-lucide-lock" style="width: 12px; height: 12px" />
+            <span class="label-xs" style="letter-spacing: 0.08em">
+              {{ deletePlan.rxOnly.length }} of them
+              {{ deletePlan.rxOnly.length === 1 ? 'is' : 'are' }} receive-only
+            </span>
+          </div>
+          <p style="font-size: 13px; line-height: 1.5; color: var(--tx)">
+            {{ deletePlan.rxOnly.length === 1 ? 'Slot' : 'Slots' }}
+            <span class="font-mono tabular">{{ deletePlan.rxOnly.slice(0, 12).join(', ') }}</span><template
+              v-if="deletePlan.rxOnly.length > 12"
+            > and {{ deletePlan.rxOnly.length - 12 }} more</template>. Reprogramming
+            {{ deletePlan.rxOnly.length === 1 ? 'this one' : 'these' }} by hand is where a weather or
+            public-safety frequency comes back transmit-capable.
+          </p>
+        </div>
+
+        <div
+          v-if="deletePlan.zones.length > 0 || deletePlan.scanLists.length > 0"
+          class="mt-3 rounded-[7px]"
+          style="border: 1px solid var(--ln); background: var(--pn); padding: 10px 13px"
+        >
+          <div class="label-xs" style="color: var(--fn); letter-spacing: 0.08em; margin-bottom: 6px">
+            Also taken out, in the same edit
+          </div>
+          <p v-if="deletePlan.zones.length > 0" style="font-size: 13px; line-height: 1.5; color: var(--tx)">
+            Zones: {{ deletePlan.zones.join(', ') }}
+          </p>
+          <p v-if="deletePlan.scanLists.length > 0" style="font-size: 13px; line-height: 1.5; color: var(--tx)">
+            Scan lists: {{ deletePlan.scanLists.join(', ') }}
+          </p>
+          <p style="font-size: 12.5px; line-height: 1.5; color: var(--fn); margin-top: 5px">
+            A list still pointing at an emptied slot is the one thing these bytes could not settle, so the
+            entries go with the channels rather than being left to the radio.
+          </p>
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="flex items-center w-full" style="gap: 8px">
+          <RiskAction
+            risk="destructive"
+            icon="i-lucide-trash-2"
+            :label="`Delete ${deletePlan.slots.length} channel${deletePlan.slots.length === 1 ? '' : 's'}`"
+            @click="deleteSelected()"
+          />
+          <RiskAction risk="neutral" ghost label="Cancel" @click="confirmingDelete = false" />
+        </div>
+      </template>
+    </UModal>
 
     <!-- Diagnostics: one row per rule -->
     <div
