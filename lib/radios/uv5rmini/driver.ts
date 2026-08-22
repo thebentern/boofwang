@@ -75,6 +75,17 @@ export function describeIdent(detail: Uint8Array): string {
 export interface Uv5rMiniOptions {
   /** Whether this build may write. Turned on in the registry. */
   enableWrite?: boolean
+  /**
+   * Whether this build may write over Bluetooth. Off, and not set anywhere.
+   *
+   * The BLE upload path is built and unit-tested - 0x80 blocks with 0xFF
+   * padding, transcribed from CHIRP - and no radio has ever received one. This
+   * is the same shape as `enableWrite`: the capability exists, is provable, and
+   * stays off until hardware says otherwise. Tests that exercise the wire
+   * format turn it on explicitly, which is also what makes the refusal below
+   * testable.
+   */
+  allowBluetoothWrite?: boolean
 }
 
 export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver {
@@ -191,6 +202,35 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
       if (image.radioId !== 'uv5rmini') throw new DriverError(`Not a UV-5R Mini image: ${image.radioId}`)
       if (!schema.capabilities.write && !ctx.dryRun) throw new WriteBlockedError('the UV-5R Mini')
       if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('uv5rmini')
+
+      /*
+       * Not over Bluetooth, until a radio has survived one.
+       *
+       * The protocol notes say this in as many words - "not implemented and not
+       * offered ... no radio has been written to over BLE" - and the interface
+       * does not offer it. Neither of those is a guard: `uploadBlockSize`
+       * already adapts the block size for a BLE link, so the path assembled
+       * itself, and anything that reaches this function with a GATT transport
+       * would have written 33 KiB to a radio over a link a fortieth the speed
+       * of the cable the timeouts were tuned for.
+       *
+       * This is the radio whose write path once erased channels 3-21, and its
+       * upload rewrites every block because a partial write erases the rest of
+       * the flash page. A stall halfway is not a failed write, it is a wiped
+       * one. So the refusal lives here rather than in the page that hides the
+       * button, per the rule that the gate explains and the driver enforces.
+       *
+       * Today nothing in the app can reach this: a read disconnects in its
+       * `finally`, so the write path reconnects over Web Serial. That is one
+       * removed `finally` away from being false, which is the kind of thing a
+       * guard is for.
+       */
+      if (!ctx.dryRun && t.kind === 'bluetooth' && !options.allowBluetoothWrite) {
+        throw new WriteBlockedError(
+          'Bluetooth. Reading over Bluetooth is proven; writing is not, and this radio erases a whole ' +
+            'flash page per block. Use the cable to write.',
+        )
+      }
 
       const timeoutMs = ctx.readTimeoutMs ?? DEFAULT_DRIVER_TIMEOUT_MS
       const opts = { timeoutMs, signal: ctx.signal }

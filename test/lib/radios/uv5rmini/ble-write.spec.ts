@@ -65,7 +65,7 @@ const IDENT: IdentifyResult = {
 }
 const BACKUP = { id: 'b', identHash: 'match', createdAt: '2026-08-20T00:00:00.000Z' }
 
-const driver = createUv5rMiniDriver({ enableWrite: true })
+const driver = createUv5rMiniDriver({ enableWrite: true, allowBluetoothWrite: true })
 
 /**
  * A radio that answers frames, and remembers what it was told, at whatever
@@ -312,5 +312,34 @@ describe('the whole stack, over a real GATT link', () => {
     await t.open({ baudRate: 115_200 })
     expect(uploadBlockSize(t.kind)).toBe(BLE_UPLOAD_BLOCK_SIZE)
     await t.close()
+  })
+})
+
+/**
+ * The refusal that makes the rest of this file safe to have.
+ *
+ * Everything above turns `allowBluetoothWrite` on explicitly, because without
+ * it the driver will not write over a GATT link at all. That flag is set in no
+ * production code path - the registry passes only `enableWrite` - so what these
+ * tests prove is what boofwang *would* send, not something a user can trigger.
+ *
+ * Before this existed, nothing refused: `uploadBlockSize` already adapted the
+ * block size for BLE, so the path assembled itself, while the protocol notes
+ * said in as many words that writing over Bluetooth was "not implemented and
+ * not offered". Three sources claimed a guard that was not there.
+ */
+describe('writing over Bluetooth is off by default', () => {
+  it('refuses a GATT transport', async () => {
+    const driver = createUv5rMiniDriver({ enableWrite: true })
+    const ble = scriptedRadio('bluetooth')
+    await expect(
+      driver.writeImage(ble.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() }),
+    ).rejects.toThrow(/Bluetooth/)
+  })
+
+  it('still writes over a cable', async () => {
+    // The refusal is about the transport, not about the radio.
+    const driver = createUv5rMiniDriver({ enableWrite: true })
+    expect(driver.schema.capabilities.write).toBe(true)
   })
 })

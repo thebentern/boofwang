@@ -1003,13 +1003,15 @@ The region V-frame `0x0E` reports, `0x150000-0x175FFF`, holds 153,600 bytes of
 raw RGB565: 240 x 320 portrait, no header. The specification calls it BGR565 and
 the radio's panel disagrees; see the verified session below. `lib/io/boot-image.ts` converts
 between that and RGBA, and `lib/radios/dm32uv/boot-image.ts` reads and writes
-the region. **Nothing in the application reaches either of them**, and a test in
-`test/lib/radios/dm32uv/boot-image.spec.ts` resolves every import under `lib/`
-and `app/` to keep it that way.
+the region. **The application reaches both**, through `app/pages/startup-image.vue`
+and `useBootImage`, and this paragraph said the opposite for several commits
+after that stopped being true.
 
-Two reasons for that. The 2,048-byte write is `DERIVED` in the reference and
-appears in neither capture, and the rule this feature needs most — read and
-store the factory image *before* the first write — has nowhere to live yet.
+What it reaches is `writeBootImageRegion`: 38 whole pages, every one read back
+and compared, with the reported range held to a floor so a mis-framed V-frame
+reply cannot send the write down into the codeplug. The short-frame form and its
+2,048-byte tail are still `DERIVED` in the reference, appear in neither capture,
+and no radio has received one.
 **This region is outside the codeplug, so it is outside every backup boofwang
 has ever taken.** No `.bwp`, no stored backup and no fixture contains it. A
 codeplug can be rebuilt from a CSV; the factory splash cannot be rebuilt from

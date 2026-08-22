@@ -27,7 +27,7 @@ const { printing, print } = usePrintMode()
 
 type Facet = 'all' | 'rx' | 'err' | 'edit' | 'empty'
 type EditCol = 'name' | 'rx'
-type RowState = 'error' | 'receive-only' | 'edited' | 'empty' | 'ok'
+type RowState = 'error' | 'transmit-warning' | 'receive-only' | 'edited' | 'empty' | 'ok'
 
 /** A memory slot, whether or not a channel is programmed into it. */
 interface SlotRow {
@@ -125,6 +125,24 @@ const errorSlots = computed<ReadonlySet<number>>(() => {
   const out = new Set<number>()
   for (const d of codeplug.diagnostics) {
     if (d.severity === 'error' && d.channel !== undefined) out.add(d.channel)
+  }
+  return out
+})
+
+/**
+ * Channels warned about for where they transmit, rather than errored.
+ *
+ * `regulatory.band.tx-not-permitted` used to be an error, and the gutter mark
+ * came free with that - `GUTTER.error`'s title is still, literally, "Transmit
+ * lands in a receive-only allocation". Making it a warning was deliberate, but
+ * it took the mark with it, so a channel that can key up in the air band showed
+ * nothing at all in the table. The warning is the whole point; it has to be
+ * visible on the row it is about.
+ */
+const txWarningSlots = computed<ReadonlySet<number>>(() => {
+  const out = new Set<number>()
+  for (const d of codeplug.diagnostics) {
+    if (d.severity === 'warning' && d.field === 'tx' && d.channel !== undefined) out.add(d.channel)
   }
   return out
 })
@@ -230,7 +248,11 @@ const groups = computed<DiagGroup[]>(() => {
         message: first.message,
         count: list.length,
         slots: list.map((d) => d.channel).filter((n): n is number => n !== undefined),
-        aboutTransmit: first.severity === 'error' && list.every((d) => d.field === 'tx'),
+        // Warnings included: the message for tx-not-permitted ends "marking the
+        // channel receive-only will silence this", and when this was tied to
+        // `severity === 'error'` the downgrade left that sentence pointing at a
+        // button that no longer appeared.
+        aboutTransmit: first.severity !== 'info' && list.every((d) => d.field === 'tx'),
       }
     })
     .sort((a, b) => rank[a.severity] - rank[b.severity] || b.count - a.count)
@@ -333,6 +355,7 @@ function firstError(slot: number): Diagnostic | undefined {
 
 function stateOf(r: SlotRow): RowState {
   if (r.channel && errorSlots.value.has(r.index)) return 'error'
+  if (r.channel && txWarningSlots.value.has(r.index)) return 'transmit-warning'
   if (r.channel && !r.channel.txAllowed) return 'receive-only'
   if (editedSlots.value.has(r.index)) return 'edited'
   if (!r.channel) return 'empty'
@@ -349,7 +372,8 @@ function stateOf(r: SlotRow): RowState {
  * marking is dangerous rather than untidy, so on paper it is two letters.
  */
 const GUTTER: Record<Exclude<RowState, 'ok'>, { icon: string; color: string; title: string; mark: string }> = {
-  'error': { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', title: 'Transmit lands in a receive-only allocation', mark: '!' },
+  'error': { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', title: 'This channel cannot be programmed as it stands', mark: '!' },
+  'transmit-warning': { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', title: 'Transmit lands in a receive-only allocation - check your licence', mark: '!' },
   'receive-only': { icon: 'i-lucide-lock', color: 'var(--cn)', title: 'Receive-only, transmit disabled', mark: 'RX' },
   'edited': { icon: 'i-lucide-pencil', color: 'var(--in)', title: 'Changed, not yet written', mark: '*' },
   'empty': { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', title: 'Empty slot', mark: '·' },
@@ -914,6 +938,7 @@ const exportItems = computed(() => [
 const LEGEND = [
   { icon: 'i-lucide-lock', color: 'var(--cn)', label: 'receive-only' },
   { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', label: 'error' },
+  { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', label: 'check your licence' },
   { icon: 'i-lucide-pencil', color: 'var(--in)', label: 'edited' },
   { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', label: 'empty' },
 ] as const

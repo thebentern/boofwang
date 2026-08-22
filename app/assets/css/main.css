@@ -58,10 +58,17 @@
   --ln: #2E3D4B;
   --ln2: #3A4C5E;
 
-  /* Text, in descending emphasis. Warm, to sit on a warm ground. */
+  /*
+   * Text, in descending emphasis.
+   *
+   * `--fn` is set against `--pn3`, the lightest surface, not against the page.
+   * It used to be picked against the page alone and sat at 3.96:1 on a raised
+   * panel - under AA - which nothing caught because the contrast test checked
+   * three of the four surfaces and called itself exhaustive.
+   */
   --tx: #EAF0F6;
   --mu: #C3CDD8;
-  --fn: #9AA5B1;
+  --fn: #AAB4BF;
 
   /*
    * The accent. #F29559 lands at 4.93:1 on `--pn`, so unlike most bright
@@ -125,7 +132,7 @@
   /* The palette's darkest slate, doing the reading this time. */
   --tx: #202C39;
   --mu: #4A5765;
-  --fn: #626F7C;
+  --fn: #55616D;
 
   /*
    * The accent has to be darkened for a light ground: #F29559 on white is

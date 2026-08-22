@@ -407,9 +407,20 @@ async function applyToOpen() {
       <template #body>
         <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 74ch">
           Different radios, so nothing moves wholesale. The channels are checked one at a time against what
-          your radio can actually do, and anything that has to change is listed below. They are added after
-          the channels you already have, from slot
-          <span class="font-mono tabular">{{ firstFreeSlot }}</span>, and nothing you have is overwritten.
+          your radio can actually do, and anything that has to change is listed below.
+          <template v-if="firstFreeSlot !== null">
+            They are added after the channels you already have, from slot
+            <span class="font-mono tabular">{{ firstFreeSlot }}</span>, and nothing you have is overwritten.
+          </template>
+          <!--
+            Every slot taken. Saying "from slot" and then nothing was what this
+            did before: `firstFreeSlot` is null on a full radio and the template
+            interpolated it as an empty string, so the sentence trailed off and
+            the button below still offered a copy that would land nothing.
+          -->
+          <template v-else>
+            This radio has no free slot left, so nothing can be added without deleting something first.
+          </template>
         </p>
 
         <div class="mt-4 flex flex-wrap" style="gap: 6px">
@@ -510,8 +521,10 @@ async function applyToOpen() {
           <RiskAction
             risk="caution"
             icon="i-lucide-copy"
-            :label="`Copy ${crossModelTaken.length} channel(s) across`"
-            :disabled="crossModelTaken.length === 0"
+            :label="firstFreeSlot === null
+              ? 'No room on this radio'
+              : `Copy ${crossModelTaken.length} channel(s) across`"
+            :disabled="crossModelTaken.length === 0 || firstFreeSlot === null"
             @click="copyForeignChannels"
           />
           <RiskAction risk="neutral" ghost label="Cancel" @click="foreign = null" />

@@ -13,7 +13,7 @@ Live at [boofwa.ng](https://boofwa.ng).
 | Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write, restore |
 | Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | Yes | Read, write, restore |
 | Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | Yes | Read, write, restore; read also over Bluetooth |
-| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Key slots only | Read, write, restore |
+| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Yes | Read, write, restore; startup picture |
 
 CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
 
@@ -186,15 +186,21 @@ for every fixture.
   radios.
 - Every write is preceded by a byte diff. A change outside the ranges the driver
   claims to own blocks the write; it indicates a defect in the encoder.
-- Every block written is read back and compared before the next is sent.
-- **Every write is followed by a full independent read of the whole radio**, and
-  the result diffed against the pre-write image. Nothing else catches damage
-  outside the blocks that were sent. A UV-5R Mini erased 19 channels while every
-  frame was acknowledged, every block read back and matched, and the round-trip
-  invariant stayed byte-identical - because the block that was sent was correct
-  and the damage was everywhere else. That radio now receives its whole image on
-  every write; the other three take a sparse write and have each been proven to
-  by exactly this check.
+- **Every block written is read back and compared.** An acknowledgement says a
+  frame arrived, not that it landed where it was meant to or survived being
+  written to flash. The UV-K5 and the DM-32UV verify each block before sending
+  the next; the UV-82 and the UV-5R Mini send the plan and then read every block
+  of it back. Either way nothing reports success until the radio has been asked
+  what it is actually holding.
+- **A write can still damage memory outside the blocks it sent, and only a fresh
+  read finds that.** A UV-5R Mini erased 19 channels while every frame was
+  acknowledged, every block read back and matched, and the round-trip invariant
+  stayed byte-identical - because the block that was sent was correct and the
+  damage was everywhere else. That radio now receives its whole image on every
+  write, which is why. boofwang does **not** re-read the whole radio afterwards
+  and diff it; reading one is minutes, not seconds. Read the radio again if you
+  want that comparison, and the backup taken before the write is what you would
+  compare against.
 - Read-only regions are marked in the image and never transmitted. The UV-K5's
   calibration block is one.
 - Receive-only channels are decoded as such and preserved. The UV-K5 has no

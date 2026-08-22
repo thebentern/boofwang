@@ -125,12 +125,15 @@ describe.each(Object.entries(THEMES))('%s theme contrast', (theme, T) => {
   })
 
   it('reads at AA on every surface, in all three emphases', () => {
-    for (const surface of ['bg', 'pn', 'pn3']) {
-      expect(pair('tx', surface), `tx on ${surface}`).toBeGreaterThanOrEqual(4.5)
-    }
-    for (const level of ['mu', 'fn']) {
-      expect(pair(level, 'pn'), `${level} on pn`).toBeGreaterThanOrEqual(4.5)
-      expect(pair(level, 'bg'), `${level} on bg`).toBeGreaterThanOrEqual(4.5)
+    // Every surface means every surface. This checked bg, pn and pn3 and
+    // skipped pn2 while calling itself exhaustive - which is the exact failure
+    // the file's own header warns about, a floor written down once and then
+    // quietly not holding.
+    const SURFACES = ['bg', 'pn', 'pn2', 'pn3'] as const
+    for (const surface of SURFACES) {
+      for (const level of ['tx', 'mu', 'fn'] as const) {
+        expect(pair(level, surface), `${level} on ${surface}`).toBeGreaterThanOrEqual(4.5)
+      }
     }
   })
 

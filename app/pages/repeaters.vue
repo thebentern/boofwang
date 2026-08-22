@@ -262,19 +262,24 @@ async function keep() {
       </p>
 
       <!--
-        The one place the desktop app is mentioned.
+        Why a source in the registry is not in the results.
 
-        Stated as a fact about this host, not as a prompt. A source switched off
-        in the registry never reaches this list, so nobody is told to install
-        something to get at data boofwang has stopped offering.
+        This used to say the source "needs the desktop app, which can reach it
+        directly". There is no desktop app - the about page says so in as many
+        words, "no desktop application to install and no account to create" - so
+        the one instruction this paragraph gave was to go and get software that
+        does not exist. It now says what is actually true, which is that the
+        source sends no CORS header, and points at the thing that does work.
       -->
       <p
         v-if="sources.unreachable.value.length"
         style="margin: 7px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--mu)"
       >
         {{ sources.unreachable.value.map((s) => s.name).join(' and ') }}
-        {{ sources.unreachable.value.length === 1 ? 'needs' : 'need' }} the desktop app, which can reach
-        {{ sources.unreachable.value.length === 1 ? 'it' : 'them' }} directly.
+        {{ sources.unreachable.value.length === 1 ? 'does' : 'do' }} not allow a browser to fetch
+        {{ sources.unreachable.value.length === 1 ? 'it' : 'them' }} directly, so
+        {{ sources.unreachable.value.length === 1 ? 'it is' : 'they are' }} not searched here. Download
+        {{ sources.unreachable.value.length === 1 ? 'its' : 'their' }} own CSV and open it as a codeplug file.
       </p>
     </section>
 

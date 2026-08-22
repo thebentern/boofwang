@@ -7,6 +7,7 @@ import {
 } from '#core/radios/dm32uv/boot-image.js'
 import { BOOT_IMAGE_BYTES, decodeBootImage } from '#core/io/boot-image.js'
 import { enterProgrammingMode, readMemory, PAGE_SIZE, REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
+import { ProtocolError } from '#core/transport/errors.js'
 import type { Transport } from '#core/transport/transport.js'
 import { acquirePort } from '~/composables/useWebSerial'
 import type { PortChoice } from '~/composables/useWebSerial'
@@ -165,6 +166,21 @@ export function useBootImage() {
       for (let off = 0; off < total; off += PAGE_SIZE) {
         const len = Math.min(PAGE_SIZE, total - off)
         const page = await readMemory(t, range.start + off, len, { signal })
+        /*
+         * A short page would leave zeros, and this buffer is the only copy of
+         * the factory splash that will ever exist - no `.bwp` holds it, no
+         * stored backup, no fixture. Filling the gap silently and then calling
+         * it a backup is worse than failing: the user is told to keep the
+         * download, and what they keep is a black band.
+         */
+        if (page.length !== len) {
+          throw new ProtocolError(
+            `The radio returned a short page while reading the startup picture at ` +
+              `0x${(range.start + off).toString(16)}`,
+            `${len} bytes`,
+            `${page.length} bytes`,
+          )
+        }
         region.set(page, off)
         transfer.report({ phase: 'read', done: off + len, total, label: 'Startup picture' })
       }
