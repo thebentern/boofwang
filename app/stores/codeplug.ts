@@ -865,7 +865,11 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     const cp = doc.value
     const limit = schema.value?.features.zones
     if (!cp || !limit || cp.zones.length >= limit.max) return
-    cp.zones.push({ id: `zone-new-${cp.zones.length + 1}`, name: '', channels: [] })
+    // Not derived from the length, for the reason addContact gives: on the
+    // DM-32UV's four zones, adding, removing and adding again handed out
+    // zone-new-5 twice, and the second row was then unreachable because every
+    // edit resolves the first id that matches.
+    cp.zones.push({ id: `zone-new-${crypto.randomUUID()}`, name: '', channels: [] })
     republish()
   }
 
@@ -882,7 +886,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     const cp = doc.value
     const limit = schema.value?.features.talkGroups
     if (!cp || !limit || cp.talkGroups.length >= limit.max) return
-    cp.talkGroups.push({ id: `tg-new-${cp.talkGroups.length + 1}`, name: '', number: 0, callType: 'group' })
+    // Not derived from the length, for the same reason as addZone above.
+    cp.talkGroups.push({ id: `tg-new-${crypto.randomUUID()}`, name: '', number: 0, callType: 'group' })
     republish()
   }
 
