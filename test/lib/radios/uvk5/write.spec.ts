@@ -486,15 +486,44 @@ describe('validation covers the delta, not the radio’s pre-existing state', ()
     await t.close()
   })
 
-  it('still refuses a channel the user edits into an illegal state', async () => {
+  it('writes a channel that transmits in a receive-only band, and warns about it', async () => {
+    // Deliberate policy, and a reversal: this used to be refused. Transmitting
+    // into a receive-only allocation is a licensing question rather than a
+    // hardware one - a different country's band plan, a commercial licence,
+    // MARS/CAP - and boofwang is not the licensing authority. The warning is
+    // loud and the write goes through. See lib/validate/rules.ts.
     const { port, eeprom } = radioPort(RAW.slice())
     const t = await connect(port)
     const backup = await backupFor(eeprom)
     const image = imageOf(RAW.slice())
     const cp = driver.decode(image)
-    // Moving a memory channel into the air band with transmit still enabled is
-    // the user's own doing, so it is part of the delta and is judged.
     cp.channels.set(1, { ...cp.channels.get(1)!, rxFreq: hz(120_000_000), txAllowed: true })
+
+    const diag = driver.validate(cp).find((d) => d.ruleId === 'regulatory.band.tx-not-permitted')
+    expect(diag, 'the warning must still be raised').toBeDefined()
+    expect(diag!.severity).toBe('warning')
+    expect(diag!.channel).toBe(1)
+
+    await expect(
+      writable.writeImage(t, driver.encode(cp, image), { backup, baseImage: image, readTimeoutMs: 1000 }),
+    ).resolves.toMatchObject({ verified: true })
+    await t.close()
+  })
+
+  it('still refuses a frequency the radio cannot tune at all', async () => {
+    // The rule that did not move, and the reason the one above could. This is a
+    // fact about the hardware: the UV-K5's bands stop at 600 MHz, so a channel
+    // at 700 would be programmed and simply not work.
+    const { port, eeprom } = radioPort(RAW.slice())
+    const t = await connect(port)
+    const backup = await backupFor(eeprom)
+    const image = imageOf(RAW.slice())
+    const cp = driver.decode(image)
+    cp.channels.set(1, { ...cp.channels.get(1)!, rxFreq: hz(700_000_000), txAllowed: true })
+
+    const errors = driver.validate(cp).filter((d) => d.severity === 'error' && d.channel === 1)
+    expect(errors.map((d) => d.ruleId)).toContain('radio.band.rx-out-of-range')
+
     await expect(
       writable.writeImage(t, driver.encode(cp, image), { backup, baseImage: image, readTimeoutMs: 1000 }),
     ).rejects.toThrow(/you have changed/)

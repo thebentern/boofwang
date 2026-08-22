@@ -200,8 +200,10 @@ for every fixture.
 - Receive-only channels are decoded as such and preserved. The UV-K5 has no
   transmit-inhibit bit; CHIRP expresses it by parking the transmit frequency at
   zero, and boofwang reads and writes that convention.
-- Transmitting into a receive-only allocation is a blocking error, not a
-  warning.
+- Transmitting into a receive-only allocation is warned about, prominently, on
+  every affected channel — and then left to you. A frequency the radio cannot
+  physically tune or key is still a blocking error, because that is a fact about
+  the hardware rather than about your licence.
 - Unrecognised firmware is read-only but still readable, so an unsupported radio
   can still be backed up.
 - Encryption key material is masked by default and revealed one slot at a time.

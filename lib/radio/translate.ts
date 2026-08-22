@@ -107,7 +107,7 @@ const nearest = (target: number, options: readonly number[]) =>
  * can turn a band problem into a refusal. Everything after that is cosmetic by
  * comparison and runs in the order a person would read it.
  */
-export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
+export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: RadioSchema['rf']): ClampedChannel {
   const changes: ClampChange[] = []
   const at = (rule: ClampRule, field: string, before: string, after: string, why: string) =>
     changes.push({ index: ch.index, rule, field, before, after, why })
@@ -117,7 +117,17 @@ export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
     refusal: { index: ch.index, rule, field, why },
   })
 
-  const bands = target.rf.bands
+  /*
+   * What the radio can do right now, which is not always what its schema says.
+   *
+   * The UV-K5 is the reason: an egzumer build compiled with wide receive
+   * legitimately reaches frequencies the stock table does not list, and the
+   * driver reports that through `rfFor(doc)`. The channel editor and the
+   * validator both already ask that question; the clamp pipeline did not, so it
+   * refused channels the editor would happily save on the very same radio.
+   */
+  const rf = rfOverride ?? target.rf
+  const bands = rf.bands
   let next: Channel = { ...ch, extras: { ...ch.extras } }
 
   // 1. Receive band. Nothing to clamp to: a 220 MHz channel means nothing on a
@@ -149,7 +159,7 @@ export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
   //    a radio with no mechanism would be programmed transmit-capable, which is
   //    precisely the failure the flag exists to prevent and is invisible until
   //    somebody keys up on a frequency they should not.
-  if (!next.txAllowed && target.rf.txInhibit === false) {
+  if (!next.txAllowed && rf.txInhibit === false) {
     return refuse('tx-inhibit', 'txAllowed',
       'This channel must not transmit, and this radio has no way to enforce that, so it would arrive ' +
       'transmit-capable.')
@@ -179,8 +189,8 @@ export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
   //    loses the digital part, which the caller is told about rather than left
   //    to notice. Its talk group, contact and radio ID have no analogue and go
   //    with it - see `dropped` on the result.
-  if (target.rf.modulations.length > 0 && !target.rf.modulations.includes(next.modulation)) {
-    const fallback = target.rf.modulations.includes('FM') ? 'FM' : target.rf.modulations[0]!
+  if (rf.modulations.length > 0 && !rf.modulations.includes(next.modulation)) {
+    const fallback = rf.modulations.includes('FM') ? 'FM' : rf.modulations[0]!
     at('modulation', 'modulation', next.modulation, fallback,
       `This radio has no ${next.modulation}. The frequency carries over; everything ${next.modulation} ` +
       'specific about the channel does not.')
@@ -190,7 +200,7 @@ export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
   // 6. Bandwidth, downwards only. Widening can put a channel outside a
   //    narrowband rule that applies where its owner is, which is not a
   //    conversion decision to make on somebody's behalf.
-  const widths = target.rf.bandwidths
+  const widths = rf.bandwidths
   if (widths.length > 0 && !widths.includes(next.bandwidthHz)) {
     const narrower = widths.filter((w) => w <= next.bandwidthHz)
     const chosen = narrower.length > 0 ? Math.max(...narrower) : Math.min(...widths)
@@ -210,14 +220,14 @@ export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
   const clampTone = (t: ToneSpec | null, side: 'rx' | 'tx'): ToneSpec | null => {
     if (t === null) return null
     if (t.kind === 'ctcss') {
-      const list = target.rf.ctcssDeciHz
+      const list = rf.ctcssDeciHz
       if (list.length === 0 || list.includes(t.deciHz)) return t
       const to = nearestCtcss(t.deciHz, list)
       at('tone', side === 'rx' ? 'tone.rx' : 'tone.tx', describeTone(t), describeTone({ kind: 'ctcss', deciHz: to }),
         'The nearest tone this radio has.')
       return { kind: 'ctcss', deciHz: to }
     }
-    if (target.rf.dtcsCodes.length === 0 || target.rf.dtcsCodes.includes(t.code)) return t
+    if (rf.dtcsCodes.length === 0 || rf.dtcsCodes.includes(t.code)) return t
     at('tone', side === 'rx' ? 'tone.rx' : 'tone.tx', describeTone(t), 'none',
       `This radio's DCS table has no ${t.code}. A near code is a different code and would hold the ` +
       'squelch shut, so the tone is dropped instead.')
@@ -230,7 +240,7 @@ export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
   }
 
   // 8. Power: the highest level at or below what was asked for. Never above.
-  const levels = target.rf.powerLevels
+  const levels = rf.powerLevels
   if (levels.length > 0 && !levels.some((l) => l.mW === next.power.mW)) {
     const chosen = clampPower(target, next.power.mW)
     at('power', 'power', `${(next.power.mW / 1000).toFixed(1)} W`, `${(chosen.mW / 1000).toFixed(1)} W`,
@@ -241,7 +251,7 @@ export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
   // 9. Tuning step, nearest. It affects manual tuning from this channel rather
   //    than the channel itself, so nearest is fine here where it is not for a
   //    DCS code.
-  const steps = target.rf.tuningSteps
+  const steps = rf.tuningSteps
   if (steps.length > 0 && !steps.includes(next.tuningStep)) {
     const chosen = nearest(next.tuningStep, steps as readonly number[])
     at('step', 'tuningStep', `${(next.tuningStep / 1000).toFixed(2)} kHz`, `${(chosen / 1000).toFixed(2)} kHz`,
@@ -255,6 +265,14 @@ export function clampChannel(ch: Channel, target: RadioSchema): ClampedChannel {
 export interface TranslateInput {
   readonly channels: readonly Channel[]
   readonly target: RadioSchema
+  /**
+   * The target's live RF capability, when it differs from its schema.
+   *
+   * Pass `driver.rfFor(doc)` - the codeplug store exposes it as `codeplug.rf`.
+   * Omitting it falls back to `target.rf`, which is right for a radio whose
+   * capability does not depend on its firmware.
+   */
+  readonly rf?: RadioSchema['rf']
   /**
    * What the source carried besides channels, so the result can say what is
    * being left behind. Talk groups and contacts have no analogue on an analog
@@ -271,7 +289,7 @@ export interface TranslateInput {
  * which is the difference between moving a channel and rebuilding one.
  */
 export function translateChannels(input: TranslateInput): TranslateResult {
-  const rows = input.channels.map((ch) => clampChannel(ch, input.target))
+  const rows = input.channels.map((ch) => clampChannel(ch, input.target, input.rf))
   const dropped: string[] = []
 
   if (input.target.features.talkGroups === false && (input.carries?.talkGroups ?? 0) > 0) {

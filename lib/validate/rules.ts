@@ -13,11 +13,22 @@ import type { BandLimit, RadioSchema } from '../radio/schema.js'
  * what four hand-written validators come to, and the write gate's
  * `validation-errors` blocker is only ever as good as the rules behind it.
  *
- * Transmitting out of band is the failure this tool exists to prevent, and it
- * is the one the radio will not stop you from making. It is also invisible: the
- * operator hears nothing wrong, and the people who find out are somewhere else.
- * So the two transmit rules are errors and block a write, and everything else
- * is a warning that states the rule and gets out of the way.
+ * Two of these rules are errors and block a write, and they are the two that
+ * describe the *hardware*: a frequency outside every band the radio covers is
+ * one it cannot tune or key, so programming it produces a channel that does not
+ * work. That is a fact about the equipment, and no amount of wanting changes it.
+ *
+ * Everything else, `regulatory.band.tx-not-permitted` included, is a warning
+ * that states the rule and gets out of the way. Transmitting into a
+ * receive-only allocation is a serious thing to do and the warning says so in
+ * as many words - but it is a licensing question, not a hardware one, and this
+ * tool is not the licensing authority. Operators hold the licence, the site
+ * carries the disclaimer, and there are legitimate reasons to program a
+ * frequency this table calls receive-only: a different country's allocation, a
+ * commercial licence, MARS/CAP, or a receiver that simply never transmits.
+ * Blocking the write did not prevent any of that. It only meant the remedy on
+ * offer was to discard the intent - `runFix` in the channel table marks every
+ * affected slot receive-only - or to give up on the tool.
  *
  * A driver keeps its genuinely local rules. `dmr.encryption.key-missing` means
  * nothing on an analog radio and stays with the DM-32UV.
@@ -100,17 +111,18 @@ export function validateChannel(
       })
     } else if (!txBand.txAllowed) {
       // The air band is the case that matters: AM aviation spectrum, which no
-      // amateur licence authorises transmitting on. The schema marks it
-      // receive-only, and this is what makes that marking do something rather
-      // than merely record an intention.
+      // amateur licence authorises transmitting on. Said plainly, and left to
+      // the operator - see the note at the top of this file for why this warns
+      // rather than blocks.
       out.push({
-        severity: 'error',
+        severity: 'warning',
         ruleId: 'regulatory.band.tx-not-permitted',
         channel: ch.index,
         field: 'tx',
         message:
-          `This channel can transmit on ${mhz(txHz)}, in the ${txBand.label} band, which is ` +
-          'receive-only. Mark the channel receive-only before writing it to a radio.',
+          `This channel can transmit on ${mhz(txHz)}, in the ${txBand.label} band, which this radio's ` +
+          'band plan marks receive-only. Check your licence before transmitting here; ' +
+          'marking the channel receive-only will silence this.',
       })
     }
   }

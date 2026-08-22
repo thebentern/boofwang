@@ -239,7 +239,7 @@ describe('validate enforces the receive-only bands the schema declares', () => {
   // claims "the validator objects before anything reaches the radio". That was
   // only true once validate() actually read the flag: before this, the marking
   // was documentation with nothing behind it.
-  it('objects to a channel that could transmit in the air band', () => {
+  it('warns, without blocking, about a channel that could transmit in the air band', () => {
     const mem = buildEeprom([{ slot: 0, record: CHIRP_CHANNELS.AIR_AM, name: 'GUARD' }])
     const cp = driver.decode(imageFrom(mem))
     const ch = cp.channels.get(1)!
@@ -249,9 +249,14 @@ describe('validate enforces the receive-only bands the schema declares', () => {
     const diags = driver.validate(cp)
     const rule = diags.find((d) => d.ruleId === 'regulatory.band.tx-not-permitted')
     expect(rule).toBeDefined()
-    expect(rule!.severity).toBe('error')
+    // A warning on purpose: this is a licensing question, not a hardware one,
+    // and the write gate only blocks on errors. See lib/validate/rules.ts.
+    expect(rule!.severity).toBe('warning')
     expect(rule!.channel).toBe(1)
     expect(rule!.message).toMatch(/receive-only/)
+    expect(rule!.message).toMatch(/licence/)
+    // Nothing about this channel blocks a write.
+    expect(diags.filter((d) => d.severity === 'error')).toEqual([])
   })
 
   it('says nothing once the channel is marked receive-only', () => {

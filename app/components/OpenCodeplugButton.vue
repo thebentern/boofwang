@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { openImageFile, type OpenedImage } from '#core/io/open-image.js'
+import {
+  firstFreeSlot as placeFirstFreeSlot,
+  planPlacement,
+  programmedOnly,
+} from '#core/radio/place.js'
 import { createDriver } from '#core/radio/registry.js'
 import { transplantCodeplug, type TransplantResult } from '#core/radio/transplant.js'
 import {
@@ -13,6 +18,7 @@ import type { RadioId } from '#core/model/index.js'
 import type { Codeplug } from '#core/model/codeplug.js'
 import type { RadioDriver } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
+import type { RadioSchema } from '#core/radio/schema.js'
 
 /**
  * `toolbar` for the form that sits beside Print and Export on the channel
@@ -46,7 +52,7 @@ const copyKeys = ref(false)
  * channels, one row at a time, with every adjustment shown before any of it
  * lands.
  */
-const foreign = shallowRef<{ doc: Codeplug; from: RadioId } | null>(null)
+const foreign = shallowRef<{ doc: Codeplug; from: RadioId; schema: RadioSchema } | null>(null)
 /** Rules the user has not unticked. Refusing one drops the rows that needed it. */
 const acceptedRules = ref(new Set<ClampRule>(ALL_CLAMP_RULES))
 
@@ -134,8 +140,15 @@ const crossModel = computed(() => {
   const f = foreign.value
   if (!f || !codeplug.schema) return null
   return translateChannels({
-    channels: [...f.doc.channels.values()].sort((a, b) => a.index - b.index),
+    // The donor's own pseudo-channels are not channels. A UV-K5 keeps fourteen
+    // band presets in the same map as real memories, and letting them through
+    // copies duplicate A/B pairs for the in-band ones while the rest are
+    // refused - which reads like the clamp pipeline working rather than junk.
+    channels: programmedOnly(f.schema, [...f.doc.channels.values()]).sort((a, b) => a.index - b.index),
     target: codeplug.schema,
+    // What this radio can do on the firmware it is running, not what its schema
+    // declares. Without it the clamp refuses channels the editor would save.
+    ...(codeplug.rf ? { rf: codeplug.rf } : {}),
     carries: {
       talkGroups: f.doc.talkGroups.length,
       contacts: f.doc.contacts.length,
@@ -172,10 +185,16 @@ function toggleRule(rule: ClampRule) {
   acceptedRules.value = next
 }
 
-/** Where they go: after everything already programmed, never over it. */
+/**
+ * Where they go: after everything already programmed, never over it.
+ *
+ * The arithmetic lives in `lib/radio/place.ts` because the version that lived
+ * here counted the radio's own reserved slots as programmed, which put the
+ * first free slot past the end of a UV-K5's memory and placed nothing at all.
+ */
 const firstFreeSlot = computed(() => {
-  const used = codeplug.doc ? [...codeplug.doc.channels.keys()] : []
-  return used.length === 0 ? (codeplug.schema?.memory.firstIndex ?? 1) : Math.max(...used) + 1
+  if (!codeplug.schema) return null
+  return placeFirstFreeSlot(codeplug.schema, codeplug.doc ? codeplug.doc.channels.keys() : [])
 })
 
 /**
@@ -219,7 +238,10 @@ async function onPick(event: Event) {
     // anything on another radio.
     if (codeplug.isOpen && codeplug.schema && opened.image.radioId !== codeplug.image?.radioId) {
       acceptedRules.value = new Set(ALL_CLAMP_RULES)
-      foreign.value = { doc: driver.decode(opened.image), from: opened.image.radioId }
+      // The donor's own schema, so its reserved slots can be told from its
+      // channels. Taken from the driver rather than looked up, since a driver
+      // may report a schema its variant narrowed.
+      foreign.value = { doc: driver.decode(opened.image), from: opened.image.radioId, schema: driver.schema }
       return
     }
 
@@ -300,16 +322,11 @@ async function copyForeignChannels() {
   const taken = crossModelTaken.value
   if (taken.length === 0) return
 
-  let slot = firstFreeSlot.value
-  const limit = codeplug.schema?.memory.channelCount ?? 0
-  let placed = 0
+  if (!codeplug.schema) return
+  const plan = planPlacement(codeplug.schema, codeplug.doc.channels.keys(), taken)
+  const placed = plan.placed.length
   codeplug.transact('copy from another radio', () => {
-    for (const ch of taken) {
-      if (limit > 0 && slot > limit) break
-      codeplug.setChannelRecord(slot, { ...ch, index: slot })
-      slot++
-      placed++
-    }
+    for (const p of plan.placed) codeplug.setChannelRecord(p.slot, p.channel)
   })
 
   const from = foreign.value?.from

@@ -444,7 +444,17 @@ function stage() {
         )
         continue
       }
-      const out = presetToClampedChannel(place.source, p.set, place.slot, codeplug.schema, stagedAt)
+      // `codeplug.rf` rather than the schema's: an egzumer UV-K5 reaches
+      // frequencies the stock table does not list, and the clamp would
+      // otherwise refuse presets the channel editor accepts on the same radio.
+      const out = presetToClampedChannel(
+        place.source,
+        p.set,
+        place.slot,
+        codeplug.schema,
+        stagedAt,
+        codeplug.rf ?? undefined,
+      )
       if (out.channel === null) {
         refused.push(`${place.source.name}: ${out.refusal?.why ?? 'this radio cannot hold it'}`)
         continue

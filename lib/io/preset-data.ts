@@ -382,9 +382,11 @@ export function presetToClampedChannel(
   index: number,
   schema: RadioSchema,
   importedAt: string,
+  /** The radio's live RF capability, when the firmware widens it. See `clampChannel`. */
+  rf?: RadioSchema['rf'],
 ): { channel: Channel | null; changes: readonly ClampChange[]; refusal: ClampRefusal | null } {
   const base = presetToChannel(source, set, index, schema, importedAt)
-  const clamped = clampChannel(base, schema)
+  const clamped = clampChannel(base, schema, rf)
   return {
     // The slot is the caller's decision, not the pipeline's.
     channel: clamped.channel === null ? null : { ...clamped.channel, index },
