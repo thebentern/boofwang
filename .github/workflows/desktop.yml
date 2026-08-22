@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Desktop
+
+# Tag-driven, plus a manual button. The web app deploys from `main` on every
+# push; the desktop build is a thing somebody downloads and keeps, so it is cut
+# deliberately rather than continuously.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing should not hide whether the others built. A release
+      # with two of three archives and an honest note beats no release at all.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            name: macOS
+          - os: windows-latest
+            name: Windows
+          - os: ubuntu-latest
+            name: Linux
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The same gate the web build passes. A desktop archive is harder to
+      # replace than a deploy, so it does not skip the checks.
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: node scripts/check-headers.mjs
+
+      # `/` rather than the Pages sub-path: the shell serves the site at the
+      # root of its own scheme.
+      - run: pnpm nuxt generate
+        env:
+          NUXT_APP_BASE_URL: /
+
+      - run: pnpm electron-builder --config electron-builder.yml --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          path: |
+            dist-desktop/*.zip
+            dist-desktop/*.AppImage
+            dist-desktop/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    # Only a tag makes a release. A manual run builds and leaves the archives on
+    # the run, which is what you want when checking whether it still builds.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - run: ls -R artifacts
+
+      - name: Attach the archives to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            $(find artifacts -type f \( -name '*.zip' -o -name '*.AppImage' -o -name '*.tar.gz' \)) \
+            --clobber

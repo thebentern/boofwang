@@ -152,3 +152,6 @@ reference/
 # Python bytecode from the development bridge.
 __pycache__/
 *.pyc
+
+# Desktop build output.
+dist-desktop/

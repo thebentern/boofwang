@@ -1,6 +1,6 @@
 {
   "name": "boofwang",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
@@ -14,20 +14,23 @@
   },
   "packageManager": "pnpm@9.14.2",
   "scripts": {
-    "dev": "nuxt dev",
+    "bridge": "node tools/serial-bridge/server.mjs",
+    "bridge:ble": "python3 tools/ble-bridge/server.py",
     "build": "nuxt build",
+    "check:headers": "node scripts/check-headers.mjs",
+    "desktop:build": "pnpm desktop:site && electron-builder --publish never",
+    "desktop:dev": "pnpm desktop:site && electron .",
+    "desktop:site": "NUXT_APP_BASE_URL=/ nuxt generate",
+    "dev": "nuxt dev",
     "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare",
-    "typecheck": "nuxt typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "postinstall": "nuxt prepare",
+    "preview": "nuxt preview",
     "test": "vitest run",
-    "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "check:headers": "node scripts/check-headers.mjs",
-    "bridge": "node tools/serial-bridge/server.mjs",
-    "bridge:ble": "python3 tools/ble-bridge/server.py"
+    "test:watch": "vitest",
+    "typecheck": "nuxt typecheck"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
@@ -50,6 +53,8 @@
     "@types/web-bluetooth": "^0.0.21",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^3.2.0",
+    "electron": "33",
+    "electron-builder": "25",
     "eslint": "^10.8.1",
     "fast-check": "^4.1.1",
     "serialport": "^13.0.0",
@@ -57,5 +62,6 @@
     "vitest": "^3.2.0",
     "vue-tsc": "^3.0.0",
     "ws": "^8.21.3"
-  }
+  },
+  "main": "electron/main.mjs"
 }

@@ -4,7 +4,38 @@ Browser-based codeplug editor and programmer for two-way radios, over the
 [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API).
 Static site, no server, no account. Codeplugs stay on the machine.
 
-Live at [boofwa.ng](https://boofwa.ng).
+Live at [boofwa.ng](https://boofwa.ng), and as a
+[desktop build](https://github.com/thebentern/boofwang/releases) for macOS, Windows and Linux.
+
+## The desktop build
+
+The same application, in a window of its own. It exists for one reason: two
+repeater directories - hearham and RadioID - send no `Access-Control-Allow-Origin`
+header, so a browser tab cannot read them at any price. The shell fetches them
+from outside the renderer, where the same-origin policy does not apply.
+
+Everything else is identical, including the radio support: the shell is Electron
+rather than Tauri because Electron carries Chromium on every platform, so the
+Web Serial and Web Bluetooth transports this project already has are the ones
+that run. Nothing is reimplemented for the desktop - a second transport stack
+would be a second thing to get wrong against somebody's radio.
+
+`lib/platform/host.ts` names the difference as capabilities rather than as a
+build flag, and a feature declares what it needs rather than which build it
+belongs to. Two capabilities are real today, `crossOriginFetch` and
+`customUserAgent`; a browser has neither and says so on the screen instead of
+failing.
+
+```bash
+pnpm desktop:dev      # generate the site, then run the shell against it
+pnpm desktop:build    # package for the current platform into dist-desktop/
+```
+
+The releases are **not signed** - this project has no Apple Developer
+certificate and no Windows code-signing certificate. macOS will refuse a
+downloaded build until it is allowed through Gatekeeper, and Windows
+SmartScreen will warn. On Linux a serial cable is a group-permissions question
+before it is a software one, usually `dialout` or `uucp`.
 
 ## Radios
 

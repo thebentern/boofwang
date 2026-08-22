@@ -52,9 +52,12 @@ const credits = [
     </div>
 
     <p style="margin-bottom: 24px; font-size: 14.5px; line-height: 1.65; color: var(--mu)">
-      A codeplug editor and programmer that runs entirely in your browser, at
+      A codeplug editor and programmer that runs in your browser, at
       <a href="https://boofwa.ng" :style="LINK">boofwa.ng</a>. It speaks to radios over the Web Serial
-      API, so there is no desktop application to install and no account to create.
+      API, so nothing needs installing and there is no account to create. There is also a
+      <a href="https://github.com/thebentern/boofwang/releases" target="_blank" rel="noopener" :style="LINK">desktop
+      build</a>, which is the same application in a window of its own: it exists because two repeater
+      directories refuse to answer a browser, and it can ask them on your behalf.
     </p>
 
     <section style="margin-bottom: 22px">

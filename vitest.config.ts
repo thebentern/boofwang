@@ -10,6 +10,16 @@ export default defineConfig({
   test: {
     projects: [
       {
+        test: {
+          name: 'electron',
+          // The desktop shell, which is plain ESM with no DOM and no Electron
+          // runtime - the serving rules are pure functions precisely so they
+          // can be checked here rather than by launching a window.
+          environment: 'node',
+          include: ['test/electron/**/*.spec.ts'],
+        },
+      },
+      {
         resolve: { alias: { '#core': core } },
         test: {
           name: 'core',

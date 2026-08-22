@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Packaging for the desktop shell.
+#
+# The app is a static site plus two small files, so what gets packaged is
+# deliberately tiny: `electron/` and the generated site, and nothing else. There
+# are no runtime node dependencies to carry - every dependency in package.json
+# is a build-time one - so `node_modules` is excluded outright rather than
+# pruned, which is both smaller and easier to reason about.
+#
+# Nothing here is signed. That is a statement of fact rather than an oversight:
+# signing needs an Apple Developer certificate and a Windows code-signing
+# certificate, neither of which this project has, and pretending otherwise in a
+# config would produce builds that fail confusingly. The release notes say what
+# that means for the person downloading it.
+appId: ng.boofwa.desktop
+productName: boofwang
+copyright: GPL-3.0-or-later
+
+directories:
+  output: dist-desktop
+  buildResources: build
+
+# Only what the shell needs. `.output/public` is mapped into resources/site,
+# which is where `main.mjs` looks when `app.isPackaged`.
+files:
+  - electron/**/*
+  - package.json
+extraResources:
+  - from: .output/public
+    to: site
+
+# Every target is a plain archive or an installer that needs no signature to
+# open. A .dmg on an unsigned build gives the user a worse first run than a zip
+# does, because Gatekeeper's quarantine message on a mounted image is the one
+# that offers no way forward.
+mac:
+  target:
+    - target: zip
+      arch: [arm64, x64]
+  category: public.app-category.utilities
+  # The shell asks for no protected resources of its own. Serial and Bluetooth
+  # are reached through Chromium, which is covered by the entitlements below.
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  hardenedRuntime: false
+
+win:
+  target:
+    - target: zip
+      arch: [x64]
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: tar.gz
+      arch: [x64]
+  category: HamRadio
+  # A serial cable on Linux is a group-permissions question before it is a
+  # software one. Said in the release notes rather than attempted here.
+  synopsis: Program two-way radios over a cable or Bluetooth

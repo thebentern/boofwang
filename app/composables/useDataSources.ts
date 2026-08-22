@@ -36,9 +36,38 @@ function currentHost(): HostKind {
  */
 const responseCache = new Map<string, unknown>()
 
+/**
+ * The shell's privileged fetch, when there is a shell.
+ *
+ * The desktop build's preload exposes this; a browser tab has nothing here and
+ * gets `undefined`. Read through the same `window.boofwang` object `detectHost`
+ * reads, and typed as narrowly as it is used - if a future preload stops
+ * providing it, this falls back to the browser path rather than throwing.
+ */
+function shellFetchJson(): ((url: string) => Promise<unknown>) | null {
+  if (typeof window === 'undefined') return null
+  const shell = (window as { boofwang?: { fetchJson?: unknown } }).boofwang
+  return typeof shell?.fetchJson === 'function' ? (shell.fetchJson as (url: string) => Promise<unknown>) : null
+}
+
 async function cachedJson(url: string): Promise<unknown> {
   const hit = responseCache.get(url)
   if (hit !== undefined) return hit
+
+  /*
+   * On the desktop the request goes through the main process, which is the
+   * whole reason the desktop build exists: hearham and RadioID send no
+   * `Access-Control-Allow-Origin`, so from a tab they cannot be read at any
+   * price. `loadSource` has already refused those two on a browser host, so
+   * this branch is what makes the difference real rather than declared.
+   */
+  const privileged = shellFetchJson()
+  if (privileged) {
+    const body = await privileged(url)
+    responseCache.set(url, body)
+    return body
+  }
+
   const res = await fetch(url, { headers: { accept: 'application/json' } })
   if (!res.ok) {
     throw new Error(`${new URL(url).host} answered ${res.status}.`)

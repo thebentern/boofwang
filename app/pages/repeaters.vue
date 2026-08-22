@@ -264,12 +264,11 @@ async function keep() {
       <!--
         Why a source in the registry is not in the results.
 
-        This used to say the source "needs the desktop app, which can reach it
-        directly". There is no desktop app - the about page says so in as many
-        words, "no desktop application to install and no account to create" - so
-        the one instruction this paragraph gave was to go and get software that
-        does not exist. It now says what is actually true, which is that the
-        source sends no CORS header, and points at the thing that does work.
+        This said "needs the desktop app, which can reach it directly" when
+        there was no desktop app, and was corrected to describe the CORS refusal
+        instead. There is one now, so it says both: what the obstacle is, and
+        the thing that removes it. The link goes to the releases page rather
+        than naming a version, so it does not go stale with the next tag.
       -->
       <p
         v-if="sources.unreachable.value.length"
@@ -278,8 +277,16 @@ async function keep() {
         {{ sources.unreachable.value.map((s) => s.name).join(' and ') }}
         {{ sources.unreachable.value.length === 1 ? 'does' : 'do' }} not allow a browser to fetch
         {{ sources.unreachable.value.length === 1 ? 'it' : 'them' }} directly, so
-        {{ sources.unreachable.value.length === 1 ? 'it is' : 'they are' }} not searched here. Download
-        {{ sources.unreachable.value.length === 1 ? 'its' : 'their' }} own CSV and open it as a codeplug file.
+        {{ sources.unreachable.value.length === 1 ? 'it is' : 'they are' }} not searched here. The
+        <a
+          href="https://github.com/thebentern/boofwang/releases"
+          target="_blank"
+          rel="noopener"
+          style="color: var(--acTx)"
+        >desktop build</a>
+        fetches outside the browser and can reach
+        {{ sources.unreachable.value.length === 1 ? 'it' : 'them' }}; so can
+        {{ sources.unreachable.value.length === 1 ? 'its' : 'their' }} own CSV, opened as a codeplug file.
       </p>
     </section>
 
