@@ -9,7 +9,8 @@ import {
   centreCrop,
   decodeBootImage,
   encodeBootImage,
-  packBgr565,
+  packRgb565,
+  unpackRgb565,
 } from '#core/io/boot-image.js'
 
 type Rgba = [number, number, number, number]
@@ -53,28 +54,38 @@ const pixelAt = (rgbaOut: Uint8ClampedArray, x: number, y: number) => {
  * only looks at whether something appeared on screen. These tests pin the exact
  * 16-bit values, because that is the only assertion the swap cannot pass.
  */
-describe('BGR565', () => {
-  it('puts red in the low five bits and blue in the high five', () => {
-    expect(wordAt(encodeBootImage(solid(240, 320, RED), 240, 320), 0)).toBe(0x001f)
+describe('RGB565', () => {
+  it('puts red in the high five bits and blue in the low five', () => {
+    expect(wordAt(encodeBootImage(solid(240, 320, RED), 240, 320), 0)).toBe(0xf800)
     expect(wordAt(encodeBootImage(solid(240, 320, GREEN), 240, 320), 0)).toBe(0x07e0)
-    expect(wordAt(encodeBootImage(solid(240, 320, BLUE), 240, 320), 0)).toBe(0xf800)
+    expect(wordAt(encodeBootImage(solid(240, 320, BLUE), 240, 320), 0)).toBe(0x001f)
   })
 
   it('writes the low byte of the word first', () => {
-    // The byte order is an assumption, not something the specification states.
-    // Pinning it here means a hardware finding that contradicts it breaks a
-    // test with a name rather than quietly changing the pixels.
-    expect([...encodeBootImage(solid(240, 320, RED), 240, 320).subarray(0, 2)]).toEqual([0x1f, 0x00])
-    expect([...encodeBootImage(solid(240, 320, BLUE), 240, 320).subarray(0, 2)]).toEqual([0x00, 0xf8])
+    expect([...encodeBootImage(solid(240, 320, RED), 240, 320).subarray(0, 2)]).toEqual([0x00, 0xf8])
+    expect([...encodeBootImage(solid(240, 320, BLUE), 240, 320).subarray(0, 2)]).toEqual([0x1f, 0x00])
   })
 
-  it('does not encode red the way an RGB565 encoder would', () => {
-    // 0xF800 is red under RGB565 and blue under BGR565. If these two ever come
-    // out equal, the channels have been swapped.
+  it('does not encode red the way a BGR565 encoder would', () => {
+    /*
+     * This test used to assert the opposite, and it passed.
+     *
+     * The specification calls the format BGR565 - twice, with no diagram and no
+     * byte order - and decoding the factory splash as BGR565 produced a gold
+     * BAOFENG logo, which looked right because Baofeng's logo is orange. It was
+     * not right. Writing a colour chart to a real radio and looking at the
+     * panel put red at the top only when red was encoded in the HIGH bits. The
+     * factory splash therefore displays blue on the radio, and the render that
+     * looked correct was the wrong one.
+     *
+     * That is the whole reason this file exists: a channel swap produces a
+     * picture that is perfectly plausible, and the only thing that catches it
+     * is a known pattern on the actual display.
+     */
     const red = wordAt(encodeBootImage(solid(240, 320, RED), 240, 320), 0)
     const blue = wordAt(encodeBootImage(solid(240, 320, BLUE), 240, 320), 0)
-    expect(red).not.toBe(0xf800)
-    expect(blue).toBe(0xf800)
+    expect(red).toBe(0xf800)
+    expect(blue).not.toBe(0xf800)
     expect(red).not.toBe(blue)
   })
 
@@ -213,31 +224,23 @@ describe('scale and crop', () => {
  * legible text, wrong colour - which is exactly why this is a test and not a
  * comment.
  */
-describe('what a real DM-32UV had at 0x150000', () => {
-  it('reads its background word the way the radio meant it', () => {
-    // The image begins `c2 18`, repeated across the top rows.
-    const word = decodeBootImage(Uint8Array.from(
-      Array.from({ length: BOOT_IMAGE_BYTES }, (_, i) => (i % 2 === 0 ? 0xc2 : 0x18)),
-    ))
-    expect([word.rgba[0], word.rgba[1], word.rgba[2]]).toEqual([16, 24, 24])
+describe('what a real DM-32UV showed on its own panel', () => {
+  it('puts red at the top of a colour chart, which is how the channel order was settled', () => {
+    // A chart of solid bands was written to a radio and photographed by eye.
+    // Encoded with blue in the high bits the top band came out blue; encoded
+    // with red in the high bits it came out red. The panel is the only
+    // authority here, because both encodings produce a plausible picture.
+    expect(packRgb565(255, 0, 0)).toBe(0xf800)
+    expect(packRgb565(0, 0, 255)).toBe(0x001f)
   })
 
-  it('would render that word as a different colour big-endian, which is how it was told apart', () => {
-    const swapped = decodeBootImage(Uint8Array.from(
-      Array.from({ length: BOOT_IMAGE_BYTES }, (_, i) => (i % 2 === 0 ? 0x18 : 0xc2)),
-    ))
-    expect([swapped.rgba[0], swapped.rgba[1], swapped.rgba[2]]).not.toEqual([16, 24, 24])
-  })
-
-  it('puts the logo gold rather than blue, which RGB565 would not', () => {
-    // Gold is red-high, blue-zero. The word for the brightest logo pixel the
-    // radio actually held, taken back to bytes.
-    const gold = packBgr565(222, 146, 0)
-    const bytes = new Uint8Array(BOOT_IMAGE_BYTES)
-    bytes[0] = gold & 0xff
-    bytes[1] = (gold >>> 8) & 0xff
-    const { rgba } = decodeBootImage(bytes)
-    expect(rgba[0]!).toBeGreaterThan(rgba[1]!)
-    expect(rgba[2]!).toBe(0)
+  it('shows its factory splash in blue, which is the corollary nobody expects', () => {
+    // The stored splash has its high bits clear and its low bits set on the
+    // lettering. Under the channel order the panel actually uses, that is blue.
+    // Decoding it as BGR565 gives gold, which is what Baofeng's printed logo
+    // looks like and is why the wrong answer went unquestioned for a while.
+    const stored = 0x0724 // a lit pixel from the logo, as the radio stores it
+    const { r, b } = unpackRgb565(stored)
+    expect(b).toBeGreaterThan(r)
   })
 })

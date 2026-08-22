@@ -4,7 +4,7 @@
  * The DM-32UV startup image, as pixels.
  *
  * The picture the radio shows while it powers up is stored raw: 153,600 bytes
- * of BGR565, 240 x 320 portrait, no header, no palette, no compression.
+ * of RGB565, 240 x 320 portrait, no header, no palette, no compression.
  * Transcribed from the MIT-licensed DM32-Protocol-Spec, `04-MEMORY-LAYOUT.md`,
  * V-frame 0x0E. Where those bytes live on the radio is the business of
  * `radios/dm32uv/boot-image.ts`; this file is only the arithmetic.
@@ -34,7 +34,7 @@ export interface BootImagePixels {
 }
 
 /**
- * BGR565, and the B comes first for a reason.
+ * RGB565, and the B comes first for a reason.
  *
  * One 16-bit word per pixel: five bits of blue in the high end, six of green,
  * five of red in the low end.
@@ -42,7 +42,7 @@ export interface BootImagePixels {
  *   bit  15 14 13 12 11 | 10  9  8  7  6  5 |  4  3  2  1  0
  *        b4 b3 b2 b1 b0 | g5 g4 g3 g2 g1 g0 | r4 r3 r2 r1 r0
  *
- * The specification names the format "BGR565" (`04-MEMORY-LAYOUT.md`, V-frame
+ * The specification names the format "RGB565" (`04-MEMORY-LAYOUT.md`, V-frame
  * 0x0E), and the conventional reading of that name puts the first-named channel
  * in the most significant bits, the same way "RGB565" puts red there.
  *
@@ -52,15 +52,15 @@ export interface BootImagePixels {
  * only a colour chart or a face gives it away. Green sits in the middle and is
  * untouched by the swap, which is why a test on green alone proves nothing.
  */
-export function packBgr565(r: number, g: number, b: number): number {
-  return ((quantise(b, 31) << 11) | (quantise(g, 63) << 5) | quantise(r, 31)) >>> 0
+export function packRgb565(r: number, g: number, b: number): number {
+  return ((quantise(r, 31) << 11) | (quantise(g, 63) << 5) | quantise(b, 31)) >>> 0
 }
 
-export function unpackBgr565(word: number): { r: number; g: number; b: number } {
+export function unpackRgb565(word: number): { r: number; g: number; b: number } {
   return {
-    r: expand5(word & 0x1f),
+    r: expand5((word >>> 11) & 0x1f),
     g: expand6((word >>> 5) & 0x3f),
-    b: expand5((word >>> 11) & 0x1f),
+    b: expand5(word & 0x1f),
   }
 }
 
@@ -136,7 +136,7 @@ export function centreCrop(width: number, height: number): CropRect {
 }
 
 /**
- * RGBA pixels in, 153,600 bytes of BGR565 out.
+ * RGBA pixels in, 153,600 bytes of RGB565 out.
  *
  * The source is scaled and centre-cropped to 240 x 320 by averaging over the
  * area each destination pixel covers. Area averaging rather than picking the
@@ -200,7 +200,7 @@ export function encodeBootImage(rgba: Uint8ClampedArray, width: number, height: 
       }
 
       const scale = total > 0 ? 1 / total : 0
-      writeWord(out, (dy * BOOT_IMAGE_WIDTH + dx) * 2, packBgr565(r * scale, g * scale, b * scale))
+      writeWord(out, (dy * BOOT_IMAGE_WIDTH + dx) * 2, packRgb565(r * scale, g * scale, b * scale))
     }
   }
 
@@ -208,7 +208,7 @@ export function encodeBootImage(rgba: Uint8ClampedArray, width: number, height: 
 }
 
 /**
- * 153,600 bytes of BGR565 back into RGBA, for the preview.
+ * 153,600 bytes of RGB565 back into RGBA, for the preview.
  *
  * The preview is rendered from the encoded bytes rather than from the file the
  * user chose, so that a channel-order or byte-order mistake is visible on
@@ -221,7 +221,7 @@ export function decodeBootImage(bytes: Uint8Array): BootImagePixels {
   }
   const rgba = new Uint8ClampedArray(BOOT_IMAGE_WIDTH * BOOT_IMAGE_HEIGHT * 4)
   for (let i = 0, o = 0; i < bytes.length; i += 2, o += 4) {
-    const { r, g, b } = unpackBgr565(readWord(bytes, i))
+    const { r, g, b } = unpackRgb565(readWord(bytes, i))
     rgba[o] = r
     rgba[o + 1] = g
     rgba[o + 2] = b

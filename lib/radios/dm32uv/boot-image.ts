@@ -9,7 +9,8 @@ import { PAGE_SIZE, WRITE_ACK_TIMEOUT_MS, parseRange, readMemory, vframe, writeP
  * Where the DM-32UV keeps its startup image.
  *
  * The region is `0x150000-0x175FFF`, reported by V-frame 0x0E, and it holds
- * 153,600 bytes of raw BGR565 - see `io/boot-image.ts` for the pixels.
+ * 153,600 bytes of raw RGB565 - see `io/boot-image.ts` for the pixels, and for why
+ * the specification calling it BGR565 is wrong.
  * Transcribed from the MIT-licensed DM32-Protocol-Spec (`04-MEMORY-LAYOUT.md`
  * for the region, `03-COMMANDS.md` §5.1 and §5.4 for the writes).
  *
@@ -192,6 +193,114 @@ export async function writeBootImageTail(
   }
 }
 
+/** The whole region, which is exactly 38 pages: 155,648 = 38 x 4,096. */
+export const BOOT_IMAGE_REGION_BYTES = BOOT_IMAGE_REGION_END - BOOT_IMAGE_REGION_START + 1
+export const BOOT_IMAGE_REGION_PAGES = BOOT_IMAGE_REGION_BYTES / PAGE_SIZE
+
+/**
+ * Refuse a write whose address is not this radio's startup-image region.
+ *
+ * `bootImageChunks` extrapolates 153,600 bytes from a bare `start` with no end
+ * to check against, so a wrong base does not fail - it relocates the whole
+ * write. `undefined` becomes 0 through the byte masking and sends the picture
+ * to the bottom of memory; a digit dropped from 0x150000 lands it inside the
+ * configuration region, over the codeplug and its page ids. Every frame would
+ * be acknowledged, because this radio has no checksum in either direction and
+ * a write is judged solely by a one-byte reply.
+ */
+function assertInRegion(start: number, length: number, range: { start: number; end: number }): void {
+  if (!Number.isInteger(start)) {
+    throw new ProtocolError(`A startup-image write needs a real address, not ${String(start)}`)
+  }
+  if (start % PAGE_SIZE !== 0) {
+    throw new ProtocolError(`0x${start.toString(16)} is not on a 4 KiB boundary`)
+  }
+  if (start !== range.start) {
+    throw new ProtocolError(
+      `A startup-image write must start at the region the radio reported ` +
+        `(0x${range.start.toString(16)}), not 0x${start.toString(16)}`,
+    )
+  }
+  if (start + length - 1 > range.end) {
+    throw new ProtocolError(
+      `${length} bytes from 0x${start.toString(16)} runs past the region end 0x${range.end.toString(16)}`,
+    )
+  }
+}
+
+/**
+ * Write the whole startup-image region, then read it back and compare.
+ *
+ * Prefer this to {@link writeBootImage}. The region the radio reports is
+ * 155,648 bytes, which is exactly 38 pages of 4,096 - so the entire thing goes
+ * out through `writePage`, the only write form this radio is *confirmed* to
+ * accept, and the derived 2,048-byte frame is not needed at all.
+ *
+ * That is not a stylistic preference. The picture is 153,600 bytes and ends at
+ * 0x175800, halfway through the last sector. Sending 2,048 bytes to 0x175000
+ * fills the first half of that sector, and this flash has no separate erase
+ * command - the erase happens inside the 0x57 handler - so unless the firmware
+ * does a read-modify-write for a short payload, the other half comes back
+ * erased. On this radio those 2,048 bytes read as 0xFF and hold nothing, but
+ * that was not knowable before reading them, and it would not have been
+ * knowable afterwards either: having never read them, you could not tell
+ * erased-by-you from erased-at-the-factory.
+ *
+ * Passing the full region sidesteps the question. The caller supplies all
+ * 155,648 bytes, including whatever sits past the picture, and every frame is
+ * a confirmed one.
+ *
+ * The read-back is not optional. A write here is judged by a single 0x06 and
+ * there is no checksum in either direction, so an acknowledged frame that
+ * programmed nothing, or programmed somewhere else, looks exactly like success.
+ */
+export async function writeBootImageRegion(
+  t: Transport,
+  range: { start: number; end: number },
+  region: Uint8Array,
+  opts?: BootImageOpts,
+): Promise<void> {
+  const expected = range.end - range.start + 1
+  if (region.length !== expected) {
+    throw new ProtocolError(
+      `This radio's startup-image region is ${expected} bytes; got ${region.length}`,
+    )
+  }
+  if (expected % PAGE_SIZE !== 0) {
+    throw new ProtocolError(
+      `This radio reports a ${expected}-byte region, which is not a whole number of 4 KiB pages. ` +
+        'Writing it would need the derived short-frame form, which no capture contains.',
+    )
+  }
+  assertInRegion(range.start, region.length, range)
+
+  const pages = expected / PAGE_SIZE
+  for (let i = 0; i < pages; i++) {
+    opts?.signal?.throwIfAborted()
+    const off = i * PAGE_SIZE
+    await writePage(t, range.start + off, region.subarray(off, off + PAGE_SIZE), opts)
+    opts?.progress?.(i + 1, pages * 2)
+  }
+
+  // Read it back. The radio told us 38 times that it was happy; this is what
+  // finds out whether it was.
+  for (let i = 0; i < pages; i++) {
+    opts?.signal?.throwIfAborted()
+    const off = i * PAGE_SIZE
+    const got = await readMemory(t, range.start + off, PAGE_SIZE, opts)
+    const want = region.subarray(off, off + PAGE_SIZE)
+    if (got.length !== PAGE_SIZE || !got.every((b, j) => b === want[j])) {
+      const at = [...got].findIndex((b, j) => b !== want[j])
+      throw new ProtocolError(
+        `The startup image read back wrong at 0x${(range.start + off + Math.max(at, 0)).toString(16)}`,
+        hexDump(want.subarray(Math.max(at, 0), Math.max(at, 0) + 8), 8),
+        hexDump(got.subarray(Math.max(at, 0), Math.max(at, 0) + 8), 8),
+      )
+    }
+    opts?.progress?.(pages + i + 1, pages * 2)
+  }
+}
+
 /**
  * Write a whole startup image.
  *
@@ -201,7 +310,9 @@ export async function writeBootImageTail(
  * {@link readBootImage}, and the caller is the only thing that can enforce
  * that, which is one of the reasons nothing calls this yet.
  *
- * 37 pages through the ordinary write, then the derived tail form.
+ * 37 pages through the ordinary write, then the derived tail form. Prefer
+ * {@link writeBootImageRegion}, which needs no derived frame at all: the region
+ * is a whole number of pages even though the picture is not.
  *
  * No delay between chunks, matching the codeplug writer, which does the same
  * and is verified on hardware. The specification's 150 ms is described there as

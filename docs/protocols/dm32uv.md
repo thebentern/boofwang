@@ -994,10 +994,14 @@ claiming *less* than the driver writes — the direction that reads as safe and 
 not, because it tells someone a restore rolls back more than it can. A test now
 checks every parenthesised noun the writer emits appears in the sentence.
 
-## The startup image — written, not yet sent to a radio, 2026-08-21
+## The startup image - the converter and the region
 
-The region V-frame `0x0E` reports, `0x150000–0x175FFF`, holds 153,600 bytes of
-raw BGR565: 240 × 320 portrait, no header. `lib/io/boot-image.ts` converts
+> Superseded in part by the verified session below, which corrected the pixel
+> format from BGR565 to RGB565 and showed the derived short write is unnecessary.
+
+The region V-frame `0x0E` reports, `0x150000-0x175FFF`, holds 153,600 bytes of
+raw RGB565: 240 x 320 portrait, no header. The specification calls it BGR565 and
+the radio's panel disagrees; see the verified session below. `lib/io/boot-image.ts` converts
 between that and RGBA, and `lib/radios/dm32uv/boot-image.ts` reads and writes
 the region. **Nothing in the application reaches either of them**, and a test in
 `test/lib/radios/dm32uv/boot-image.spec.ts` resolves every import under `lib/`
@@ -1014,9 +1018,10 @@ anything.
 The converter takes raw RGBA rather than an image file because `lib/` may not
 touch the DOM, and the only image decoder a browser will lend us is the one
 behind `<canvas>`. The browser decodes, `lib/` does the arithmetic, and the
-arithmetic is the part that can be silently wrong: read as RGB565 instead of
-BGR565 the same bytes still make a picture, correctly framed and correctly
-shaped, with red and blue exchanged.
+arithmetic is the part that can be silently wrong: with the channels exchanged
+the same bytes still make a picture, correctly framed and correctly shaped, and
+only the colours differ. That is not hypothetical - it is what happened, and
+only a colour chart on the panel caught it.
 
 ## The startup image - verified session, 2026-08-21
 
@@ -1035,24 +1040,31 @@ Three things this settled.
 only" and it appears in neither hardware capture. It is an ordinary `52` read
 with a 16-bit length, and the radio answers it like any other.
 
-**The picture is little-endian BGR565**, which the specification never states -
-"BGR565" appears twice across the seven documents with no diagram and no byte
-order. Settled by rendering the factory splash three ways:
+**The picture is little-endian RGB565** - red in the high five bits - which the
+specification gets wrong. It calls the format BGR565, twice, with no diagram and
+no byte order.
 
-| Reading | What appears |
+Getting this right needed the radio, and getting it *wrong* first is the
+instructive part. Decoding the factory splash as BGR565 produces a gold BAOFENG
+logo on a near-black background. That looks correct, because Baofeng's printed
+logo is orange, and it was taken as confirmation. It was not.
+
+What settled it was writing a chart of solid colour bands and looking at the
+panel:
+
+| Encoding | Top band on the radio |
 |---|---|
-| little-endian BGR565 | the Baofeng splash, gold lettering on near-black |
-| little-endian RGB565 | the same splash with the logo **blue** |
-| big-endian BGR565 | magenta noise |
+| blue in the high bits (BGR565) | **blue** - wrong |
+| red in the high bits (RGB565) | **red** - correct |
 
-The middle row is the mistake the feature was written to avoid, and it is worth
-seeing how plausible it looks: the layout is perfect, the text is legible, and
-only the colour is wrong. Nobody would catch that without something to compare
-against.
+And the corollary, confirmed on the radio afterwards: the factory splash
+displays **blue** lettering, not gold. The render that looked right was the
+wrong one. The first word of the image is `c2 18`, which is `0x18C2`
+little-endian; under the order the panel actually uses that is the near-black
+background either way, which is why the background gave nothing away.
 
-The first word is `c2 18`, which is `0x18C2` little-endian and decodes to r=16
-g=24 b=24 - the near-black background. That is the same pair `docs` already read
-as "dark grey" in block `0x51`, which only works little-endian.
+The byte order is settled too: little-endian, since a chart whose bands landed
+in the right order at all requires it.
 
 **The converter round-trips real bytes.** `decodeBootImage` then
 `encodeBootImage` over the radio's own 153,600 bytes differs in **0** of them.
@@ -1067,33 +1079,45 @@ answers `90 fe 98 fe`, four bytes where six are expected, and every read after
 that is one reply out of step. Worth knowing, because it looks like a desync
 rather than a missing mode.
 
+### The write, and the two things that make it work
+
+Written on the same radio. **The derived 2,048-byte frame turned out to be
+unnecessary.** The region is 155,648 bytes, which is exactly 38 pages of 4,096,
+so the whole thing goes out through the confirmed page write and the short form
+is never needed. That also settles a hazard: the picture is 153,600 bytes and
+ends halfway through the last sector, and this flash has no separate erase
+command - the erase happens inside the `0x57` handler - so a 2,048-byte write to
+`0x175000` would likely have erased `0x175800`-`0x175FFF` as a side effect.
+Those bytes read as all `0xFF` and hold nothing, but that was not knowable
+before reading them, and having never read them there would have been no way to
+tell erased-by-you from erased-at-the-factory.
+
+Verified sequence, twice: 38 pages out, 38 pages read back, every page matching.
+
+**Uploading a picture is not enough to see one.** The radio has a
+`powerOnInterface` setting - 0 Picture, 1 Custom message, 2 Battery voltage -
+and this unit was on 1, showing two lines of text. The image at `0x150000` was
+never displayed, factory splash included. Anything offering this feature has to
+say so, and probably offer to change it, or the user writes a picture and
+nothing happens.
+
 ### Still not verified
 
-The **2,048-byte write**. `03-COMMANDS.md` marks it DERIVED, no capture contains
-it, and nothing in the app can reach it. The read half is now settled, which
-means a way back exists before anyone tries the write: the factory splash is
-outside every codeplug backup, so reading it first is the only thing that makes
-the first write recoverable.
+The **2,048-byte write**, still. It was not needed and so was not tried:
+`writeBootImageRegion` sends 38 confirmed pages instead. `writeBootImageTail`
+remains in the file, unused and unverified, for a radio that some day reports a
+region that is not a whole number of pages.
 
 ## Not verified
-- **The byte order within a BGR565 pixel.** The specification names the format
-  and gives its size; it does not say which half of the 16-bit word goes into
-  memory first, and neither capture touches `0x150000` at all. Little-endian is
-  assumed, because every other multi-byte field this radio exchanges is. It is
-  decided in one place (`readWord`/`writeWord` in `lib/io/boot-image.ts`) and
-  pinned by a test, so a radio that renders a written image with stripes or a
-  hue rotation — rather than with blue skin, which is the channel swap — has one
-  line to change.
-- **The channel order itself.** `BGR565` is the specification's word, and blue
-  in the most significant bits is the conventional reading of that name. No
-  capture confirms it. Pure red encodes to `1F 00` and pure blue to `00 F8`; if
-  a radio shows those the other way round, the two are swapped.
-- **The 2,048-byte write, `57 <addr:3 LE> 00 08 <2048 bytes>`.** `DERIVED` in
-  the reference: implemented by the reference implementation, absent from both
-  captures. `writeBootImageTail()` emits exactly those bytes and its test pins
-  the frame; whether the radio ACKs it is unknown. If it wants a padded full
-  page, an erase, or a different opcode instead, that function is the only thing
-  that is wrong.
+- **The 2,048-byte short write.** Not needed and so not tried: the region is a
+  whole number of 4 KiB pages, so `writeBootImageRegion` sends 38 confirmed page
+  writes. `writeBootImageTail` is retained, unused, for a radio that reports a
+  region that is not.
+- **The 2,048-byte write, `57 <addr:3 LE> 00 08 <2048 bytes>`.** Still `DERIVED`
+  and still untried, because it turned out to be avoidable: the region is 38
+  whole pages, so the confirmed 4 KiB form covers all of it.
+  `writeBootImageTail()` emits the frame and its test pins the bytes; whether
+  the radio would ACK it is unknown and no longer needs to be.
 - **Whether writing this region needs anything the codeplug write does not** —
   an OEM read-mode sequence, or a gap between chunks. The reference's
   `enterBootImageReadMode()` is a 5-byte `47 00 01 00 00` that matches no
