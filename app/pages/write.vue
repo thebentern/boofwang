@@ -241,10 +241,39 @@ async function send() {
       <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">Write to the {{ model }}</h1>
       <span style="font-size: 13.5px; color: var(--fn)">3 steps · nothing sent yet</span>
     </div>
-    <p style="margin-bottom: 18px; font-size: 14px; color: var(--mu); max-width: 78ch">
+    <p style="margin-bottom: 13px; font-size: 14px; color: var(--mu); max-width: 78ch">
       Three things stand between an edit and the radio, in this order: a way back, an account of what changes,
       and your word.
     </p>
+
+    <!--
+      Said once, at the top, and not repeated on the cards below.
+      Every screen that says the same thing in a different place teaches people
+      to skip all of them.
+    -->
+    <div
+      class="flex items-start rounded-[7px]"
+      style="gap: 10px; padding: 12px 14px; margin-bottom: 18px; border: 1px solid var(--cnL); background: var(--cnB)"
+      role="note"
+    >
+      <UIcon
+        name="i-lucide-triangle-alert"
+        class="shrink-0"
+        style="width: 15px; height: 15px; color: var(--cn); margin-top: 1px"
+      />
+      <div style="max-width: 76ch">
+        <div style="font-size: 13.5px; font-weight: 600; color: var(--tx); margin-bottom: 3px">
+          Writing can leave a radio in a state it will not start from
+        </div>
+        <p style="font-size: 13px; line-height: 1.6; color: var(--mu)">
+          These are undocumented formats worked out by reading other people's implementations and watching
+          real radios, not a specification from the manufacturer. A write that is interrupted, or that turns
+          out to have been wrong about a byte, can leave a radio that will not boot or will not transmit.
+          Recovery usually means writing a known-good backup back over it, which is why one is required
+          before anything is sent. Keep the radio powered and the cable in until it finishes.
+        </p>
+      </div>
+    </div>
 
     <div class="grid" style="gap: 9px">
       <!-- Card 1. A way back. -->

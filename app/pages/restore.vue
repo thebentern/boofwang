@@ -162,6 +162,17 @@ async function confirmRestore() {
           by anything else, is gone. There is no diff here on purpose: a restore expects the radio to differ.
         </p>
 
+        <!--
+          A restore is reachable from Backups without ever passing the write
+          flow, so the warning that lives there has to be said here too. Kept
+          shorter: someone on this screen already has a backup in hand, which is
+          the answer to most of what could go wrong.
+        -->
+        <p v-if="canWrite" style="font-size: 13px; line-height: 1.6; color: var(--cn); margin-bottom: 13px">
+          An interrupted restore can leave the radio unable to start. Keep it powered and the cable in until
+          this finishes; if it stops part way, run it again rather than reaching for the radio's own menus.
+        </p>
+
         <div
           class="grid"
           style="border: 1px solid var(--ln); border-radius: 6px; background: var(--pn2); padding: 10px 12px; margin-bottom: 15px; gap: 6px"
