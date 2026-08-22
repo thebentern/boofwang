@@ -15,6 +15,7 @@ import {
   queryBootImageRange,
   readBootImage,
   writeBootImage,
+  writeBootImageRegion,
   writeBootImageTail,
 } from '#core/radios/dm32uv/boot-image.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
@@ -43,7 +44,7 @@ function pattern(length: number): Uint8Array {
  * matters is the exact header that goes on the wire, not that the fake was
  * happy with it.
  */
-function fakeRadio(opts: { nackAt?: number } = {}) {
+function fakeRadio(opts: { nackAt?: number; dropWrites?: boolean } = {}) {
   const memory = new Uint8Array(REGION_SIZE).fill(0xff)
   memory.set(pattern(BOOT_IMAGE_BYTES), 0)
 
@@ -77,7 +78,10 @@ function fakeRadio(opts: { nackAt?: number } = {}) {
       frames.push(frame)
       if (opts.nackAt !== undefined && writes.length === opts.nackAt) return Uint8Array.from([0xc0])
       writes.push({ address, length })
-      memory.set(frame.subarray(6, 6 + length), address - BOOT_IMAGE_REGION_START)
+      // `dropWrites` acknowledges and stores nothing, which is exactly the
+      // failure the read-back pass exists to catch: this radio has no checksum
+      // in either direction and judges a write by one 0x06 byte.
+      if (!opts.dropWrites) memory.set(frame.subarray(6, 6 + length), address - BOOT_IMAGE_REGION_START)
       return Uint8Array.from([0x06])
     }
 
@@ -359,5 +363,113 @@ describe('the way to the radio goes through the backup rule', () => {
     expect(resolves(join(root, 'app/pages/dmr.vue'), '#core/radios/dm32uv/boot-image.js')).toBe(true)
     expect(resolves(driver, './protocol.js')).toBe(false)
     expect(resolves(join(root, 'app/x.vue'), '#core/io/boot-image.js')).toBe(false)
+  })
+})
+
+/**
+ * Where a startup-image write is allowed to land.
+ *
+ * These exist because the guard that was supposed to enforce it could not. The
+ * call read `assertInRegion(range.start, region.length, range)` - it compared
+ * the reported start against itself, so the containment test was
+ * `range.start !== range.start` and never fired, and the size test compared a
+ * length derived from the same two numbers. The module exported
+ * BOOT_IMAGE_REGION_START "for cross-checking" and never checked anything with
+ * it. Nothing in this file exercised any of the three error paths.
+ *
+ * The consequence is specific to this radio: writes are judged by a single
+ * 0x06 byte with no checksum in either direction, and the read-back pass reads
+ * the same addresses it wrote - so a wrong base is confirmed rather than
+ * caught, and 38 pages land on the codeplug and its page ids.
+ */
+describe('a startup-image write cannot leave its region', () => {
+  it('refuses a reported region below where one can be', () => {
+    // 0x015000 is 0x150000 with a digit dropped - the case the guard names.
+    const payload = Uint8Array.from([...le32(0x01_5000), ...le32(0x03_afff)])
+    expect(() => parseBootImageRange(payload)).toThrow(ProtocolError)
+    expect(() => parseBootImageRange(payload)).toThrow(/below where one can be/)
+  })
+
+  it('still accepts the region the radio actually reports', () => {
+    const payload = Uint8Array.from([...le32(BOOT_IMAGE_REGION_START), ...le32(BOOT_IMAGE_REGION_END)])
+    expect(parseBootImageRange(payload)).toEqual({
+      start: BOOT_IMAGE_REGION_START,
+      end: BOOT_IMAGE_REGION_END,
+    })
+  })
+
+  it('allows a region that has moved up, since nothing above it is ours', () => {
+    const start = BOOT_IMAGE_REGION_START + 0x10_0000
+    const payload = Uint8Array.from([...le32(start), ...le32(start + REGION_SIZE - 1)])
+    expect(parseBootImageRange(payload).start).toBe(start)
+  })
+
+  it('writes nothing when the region would fall outside itself', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    // A range whose end is short of what the pages need: the per-page check has
+    // to fire before any frame goes on the wire.
+    const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_START + PAGE_SIZE - 1 }
+    await expect(
+      writeBootImageRegion(t, range, new Uint8Array(REGION_SIZE).fill(0xab)),
+    ).rejects.toThrow(ProtocolError)
+    await t.close()
+  })
+
+  it('refuses an unaligned region rather than writing across page boundaries', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const range = { start: BOOT_IMAGE_REGION_START + 1, end: BOOT_IMAGE_REGION_START + REGION_SIZE }
+    await expect(writeBootImageRegion(t, range, new Uint8Array(REGION_SIZE))).rejects.toThrow(ProtocolError)
+    expect(radio.writes, 'a frame went out before the check').toEqual([])
+    await t.close()
+  })
+})
+
+/**
+ * The whole-region write, which had no test at all despite being the only path
+ * the application can reach - `writeBootImage`, the short-frame form, is the
+ * one that was covered.
+ */
+describe('writing the whole region', () => {
+  it('writes 38 whole pages and reads every one of them back', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const want = pattern(REGION_SIZE)
+    const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_END }
+
+    await writeBootImageRegion(t, range, want)
+
+    expect(radio.writes).toHaveLength(REGION_SIZE / PAGE_SIZE)
+    expect(radio.writes.every((w) => w.length === PAGE_SIZE)).toBe(true)
+    expect(radio.writes[0]!.address).toBe(BOOT_IMAGE_REGION_START)
+    expect(radio.writes.at(-1)!.address).toBe(BOOT_IMAGE_REGION_END + 1 - PAGE_SIZE)
+    // Every page is read back, so the verify pass is as long as the write pass.
+    expect(radio.reads).toHaveLength(REGION_SIZE / PAGE_SIZE)
+    expect([...radio.memory]).toEqual([...want])
+    await t.close()
+  })
+
+  it('every address it writes is inside the region it was given', async () => {
+    const radio = fakeRadio()
+    const t = await connect(radio)
+    const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_END }
+    await writeBootImageRegion(t, range, pattern(REGION_SIZE))
+    for (const w of radio.writes) {
+      expect(w.address).toBeGreaterThanOrEqual(range.start)
+      expect(w.address + w.length - 1).toBeLessThanOrEqual(range.end)
+    }
+    await t.close()
+  })
+
+  it('throws when a page is acknowledged but not stored', async () => {
+    // The whole point of reading back: every frame here is ACKed and none of
+    // it lands. Without the verify pass this write reports success.
+    const radio = fakeRadio({ dropWrites: true })
+    const t = await connect(radio)
+    const range = { start: BOOT_IMAGE_REGION_START, end: BOOT_IMAGE_REGION_END }
+    await expect(writeBootImageRegion(t, range, pattern(REGION_SIZE))).rejects.toThrow(ProtocolError)
+    expect(radio.writes.length, 'it should have sent the pages first').toBeGreaterThan(0)
+    await t.close()
   })
 })

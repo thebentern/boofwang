@@ -21,24 +21,29 @@ import { PAGE_SIZE, WRITE_ACK_TIMEOUT_MS, parseRange, readMemory, vframe, writeP
  * from a CSV if the worst happens. The factory splash can be rebuilt from
  * nothing at all, so it has to be read before it is ever written over.
  *
- * **Nothing in the application reaches any of this, and that is deliberate.**
- * No DM-32UV has been connected since it was written, the 2,048-byte tail write
- * is `DERIVED` in the specification rather than captured, and the ordering rule
- * above has no home to live in yet. `test/lib/radios/dm32uv/boot-image.spec.ts`
- * asserts that no file under `lib/` or `app/` imports this module; when the
- * feature is wired up, that test is the thing to read first.
+ * **The application reaches this now**, through `app/pages/startup-image.vue`
+ * and `useBootImage`, and a real DM-32UV has since been read and written. What
+ * is used is {@link writeBootImageRegion}: 38 whole pages, every one read back
+ * and compared. {@link writeBootImage} and {@link writeBootImageTail} remain
+ * for the short-frame form, whose 2,048-byte tail write is still `DERIVED` in
+ * the specification rather than captured, and no radio has received one.
+ *
+ * This header used to say nothing reached any of it, alongside a test asserting
+ * no file under `lib/` or `app/` imported the module. Both stopped being true
+ * when the page landed, and the comment outlived the fact by several commits -
+ * which is the ordinary way a module header becomes a lie.
  */
 
 /** V-frame 0x0E: the memory range the startup image occupies. */
 export const VFRAME_BOOT_IMAGE_RANGE = 0x0e
 
 /**
- * What V-frame 0x0E answered on the captured radio, for cross-checking only.
+ * What V-frame 0x0E answered on the captured radio.
  *
- * The range is CONFIRMED by the capture, and physical addresses on this radio
- * still move underneath you, so the address a transfer uses comes from the
- * radio in front of us. These constants exist so a test and a bug report can
- * say what "the usual answer" is.
+ * The range is CONFIRMED by the capture. A transfer still uses the address the
+ * radio in front of us reports, because pages move - but `parseBootImageRange`
+ * holds that answer to this base as a floor, so a mis-framed reply cannot send
+ * a write down into the codeplug. These are a bound, not only a note.
  */
 export const BOOT_IMAGE_REGION_START = 0x15_0000
 export const BOOT_IMAGE_REGION_END = 0x17_5fff
@@ -95,6 +100,31 @@ export function bootImageChunks(start: number): BootImageChunk[] {
  */
 export function parseBootImageRange(payload: Uint8Array): { start: number; end: number } {
   const range = parseRange(payload)
+
+  /*
+   * A floor, because the alternative is trusting a frame with the codeplug.
+   *
+   * The addresses this radio hands out do move - that is what the page map is
+   * for - but what moves is which page holds which logical block *inside* the
+   * configuration region. The startup image is a fixed area of flash above all
+   * of it, and both captures agree on where. A reported start below the usual
+   * base is not a radio laid out differently; it is a mis-framed reply, and
+   * this codebase has recorded two separate occasions of an idle heartbeat
+   * answering a V-frame. Writing 38 pages from 0x015000 instead of 0x150000
+   * lands them on the codeplug and its page ids, and every frame would be
+   * acknowledged, because a write here is judged by a single 0x06 byte.
+   *
+   * Above the base is allowed: firmware may move the region up or grow it, and
+   * nothing above it belongs to anything this driver writes.
+   */
+  if (range.start < BOOT_IMAGE_REGION_START) {
+    throw new ProtocolError(
+      'the radio reported a startup-image region below where one can be',
+      `at or above 0x${BOOT_IMAGE_REGION_START.toString(16)}`,
+      `0x${range.start.toString(16)}`,
+    )
+  }
+
   const size = range.end - range.start + 1
   if (size < BOOT_IMAGE_BYTES) {
     throw new ProtocolError(
@@ -215,15 +245,10 @@ function assertInRegion(start: number, length: number, range: { start: number; e
   if (start % PAGE_SIZE !== 0) {
     throw new ProtocolError(`0x${start.toString(16)} is not on a 4 KiB boundary`)
   }
-  if (start !== range.start) {
+  if (start < range.start || start + length - 1 > range.end) {
     throw new ProtocolError(
-      `A startup-image write must start at the region the radio reported ` +
-        `(0x${range.start.toString(16)}), not 0x${start.toString(16)}`,
-    )
-  }
-  if (start + length - 1 > range.end) {
-    throw new ProtocolError(
-      `${length} bytes from 0x${start.toString(16)} runs past the region end 0x${range.end.toString(16)}`,
+      `${length} bytes at 0x${start.toString(16)} falls outside the startup-image region ` +
+        `0x${range.start.toString(16)}-0x${range.end.toString(16)}`,
     )
   }
 }
@@ -272,12 +297,17 @@ export async function writeBootImageRegion(
         'Writing it would need the derived short-frame form, which no capture contains.',
     )
   }
-  assertInRegion(range.start, region.length, range)
-
   const pages = expected / PAGE_SIZE
   for (let i = 0; i < pages; i++) {
     opts?.signal?.throwIfAborted()
     const off = i * PAGE_SIZE
+    // Every page, against the address that is actually going on the wire.
+    // Checking the base once told us nothing: the call was
+    // `assertInRegion(range.start, ..., range)`, so its containment test
+    // compared the reported start against itself and could never fire. Per
+    // page it also catches an arithmetic slip in the loop, which a single
+    // check at the top cannot see.
+    assertInRegion(range.start + off, PAGE_SIZE, range)
     await writePage(t, range.start + off, region.subarray(off, off + PAGE_SIZE), opts)
     opts?.progress?.(i + 1, pages * 2)
   }

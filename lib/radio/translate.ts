@@ -92,6 +92,24 @@ export interface TranslateResult {
   readonly dropped: readonly string[]
 }
 
+/**
+ * The `extras.vendor` keys that only mean something on a digital channel.
+ *
+ * Transcribed from `decodeChannel` in `lib/radios/dm32uv/driver.ts`, which is
+ * the only driver that writes any of them today. Kept here rather than imported
+ * because `lib/radio/` must not depend on a particular radio - if a second DMR
+ * driver appears with different names, this list grows rather than the
+ * dependency.
+ */
+const DIGITAL_VENDOR_KEYS: ReadonlySet<string> = new Set([
+  'colorCode',
+  'timeSlot',
+  'txContact',
+  'radioIdIndex',
+  'encryptionKeyId',
+  'encryptEnabled',
+])
+
 const MHZ = (f: number) => `${(f / 1e6).toFixed(5)} MHz`
 const bandFor = (bands: readonly BandLimit[], f: number) =>
   bands.find((b) => f >= b.loHz && f <= b.hiHz) ?? null
@@ -195,6 +213,30 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
       `This radio has no ${next.modulation}. The frequency carries over; everything ${next.modulation} ` +
       'specific about the channel does not.')
     next = { ...next, modulation: fallback }
+
+    // "Everything specific about the channel does not" has to be true of the
+    // bytes as well as of the sentence. `extras` travels untouched everywhere
+    // else in this file, which is right when a channel is copied between slots
+    // on one radio - but a DMR repeater staged onto an analogue radio would
+    // otherwise become an FM channel still carrying a colour code and a
+    // timeslot. Inert on the radio that cannot read them, and read back as real
+    // the moment that codeplug is transplanted to one that can.
+    //
+    // This only fires when the target lacks the modulation, so a same-radio
+    // copy never reaches it and the promise made at the foot of this file still
+    // holds.
+    const vendor = next.extras.vendor
+    const dropped = vendor === undefined ? [] : Object.keys(vendor).filter((k) => DIGITAL_VENDOR_KEYS.has(k))
+    if (vendor !== undefined && dropped.length > 0) {
+      at('modulation', 'extras', dropped.join(', '), 'not carried',
+        'These settings only mean something on a digital channel, so they are not carried over.')
+      const kept = Object.fromEntries(Object.entries(vendor).filter(([k]) => !DIGITAL_VENDOR_KEYS.has(k)))
+      const { vendor: _gone, ...otherExtras } = next.extras
+      next = {
+        ...next,
+        extras: { ...otherExtras, ...(Object.keys(kept).length === 0 ? {} : { vendor: kept }) },
+      }
+    }
   }
 
   // 6. Bandwidth, downwards only. Widening can put a channel outside a

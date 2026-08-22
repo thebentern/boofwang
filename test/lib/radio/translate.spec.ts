@@ -222,3 +222,62 @@ describe('accepting', () => {
     expect(acceptTranslation(refused, {})).toEqual([])
   })
 })
+
+describe('a DMR channel arriving on a radio that has no DMR', () => {
+  const dmrChannel = () =>
+    channel({
+      modulation: 'DMR',
+      bandwidthHz: 12_500,
+      extras: { vendor: { colorCode: '7', timeSlot: '2', txContact: '3', scanList: '1' } },
+    })
+
+  it('drops the digital settings rather than leaving them on an FM channel', () => {
+    // The modulation rule already said "everything DMR specific about the
+    // channel does not carry over". That has to be true of the bytes too: an
+    // FM channel still carrying a colour code is inert on the UV-82 that
+    // cannot read it, and read back as real the moment that codeplug is
+    // transplanted onto a radio that can.
+    const out = clampChannel(dmrChannel(), UV82)
+    expect(out.channel?.modulation).toBe('FM')
+    expect(out.channel?.extras.vendor?.colorCode).toBeUndefined()
+    expect(out.channel?.extras.vendor?.timeSlot).toBeUndefined()
+    expect(out.channel?.extras.vendor?.txContact).toBeUndefined()
+  })
+
+  it('keeps the vendor keys that are not about being digital', () => {
+    const out = clampChannel(dmrChannel(), UV82)
+    expect(out.channel?.extras.vendor?.scanList).toBe('1')
+  })
+
+  it('says what it dropped rather than doing it quietly', () => {
+    const out = clampChannel(dmrChannel(), UV82)
+    const said = out.changes.filter((c) => c.rule === 'modulation')
+    expect(said.length).toBeGreaterThanOrEqual(2)
+    expect(said.map((c) => c.before).join(' ')).toContain('colorCode')
+  })
+
+  it('removes the vendor bag entirely when nothing survives', () => {
+    const only = channel({
+      modulation: 'DMR',
+      extras: { vendor: { colorCode: '7' } },
+    })
+    const out = clampChannel(only, UV82)
+    expect(out.channel?.extras.vendor).toBeUndefined()
+  })
+
+  it('leaves a DMR channel alone on a radio that has DMR', () => {
+    const out = clampChannel(dmrChannel(), DM32)
+    expect(out.channel?.modulation).toBe('DMR')
+    expect(out.channel?.extras.vendor?.colorCode).toBe('7')
+    expect(out.channel?.extras.vendor?.timeSlot).toBe('2')
+  })
+
+  it('still carries extras untouched when the modulation is supported', () => {
+    // The regression guard for the change above. `extras` travels untouched
+    // everywhere else in translate.ts, and a same-radio copy must keep doing
+    // so - per-radio blocks included.
+    const fm = channel({ extras: { vendor: { colorCode: '7', anything: 'x' } } })
+    const out = clampChannel(fm, UV82)
+    expect(out.channel?.extras.vendor).toEqual({ colorCode: '7', anything: 'x' })
+  })
+})

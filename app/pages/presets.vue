@@ -67,9 +67,13 @@ const POLICIES: readonly { id: Policy, label: string, sub: string, icon: string 
   { id: 'gaps', label: 'Fill empty slots only', sub: 'Skips anything already programmed.', icon: 'i-lucide-circle-minus' },
 ]
 
-const { imported, importCsv } = useImportedPresets()
+const { imported, load: loadImported, importCsv } = useImportedPresets()
 const toast = useToast()
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
+
+// Sets live in IndexedDB, so they arrive a tick after the page does. The
+// bundled sets render immediately either way.
+onMounted(() => void loadImported())
 
 /** Bundled sets first, then whatever the user has brought in. */
 const allSets = computed<PresetSet[]>(() => [...PRESET_SETS, ...imported.value])
@@ -99,7 +103,7 @@ async function onFilePicked(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   try {
-    const { set, issues, unknownColumns } = importCsv(file.name, await file.text())
+    const { set, issues, unknownColumns } = await importCsv(file.name, await file.text())
     if (!set) {
       toast.add({
         title: 'Nothing to import',
@@ -123,9 +127,15 @@ async function onFilePicked(event: Event) {
       duration: 10_000,
     })
   } catch (e) {
+    // Running out of room and failing to parse are different problems with
+    // different fixes, and telling someone the file was unreadable when their
+    // disk is full sends them to correct the wrong thing.
+    const quota = isQuotaError(e)
     toast.add({
-      title: 'Could not read that file',
-      description: e instanceof Error ? e.message : String(e),
+      title: quota ? 'No room to keep that set' : 'Could not read that file',
+      description: quota
+        ? 'The browser is out of storage for this site. Delete a backup or a saved set and try again.'
+        : e instanceof Error ? e.message : String(e),
       icon: 'i-lucide-circle-alert',
       color: 'error',
       duration: 0,
@@ -605,6 +615,22 @@ function stage() {
               <span style="color: var(--fn)"> You are responsible for what you transmit.</span>
             </p>
           </div>
+
+          <!--
+            Where the frequencies came from.
+
+            Written onto every staged channel as `provenance.attribution` since
+            the model existed, and shown nowhere until now. For the bundled sets
+            that was a small omission. For a fetched set it is not: credit is
+            what boofwang offers in place of a licence it does not have, and
+            credit nobody can see is not credit. See docs/provenance.md.
+          -->
+          <p
+            style="margin: 9px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--mu)"
+          >
+            <span class="label-xs" style="color: var(--fn)">Source</span>
+            {{ selectedSet.attribution }}
+          </p>
         </div>
 
         <div
@@ -667,7 +693,14 @@ function stage() {
               {{ channel.tone.tx?.kind === 'ctcss' ? (channel.tone.tx.deciHz / 10).toFixed(1) : '—' }}
             </span>
             <span class="font-mono tabular text-right" style="font-size: 13.5px; color: var(--fn)">
-              {{ channel.txAllowed ? formatPower(channel.powerMW) : '—' }}
+              <!--
+                A set that states no power gets a dash, not a number. A
+                repeater directory records where the repeater listens and knows
+                nothing about what power you should use; printing one here would
+                read as though somebody had decided it. The radio's own maximum
+                is what gets staged, and the clamp reports that when it happens.
+              -->
+              {{ channel.txAllowed && channel.powerMW !== undefined ? formatPower(channel.powerMW) : '—' }}
             </span>
           </div>
         </div>

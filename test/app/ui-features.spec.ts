@@ -209,14 +209,36 @@ describe('the connect screen does not guess the radio', () => {
   })
 
   it('guards every route that opens a port', () => {
-    // Three ways in - the port chooser, a read, and Bluetooth - and each one
-    // hands a radio id to a driver. Missing a guard puts a null on that path.
-    for (const fn of ['async function pickPort()', 'async function readRadio(', 'async function connectBluetooth(']) {
+    /*
+     * Three ways in - the port chooser, a read, and Bluetooth - and each one
+     * hands a radio id to a driver. Missing a guard puts a null on that path.
+     *
+     * Bounded to the function's own body. This used to slice a flat 400
+     * characters from the declaration, which runs past the end of the short
+     * ones into the next function, so a guard deleted from `pickPort` was still
+     * "found" - in `readRadio` underneath it. The count assertion below is the
+     * belt: three routes, three guards, no borrowing.
+     */
+    const NAMES = ['async function pickPort()', 'async function readRadio(', 'async function connectBluetooth(']
+    for (const fn of NAMES) {
       const at = PAGE.indexOf(fn)
       expect(at, `${fn} is gone`).toBeGreaterThan(-1)
-      const body = PAGE.slice(at, at + 400)
+      // Up to the next top-level function, so nothing leaks in from below.
+      const rest = PAGE.slice(at + fn.length)
+      const nextFn = rest.search(/\n(?:async )?function /)
+      const body = nextFn === -1 ? rest : rest.slice(0, nextFn)
       expect(body, `${fn} can run without a radio chosen`).toContain('withoutARadio()')
+      // And before anything that opens a port.
+      const guard = body.indexOf('withoutARadio()')
+      const firstAwait = body.indexOf('await ')
+      if (firstAwait > -1) {
+        expect(guard, `${fn} awaits before it checks`).toBeLessThan(firstAwait)
+      }
     }
+    expect(
+      [...PAGE.matchAll(/withoutARadio\(\)/g)].length,
+      'a route lost its guard, or one was added without one',
+    ).toBe(NAMES.length + 1) // the three call sites, plus the declaration
   })
 
   it('lets the driver list do the choosing', () => {

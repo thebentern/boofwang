@@ -17,11 +17,26 @@ import type { RadioImage } from '../radio/image.js'
  */
 
 export const DB_NAME = 'boofwang'
-export const DB_VERSION = 1
+/** 2 added `presets`. See `STORE_PRESETS`. */
+export const DB_VERSION = 2
 
 export const STORE_BACKUPS = 'backups'
 export const STORE_SESSIONS = 'sessions'
 export const STORE_PREFS = 'prefs'
+/**
+ * Channel sets the user imported or saved.
+ *
+ * These lived in `localStorage` when a set was a few dozen frequencies from a
+ * CHIRP CSV. A fetched repeater list is tens of thousands of records, which is
+ * past the ~5 MB origin cap several times over - and the old code caught the
+ * quota error and carried on, so the set worked all session and vanished on
+ * reload with nothing said. One record per set rather than one blob, so adding
+ * a large set does not mean rewriting every other one.
+ */
+export const STORE_PRESETS = 'presets'
+
+/** The key `localStorage` used before `STORE_PRESETS`, read once to migrate. */
+export const LEGACY_PRESETS_KEY = 'boofwang:presets'
 
 /** Why an image was kept, which decides how eagerly it may be pruned. */
 export type BackupOrigin = 'download' | 'pre-write' | 'import'

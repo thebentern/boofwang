@@ -69,6 +69,31 @@ const tgNameLength = computed(() =>
   features.value?.talkGroups ? features.value.talkGroups.nameLength : 16,
 )
 
+const toast = useToast()
+
+/**
+ * Take what the import panel chose and put it in the codeplug.
+ *
+ * The store decides what actually fits and reports back, rather than this
+ * handler pre-trimming the list: the cap is the store's to enforce, and the
+ * counts it returns are what the toast says. Anything refused is named, because
+ * an import that silently stopped at the cap reads as one that succeeded.
+ */
+function onImportTalkGroups(entries: readonly { number: number; name: string }[]) {
+  const { added, alreadyPresent, noRoom } = codeplug.importTalkGroups(entries)
+  const notes = [
+    alreadyPresent ? `${alreadyPresent} already in this codeplug.` : '',
+    noRoom ? `${noRoom} would not fit and were left out.` : '',
+  ].filter(Boolean).join(' ')
+  toast.add({
+    title: `Added ${added} talk group${added === 1 ? '' : 's'}`,
+    description: notes || 'Nothing reaches the radio until you write.',
+    icon: noRoom ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check',
+    color: noRoom ? 'warning' : 'success',
+    duration: 10_000,
+  })
+}
+
 type Editing = { kind: 'zone' | 'talkgroup' | 'scanlist' | 'rxgroup'; id: string; field: 'name' | 'members' }
 const editing = ref<Editing | null>(null)
 const draft = ref('')
@@ -381,10 +406,17 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
       <section v-if="hasTalkGroups" style="margin-bottom: 18px">
         <div class="flex items-center gap-2" style="margin-bottom: 7px">
           <h2 class="sec" style="margin: 0">Talk groups</h2>
-          <RiskAction
-            risk="neutral" ghost size="sm" icon="i-lucide-plus" label="Add"
-            class="ms-auto" @click="codeplug.addTalkGroup()"
-          />
+          <div class="ms-auto flex items-start gap-2">
+            <DmrTalkGroupImport
+              :max="features?.talkGroups ? features.talkGroups.max : 0"
+              :used="codeplug.talkGroups.length"
+              @import="onImportTalkGroups"
+            />
+            <RiskAction
+              risk="neutral" ghost size="sm" icon="i-lucide-plus" label="Add"
+              @click="codeplug.addTalkGroup()"
+            />
+          </div>
         </div>
         <div class="card">
           <p v-if="codeplug.talkGroups.length === 0" class="empty">This codeplug has no talk groups.</p>
