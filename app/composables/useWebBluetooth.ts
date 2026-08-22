@@ -96,21 +96,33 @@ export function describeBluetoothDevice(name: string | null | undefined): string
  * opens belongs to the browser - we cannot style it, read it, or tell whether
  * anything was in it.
  *
- * The chooser only lists devices advertising the service in the filter, which
- * is where an unverified service UUID bites: a wrong number produces an empty
- * chooser that looks identical to a radio with Bluetooth switched off.
+ * The chooser lists only what its filters match, and a service filter matches
+ * only a service the device puts in its **advertisement** - which this radio
+ * does not, so a filter of `[{ services: [ffe0] }]` listed nothing at all. The
+ * name prefixes are what actually match it. `everyDevice` drops the filters
+ * entirely, for a radio advertising a name nobody has recorded yet.
  */
-export async function requestBluetoothRadio(): Promise<PortChoice | null> {
+export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}): Promise<PortChoice | null> {
   if (!bluetoothAvailable()) throw new Error('This browser does not support Web Bluetooth.')
 
   const { profile, scan } = resolveBluetoothProfile()
 
+  /*
+   * Filters are OR-ed by the browser, so this asks for "advertises the service,
+   * or is named like one of these". Keeping the service filter costs nothing
+   * and covers a unit or firmware that does advertise it.
+   */
+  const filters = [
+    ...profile.namePrefixes.map((namePrefix) => ({ namePrefix })),
+    { services: [profile.service] },
+  ]
+
   let device: BluetoothDevice
   try {
     device = await navigator.bluetooth.requestDevice(
-      scan
+      scan || opts.everyDevice
         ? { acceptAllDevices: true, optionalServices: [profile.service] }
-        : { filters: [{ services: [profile.service] }], optionalServices: [profile.service] },
+        : { filters, optionalServices: [profile.service] },
     )
   } catch (e) {
     // The user dismissing the chooser is not an error worth surfacing, which is
@@ -137,9 +149,10 @@ export async function requestBluetoothRadio(): Promise<PortChoice | null> {
      */
     throw new Error(
       `${device.name ?? 'That device'} does not offer the ${profile.label} service ` +
-        `(${profile.service}). That service UUID is an assumption, not something anyone has read off one of ` +
-        'these radios. Find the real one with a Bluetooth scanner such as nRF Connect, then reload with ' +
-        '?ble=service,write,notify to try it.',
+        `(${profile.service}). That UUID was read off a UV-5R Mini in wireless CPS mode, so this is most ` +
+        'likely a different device from the chooser rather than a wrong number. If it is the radio, read ' +
+        'its real service and characteristic with a Bluetooth scanner such as nRF Connect, then reload ' +
+        'with ?ble=service,write,notify to try them.',
     )
   }
 

@@ -211,7 +211,7 @@ describe('the connect screen does not guess the radio', () => {
   it('guards every route that opens a port', () => {
     // Three ways in - the port chooser, a read, and Bluetooth - and each one
     // hands a radio id to a driver. Missing a guard puts a null on that path.
-    for (const fn of ['async function pickPort()', 'async function readRadio(', 'async function connectBluetooth()']) {
+    for (const fn of ['async function pickPort()', 'async function readRadio(', 'async function connectBluetooth(']) {
       const at = PAGE.indexOf(fn)
       expect(at, `${fn} is gone`).toBeGreaterThan(-1)
       const body = PAGE.slice(at, at + 400)

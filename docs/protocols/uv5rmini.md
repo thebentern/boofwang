@@ -275,6 +275,31 @@ The protocol is unchanged. Same identify string, same three magics, same `0x52`
 block reads, same `CO 7` obfuscation — only the carrier differs, which is why
 the driver needed no Bluetooth-specific code above the port.
 
+### The radio advertises a name and no services
+
+This is the part that made the browser chooser unusable long after the protocol
+worked, and it is worth separating from the section below.
+
+`navigator.bluetooth.requestDevice` matches a service filter against the
+device's **advertisement**. FFE0 is not in this radio's: it was found by a GATT
+enumeration, which happens after connecting and says nothing about what is
+broadcast. So `filters: [{ services: [ffe0] }]` listed nothing at all, with the
+radio a foot away in wireless CPS mode - the empty chooser that is
+indistinguishable from a radio switched off, arrived at from the opposite
+direction to the one this project kept guarding against.
+
+What it does advertise is a name. Chrome lists it as `walkie-talkie`, so that is
+what the chooser filters on now, with the service kept as a second OR-ed filter
+for a unit or firmware that does broadcast it. `namePrefix` is case-sensitive
+and Web Bluetooth offers no case-insensitive form, so the casings are
+enumerated rather than assumed.
+
+The bridge has the same trap. `tools/ble-bridge/server.py` filters its scan on
+the same advertised service and takes `--all` to stop doing so, which is how the
+verified read below was taken. That is why the read could succeed while the
+browser chooser had never once worked: they are different discovery paths, and
+only one of them had been exercised.
+
 ### How the profile was established
 
 By asking the radio, not by reasoning from convention. A GATT enumeration listed
@@ -314,6 +339,10 @@ producing a plausible codeplug.
 
 ### Still not verified
 
+- **Whether every unit advertises the same name.** One radio has been seen, and
+  it said `walkie-talkie`. A second saying something else would be invisible to
+  the chooser's filters, which is why the empty-chooser card offers to list
+  every device in range rather than leaving it at "try again".
 - **Writing over Bluetooth.** Not implemented and not offered. Read first, prove
   the round trip, then write — the order every other radio here followed.
 - The `0x80` upload block size and its `0xFF` padding are transcribed from

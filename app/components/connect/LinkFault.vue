@@ -276,8 +276,9 @@ const STATES: Record<FaultState, FaultCopy> = {
     title: '{browser} is showing its own Bluetooth device list',
     body:
       'That list belongs to the browser and we cannot style it, read it, or tell whether your radio is in ' +
-      'it. It only shows devices advertising the service boofwang asked for, and that service number is ' +
-      'an assumption, not something anyone has read off one of these radios yet.',
+      'it. It shows devices named like a UV-5R Mini in wireless CPS mode, or advertising the service one ' +
+      'was read on. A radio that is switched off, already paired to a phone, or advertising some other ' +
+      'name will not be there.',
   },
 
   'ble-empty': {
@@ -288,23 +289,27 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['warn', 'none'],
     title: 'No radio was listed',
     body:
-      'boofwang filters the chooser on the Bluetooth service a UV-5R Mini was seen advertising in wireless ' +
-      'CPS mode. That number is right for that radio, so an empty list usually means the radio is not in ' +
-      'wireless CPS mode, is already paired to a phone, or is a model that advertises something else.',
+      'boofwang filters the chooser on the name a UV-5R Mini advertises in wireless CPS mode, and on the ' +
+      'service one was read on. An empty list usually means the radio is not in wireless CPS mode or is ' +
+      'already paired to a phone. It can also mean this one advertises a name nobody has recorded, which ' +
+      'is what "show every device" is for.',
     steps: [
       ['i-lucide-radio', 'Check the radio has Bluetooth switched on and is not already paired to a phone.'],
       [
-        'i-lucide-search',
-        'Read the real service and characteristic numbers with a Bluetooth scanner (nRF Connect, or ' +
-          'chrome://bluetooth-internals), then reload with ?ble=service,write,notify to try them.',
+        'i-lucide-bluetooth',
+        'Show every device, and look for the radio by name. This radio filters out a service filter ' +
+          'because it does not advertise its service at all, only its name.',
       ],
       [
         'i-lucide-git-branch',
-        'If they work, they belong in lib/transport/bluetooth-uuids.ts, and this stops being a guess for ' +
-          'everybody.',
+        'A name that works belongs in lib/transport/bluetooth-uuids.ts, so the next person gets a chooser ' +
+          'with their radio in it rather than every device in the room.',
       ],
     ],
-    actions: [{ key: 'bluetooth', label: 'Try again', icon: 'i-lucide-arrow-right' }],
+    actions: [
+      { key: 'bluetooth', label: 'Try again', icon: 'i-lucide-arrow-right' },
+      { key: 'bluetooth-all', label: 'Show every device', icon: 'i-lucide-bluetooth' },
+    ],
   },
 
   'ble-off': {

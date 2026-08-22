@@ -332,6 +332,40 @@ describe('the UUIDs themselves', () => {
     expect(UV5RM_BLE.verified).toBe(true)
   })
 
+  it('carries a name to filter the chooser on, because the service is not advertised', () => {
+    /*
+     * The one that cost a session. `requestDevice` matches a service filter
+     * only against the device's **advertisement**, and this radio advertises
+     * no services at all - FFE0 was found by a GATT enumeration, which happens
+     * after connecting. So the chooser filtered on FFE0 listed nothing, on a
+     * radio sitting in wireless CPS mode a foot away, which is exactly the
+     * "empty chooser is indistinguishable from a radio that is off" failure
+     * this file's header warns about. With the filter dropped it appeared at
+     * once, as `walkie-talkie`.
+     *
+     * So a profile good enough to be the default has to bring something that
+     * actually matches an advertisement. A verified profile with no name is a
+     * chooser that lists nothing.
+     */
+    expect(UV5RM_BLE.namePrefixes.length).toBeGreaterThan(0)
+    expect(UV5RM_BLE.namePrefixes).toContain('walkie-talkie')
+    expect(bluetoothProfile().namePrefixes.length).toBeGreaterThan(0)
+  })
+
+  it('enumerates the casings, because namePrefix is case-sensitive', () => {
+    // Web Bluetooth has no case-insensitive name filter, and one wrong capital
+    // reproduces the empty chooser exactly.
+    const lower = UV5RM_BLE.namePrefixes.map((n) => n.toLowerCase())
+    expect(new Set(lower).size, 'the prefixes differ by more than case').toBe(1)
+    expect(UV5RM_BLE.namePrefixes.length).toBeGreaterThan(1)
+  })
+
+  it('puts no name on a hand-entered profile', () => {
+    // Somebody pasting UUIDs is chasing a radio this build does not know, and
+    // a name prefix from a different one would filter theirs straight back out.
+    expect(parseBluetoothProfile('ffe0,ffe1').namePrefixes).toEqual([])
+  })
+
   it('never defaults to the AE30 characteristic, which is a loopback', () => {
     // Writing to ae01 returns the bytes just written. A driver pointed there
     // would see its own frames come back - the echo failure this project has

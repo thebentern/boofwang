@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest'
  * Vue harness in this suite, and both defects are one computed property.
  */
 const PAGE = readFileSync(fileURLToPath(new URL('../../app/pages/index.vue', import.meta.url)), 'utf8')
+const CHOOSER = readFileSync(fileURLToPath(new URL('../../app/composables/useWebBluetooth.ts', import.meta.url)), 'utf8')
 
 describe('the Bluetooth offer', () => {
   const offer = /const offerBluetooth = computed\(\s*\(\) =>([\s\S]*?),?\n\)/.exec(PAGE)?.[1] ?? ''
@@ -47,5 +48,29 @@ describe('the Bluetooth offer', () => {
     const states = /const BLE_OFFER_STATES: readonly \(FaultState \| 'ready'\)\[\] = \[([^\]]*)\]/.exec(PAGE)?.[1]
     expect(states, 'BLE_OFFER_STATES is no longer declared as it was').toBeDefined()
     expect(states).toMatch(/'ready'/)
+  })
+})
+
+/**
+ * What the chooser is allowed to filter on.
+ *
+ * A service filter matches only a service the device puts in its
+ * advertisement, and this radio puts none there: FFE0 came from a GATT
+ * enumeration, which happens after connecting. Filtering on it alone listed
+ * nothing with the radio a foot away in wireless CPS mode. The name is what
+ * matches, so a chooser that has gone back to service-only is the bug
+ * returning, and an empty chooser with no way out is what made it expensive.
+ */
+describe('the Bluetooth chooser', () => {
+  it('filters on the advertised name, not only on the service', () => {
+    expect(CHOOSER).toMatch(/namePrefixes\.map\(\(namePrefix\) => \(\{ namePrefix \}\)\)/)
+  })
+
+  it('keeps a way out of an empty chooser', () => {
+    // `acceptAllDevices` is the escape hatch for a radio advertising a name
+    // nobody has recorded. Reachable from the card, not only from a query
+    // string somebody has to be told about.
+    expect(CHOOSER).toMatch(/everyDevice/)
+    expect(PAGE).toMatch(/'bluetooth-all'/)
   })
 })

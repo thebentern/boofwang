@@ -416,7 +416,7 @@ async function readRadio(acquired?: PortChoice | null) {
  *
  * `requestDevice` needs transient activation, so nothing is awaited before it.
  */
-async function connectBluetooth() {
+async function connectBluetooth(everyDevice = false) {
   if (withoutARadio()) return
   fault.value = null
   device.error = null
@@ -425,7 +425,7 @@ async function connectBluetooth() {
 
   let choice: PortChoice | null
   try {
-    choice = await requestBluetoothRadio()
+    choice = await requestBluetoothRadio({ everyDevice })
   } catch (e) {
     toast.add({
       title: 'Could not open the Bluetooth chooser',
@@ -469,6 +469,8 @@ function onAction(key: string) {
   else if (key === 'cable') void useCableInstead()
   else if (key === 'read') void readRadio()
   else if (key === 'bluetooth') void connectBluetooth()
+  // The escape hatch from an empty chooser: no filters, every device in range.
+  else if (key === 'bluetooth-all') void connectBluetooth(true)
   else if (key === 'cancel') transfer.cancel()
   else if (key === 'trace') void session.downloadTrace()
 }
@@ -573,7 +575,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       @read="readRadio"
       @other-port="pickPort"
       @choose="chosen = $event"
-      @bluetooth="connectBluetooth"
+      @bluetooth="connectBluetooth()"
     />
 
     <ConnectLinkFault
@@ -602,7 +604,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
           :label="bleLabel"
           icon="i-lucide-signal"
           :disabled="connecting"
-          @click="connectBluetooth"
+          @click="connectBluetooth()"
         />
         <OpenCodeplugButton v-if="offerFile" />
       </template>

@@ -65,6 +65,24 @@ export interface BluetoothProfile {
   readonly write: string
   /** The characteristic the radio notifies on - Nordic's "TX". */
   readonly notify: string
+  /**
+   * Names this radio has been seen advertising, as chooser filter prefixes.
+   *
+   * A service filter is not enough on its own, and finding that out cost a
+   * session: `requestDevice` matches a service only when the device puts it in
+   * its **advertisement**, and this radio does not. FFE0 was found by a GATT
+   * enumeration, which happens after connecting and says nothing about what is
+   * advertised - so the chooser filtered on FFE0 listed nothing at all, which
+   * is the exact failure the header of this file warns about, reached from the
+   * other direction. With the filter dropped the radio appears immediately, as
+   * `walkie-talkie`.
+   *
+   * Web Bluetooth's `namePrefix` is case-sensitive and has no case-insensitive
+   * form, so the casings are enumerated rather than assumed: one wrong capital
+   * reproduces the empty chooser exactly. Filters are OR-ed, so a unit that
+   * does advertise its service still matches on that instead.
+   */
+  readonly namePrefixes: readonly string[]
   /** True only once a radio has answered a handshake over this profile. */
   readonly verified: boolean
 }
@@ -120,6 +138,8 @@ export const NORDIC_UART: BluetoothProfile = {
   service: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
   write: '6e400002-b5a3-f393-e0a9-e50e24dcca9e',
   notify: '6e400003-b5a3-f393-e0a9-e50e24dcca9e',
+  // No radio has ever been seen advertising this, let alone under a name.
+  namePrefixes: [],
   verified: false,
 }
 
@@ -159,6 +179,14 @@ export const UV5RM_BLE: BluetoothProfile = {
   // normal for these modules and is what the radio actually answered on.
   write: normaliseUuid('ffe1'),
   notify: normaliseUuid('ffe1'),
+  /*
+   * What Chrome listed the radio as, with the service filter removed. The
+   * casings are enumerated because `namePrefix` is case-sensitive and the
+   * observed spelling is the only one anybody has seen - a second unit
+   * capitalising it would otherwise be invisible for the same reason the
+   * service filter was.
+   */
+  namePrefixes: ['walkie-talkie', 'Walkie-Talkie', 'WALKIE-TALKIE'],
   verified: true,
 }
 
@@ -174,6 +202,7 @@ export const UV5RM_AE30_ECHO: BluetoothProfile = {
   service: normaliseUuid('ae30'),
   write: normaliseUuid('ae01'),
   notify: normaliseUuid('ae02'),
+  namePrefixes: [],
   verified: false,
 }
 
@@ -211,7 +240,12 @@ export function parseBluetoothProfile(spec: string): BluetoothProfile {
   // A two-part spec is the HM-10 shape: one characteristic, both directions.
   const notify = normaliseUuid(parts[2] ?? parts[1]!)
 
-  return { id: 'custom', label: 'Custom profile', service, write, notify, verified: false }
+  /*
+   * No name filter on a hand-entered profile. Somebody pasting UUIDs is
+   * chasing a radio this build does not know, and a name prefix from a
+   * different one would filter theirs straight back out.
+   */
+  return { id: 'custom', label: 'Custom profile', service, write, notify, namePrefixes: [], verified: false }
 }
 
 /**
