@@ -715,48 +715,23 @@ function onEditorBlur(slot: number, col: EditCol) {
 
 // ------------------------------------------------------------ undo and redo
 
-/** Anything that keeps an undo history of its own: a field being typed into. */
-function isTextEntry(target: EventTarget | null): boolean {
-  const el = target as HTMLElement | null
-  if (!el || typeof el.tagName !== 'string') return false
-  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable === true
-}
-
 /**
- * Ctrl/Cmd-Z and Shift-Ctrl/Cmd-Z, but never over a text field or under a dialog.
+ * Hold the document-wide shortcut while a cell editor is open.
  *
- * A cell editor is open on every second keystroke in this table, and Ctrl-Z
- * over a half-typed name means the browser's own undo of that typing. Taking
- * that away to revert the codeplug instead would be the worst kind of surprise:
- * the keystroke would appear to do nothing, and some other channel would
- * silently have changed. The filter box and the full editor's fields are
- * covered by the same test.
+ * The buttons and the listener moved to the status bar, because the history is
+ * one stack over the whole codeplug and the edits that fill it are made on
+ * several pages. This one guard could not move with them: a cell editor is
+ * open on every second keystroke in this table, and Ctrl-Z over a half-typed
+ * name means the browser's own undo of that typing. Taking that away to revert
+ * the codeplug instead would be the worst kind of surprise - the keystroke
+ * would appear to do nothing, and some other channel would silently have
+ * changed.
  *
- * The dialog test covers the case the field test cannot. The channel editor is
- * a modal over this table and this table is still mounted underneath it, so
- * with the focus on a select or a switch rather than an input, the shortcut
- * would revert an edit behind an open form whose Save would then put it
- * straight back. Nothing to undo is the right answer while an overlay owns the
- * screen.
+ * The filter box, the full editor's fields and the modal above this table are
+ * all covered by tests the shared listener makes for itself, so only the state
+ * it cannot see from the outside is published here.
  */
-useEventListener(window, 'keydown', (e: KeyboardEvent) => {
-  if (e.key.toLowerCase() !== 'z' || !(e.metaKey || e.ctrlKey) || e.altKey) return
-  if (editing.value !== null || isTextEntry(e.target)) return
-  if (document.querySelector('[role="dialog"]') !== null) return
-  e.preventDefault()
-  if (e.shiftKey) codeplug.redo()
-  else codeplug.undo()
-})
-
-/**
- * The shortcut hint, in the modifier this machine actually uses.
- *
- * Told from the platform rather than assumed, because a tooltip that says Ctrl
- * to a Mac user is worse than no tooltip: it names a key that does nothing.
- */
-const isApple = computed(() => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent))
-const undoHint = computed(() => (isApple.value ? '⌘Z' : 'Ctrl+Z'))
-const redoHint = computed(() => (isApple.value ? '⇧⌘Z' : 'Shift+Ctrl+Z'))
+suppressUndoShortcut(() => editing.value !== null)
 
 // ---------------------------------------------------------------- selection
 
@@ -1034,38 +1009,6 @@ const printedFacts = computed(() => {
         <span class="font-mono tabular" style="font-size: 13px; color: var(--mu)">
           {{ rows.length }} of {{ slots.length }} slots
         </span>
-
-        <!--
-          Undo and redo live here rather than only on the keyboard.
-          A shortcut nobody is told about is a feature nobody has, and this
-          toolbar is where someone who has just mistyped a frequency is already
-          looking. Both carry a word as well as a glyph, which is what lets the
-          icons be approximate: lucide's own undo and redo arrows are not in
-          nuxt.config's SCHEMA_ICONS, and that list is the whole of what the
-          offline bundle ships - an undeclared name renders as a blank gap
-          rather than an error. These two are declared and read the right way
-          round, anticlockwise for back and clockwise for forward.
-        -->
-        <div class="flex items-center" style="gap: 4px">
-          <RiskAction
-            risk="neutral"
-            ghost
-            icon="i-lucide-history"
-            label="Undo"
-            :disabled="!codeplug.canUndo"
-            :title="codeplug.canUndo ? `Undo ${codeplug.undoLabel} (${undoHint})` : 'Nothing to undo'"
-            @click="codeplug.undo()"
-          />
-          <RiskAction
-            risk="neutral"
-            ghost
-            icon="i-lucide-refresh-cw"
-            label="Redo"
-            :disabled="!codeplug.canRedo"
-            :title="codeplug.canRedo ? `Redo ${codeplug.redoLabel} (${redoHint})` : 'Nothing to redo'"
-            @click="codeplug.redo()"
-          />
-        </div>
 
         <!--
           The only way to open a file with a codeplug already open, and that is

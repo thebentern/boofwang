@@ -11,9 +11,24 @@
  * open. The write button lives here because this is the only place that knows
  * all four answers at once - and it stays disabled while any error-severity
  * diagnostic exists, so the bar cannot invite an action the gate will refuse.
+ *
+ * The two document-wide actions sit to the right of the segments rather than
+ * inside them, so that what the bar reports and what it offers stay separable:
+ * undo and redo belong here for the same reason the write button does, which
+ * is that they act on the whole codeplug rather than on whatever page happens
+ * to be open.
  */
 const codeplug = useCodeplugStore()
 const session = useRadioSession()
+
+/**
+ * The keyboard half of the undo control below.
+ *
+ * Installed here rather than in the layout so that the shortcut and the two
+ * buttons are mounted by the same component: they are one affordance, and a
+ * keyboard path that outlives its buttons is how the pair drifts apart.
+ */
+useUndoShortcut()
 
 const backup = ref<{ identHash: string; createdAt?: string } | null>(null)
 const backupPending = ref(true)
@@ -128,6 +143,14 @@ const hint = computed(() => {
       </div>
 
       <div class="ms-auto flex items-center gap-3">
+        <!--
+          Undo and redo sit here rather than on any one page because the
+          history is one stack over the whole document. An import of eight
+          hundred talk groups is made on the DMR page, and before this the only
+          way to take it back was to navigate to the channel table and press
+          the button that happened to live there.
+        -->
+        <UndoRedo />
         <span class="hidden md:inline" style="font-size: 13px; color: var(--fn)">{{ hint }}</span>
         <RiskAction
           v-if="canWrite"
