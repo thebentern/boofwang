@@ -125,6 +125,48 @@ export interface CropRect {
  * centre - and the resampler works in continuous coordinates, so they do not
  * need rounding here.
  */
+/** How the user has framed the picture: 1 fits the whole thing, above 1 zooms in. */
+export interface CropFraming {
+  readonly zoom: number
+  /** Where the crop is centred, 0 to 1 across the source. 0.5 is the middle. */
+  readonly centreX: number
+  readonly centreY: number
+}
+
+export const DEFAULT_FRAMING: CropFraming = { zoom: 1, centreX: 0.5, centreY: 0.5 }
+
+/**
+ * The rectangle of the source that becomes the picture, given how it is framed.
+ *
+ * `centreCrop` is this with the defaults, and is kept because most callers want
+ * exactly that. This one exists because a fixed centre crop is the wrong answer
+ * often enough to be annoying: the subject of a photograph is usually not in the
+ * middle, and a logo on a wide banner is nowhere near it.
+ *
+ * Zoom is relative to the largest rectangle of the radio's shape that fits, so
+ * zoom 1 keeps as much of the picture as the 3:4 frame allows and larger values
+ * take less. The result is clamped to stay inside the source, which is what
+ * makes dragging feel right at the edges: the frame stops rather than showing
+ * blank.
+ */
+export function cropRect(width: number, height: number, framing: CropFraming): CropRect {
+  const base = centreCrop(width, height)
+  const zoom = Math.max(1, Number.isFinite(framing.zoom) ? framing.zoom : 1)
+  const w = base.width / zoom
+  const h = base.height / zoom
+
+  const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v)
+  const cx = clamp(Number.isFinite(framing.centreX) ? framing.centreX : 0.5, 0, 1) * width
+  const cy = clamp(Number.isFinite(framing.centreY) ? framing.centreY : 0.5, 0, 1) * height
+
+  return {
+    x: clamp(cx - w / 2, 0, Math.max(0, width - w)),
+    y: clamp(cy - h / 2, 0, Math.max(0, height - h)),
+    width: w,
+    height: h,
+  }
+}
+
 export function centreCrop(width: number, height: number): CropRect {
   const aspect = BOOT_IMAGE_WIDTH / BOOT_IMAGE_HEIGHT
   if (width / height > aspect) {
@@ -148,7 +190,12 @@ export function centreCrop(width: number, height: number): CropRect {
  * LCD, so black is what "nothing here" already looks like, and a logo exported
  * with a transparent background lands the way its author drew it.
  */
-export function encodeBootImage(rgba: Uint8ClampedArray, width: number, height: number): Uint8Array {
+export function encodeBootImage(
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  framing: CropFraming = DEFAULT_FRAMING,
+): Uint8Array {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
     throw new BootImageError(`An image needs whole positive dimensions, not ${width} x ${height}`)
   }
@@ -157,7 +204,7 @@ export function encodeBootImage(rgba: Uint8ClampedArray, width: number, height: 
     throw new BootImageError(`A ${width} x ${height} RGBA buffer is ${needed} bytes; this one is ${rgba.length}`)
   }
 
-  const crop = centreCrop(width, height)
+  const crop = cropRect(width, height, framing)
   const xStep = crop.width / BOOT_IMAGE_WIDTH
   const yStep = crop.height / BOOT_IMAGE_HEIGHT
   const out = new Uint8Array(BOOT_IMAGE_BYTES)

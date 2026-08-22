@@ -173,7 +173,7 @@ export async function openImageFile(bytes: Uint8Array): Promise<OpenedImage> {
   if (!layout) {
     throw new OpenImageError(
       `This file is ${bytes.length.toLocaleString()} bytes, which does not match any radio boofwang ` +
-        'supports. If it is a codeplug, open the .bwp or CHIRP .img instead — a bare .bin cannot say ' +
+        'supports. If it is a codeplug, open the .bwp or CHIRP .img instead: a bare .bin cannot say ' +
         'which radio it came from.',
     )
   }

@@ -13,6 +13,7 @@ const nav = [
   { label: 'Zones', to: '/dmr', icon: 'i-lucide-folder-tree' },
   { label: 'Settings', to: '/settings', icon: 'i-lucide-sliders-horizontal' },
   { label: 'Keys', to: '/keys', icon: 'i-lucide-key-round' },
+  { label: 'Splash', to: '/startup-image', icon: 'i-lucide-image' },
   { label: 'Backups', to: '/backups', icon: 'i-lucide-history' },
   { label: 'About', to: '/about', icon: 'i-lucide-info' },
 ]

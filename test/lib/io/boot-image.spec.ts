@@ -7,6 +7,8 @@ import {
   BOOT_IMAGE_WIDTH,
   BootImageError,
   centreCrop,
+  cropRect,
+  DEFAULT_FRAMING,
   decodeBootImage,
   encodeBootImage,
   packRgb565,
@@ -242,5 +244,75 @@ describe('what a real DM-32UV showed on its own panel', () => {
     const stored = 0x0724 // a lit pixel from the logo, as the radio stores it
     const { r, b } = unpackRgb565(stored)
     expect(b).toBeGreaterThan(r)
+  })
+})
+
+/**
+ * Framing: where in the source the picture is taken from.
+ *
+ * A fixed centre crop is the wrong answer often enough to matter - the subject
+ * of a photograph is usually not in the middle, and a logo on a wide banner is
+ * nowhere near it - so the crop takes a zoom and a centre. The maths lives here
+ * rather than in the component because a rectangle that drifts outside the
+ * source produces black edges, and that is worth a test rather than an eye.
+ */
+describe('cropRect', () => {
+  it('is the centre crop when nothing has been moved', () => {
+    expect(cropRect(640, 480, DEFAULT_FRAMING)).toEqual(centreCrop(640, 480))
+  })
+
+  it('takes less of the source as the zoom goes up', () => {
+    const one = cropRect(640, 480, DEFAULT_FRAMING)
+    const two = cropRect(640, 480, { ...DEFAULT_FRAMING, zoom: 2 })
+    expect(two.width).toBeCloseTo(one.width / 2)
+    expect(two.height).toBeCloseTo(one.height / 2)
+  })
+
+  it('keeps the radio’s shape at every zoom', () => {
+    for (const zoom of [1, 1.5, 3, 8]) {
+      const r = cropRect(1000, 700, { ...DEFAULT_FRAMING, zoom })
+      expect(r.width / r.height).toBeCloseTo(BOOT_IMAGE_WIDTH / BOOT_IMAGE_HEIGHT, 6)
+    }
+  })
+
+  it('stops at the edge rather than running off it', () => {
+    // Dragging past the corner must stop the frame, not show blank: a crop
+    // outside the source samples nothing and comes out black.
+    for (const [cx, cy] of [[0, 0], [1, 1], [-5, 9], [0.5, 0]]) {
+      const r = cropRect(640, 480, { zoom: 2, centreX: cx!, centreY: cy! })
+      expect(r.x).toBeGreaterThanOrEqual(0)
+      expect(r.y).toBeGreaterThanOrEqual(0)
+      expect(r.x + r.width).toBeLessThanOrEqual(640 + 1e-9)
+      expect(r.y + r.height).toBeLessThanOrEqual(480 + 1e-9)
+    }
+  })
+
+  it('refuses to zoom out past the whole frame', () => {
+    // Below 1 there is no more source to show, only padding.
+    expect(cropRect(640, 480, { ...DEFAULT_FRAMING, zoom: 0.25 })).toEqual(centreCrop(640, 480))
+  })
+
+  it('survives nonsense without producing a rectangle outside the source', () => {
+    const r = cropRect(640, 480, { zoom: Number.NaN, centreX: Number.NaN, centreY: Infinity })
+    expect(Number.isFinite(r.x) && Number.isFinite(r.width)).toBe(true)
+    expect(r.x + r.width).toBeLessThanOrEqual(640 + 1e-9)
+  })
+
+  it('changes which pixels the encoder reads', () => {
+    // Left half red, right half green. Framed left it encodes red; right, green.
+    const w = 480, h = 320
+    const rgba = new Uint8ClampedArray(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4
+        if (x < w / 2) rgba[i] = 255
+        else rgba[i + 1] = 255
+        rgba[i + 3] = 255
+      }
+    }
+    const left = decodeBootImage(encodeBootImage(rgba, w, h, { zoom: 2, centreX: 0, centreY: 0.5 }))
+    const right = decodeBootImage(encodeBootImage(rgba, w, h, { zoom: 2, centreX: 1, centreY: 0.5 }))
+    expect([left.rgba[0], left.rgba[1], left.rgba[2]]).toEqual([255, 0, 0])
+    expect([right.rgba[0], right.rgba[1], right.rgba[2]]).toEqual([0, 255, 0])
   })
 })

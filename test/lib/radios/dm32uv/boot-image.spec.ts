@@ -284,16 +284,24 @@ describe('writeBootImage', () => {
 })
 
 /**
- * The feature is not wired up, and this is what keeps it that way.
+ * The write is reachable now, and the rule that guards it is the thing to pin.
  *
- * The 2,048-byte write has never been sent to a radio, and the rule that the
- * factory splash must be read and stored before it is overwritten has nowhere
- * to live yet. Until both are settled, a route from the interface to
- * `writeBootImage` is a one-way door with no handle on the other side.
+ * This used to assert that nothing in the application imported the write at
+ * all, because the 2,048-byte frame had never been sent to a radio and the
+ * "read it before you replace it" rule had nowhere to live. Both are settled:
+ * the region is a whole number of pages so the derived frame is not needed, and
+ * the rule lives in `useBootImage`.
+ *
+ * So the guard changes rather than goes. The region at 0x150000 is outside
+ * every backup boofwang takes - a codeplug can be rebuilt from a CSV, the
+ * factory picture cannot be rebuilt from anything - and the only copy that will
+ * ever exist is the one read before the first write. A route to the radio that
+ * skips that read is a one-way door with no handle on the other side.
  */
-describe('nothing in the application can reach the write', () => {
+describe('the way to the radio goes through the backup rule', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url))
   const TARGET = join(root, 'lib/radios/dm32uv/boot-image.ts')
+  const GATEKEEPER = join(root, 'app/composables/useBootImage.ts')
 
   function sources(dir: string): string[] {
     return readdirSync(join(root, dir), { recursive: true, encoding: 'utf8' })
@@ -305,8 +313,7 @@ describe('nothing in the application can reach the write', () => {
    * Resolve a specifier the way the bundler will.
    *
    * Matching the text `dm32uv/boot-image` would miss the likeliest way this
-   * ever gets wired up, which is `./boot-image.js` from the driver sitting next
-   * to it.
+   * gets reached, which is `./boot-image.js` from the driver next to it.
    */
   function resolves(file: string, specifier: string): boolean {
     const asSource = specifier.replace(/\.js$/, '.ts')
@@ -316,15 +323,35 @@ describe('nothing in the application can reach the write', () => {
     return false
   }
 
-  it('is imported by its test and by nothing else', () => {
-    const importers = [...sources('lib'), ...sources('app')].filter((file) => {
+  const importers = () =>
+    [...sources('lib'), ...sources('app')].filter((file) => {
       const text = readFileSync(file, 'utf8')
       return [...text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].some((m) => resolves(file, m[1]!))
     })
-    expect(importers.map((f) => f.slice(root.length))).toEqual([])
+
+  it('is reached from exactly one place, the composable that enforces the rule', () => {
+    expect(importers().map((f) => f.slice(root.length))).toEqual(['app/composables/useBootImage.ts'])
   })
 
-  it('would notice if something did', () => {
+  it('refuses to write when nothing has been read', () => {
+    // A source check, because there is no Vue harness in this suite and what is
+    // being guarded is that the branch exists at all.
+    const text = readFileSync(GATEKEEPER, 'utf8')
+    const write = text.slice(text.indexOf('async function writeToRadio'))
+    const body = write.slice(0, write.indexOf('\n  }') + 1)
+    expect(body).toMatch(/const held = backup\.value/)
+    expect(body).toMatch(/if \(!held\)/)
+    // And it returns before reaching the radio rather than merely warning.
+    expect(body.indexOf('return false')).toBeLessThan(body.indexOf('writeBootImageRegion'))
+  })
+
+  it('sends the whole region, so the derived short frame is never used', () => {
+    const text = readFileSync(GATEKEEPER, 'utf8')
+    expect(text).toMatch(/writeBootImageRegion/)
+    expect(text).not.toMatch(/writeBootImageTail/)
+  })
+
+  it('would notice if something else imported it', () => {
     // The check above passes trivially if the resolver is broken, and a test
     // that cannot fail is worse than no test on a rule like this one.
     const driver = join(root, 'lib/radios/dm32uv/driver.ts')
