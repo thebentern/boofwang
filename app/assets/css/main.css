@@ -34,74 +34,125 @@
 :root {
   --ui-radius: 0.375rem;
 
-  /* Surfaces */
-  --bg: #101315;
-  --pn: #171b1e;
-  --pn2: #1d2226;
-  --pn3: #252b30;
-
-  /* Lines */
-  --ln: #252b30;
-  --ln2: #333b41;
-
-  /* Text, in descending emphasis */
-  --tx: #e8ecee;
-  --mu: #96a0a7;
-  --fn: #69737a;
+  /*
+   * Surfaces. The palette hands us two slates that are already a step apart -
+   * #202C39 and #283845, 1.18:1 - so the page and the card it carries are the
+   * palette itself rather than an interpretation of it, and `--pn2`/`--pn3`
+   * simply keep walking in the direction those two set.
+   */
+  --bg: #202C39;
+  --pn: #283845;
+  --pn2: #324556;
+  --pn3: #3C5266;
 
   /*
-   * Semantic hues. Green is reserved for "verified" and is deliberately not a
-   * brand colour: an accent that also means safe cannot mean anything.
+   * Lines, drawn from the same slate rather than from the accents. Kept near
+   * the weights they have always had - a hairline that gains contrast turns a
+   * calm table into a grid, and this one has four thousand rows.
    */
-  --ok: #57ab5a;
-  --cn: #d29922;
-  --dg: #e5534b;
-  --in: #539bf5;
+  --ln: #334657;
+  --ln2: #445D73;
 
-  --okB: #57ab5a1f;
-  --okL: #57ab5a52;
-  --cnB: #d299221f;
-  --cnL: #d2992252;
-  --dgB: #e5534b1f;
-  --dgL: #e5534b52;
-  --inB: #539bf51f;
-  --inL: #539bf552;
+  /* Text, in descending emphasis. Warm, to sit on a warm ground. */
+  --tx: #EAF0F6;
+  --mu: #C3CDD8;
+  --fn: #9AA5B1;
+
+  /*
+   * The accent. #F29559 lands at 4.93:1 on `--pn`, so unlike most bright
+   * accents it clears the bar for words as well as for marks - the logo, an
+   * active indicator, a focus ring and a link can all be the same colour, and
+   * `--acTx` is only a separate token because the light theme has to darken it.
+   * Dark text on it is 6.23:1, so it also works as a solid button.
+   */
+  --ac: #F29559;
+  --acTx: #F29559;
+  --acB: #F2955924;
+  --acL: #F295595c;
+
+  /* The palette's other two brights, for highlights rather than for risk. */
+  --ac2: #F2D492;
+  --ac3: #B8B08D;
+
+  /*
+   * Semantic hues, still doing their own job. Green is reserved for "verified"
+   * and is deliberately not a brand colour: an accent that also means safe
+   * cannot mean anything.
+   *
+   * Danger moved. At #E5534B it sat 20 degrees of hue from the accent, and two
+   * oranges that mean "brand" and "this could break your radio" are too close
+   * to tell apart at a glance. It is now 33 degrees away and still reads as
+   * red. `--okT` is new: white on this green was 2.85:1 and had been since the
+   * button was written, so the safe action now takes dark text instead.
+   */
+  --ok: #6BBF59;
+  --okT: #202C39;
+  --cn: #E8C547;
+  --dg: #FF7A90;
+  --in: #6FB0F7;
+
+  --okB: #6BBF591f;
+  --okL: #6BBF5952;
+  --cnB: #E8C5471f;
+  --cnL: #E8C54752;
+  --dgB: #FF7A901f;
+  --dgL: #FF7A9052;
+  --inB: #6FB0F71f;
+  --inL: #6FB0F752;
 
   /* Solid button and its text */
-  --sd: #e8ecee;
-  --sdT: #101315;
+  --sd: #EAF0F6;
+  --sdT: #202C39;
 }
 
 :root.light,
 .light {
-  --bg: #f7f8f8;
-  --pn: #ffffff;
-  --pn2: #f0f2f3;
-  --pn3: #e7eaec;
+  /* Warm paper rather than white card stock, so the two themes are the same
+     palette seen in different light rather than two unrelated schemes. */
+  --bg: #F2F5F8;
+  --pn: #FFFFFF;
+  --pn2: #EAEEF3;
+  --pn3: #DDE4EB;
 
-  --ln: #dfe3e6;
-  --ln2: #c6ced4;
+  --ln: #E1E7ED;
+  --ln2: #C2CCD6;
 
-  --tx: #14191c;
-  --mu: #58646c;
-  --fn: #7d878e;
+  /* The palette's darkest slate, doing the reading this time. */
+  --tx: #202C39;
+  --mu: #4A5765;
+  --fn: #626F7C;
 
-  --ok: #1a7f37;
-  --cn: #7d5700;
-  --dg: #b3261e;
-  --in: #0a5cc0;
+  /*
+   * The accent has to be darkened for a light ground: #F29559 on white is
+   * 2.1:1, nowhere near what words need. #B4551F is the same hue at 4.93, and
+   * it is dark enough to carry white text as a solid, which the bright one is
+   * not. The other two brights are darkened the same way and for the same
+   * reason - a palette built for a dark ground cannot simply be reused on paper.
+   */
+  --ac: #B4551F;
+  --acTx: #B4551F;
+  --acB: #B4551F17;
+  --acL: #B4551F47;
+  --ac2: #7E6212;
+  --ac3: #55502F;
 
-  --okB: #1a7f3717;
-  --okL: #1a7f3747;
-  --cnB: #7d570017;
-  --cnL: #7d570047;
-  --dgB: #b3261e17;
-  --dgL: #b3261e47;
-  --inB: #0a5cc017;
-  --inL: #0a5cc047;
+  --ok: #1F7A32;
+  --okT: #FFFFFF;
+  --cn: #7D5700;
+  --dg: #C0203F;
+  --in: #0A5CC0;
 
-  --sd: #1b2126;
-  --sdT: #ffffff;
+  --okB: #1F7A3217;
+  --okL: #1F7A3247;
+  --cnB: #7D570017;
+  --cnL: #7D570047;
+  --dgB: #C0203F17;
+  --dgL: #C0203F47;
+  --inB: #0A5CC017;
+  --inL: #0A5CC047;
+
+  --sd: #202C39;
+  --sdT: #F2F5F8;
 }
 
 /*
@@ -130,6 +181,13 @@
   --color-in: var(--in);
   --color-inB: var(--inB);
   --color-inL: var(--inL);
+  --color-ac: var(--ac);
+  --color-acTx: var(--acTx);
+  --color-acB: var(--acB);
+  --color-acL: var(--acL);
+  --color-ac2: var(--ac2);
+  --color-ac3: var(--ac3);
+  --color-okT: var(--okT);
   --color-sd: var(--sd);
   --color-sdT: var(--sdT);
 }
@@ -138,6 +196,21 @@ html,
 body {
   background: var(--bg);
   color: var(--tx);
+}
+
+/*
+ * One focus ring, in the accent, everywhere.
+ *
+ * There was no focus style of its own before this, so keyboard users got
+ * whatever the browser drew - which on a dark warm ground is a thin blue-black
+ * outline that is very hard to find. `:focus-visible` keeps it off mouse
+ * clicks. The offset matters more than the colour: a ring drawn tight against a
+ * control on a panel the same value as the control is a ring nobody sees.
+ */
+:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 /* Hex dumps, byte diffs and frequency columns must not reflow or kern. */
@@ -214,9 +287,19 @@ body {
     --fn: #4b5359;
 
     --ok: #1a5c2c;
+    --okT: #ffffff;
     --cn: #6b4a00;
     --dg: #8f1d17;
     --in: #0a3f86;
+
+    /* The accent prints as ink, not as a brand colour: an apricot hairline
+       comes off a mono laser as a grey nobody can tell from a rule. */
+    --ac: #000000;
+    --acTx: #000000;
+    --ac2: #4b5359;
+    --ac3: #4b5359;
+    --acB: transparent;
+    --acL: #9aa3a9;
 
     /* Tints exist to be seen on a screen; a printer either drops them or turns
        them into a grey wash over the text they were meant to set apart. */

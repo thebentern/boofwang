@@ -60,7 +60,7 @@ const styles = computed(() => {
   }
   switch (props.risk) {
     case 'safe':
-      return { background: 'var(--ok)', color: '#fff', border: '1px solid var(--ok)' }
+      return { background: 'var(--ok)', color: 'var(--okT)', border: '1px solid var(--ok)' }
     case 'caution':
       return { background: 'var(--cnB)', color: 'var(--cn)', border: '1px solid var(--cnL)' }
     case 'destructive':

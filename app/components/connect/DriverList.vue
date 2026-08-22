@@ -125,7 +125,7 @@ const rows = computed(() =>
       target="_blank"
       rel="noopener"
       class="w-full flex items-center gap-3"
-      style="height: 44px; padding: 0 15px; color: var(--in)"
+      style="height: 44px; padding: 0 15px; color: var(--acTx)"
     >
       <UIcon name="i-lucide-plus" class="shrink-0" style="width: 14px; height: 14px" />
       <span style="font-size: 14px; font-weight: 600">Add support for your radio</span>

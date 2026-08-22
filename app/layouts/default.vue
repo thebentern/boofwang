@@ -40,7 +40,7 @@ const isDark = computed(() => colorMode.value === 'dark')
     <header class="sticky top-0 z-20 print-hide" style="background: var(--pn); border-bottom: 1px solid var(--ln)">
       <div class="mx-auto max-w-[1400px] px-4 flex items-center gap-5" style="height: 52px">
         <NuxtLink to="/" class="flex items-center gap-2 shrink-0">
-          <UIcon name="i-lucide-radio-tower" style="width: 15px; height: 15px; color: var(--tx)" />
+          <UIcon name="i-lucide-radio-tower" style="width: 15px; height: 15px; color: var(--ac)" />
           <span style="font-size: 15px; font-weight: 600; letter-spacing: -0.01em">boofwa.ng</span>
         </NuxtLink>
 
@@ -52,7 +52,7 @@ const isDark = computed(() => colorMode.value === 'dark')
             class="flex items-center gap-1.5 rounded-[5px] px-2.5 transition-colors"
             style="height: 25px; font-size: 14px"
             :style="activePath === item.to
-              ? { background: 'var(--pn3)', color: 'var(--tx)', fontWeight: 600 }
+              ? { background: 'var(--pn3)', color: 'var(--acTx)', fontWeight: 600, boxShadow: 'inset 0 -2px 0 var(--ac)' }
               : { color: 'var(--mu)' }"
           >
             <UIcon :name="item.icon" style="width: 13px; height: 13px" />
@@ -103,21 +103,21 @@ const isDark = computed(() => colorMode.value === 'dark')
           href="https://github.com/thebentern/boofwang/issues/new"
           target="_blank"
           rel="noopener"
-          style="color: var(--in)"
+          style="color: var(--acTx)"
         >Report a bug</a>
         <a
           href="https://github.com/thebentern/boofwang"
           target="_blank"
           rel="noopener"
-          style="color: var(--in)"
+          style="color: var(--acTx)"
         >Contribute</a>
-        <NuxtLink to="/about" style="color: var(--in)">Credits &amp; licensing</NuxtLink>
+        <NuxtLink to="/about" style="color: var(--acTx)">Credits &amp; licensing</NuxtLink>
         <a
           href="https://buymeacoffee.com/thebentern"
           target="_blank"
           rel="noopener"
           class="inline-flex items-center gap-1.5"
-          style="color: var(--in)"
+          style="color: var(--acTx)"
         >
           <UIcon name="i-lucide-coffee" class="shrink-0" style="width: 14px; height: 14px" />
           Buy me a coffee
