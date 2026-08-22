@@ -6,7 +6,7 @@ import {
   BOOT_IMAGE_REGION_START,
 } from '#core/radios/dm32uv/boot-image.js'
 import { BOOT_IMAGE_BYTES, decodeBootImage } from '#core/io/boot-image.js'
-import { enterProgrammingMode, readMemory, PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
+import { enterProgrammingMode, readMemory, PAGE_SIZE, REOPEN_SETTLE_MS } from '#core/radios/dm32uv/protocol.js'
 import type { Transport } from '#core/transport/transport.js'
 import { acquirePort } from '~/composables/useWebSerial'
 import type { PortChoice } from '~/composables/useWebSerial'
@@ -35,6 +35,16 @@ export function useBootImage() {
   const backup = shallowRef<Uint8Array | null>(null)
   const backupTakenAt = ref<string | null>(null)
   const busy = ref(false)
+
+  /**
+   * When this composable last closed the port, if it has.
+   *
+   * A reconnect that follows our own close has to wait out the radio's settle
+   * before the handshake will be answered - measured at three seconds on
+   * hardware, and nothing shorter ever worked. A cold first connection has
+   * nothing to wait for, so the gap is only applied when we caused it.
+   */
+  let closedAt: number | null = null
 
   /**
    * The whole region, not only the picture.
@@ -85,14 +95,35 @@ export function useBootImage() {
       })
       return null
     } finally {
+      // The close is the reset. Holding the port open across a read and a write
+      // is exactly the sequence that stranded the radio in programming mode.
+      await device.disconnect()
+      closedAt = Date.now()
       transfer.end()
       busy.value = false
     }
   }
 
-  /** Connect if nothing is, since the click is the gesture Web Serial wants. */
+  /**
+   * Connect if nothing is, since the click is the gesture Web Serial wants.
+   *
+   * Every operation here is its own session on purpose. The DM-32UV has no
+   * command for leaving programming mode - the specification's state machine
+   * says it leaves on "close port (DTR reset)" - so a read that stayed
+   * connected left the radio stuck there, V-frames stopped answering, and the
+   * next write timed out on a perfectly healthy cable until it was pulled.
+   * Closing the port after each operation is what resets the radio, and it is
+   * the same contract the ordinary read and write flows already keep.
+   */
   async function ensureConnected(): Promise<boolean> {
     if (device.connected) return true
+    if (closedAt !== null) {
+      const elapsed = Date.now() - closedAt
+      if (elapsed < REOPEN_SETTLE_MS) {
+        transfer.report({ phase: 'handshake', done: 0, total: 1, label: 'Letting the radio settle' })
+        await new Promise((r) => setTimeout(r, REOPEN_SETTLE_MS - elapsed))
+      }
+    }
     let choice: PortChoice | null
     try {
       choice = await acquirePort()
