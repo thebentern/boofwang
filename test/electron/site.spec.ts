@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error - the shell is plain ESM JavaScript, deliberately untyped.
 import { assertFetchable, contentTypeFor, headersFor, resolveSitePath, respondFor } from '../../electron/site.mjs'
@@ -21,7 +21,14 @@ import { assertFetchable, contentTypeFor, headersFor, resolveSitePath, respondFo
  * the ones with no display.
  */
 
-const ROOT = '/srv/site'
+/*
+ * Resolved, not a literal. `/srv/site` as a bare string is a POSIX path, and on
+ * Windows `normalize` turns every candidate into backslashes - so nothing
+ * matched the root and every one of these passed for the wrong reason locally
+ * while failing in CI. `resolve` gives the platform's own idea of the path,
+ * which is what the shell has at runtime.
+ */
+const ROOT = resolve('/srv/site')
 
 describe('which file a request path means', () => {
   it('serves a real file when the path names one', () => {
