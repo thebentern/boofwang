@@ -108,14 +108,32 @@ const confirmed = computed<RadioId | null>(() => device.ident?.radioId ?? codepl
 
 const chosen = ref<RadioId | null>(null)
 
-const radioId = computed<RadioId>(() => confirmed.value ?? chosen.value ?? device.radioId ?? 'uvk5')
+/**
+ * The radio a connection will be attempted as.
+ *
+ * The user's pick comes first and nothing overrides it. It used to come *third*,
+ * behind a handshake result that outlives the port it came from - `confirmed`
+ * falls back to the open codeplug - so after reading one radio, choosing a
+ * different one did nothing at all until the page was reloaded.
+ *
+ * The old expression also ended in `?? 'uvk5'`. That is the part worth naming:
+ * with nothing plugged in and nothing chosen, this screen decided on a
+ * Quansheng, and the first button sent a Quansheng handshake to whatever was on
+ * the cable. A wrong guess here is indistinguishable from a broken lead - the
+ * port opens, the radio says nothing back - so the screen blamed the cable for
+ * a decision it had made itself. Nothing is assumed now: no pick, no connect.
+ */
+const radioId = computed<RadioId | null>(() => chosen.value ?? confirmed.value ?? device.radioId ?? null)
 
 function nameOf(id: RadioId): string {
   const schema = SCHEMAS[id]
   return schema ? `${schema.vendor} ${schema.model}` : id
 }
 
-const radioName = computed(() => nameOf(radioId.value))
+const radioName = computed(() => (radioId.value ? nameOf(radioId.value) : 'your radio'))
+
+/** Nothing can be sent down a cable until the user says what is on the end of it. */
+const needsChoice = computed(() => radioId.value === null)
 
 const radioOptions = computed(() => RADIO_IDS.filter(isImplemented).map((id) => ({ id, label: nameOf(id) })))
 
@@ -310,7 +328,27 @@ const traceAvailable = computed(() => device.traceJson() !== null)
  * - we cannot style it, read it, or tell whether it had anything in it, which
  * is why `picking` says so instead of pretending to drive it.
  */
+/**
+ * Refuse to open a port until a radio has been named.
+ *
+ * The guard is here rather than in `connectAndRead`, which takes a `RadioId`
+ * and is right to: "which radio" is a question this screen owns, and a driver
+ * should never be handed a null and asked to cope.
+ */
+function withoutARadio(): boolean {
+  if (!needsChoice.value) return false
+  toast.add({
+    title: 'Which radio is on the cable?',
+    description: 'Pick it from the list below. boofwang will not guess - the wrong handshake looks exactly like a broken lead.',
+    icon: 'i-lucide-list',
+    color: 'warning',
+    duration: 8000,
+  })
+  return true
+}
+
 async function pickPort() {
+  if (withoutARadio()) return
   fault.value = null
   via.value = 'adapter'
   picking.value = true
@@ -344,6 +382,7 @@ async function pickPort() {
  * failure's card as though it had just happened again.
  */
 async function readRadio(acquired?: PortChoice | null) {
+  if (withoutARadio()) return
   fault.value = null
   device.error = null
   // A read with no port handed to it is a cable read, so the diagnosis of a
@@ -353,7 +392,7 @@ async function readRadio(acquired?: PortChoice | null) {
   const before = codeplug.revision
 
   try {
-    await session.connectAndRead(radioId.value, acquired)
+    await session.connectAndRead(radioId.value!, acquired)
     await refreshAdapters()
   } finally {
     connecting.value = false
@@ -378,6 +417,7 @@ async function readRadio(acquired?: PortChoice | null) {
  * `requestDevice` needs transient activation, so nothing is awaited before it.
  */
 async function connectBluetooth() {
+  if (withoutARadio()) return
   fault.value = null
   device.error = null
   via.value = 'bluetooth'
@@ -482,13 +522,14 @@ const FILE_STATES: readonly FaultState[] = ['first', 'empty', 'unsupported', 'in
 const offerFile = computed(() => link.value !== 'ready' && FILE_STATES.includes(link.value))
 
 /**
- * The tint on the driver list marks the radio a read would use, so it needs a
- * port to be about. With nothing plugged in it would be claiming a radio is on
- * a cable that is not there, which is the one thing this screen must not do.
+ * The row a handshake has actually confirmed, which is a different mark from
+ * the row the user picked.
+ *
+ * It no longer falls back to "whatever a read would use when a port is open",
+ * because that is now the selection and the selection has its own mark. Two
+ * states, two colours: one says what you chose, the other says what answered.
  */
-const activeRadio = computed<RadioId | null>(() =>
-  confirmed.value ?? (hasPort.value ? radioId.value : null),
-)
+const activeRadio = computed<RadioId | null>(() => confirmed.value)
 </script>
 
 <template>
@@ -538,6 +579,11 @@ const activeRadio = computed<RadioId | null>(() =>
       </template>
     </ConnectLinkFault>
 
-    <ConnectDriverList class="mt-4" :active-radio="activeRadio" />
+    <ConnectDriverList
+      class="mt-4"
+      :active-radio="activeRadio"
+      :selected="radioId"
+      @choose="chosen = $event"
+    />
   </div>
 </template>

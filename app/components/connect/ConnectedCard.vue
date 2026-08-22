@@ -18,8 +18,11 @@ import type { RadioId } from '#core/model/codeplug.js'
  * guess as a fact.
  */
 const props = defineProps<{
-  /** The radio the read will use: identified if `confirmed`, otherwise chosen. */
-  radioId: RadioId
+  /**
+   * The radio the read will use: identified if `confirmed`, otherwise chosen.
+   * Null until the user has picked one - this screen does not guess.
+   */
+  radioId: RadioId | null
   title: string
   /** Mono sub-line: firmware when known, then the adapter. */
   detail: string
@@ -63,7 +66,8 @@ const items = computed(() =>
           <button
             type="button"
             class="flex items-center gap-1.5 rounded-[5px] -mx-1 px-1 text-left"
-            style="font-size: 17.5px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; color: var(--tx)"
+            style="font-size: 17.5px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3"
+            :style="{ color: radioId ? 'var(--tx)' : 'var(--acTx)' }"
           >
             {{ title }}
             <UIcon name="i-lucide-chevron-down" style="width: 14px; height: 14px; color: var(--fn)" />
@@ -77,9 +81,10 @@ const items = computed(() =>
         <RiskAction
           risk="safe"
           size="lg"
-          label="Read the radio"
+          :label="radioId ? 'Read the radio' : 'Choose your radio first'"
           icon="i-lucide-download"
           :loading="busy"
+          :disabled="!radioId"
           @click="emit('read')"
         />
         <RiskAction risk="neutral" ghost label="Other port" :disabled="busy" @click="emit('otherPort')" />

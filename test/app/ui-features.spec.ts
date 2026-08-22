@@ -167,3 +167,67 @@ describe('the codeplug store republishes everything it publishes', () => {
     expect(STORE).toMatch(/channels\.value = /)
   })
 })
+
+/**
+ * The connect screen never decides which radio is on the cable.
+ *
+ * It used to. `radioId` ended in `?? 'uvk5'`, so with nothing chosen the first
+ * button sent a Quansheng handshake to whatever was plugged in - and a wrong
+ * handshake is indistinguishable from a broken lead, because the port opens and
+ * the radio simply says nothing back. The screen blamed the cable for its own
+ * guess. Worse, the user's pick was third in that expression, behind a
+ * handshake result that outlives the port it came from, so after reading one
+ * radio, choosing another did nothing until the page was reloaded.
+ *
+ * A source check, because the defect is one expression and there is no Vue
+ * harness in this suite.
+ */
+describe('the connect screen does not guess the radio', () => {
+  const PAGE = readFileSync(fileURLToPath(new URL('../../app/pages/index.vue', import.meta.url)), 'utf8')
+
+  const radioId = /const radioId = computed<[^>]*>\(\(\) =>([^)]*)\)/.exec(PAGE)?.[1] ?? ''
+
+  it('finds the expression it is meant to check', () => {
+    expect(radioId, 'radioId is no longer a computed of that shape').not.toBe('')
+  })
+
+  it('falls back to nothing rather than to a radio', () => {
+    // Any bare radio id on the end of that chain is a guess.
+    for (const id of ['uvk5', 'uv82', 'uv5rmini', 'dm32uv']) {
+      expect(radioId, `radioId falls back to '${id}'`).not.toContain(`'${id}'`)
+    }
+    expect(radioId).toContain('null')
+  })
+
+  it('puts the user’s choice first in the chain', () => {
+    const chosen = radioId.indexOf('chosen')
+    const confirmed = radioId.indexOf('confirmed')
+    expect(chosen, 'the chain no longer mentions the choice').toBeGreaterThan(-1)
+    if (confirmed > -1) {
+      expect(chosen, 'a handshake result outranks the user again').toBeLessThan(confirmed)
+    }
+  })
+
+  it('guards every route that opens a port', () => {
+    // Three ways in - the port chooser, a read, and Bluetooth - and each one
+    // hands a radio id to a driver. Missing a guard puts a null on that path.
+    for (const fn of ['async function pickPort()', 'async function readRadio(', 'async function connectBluetooth()']) {
+      const at = PAGE.indexOf(fn)
+      expect(at, `${fn} is gone`).toBeGreaterThan(-1)
+      const body = PAGE.slice(at, at + 400)
+      expect(body, `${fn} can run without a radio chosen`).toContain('withoutARadio()')
+    }
+  })
+
+  it('lets the driver list do the choosing', () => {
+    const LIST = readFileSync(
+      fileURLToPath(new URL('../../app/components/connect/DriverList.vue', import.meta.url)),
+      'utf8',
+    )
+    expect(LIST, 'the list no longer emits a choice').toContain("choose: [RadioId]")
+    expect(PAGE, 'the page does not listen for it').toMatch(/@choose="chosen = \$event"/)
+    // And a driver with no implementation has no handshake to send, so it
+    // cannot be picked.
+    expect(LIST).toContain('usable')
+  })
+})

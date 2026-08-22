@@ -17,11 +17,20 @@ import { RADIO_IDS, SCHEMAS, isImplemented } from '#core/radio/registry.js'
  * the same deploy, and this page has no way to say otherwise. The prose below
  * is editorial and can only add caveats, never capability.
  *
- * Nobody picks a radio from this list - the handshake identifies what is on the
- * cable - so the rows are not choices. The one that a read would use is tinted,
- * so the list still answers "which of these am I about to talk to".
+ * The rows are also the chooser, which they did not used to be. This list once
+ * carried a note saying "the handshake identifies what is on the cable, so the
+ * rows are not choices" - and the handshake does, but only once it is talking
+ * to something. Deciding *for* the user which handshake to send first meant
+ * guessing, the guess was a hardcoded UV-K5, and getting it wrong looks exactly
+ * like a broken cable: the port opens, the radio says nothing, and the screen
+ * blames the lead.
+ *
+ * So the radio is picked here, by name, and nothing infers it. A driver that is
+ * not implemented yet is listed but cannot be selected - it has no handshake to
+ * send.
  */
-defineProps<{ activeRadio?: RadioId | null }>()
+defineProps<{ activeRadio?: RadioId | null; selected?: RadioId | null }>()
+const emit = defineEmits<{ choose: [RadioId] }>()
 
 type ChipTone = 'ok' | 'cn' | 'dg' | 'neutral'
 
@@ -73,6 +82,8 @@ const rows = computed(() =>
       name: schema ? `${schema.vendor} ${schema.model}` : id,
       memory: memoryOf(schema),
       status: statusOf(id, schema),
+      /** A row you can pick. A driver with no implementation has no handshake to send. */
+      usable: isImplemented(id) && schema?.capabilities.read === true,
     }
   }),
 )
@@ -84,19 +95,29 @@ const rows = computed(() =>
       <UIcon name="i-lucide-list" style="width: 13px; height: 13px; color: var(--fn)" />
       <span class="label-xs">Radios boofwang knows</span>
       <span class="ms-auto hidden sm:inline" style="font-size: 13px; color: var(--fn)">
-        The handshake identifies which is on the cable.
+        Pick the one on your cable.
       </span>
     </div>
 
     <div v-for="row in rows" :key="row.id">
-      <div
-        class="w-full flex items-center gap-3"
+      <component
+        :is="row.usable ? 'button' : 'div'"
+        :type="row.usable ? 'button' : undefined"
+        :aria-pressed="row.usable ? row.id === selected : undefined"
+        :disabled="row.usable ? undefined : true"
+        class="w-full flex items-center gap-3 text-start"
+        :class="row.usable ? 'transition-colors cursor-pointer' : ''"
         style="height: 44px; padding: 0 15px; border-bottom: 1px solid var(--ln)"
-        :style="{ background: row.id === activeRadio ? 'var(--okB)' : 'transparent' }"
+        :style="{
+          background: row.id === selected ? 'var(--acB)' : row.id === activeRadio ? 'var(--okB)' : 'transparent',
+          boxShadow: row.id === selected ? 'inset 3px 0 0 var(--ac)' : 'none',
+        }"
+        @click="row.usable && emit('choose', row.id)"
       >
         <span
           class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-          style="font-size: 14px; font-weight: 600; color: var(--tx)"
+          style="font-size: 14px; font-weight: 600"
+          :style="{ color: row.id === selected ? 'var(--acTx)' : 'var(--tx)' }"
         >{{ row.name }}</span>
         <span
           class="font-mono tabular whitespace-nowrap hidden sm:inline"
@@ -113,7 +134,7 @@ const rows = computed(() =>
           <UIcon :name="row.status.icon" style="width: 11px; height: 11px" />
           {{ row.status.label }}
         </span>
-      </div>
+      </component>
     </div>
 
     <!--
