@@ -40,7 +40,8 @@ before it is a software one, usually `dialout` or `uucp`.
 The pipeline signs when credentials are present and builds unsigned when they
 are not, saying which in its own log, so turning it on is a matter of adding
 repository secrets rather than changing code. `docs/signing.md` says what to
-obtain, what each option costs and what it actually buys.
+obtain, what each option costs and what it actually buys, and
+`scripts/setup-signing.sh` sets the secrets once you have the files.
 
 The icons are generated from `build/icon.svg`:
 

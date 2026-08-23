@@ -63,7 +63,10 @@ Developer Program. Renewing what is there would not help.
    export offers only `.cer`, you have selected the certificate rather than the
    key pair underneath it.
 
-4. **Create an App Store Connect API key for notarization.**
+4. **Create an App Store Connect API key for notarization.** **The `.p8`
+   downloads once.** There is no second chance to fetch it; losing it means
+   revoking the key and issuing another. Save it somewhere durable before
+   closing the tab.
    [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Users and
    Access → Integrations → App Store Connect API → `+`. Give it the **Developer**
    role. Download the `.p8` — *you can only download it once*. Note the Key ID
@@ -73,13 +76,19 @@ Developer Program. Renewing what is there would not help.
    better: no password in a secret, and it is not tied to somebody's phone for
    two-factor.
 
-5. **Add the repository secrets.** Settings → Secrets and variables → Actions.
+5. **Add the repository secrets.**
 
    ```bash
-   # Run these yourself; do not paste the output anywhere but the secret field.
-   base64 -i DeveloperID.p12 | pbcopy      # -> MAC_CERT_P12
-   base64 -i AuthKey_ABCD1234.p8 | pbcopy  # -> APPLE_API_KEY_BASE64
+   ./scripts/setup-signing.sh DeveloperID.p12 AuthKey_ABCD1234.p8
    ```
+
+   It prompts for the export password, the Key ID and the Issuer ID, and sets
+   all five. Every value goes in over stdin - never as an argument, where the
+   process table would have it, and never printed.
+
+   Run it yourself. The point of it being a script rather than a list of
+   instructions is that the key material passes through your shell and nothing
+   else: not an assistant, not a clipboard, not a CI log.
 
    | Secret | What |
    |---|---|
@@ -88,6 +97,9 @@ Developer Program. Renewing what is there would not help.
    | `APPLE_API_KEY_BASE64` | base64 of the .p8 |
    | `APPLE_API_KEY_ID` | the Key ID, e.g. `ABCD1234XY` |
    | `APPLE_API_ISSUER` | the Issuer ID, a UUID |
+
+   By hand instead, if you prefer: Settings → Secrets and variables → Actions,
+   with `base64 -i DeveloperID.p12 | pbcopy` for the two file-shaped ones.
 
 6. **Tag a release.** The workflow will sign, turn on the hardened runtime, and
    notarize. Notarization adds five to fifteen minutes.

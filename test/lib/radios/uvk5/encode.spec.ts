@@ -361,7 +361,22 @@ describe('arbitrary edits still preserve everything unowned', () => {
       ),
       { numRuns: 120 },
     )
-  })
+    /*
+     * A real budget, not the 5s default.
+     *
+     * 120 runs, each encoding a whole 8 KiB image and then comparing every byte
+     * outside the owned ranges - that is genuinely seconds of work, and it sat
+     * close enough to the default to fail perhaps one run in three on a loaded
+     * machine. That was tolerable while it only cost a re-run; it stopped being
+     * tolerable when releases started gating on this suite across three
+     * platforms, where a flake means a tag builds nothing.
+     *
+     * The budget moves rather than `numRuns`, because the run count is the
+     * coverage: this is the test that would catch an encoder touching a byte it
+     * does not own, and there is no version of it worth making faster by
+     * looking at less.
+     */
+  }, 30_000)
 })
 
 describe('eraseChannel', () => {
