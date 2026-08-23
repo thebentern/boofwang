@@ -3,6 +3,7 @@ import { txFrequency, type Channel } from '../model/channel.js'
 import type { Codeplug } from '../model/codeplug.js'
 import type { Diagnostic } from '../radio/driver.js'
 import type { BandLimit, RadioSchema } from '../radio/schema.js'
+import { validateReferences } from './references.js'
 
 /**
  * The channel rules every radio runs, derived from `RadioSchema` alone.
@@ -206,4 +207,24 @@ export function validateChannels(
     out.push(...validateChannel(ch, schema, ctx))
   }
   return out
+}
+
+/**
+ * Every shared rule there is: the channels, then the document.
+ *
+ * The one call a driver should make. `validateChannels` was the entry point
+ * while the channel rules were the only shared ones, and four drivers called
+ * it directly - so adding `validateReferences` meant editing four files and
+ * trusting the fifth radio's author to know. That is the arrangement this
+ * module exists to end. A driver calls this and gets everything; a new rule
+ * family is added here once.
+ *
+ * Radio-local rules stay in the driver and are appended to what this returns.
+ */
+export function validateCodeplug(
+  doc: Codeplug,
+  schema: RadioSchema,
+  ctx: ValidateContext = {},
+): Diagnostic[] {
+  return [...validateChannels(doc, schema, ctx), ...validateReferences(doc, schema)]
 }

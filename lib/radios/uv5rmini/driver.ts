@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
-import { validateChannels } from '../../validate/rules.js'
+import { validateCodeplug } from '../../validate/rules.js'
 import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { NO_TONE, type TonePair } from '../../model/tones.js'
@@ -486,7 +486,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
     },
 
     validate(doc: Codeplug): Diagnostic[] {
-      return validateChannels(doc, UV5RMINI_SCHEMA)
+      return validateCodeplug(doc, UV5RMINI_SCHEMA)
     },
 
     /**

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
-import { validateChannels } from '../../validate/rules.js'
+import { validateCodeplug } from '../../validate/rules.js'
 import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { NO_TONE, type TonePair } from '../../model/tones.js'
@@ -996,8 +996,14 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
 
     validate(doc: Codeplug): Diagnostic[] {
       // The shared rules, plus the two that mean nothing on an analog radio.
-      const out: Diagnostic[] = [...validateChannels(doc, DM32UV_SCHEMA)]
+      const out: Diagnostic[] = [...validateCodeplug(doc, DM32UV_SCHEMA)]
       const keySlots = new Set(doc.encryptionKeys.map((k) => k.slot))
+      const talkGroupSlots = new Set(
+        doc.talkGroups.map((g) => {
+          const m = /^tg-[0-9a-fx]+-(\d+)$/.exec(g.id)
+          return m ? Number(m[1]) : -1
+        }),
+      )
 
       for (const ch of doc.channels.values()) {
         // A channel names its DMR identity by position in the radio-ID bank, so
@@ -1029,6 +1035,38 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
             channel: ch.index,
             field: 'encryptionKeyId',
             message: `This channel uses encryption key ${keyId}, but that slot is empty.`,
+          })
+        }
+
+        /*
+         * The talk group this channel transmits to, which may not be there.
+         *
+         * Stays with this radio rather than moving to `validateReferences`
+         * because resolving it needs two things no other radio has: the value
+         * is a *physical slot* in the talk group bank rather than a position in
+         * the list - this bank has gaps at slots 2, 5, 8 and 9 - and the slot
+         * is recovered from the record id, whose `tg-<block>-<n>` shape is this
+         * driver's own invention.
+         *
+         * Unlike the radio ID above, a clone does *not* produce this: talk
+         * groups move with the channels, so donor and recipient stay
+         * consistent, and that is likely why it went without a rule for so
+         * long. Removing a talk group produces it in one click from the DMR
+         * page, on a codeplug nobody cloned. `dmr.vue` already shows the result
+         * as "talk group slot 12" rather than hiding it behind a blank, which
+         * is what suggested a rule was owed here too. Nothing is dropped on the
+         * wire - the slot number is written as it stands - so this is a
+         * warning: the channel transmits, to a talk group this codeplug cannot
+         * name.
+         */
+        const contact = ch.extras.vendor?.txContact
+        if (contact !== undefined && contact !== '0' && !talkGroupSlots.has(Number(contact))) {
+          out.push({
+            severity: 'warning',
+            ruleId: 'dmr.talk-group.missing',
+            channel: ch.index,
+            field: 'txContact',
+            message: `This channel transmits to talk group slot ${contact}, and no talk group is in it.`,
           })
         }
       }

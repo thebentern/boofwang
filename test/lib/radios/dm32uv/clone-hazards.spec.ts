@@ -158,3 +158,60 @@ describe('a donor carrying more contacts than your radio was read with', () => {
     expect(() => encodeContacts(withBook, tooMany)).not.toThrow(/Read the radio again/)
   })
 })
+
+describe('a channel naming a talk group that is no longer there', () => {
+  /**
+   * The gap `dmr.radio-id.missing` had a rule for and this did not.
+   *
+   * A transplant cannot produce it - talk groups move with the channels, so
+   * the pair stays consistent - and that is why it went unnoticed. Removing a
+   * talk group produces it in one click, from the DMR page, on a codeplug
+   * nobody cloned. The channels keep pointing at the *physical* slot the
+   * removed group sat in, and the encoder writes that slot back as it stands:
+   * nothing is dropped, and the channel transmits to a talk group this
+   * codeplug cannot name.
+   */
+  const slotOf = (id: string) => Number(/^tg-[0-9a-fx]+-(\d+)$/.exec(id)![1])
+
+  /** The talk group slot the fixture's channels actually point at, and how many do. */
+  function usedSlot(doc: ReturnType<typeof d.decode>) {
+    const counts = new Map<number, number>()
+    for (const ch of doc.channels.values()) {
+      const raw = ch.extras.vendor?.txContact
+      if (raw === undefined || raw === '0') continue
+      const n = Number(raw)
+      counts.set(n, (counts.get(n) ?? 0) + 1)
+    }
+    const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
+    return best ? { slot: best[0], channels: best[1] } : null
+  }
+
+  it('says which slot is empty rather than showing a blank', () => {
+    const doc = d.decode(image())
+    const used = usedSlot(doc)
+    expect(used, 'the fixture has channels pointing at a talk group').not.toBeNull()
+
+    doc.talkGroups = doc.talkGroups.filter((g) => slotOf(g.id) !== used!.slot)
+    const warned = d.validate(doc).filter((x) => x.ruleId === 'dmr.talk-group.missing')
+
+    expect(warned).toHaveLength(used!.channels)
+    expect(warned[0]!.severity).toBe('warning')
+    expect(warned[0]!.message).toContain(`slot ${used!.slot}`)
+  })
+
+  it('says nothing while the talk group is still in the bank', () => {
+    const doc = d.decode(image())
+    expect(usedSlot(doc)).not.toBeNull()
+    expect(d.validate(doc).filter((x) => x.ruleId === 'dmr.talk-group.missing')).toEqual([])
+  })
+
+  it('leaves a channel with no talk group at all alone', () => {
+    const doc = d.decode(image())
+    for (const [slot, ch] of doc.channels) {
+      doc.channels.set(slot, { ...ch, extras: { ...ch.extras, vendor: { ...ch.extras.vendor, txContact: '0' } } })
+    }
+    doc.talkGroups = []
+
+    expect(d.validate(doc).filter((x) => x.ruleId === 'dmr.talk-group.missing')).toEqual([])
+  })
+})

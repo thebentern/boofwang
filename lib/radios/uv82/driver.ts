@@ -3,7 +3,7 @@ import { hexDump, sha256Hex } from '../../codec/checksum.js'
 import { equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
 import { txFrequency } from '../../model/channel.js'
-import { validateChannels } from '../../validate/rules.js'
+import { validateCodeplug } from '../../validate/rules.js'
 import { CTCSS_DECIHZ, ctcss, dtcs, NO_TONE, type TonePair, type ToneSpec } from '../../model/tones.js'
 import { hz } from '../../model/units.js'
 import {
@@ -482,7 +482,7 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
     },
 
     validate(doc: Codeplug): Diagnostic[] {
-      return validateChannels(doc, UV82_SCHEMA)
+      return validateCodeplug(doc, UV82_SCHEMA)
     },
 
     ownedRanges: (regionStart: number) => (regionStart === 0 ? uv82OwnedRanges() : []),

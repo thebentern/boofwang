@@ -47,7 +47,7 @@ import {
   VFO_CHANNEL_NAMES,
 } from './layout.js'
 import { MEM_BLOCK, MEM_SIZE, readMem, resetRadio, sayHello, writeMem } from './protocol.js'
-import { validateChannels } from '../../validate/rules.js'
+import { validateCodeplug } from '../../validate/rules.js'
 import { decodeStockSettings, decodeTone, encodeInto } from './encode.js'
 import {
   EGZUMER_BANDS_STANDARD_HZ,
@@ -535,7 +535,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       // frequencies the stock table does not list. Nothing here is
       // UV-K5-specific any more, including the VFO exemption - the schema lists
       // those slots in `memory.specialChannels` and the rules skip them.
-      return validateChannels(doc, UVK5_SCHEMA, { bands: bandsFor(doc) })
+      return validateCodeplug(doc, UVK5_SCHEMA, { bands: bandsFor(doc) })
     },
 
     ownedRanges(regionStart: number, image?: RadioImage) {

@@ -2,7 +2,14 @@
 import { hz, mW } from '../../model/units.js'
 import { CTCSS_DECIHZ, DTCS_CODES } from '../../model/tones.js'
 import type { RadioSchema } from '../../radio/schema.js'
-import { DM32_COLOURS, DM32_KEY_FUNCTIONS, KEY_SLOTS, MESSAGE_MAX_CHARS, MESSAGE_SLOTS } from './layout.js'
+import {
+  DM32_COLOURS,
+  DM32_KEY_FUNCTIONS,
+  KEY_SLOTS,
+  MESSAGE_MAX_CHARS,
+  MESSAGE_SLOTS,
+  SCANLIST_MAX_MEMBERS,
+} from './layout.js'
 import { BAUD_RATE, OPEN_SETTLE_MS } from './protocol.js'
 
 const COLOUR_OPTIONS = DM32_COLOURS.map((label, value) => ({ value, label }))
@@ -815,7 +822,19 @@ export const DM32UV_SCHEMA: RadioSchema = {
     talkGroups: { max: 800, nameLength: 16 },
     contacts: { max: 50_000 },
     rxGroups: { max: 32 },
-    scanLists: { max: 32, channelsPer: 15 },
+    /*
+     * Sixteen members, not fifteen.
+     *
+     * This said 15, which is reading B of the two the layout weighs up - the
+     * one the protocol notes reject, because this radio's own first scan list
+     * carries a count of 16 and fifteen slots cannot hold sixteen members. The
+     * struct, the decoder and the encoder all had 16 (`SCANLIST_MAX_MEMBERS`);
+     * only the schema was left behind when that was settled, and nothing read
+     * it, so nothing noticed. `validateReferences` reads it, and reported the
+     * factory scan list as one entry over capacity - which is what found this.
+     * See "Scan list membership - settled 2026-08-20" in the protocol notes.
+     */
+    scanLists: { max: 32, channelsPer: SCANLIST_MAX_MEMBERS },
     radioIds: { max: 250 },
     messages: { max: MESSAGE_SLOTS, maxChars: MESSAGE_MAX_CHARS },
     encryption: { slots: KEY_SLOTS, types: ['none', 'custom', 'arc4', 'aes128', 'aes256'], nameLength: 10 },

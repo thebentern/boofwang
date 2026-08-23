@@ -258,6 +258,28 @@ const groups = computed<DiagGroup[]>(() => {
     .sort((a, b) => rank[a.severity] - rank[b.severity] || b.count - a.count)
 })
 
+/**
+ * What each level looks like, in one place rather than eleven ternaries.
+ *
+ * This panel was written when every rule was an error or a warning, so it asked
+ * `severity === 'error'` and painted everything else as a caution. The
+ * referential rules brought `info` - two channels programmed identically, two
+ * talk groups on one number - and nothing is wrong with either: they arrived
+ * wearing an amber triangle and a chip reading "info", which is a worse lie
+ * than not reporting them at all.
+ *
+ * `quiet` is the one asymmetry worth keeping. An error already tints its whole
+ * row, so its button is plain; the other two levels need the button to carry
+ * the colour.
+ */
+const SEVERITY_TONE = {
+  error: { icon: 'i-lucide-circle-alert', fg: '--dg', bg: '--dgB', line: '--dgL', quiet: true },
+  warning: { icon: 'i-lucide-triangle-alert', fg: '--cn', bg: '--cnB', line: '--cnL', quiet: false },
+  info: { icon: 'i-lucide-info', fg: '--in', bg: '--inB', line: '--inL', quiet: false },
+} as const
+
+const toneOf = (g: DiagGroup) => SEVERITY_TONE[g.severity]
+
 /** `slots 6–11, 22–24` - contiguous runs collapsed, because a list of 29 numbers is not a location. */
 function slotRanges(list: readonly number[]): string {
   if (list.length === 0) return ''
@@ -759,9 +781,57 @@ suppressUndoShortcut(() => editing.value !== null)
 
 // ---------------------------------------------------------------- selection
 
-function toggleSelected(slot: number) {
+/**
+ * The slot a range extends from: the last one ticked without shift held.
+ *
+ * Kept where it is by a shift-click rather than moved to it, so a range can be
+ * adjusted by shift-clicking again somewhere else instead of having to start
+ * over. That is what every file manager does, and it is the behaviour people
+ * arrive with.
+ */
+const anchor = ref<number | null>(null)
+
+function toggleSelected(slot: number, event?: MouseEvent) {
+  if (event?.shiftKey && anchor.value !== null && anchor.value !== slot && extendTo(slot)) return
+
   if (selected.value.has(slot)) selected.value.delete(slot)
   else selected.value.add(slot)
+  anchor.value = slot
+}
+
+/**
+ * Tick everything between the anchor and `slot`, in the order the table is
+ * showing rather than by slot number.
+ *
+ * The distinction is the whole rule. Filter to "Receive-only", shift-click from
+ * the first row to the last, and a numeric range would sweep in every
+ * transmit-capable channel that happens to sit between them - none of which is
+ * on screen, so the count in the selection bar would be the only evidence and
+ * a bulk edit would land on channels the user never saw. What is between two
+ * visible rows is what is visibly between them.
+ *
+ * The range takes the anchor's own state rather than always selecting, so
+ * shift-click un-ticks a run as readily as it ticks one. Returns false when the
+ * anchor has been filtered out of the table, which leaves the caller to treat
+ * the click as an ordinary one - extending from a row nobody can see is not a
+ * gesture anyone made on purpose.
+ */
+function extendTo(slot: number): boolean {
+  const list = rows.value
+  const from = list.findIndex((r) => r.index === anchor.value)
+  const to = list.findIndex((r) => r.index === slot)
+  if (from < 0 || to < 0) return false
+
+  const [lo, hi] = from < to ? [from, to] : [to, from]
+  const on = selected.value.has(anchor.value!)
+  for (let i = lo; i <= hi; i++) {
+    const row = list[i]!
+    // Empty slots hold nothing to select, and have no checkbox of their own.
+    if (!row.channel) continue
+    if (on) selected.value.add(row.index)
+    else selected.value.delete(row.index)
+  }
+  return true
 }
 
 const allVisibleSelected = computed(() => {
@@ -799,8 +869,35 @@ const selectedProgrammed = computed(() =>
  */
 watch(
   () => codeplug.image,
-  () => selected.value.clear(),
+  () => {
+    selected.value.clear()
+    anchor.value = null
+  },
 )
+
+// ---------------------------------------------------------------- bulk edit
+
+const bulkEditing = ref(false)
+
+/**
+ * The selection strip's box, declared once for both of its states.
+ *
+ * Two declarations of the same box is how the empty state ends up five pixels
+ * shorter than the full one, which is the whole defect this strip exists to
+ * avoid - just small enough not to be noticed and large enough to move the row
+ * under the cursor. The height is the `sm` RiskAction inside it, 23px, plus the
+ * padding and the border.
+ */
+const STRIP_BOX = 'gap: 9px; margin-bottom: 9px; padding: 7px 11px; min-height: 39px; box-sizing: border-box'
+
+/**
+ * The ticks survive the edit, deliberately.
+ *
+ * A bulk delete clears them because the slots it named are gone; a bulk edit
+ * leaves the same channels in place, and the next thing anybody does after
+ * setting the power on twelve rows is set something else on the same twelve.
+ * Clearing would make them tick all twelve again to say so.
+ */
 
 // -------------------------------------------------------------- bulk delete
 
@@ -1122,18 +1219,34 @@ const printedFacts = computed(() => {
     </div>
 
     <!--
-      The selection bar, which exists only while something is ticked.
+      The selection bar, which fills with the first tick.
 
       A delete button that is always on screen is one that eventually gets
-      clicked by someone reaching for Export. This appears with the first tick
-      and goes with the last, so the only time it can be hit is the only time
-      it means anything - and it carries the count, because the ticks
-      themselves can be scrolled or filtered out of sight.
+      clicked by someone reaching for Export. Its contents appear with the first
+      tick and go with the last, so the only time it can be hit is the only time
+      it means anything - and it carries the count, because the ticks themselves
+      can be scrolled or filtered out of sight.
+
+      **The strip itself is always here**, which is the part that is not
+      decoration. It used to appear and disappear, and appearing pushed every
+      row of the table down by most of two rows - so ticking a checkbox moved
+      the row you were about to shift-click onto, and the range came out two
+      short at the far end. On a table that then offers to edit everything
+      ticked in one go, selecting the wrong rows is not a cosmetic fault. The
+      empty state pays for its own height by saying that shift-click exists,
+      which nothing else on the screen does.
     -->
     <div
-      v-if="selectedProgrammed.length > 0"
+      v-if="selectedProgrammed.length === 0"
+      class="flex items-center print-hide"
+      :style="`${STRIP_BOX}; border: 1px solid transparent; font-size: 12.5px; color: var(--fn)`"
+    >
+      Tick a channel to work on several at once. Shift-click a second tick to take everything between them.
+    </div>
+    <div
+      v-else
       class="flex items-center flex-wrap print-hide"
-      style="gap: 9px; margin-bottom: 9px; padding: 7px 11px; border: 1px solid var(--inL); background: var(--inB); border-radius: 7px"
+      :style="`${STRIP_BOX}; border: 1px solid var(--inL); background: var(--inB); border-radius: 7px`"
     >
       <span style="font-size: 13px; color: var(--tx)">
         <span class="font-mono tabular" style="font-weight: 600">{{ selectedProgrammed.length }}</span>
@@ -1145,6 +1258,14 @@ const printedFacts = computed(() => {
       </span>
 
       <div class="ms-auto flex items-center" style="gap: 6px">
+        <RiskAction
+          risk="neutral"
+          ghost
+          size="sm"
+          icon="i-lucide-sliders-horizontal"
+          label="Edit together"
+          @click="bulkEditing = true"
+        />
         <RiskAction
           risk="neutral"
           ghost
@@ -1163,6 +1284,12 @@ const printedFacts = computed(() => {
         />
       </div>
     </div>
+
+    <!--
+      One change to every ticked row. Its own component because the form is a
+      dozen controls and a transmit warning, and this file is long enough.
+    -->
+    <BulkEdit v-model:open="bulkEditing" :slots="selectedProgrammed" />
 
     <!--
       Names what is lost before it is lost, which is the whole job here.
@@ -1266,22 +1393,22 @@ const printedFacts = computed(() => {
         :style="{
           gap: '10px',
           padding: '9px 13px',
-          borderLeft: `2px solid var(${g.severity === 'error' ? '--dg' : '--cn'})`,
-          background: `var(${g.severity === 'error' ? '--dgB' : '--cnB'})`,
+          borderLeft: `2px solid var(${toneOf(g).fg})`,
+          background: `var(${toneOf(g).bg})`,
           borderBottom: i === groups.length - 1 ? 'none' : '1px solid var(--ln)',
         }"
       >
         <UIcon
-          :name="g.severity === 'error' ? 'i-lucide-circle-alert' : 'i-lucide-triangle-alert'"
-          :style="{ width: '14px', height: '14px', flex: 'none', color: `var(${g.severity === 'error' ? '--dg' : '--cn'})` }"
+          :name="toneOf(g).icon"
+          :style="{ width: '14px', height: '14px', flex: 'none', color: `var(${toneOf(g).fg})` }"
         />
         <span
           class="chip"
           :style="{
             flex: 'none',
-            border: `1px solid var(${g.severity === 'error' ? '--dgL' : '--cnL'})`,
-            background: `var(${g.severity === 'error' ? '--dgB' : '--cnB'})`,
-            color: `var(${g.severity === 'error' ? '--dg' : '--cn'})`,
+            border: `1px solid var(${toneOf(g).line})`,
+            background: `var(${toneOf(g).bg})`,
+            color: `var(${toneOf(g).fg})`,
           }"
         >{{ g.severity }}</span>
         <span style="font-size: 14px; line-height: 1.45; min-width: 0">
@@ -1294,7 +1421,15 @@ const printedFacts = computed(() => {
           style="font-size: 13px; color: var(--in); background: transparent; border: 0; padding: 0"
           @click="showGroup(g)"
         >{{ slotRanges(g.slots) }}</button>
+        <!--
+          No button when the rule is not about any particular slot.
+
+          A zone listing a channel that no slot holds has nothing to filter the
+          table down to, and "Show them" that shows nothing is worse than the
+          space it saves.
+        -->
         <button
+          v-if="g.slots.length"
           type="button"
           class="ms-auto inline-flex items-center whitespace-nowrap print-hide"
           :style="{
@@ -1304,10 +1439,10 @@ const printedFacts = computed(() => {
             gap: '5px',
             borderRadius: '4px',
             fontSize: '11.5px',
-            fontWeight: g.severity === 'error' ? 400 : 500,
-            border: `1px solid var(${g.severity === 'error' ? '--ln' : '--cnL'})`,
-            background: g.severity === 'error' ? 'transparent' : 'var(--cnB)',
-            color: `var(${g.severity === 'error' ? '--dg' : '--cn'})`,
+            fontWeight: toneOf(g).quiet ? 400 : 500,
+            border: `1px solid var(${toneOf(g).quiet ? '--ln' : toneOf(g).line})`,
+            background: toneOf(g).quiet ? 'transparent' : `var(${toneOf(g).bg})`,
+            color: `var(${toneOf(g).fg})`,
           }"
           :title="g.aboutTransmit ? `Mark ${g.count} channel(s) receive-only` : 'Filter the table to these slots'"
           @click="runFix(g)"
@@ -1369,13 +1504,26 @@ const printedFacts = computed(() => {
           >
             <!-- Selection -->
             <span v-if="!printing" class="flex items-center justify-center" @click.stop>
+              <!--
+                The whole cell is the target, not the 11px box inside it.
+
+                Shift-click is what makes a long run bearable, and it is only
+                worth having if the click before it landed. `mousedown.shift`
+                is prevented because the browser's own response to shift and a
+                mouse button is to extend a *text* selection, which paints half
+                the table blue on the way to picking eight rows.
+              -->
               <button
                 v-if="r.row.channel"
                 type="button"
                 role="checkbox"
+                class="flex items-center justify-center select-none"
+                style="width: 100%; height: 30px"
                 :aria-checked="selected.has(r.key)"
                 :aria-label="`Select slot ${r.key}`"
-                @click="toggleSelected(r.key)"
+                title="Shift-click to select every row between this and the last one"
+                @mousedown.shift.prevent
+                @click="toggleSelected(r.key, $event)"
               >
                 <span
                   class="block"
