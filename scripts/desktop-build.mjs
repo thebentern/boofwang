@@ -45,6 +45,30 @@ const platform = process.argv[2] ?? null
 
 const has = (...names) => names.every((n) => (process.env[n] ?? '').length > 0)
 
+/*
+ * An empty variable is worse than a missing one.
+ *
+ * A workflow that maps a secret which has not been set hands the step
+ * `CSC_LINK=''` - defined, and empty. electron-builder reads the environment
+ * itself and treats "defined" as "there is a certificate here", resolves the
+ * empty path against the working directory and fails with
+ * `/path/to/repo not a file`, having first announced that it would use an empty
+ * password. Every other platform in the same run built fine, which made it look
+ * like a macOS problem rather than an empty string.
+ */
+for (const name of [
+  'CSC_LINK',
+  'CSC_KEY_PASSWORD',
+  'APPLE_API_KEY',
+  'APPLE_API_KEY_ID',
+  'APPLE_API_ISSUER',
+  'APPLE_ID',
+  'APPLE_APP_SPECIFIC_PASSWORD',
+  'APPLE_TEAM_ID',
+]) {
+  if (name in process.env && process.env[name] === '') delete process.env[name]
+}
+
 const args = ['--config', 'electron-builder.yml', '--publish', 'never']
 if (platform) args.unshift(platform)
 
