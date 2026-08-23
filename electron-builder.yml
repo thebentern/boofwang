@@ -8,11 +8,11 @@
 # is a build-time one - so `node_modules` is excluded outright rather than
 # pruned, which is both smaller and easier to reason about.
 #
-# Nothing here is signed. That is a statement of fact rather than an oversight:
-# signing needs an Apple Developer certificate and a Windows code-signing
-# certificate, neither of which this project has, and pretending otherwise in a
-# config would produce builds that fail confusingly. The release notes say what
-# that means for the person downloading it.
+# Signing is decided in scripts/desktop-build.mjs, not here. macOS is signed
+# with a Developer ID certificate and notarized when the credentials are in the
+# environment; Windows has no certificate and is not signed. Keeping that branch
+# in the build script rather than in this file is what lets a contributor
+# without a certificate package the app - see docs/signing.md.
 appId: ng.boofwa.desktop
 productName: boofwang
 copyright: GPL-3.0-or-later
@@ -36,10 +36,11 @@ extraResources:
   - from: .output/public
     to: site
 
-# Every target is a plain archive or an installer that needs no signature to
-# open. A .dmg on an unsigned build gives the user a worse first run than a zip
-# does, because Gatekeeper's quarantine message on a mounted image is the one
-# that offers no way forward.
+# Every target is a plain archive. The zip was chosen while builds were
+# unsigned, because Gatekeeper's quarantine message on a mounted .dmg is the one
+# that offers no way forward. Now that macOS is signed and notarized that reason
+# has gone and a .dmg would be the friendlier download - it stays a zip because
+# renaming the artifact breaks existing links, not because the old reason holds.
 mac:
   icon: build/icon.icns
   target:
@@ -50,6 +51,10 @@ mac:
   # are reached through Chromium, which is covered by the entitlements below.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # Turned on by scripts/desktop-build.mjs whenever a certificate is present:
+  # notarization requires it, and it does nothing without a signature. False
+  # here so that an unsigned local build does not claim a runtime it has not
+  # been hardened against.
   hardenedRuntime: false
 
 win:

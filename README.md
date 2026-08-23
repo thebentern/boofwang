@@ -31,17 +31,17 @@ pnpm desktop:dev      # generate the site, then run the shell against it
 pnpm desktop:build    # package for the current platform into dist-desktop/
 ```
 
-The releases are **not signed** - this project has no Apple Developer
-certificate and no Windows code-signing certificate. macOS will refuse a
-downloaded build until it is allowed through Gatekeeper, and Windows
-SmartScreen will warn. On Linux a serial cable is a group-permissions question
+The macOS builds are signed with a Developer ID certificate and notarized, so
+they open normally. Windows builds are **not signed** - SmartScreen will warn
+until a certificate earns reputation, and why that is harder to fix than macOS
+is in `docs/signing.md`. On Linux a serial cable is a group-permissions question
 before it is a software one, usually `dialout` or `uucp`.
 
 The pipeline signs when credentials are present and builds unsigned when they
-are not, saying which in its own log, so turning it on is a matter of adding
-repository secrets rather than changing code. `docs/signing.md` says what to
-obtain, what each option costs and what it actually buys, and
-`scripts/setup-signing.sh` sets the secrets once you have the files.
+are not, saying which in its own log, so a contributor without a certificate can
+still package the app. `docs/signing.md` records what was done for macOS and
+what the remaining platforms would cost, and `scripts/setup-signing.sh` sets the
+secrets.
 
 The icons are generated from `build/icon.svg`:
 
