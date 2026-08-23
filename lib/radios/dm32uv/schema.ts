@@ -835,7 +835,7 @@ export const DM32UV_SCHEMA: RadioSchema = {
      * See "Scan list membership - settled 2026-08-20" in the protocol notes.
      */
     scanLists: { max: 32, channelsPer: SCANLIST_MAX_MEMBERS },
-    radioIds: { max: 250 },
+    radioIds: { max: 250, nameLength: 12, maxId: 0xff_ffff },
     messages: { max: MESSAGE_SLOTS, maxChars: MESSAGE_MAX_CHARS },
     encryption: { slots: KEY_SLOTS, types: ['none', 'custom', 'arc4', 'aes128', 'aes256'], nameLength: 10 },
   },

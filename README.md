@@ -176,6 +176,34 @@ page also prints, dropping the interface and the virtualised window so that
 every channel reaches the paper with its receive-only marking still legible in
 black and white.
 
+## Fleet programming
+
+A club buys twenty DM-32UVs, one person builds the channel plan, and every
+handset needs it. What must not travel with it is the DMR ID: radios sharing one
+share a single identity on every repeater they touch, and none of them can tell.
+
+So `/fleet` takes a roster — a row per radio, carrying the two things that are
+its own, a DMR ID and the name filed with it — and runs the ordinary write flow
+once per handset. Connect, read (which is what stores that unit's backup), apply
+the roster row to the master, show the diff, type the word. Each radio's document
+is rendered onto **its own** image, so calibration and every undecoded byte stay
+with the unit they came from, exactly as in a one-radio clone.
+
+There is deliberately no bulk send and no fleet exception to the typed
+confirmation. Typing `WRITE` is about five seconds against the two or three
+minutes a DM-32UV takes to read and write.
+
+The roster is pasted as CSV — any column order, with a header row naming the
+columns, or `label,dmrId,name` without one — and exports back out, along with a
+record of the run naming which physical unit took which row.
+
+Two checks exist only here, because they are failures only a fleet run can have:
+
+- **Two rows on one DMR ID** blocks the run before a radio is plugged in.
+- **The same physical handset presented twice** is caught by its unit
+  fingerprint, because twenty identical radios go through one cable over an
+  afternoon and nothing on the outside of any of them says which are done.
+
 ## Development
 
 Requires [pnpm](https://pnpm.io/). Node 24.11.1 is pinned in `.npmrc` via
@@ -254,10 +282,10 @@ with no message is that, not a fault in the bridge.
 lib/          framework-agnostic core; no Vue or Nuxt imports, runs in plain Node
   codec/      binary struct DSL: explicit offsets, partial writes, coverage reporting
   transport/  framing, timeouts, teardown, fakes, trace recorder; Web Serial and BLE ports
-  radio/      driver interface, registry, image model, write gate, diffing
+  radio/      driver interface, registry, image model, write gate, diffing, fleet plan
   radios/     one directory per radio: protocol, layout, schema, driver
   model/      channels, tones, units, codeplug document
-  io/         CHIRP CSV, CHIRP .img, .bwp, raw .bin, shareable summary
+  io/         CHIRP CSV, CHIRP .img, .bwp, raw .bin, shareable summary, fleet roster
   storage/    IndexedDB backups
   platform/   browser capability checks
   version/    which build is running, and whether an update is worth a prompt
@@ -304,6 +332,9 @@ for every fixture.
   and diff it; reading one is minutes, not seconds. Read the radio again if you
   want that comparison, and the backup taken before the write is what you would
   compare against.
+- A fleet run is N ordinary writes rather than a new kind of write. It calls the
+  same read and write functions every other screen calls, takes a fresh backup
+  per handset, and asks for the typed confirmation on each radio's own diff.
 - Read-only regions are marked in the image and never transmitted. The UV-K5's
   calibration block is one.
 - Receive-only channels are decoded as such and preserved. The UV-K5 has no

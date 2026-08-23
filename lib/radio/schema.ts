@@ -203,7 +203,17 @@ export interface RadioSchema {
     readonly contacts: false | { readonly max: number }
     readonly rxGroups: false | { readonly max: number }
     readonly scanLists: false | { readonly max: number; readonly channelsPer: number }
-    readonly radioIds: false | { readonly max: number }
+    /**
+     * The radio's own DMR identities.
+     *
+     * `nameLength` and `maxId` are here rather than in the driver because three
+     * separate places need them and two of them are outside `lib/radios/`: the
+     * DMR editor's input limits, and the fleet roster, which has to say whether
+     * a club's spreadsheet fits the radio before anyone plugs one in. Both were
+     * literals typed into a form, which is how a fourth place gets a different
+     * answer.
+     */
+    readonly radioIds: false | { readonly max: number; readonly nameLength: number; readonly maxId: number }
     /**
      * Canned text messages, when the radio stores them.
      *

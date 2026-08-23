@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Progress } from '#core/radio/driver.js'
 import { diffChannels } from '#core/radio/channel-diff.js'
+import { blocksToSend } from '#core/radio/diff.js'
 import { evaluateWriteGate } from '#core/radio/write-gate.js'
 
 /**
@@ -87,17 +88,18 @@ const blockBytes = computed(() => codeplug.driverRef?.writeBlockBytes ?? 0)
 /**
  * Blocks the radio will actually receive, which is not always the diff.
  *
- * A radio that erases a flash page before programming cannot take a sparse
- * write - it gets the whole image every time. Counting the diff there would
- * promise "1 block" and then send five hundred.
+ * Counted by `blocksToSend` rather than here, because the fleet run has to
+ * report the same number for each radio it programmes and two screens counting
+ * "what goes down the wire" separately is how one of them ends up describing
+ * the edit instead of the write.
  */
-const wholeImage = computed(() => codeplug.schema?.capabilities.writesWholeImage === true)
-const imageBlocks = computed(() => {
-  const size = codeplug.image?.regions.reduce((n, r) => n + r.data.length, 0) ?? 0
-  return blockBytes.value > 0 ? Math.ceil(size / blockBytes.value) : 0
-})
 const blocks = computed(() =>
-  wholeImage.value ? imageBlocks.value : (codeplug.pendingWrite?.changedBlocks.length ?? 0),
+  blocksToSend({
+    diff: codeplug.pendingWrite,
+    imageBytes: codeplug.image?.regions.reduce((n, r) => n + r.data.length, 0) ?? 0,
+    blockBytes: blockBytes.value,
+    wholeImage: codeplug.schema?.capabilities.writesWholeImage === true,
+  }),
 )
 const bytes = computed(() => blocks.value * blockBytes.value)
 

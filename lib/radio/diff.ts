@@ -90,3 +90,27 @@ export function diffImages(base: RadioImage, next: RadioImage, driver: DiffDrive
     changedBlocks: [...blocks].sort((a, b) => a - b),
   }
 }
+
+/**
+ * How many write-sized blocks a write would actually put on the wire.
+ *
+ * Not the same as the number of changed blocks, and the difference is the whole
+ * reason this is a function rather than a `.length`. A radio that erases a
+ * flash page before programming cannot take a sparse write - it gets the entire
+ * image every time - so counting the diff there would promise one block and
+ * then send five hundred.
+ *
+ * Shared because two screens have to agree on it: the write page's
+ * confirmation, which is what the user consents to, and the fleet run's record
+ * of what each radio received.
+ */
+export function blocksToSend(input: {
+  readonly diff: ImageDiff | null
+  readonly imageBytes: number
+  readonly blockBytes: number
+  readonly wholeImage: boolean
+}): number {
+  if (input.blockBytes <= 0) return 0
+  if (input.wholeImage) return Math.ceil(input.imageBytes / input.blockBytes)
+  return input.diff?.changedBlocks.length ?? 0
+}

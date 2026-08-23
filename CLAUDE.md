@@ -74,7 +74,7 @@ lib/        framework-agnostic core. No vue, pinia, nuxt or ~/ imports — ESLin
             enforces this, and a DOM-less vitest project catches the rest.
   codec/    binary struct DSL: explicit offsets, partial writes, coverage
   transport/ Web Serial and Web Bluetooth, framing, timeouts, fakes, trace recorder
-  radio/    driver interface, registry, image model, write gate, diffing, transplant
+  radio/    driver interface, registry, image model, write gate, diffing, transplant, fleet
   radios/   one directory per radio: protocol, layout, schema, driver
   model/    channels, tones, units, codeplug document
   io/       CHIRP CSV in and out, CHIRP .img, .bwp, raw .bin, summaries, presets

@@ -20,6 +20,20 @@ const hasTalkGroups = computed(() => !!features.value?.talkGroups)
 const hasScanLists = computed(() => !!features.value?.scanLists)
 const hasRxGroups = computed(() => !!features.value?.rxGroups)
 const hasRadioIds = computed(() => !!features.value?.radioIds)
+
+/**
+ * The two limits the radio ID inputs enforce, from the schema rather than typed
+ * into the markup.
+ *
+ * They were literals - 12 and 16777215 - which is the DM-32UV's answer and
+ * nothing else's. The fleet roster needs the same two facts to say whether a
+ * club's spreadsheet fits before anyone plugs in a radio, and a third copy is
+ * how one of them ends up disagreeing with the encoder.
+ */
+const radioIdLimits = computed(() => {
+  const f = features.value?.radioIds
+  return f ? { nameLength: f.nameLength, maxId: f.maxId } : { nameLength: 16, maxId: 0xff_ffff }
+})
 const hasContacts = computed(() => !!features.value?.contacts)
 const hasMessages = computed(() => !!features.value?.messages)
 const hasRoaming = computed(() => codeplug.roamChannels.length > 0 || codeplug.roamZones.length > 0)
@@ -593,7 +607,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               <input
                 type="text"
                 :value="entry.name"
-                maxlength="12"
+                :maxlength="radioIdLimits.nameLength"
                 class="rounded-[6px] px-2.5 outline-none"
                 style="height: 31px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
                 autocomplete="off"
@@ -607,7 +621,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
                 type="number"
                 :value="entry.dmrId"
                 min="0"
-                max="16777215"
+                :max="radioIdLimits.maxId"
                 class="rounded-[6px] px-2.5 outline-none font-mono"
                 style="height: 31px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 14px"
                 @change="codeplug.updateRadioId(entry.id, { dmrId: Number(($event.target as HTMLInputElement).value) })"
@@ -625,8 +639,8 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
           </div>
         </div>
         <p class="note">
-          A DMR ID is 24 bits, so the largest this radio can store is 16,777,215. Channels point at these by
-          position, so removing one renumbers the ones after it.
+          The largest DMR ID this radio can store is {{ radioIdLimits.maxId.toLocaleString() }}. Channels point
+          at these by position, so removing one renumbers the ones after it.
         </p>
       </section>
 
