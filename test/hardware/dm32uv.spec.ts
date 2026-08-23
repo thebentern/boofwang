@@ -15,6 +15,7 @@ import {
   CALLLIST_NAME_AT,
   CALLLIST_SIZE,
   CHANNEL_BLOCK_LAST,
+  channelSlot,
   MESSAGE_BLOCK,
   MESSAGE_HEADER,
   ROAMCHANNEL_BLOCK,
@@ -661,6 +662,130 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
     // be written until now.
     expect(driver.decode(restored).contacts).toEqual(contacts)
 
+  })
+
+  /**
+   * The one question about zone membership this radio has not answered.
+   *
+   * Settled already, from this radio's own bytes: the count byte bounds the
+   * list, and entries past it are ignored - `Tactical` has carried pointers to
+   * channels 43-48 past a count of 14 for as long as it has been a 14-channel
+   * zone, and three of those channels do not exist. Still open: an entry
+   * *inside* the count pointing at a blank channel record.
+   *
+   * boofwang cannot produce that state. `encodeZones` drops a member the
+   * document has no channel for, deleting a channel takes it out of every list
+   * that named it, and a renumber drops it rather than repointing it - which is
+   * deliberate, and is why the answer is not needed for anything shipped. It is
+   * worth knowing anyway, because "we avoid it" is a weaker claim than "we know
+   * what it does".
+   *
+   * So this sets the state up at the byte level rather than through `encode`,
+   * which is the only way to create something the encoder exists to prevent. It
+   * erases one channel record that a zone names and changes nothing else: the
+   * zone record, its count and its member list are all left exactly as they
+   * are, so the dangling entry is the radio's own list pointing at a slot that
+   * has gone blank underneath it.
+   *
+   * The test cannot see the radio's screen. It puts the radio into the state,
+   * proves from a read-back that the state is really there, prints what to look
+   * at, and restores. The answer comes from a person, and belongs in
+   * `docs/protocols/dm32uv.md` next to the rest.
+   *
+   * Its own connection helpers rather than the ones above: those are local to
+   * that test, and reaching into it to share them would mean editing a
+   * verified hardware procedure to add an unverified one.
+   */
+  it('leaves a zone member pointing at a blank slot, for a person to read off the radio', { timeout: 1_800_000 }, async () => {
+    expect(PORT, 'set BOOFWANG_HW_PORT to the adapter path').not.toBe('')
+    const ports = await listBridgePorts(URL_)
+    const info = ports.find((p) => p.path === PORT)
+    expect(info, `the bridge does not see ${PORT}`).toBeTruthy()
+
+    let first = true
+    async function session<T>(fn: (t: SerialTransport, ident: IdentifyResult) => Promise<T>): Promise<T> {
+      if (!first) await new Promise((r) => setTimeout(r, REOPEN_SETTLE_MS + 800))
+      first = false
+      const t = new SerialTransport(new BridgeSerialPort(URL_, info!))
+      await t.open(driver.serial)
+      try {
+        return await fn(t, await driver.identify(t, {}))
+      } finally {
+        await t.close().catch(() => {})
+      }
+    }
+    const read = () => session(async (t, ident) => ({ image: await driver.readImage(t, ident, {}), ident }))
+    const block = (img: RadioImage, id: number) => img.regions.find((r) => r.start === (id << 12))?.data
+
+    const { image: baseline, ident } = await read()
+    const backup = {
+      id: 'hw-dangling',
+      identHash: ident.identHash,
+      unitHash: await driver.unitFingerprint!(baseline),
+      createdAt: new Date().toISOString(),
+    }
+
+    const doc = driver.decode(baseline)
+    const zone = doc.zones.find((z) => z.channels.length > 1)
+    expect(zone, 'this radio has no zone with more than one member to work with').toBeTruthy()
+
+    // The last member, so what is left is a zone whose final entry dangles -
+    // the case a person can see by stepping to the end of the zone.
+    const victim = zone!.channels.at(-1)!
+    const at = channelSlot(victim)
+    expect(at, `channel ${victim} is past the bank`).toBeTruthy()
+
+    const target = { ...baseline, regions: baseline.regions.map((r) => ({ ...r, data: r.data.slice() })) }
+    const page = block(target, at!.blockId)
+    expect(page, `this radio has no block 0x${at!.blockId.toString(16)}`).toBeTruthy()
+    page!.fill(0xff, at!.offset, at!.offset + SIZE)
+
+    try {
+      await session((t, id) =>
+        driver.writeImage(t, target, { ident: id, backup: { ...backup, identHash: id.identHash } }),
+      )
+
+      const { image: after } = await read()
+
+      // The record really is blank.
+      const now = block(after, at!.blockId)!.subarray(at!.offset, at!.offset + SIZE)
+      expect(now.every((b) => b === 0xff), 'the channel record did not come back erased').toBe(true)
+
+      // And the zone record is untouched, so its count still reaches the entry
+      // that now points at nothing. Compared whole rather than field by field:
+      // the point is that nothing about the zone moved.
+      const rec = (img: RadioImage) =>
+        block(img, ZONE_BLOCK_FIRST)!.subarray(ZONE_HEADER, ZONE_HEADER + ZONE_SIZE * doc.zones.length)
+      expect(equalBytes(rec(after), rec(baseline)), 'the zone records moved; this proves nothing').toBe(true)
+
+      const dangling = driver.decode(after).zones.find((z) => z.id === zone!.id)
+      expect(dangling?.channels, 'the decoded zone no longer names the blank slot').toContain(victim)
+      expect(driver.decode(after).channels.has(victim), 'the channel is still there').toBe(false)
+
+      console.log(
+        [
+          '',
+          '  The radio is now in the state to look at. Switch it on and:',
+          `    1. Select zone ${JSON.stringify(zone!.name)}.`,
+          `    2. Step to the end of it. Its last entry is channel ${victim}, whose record is erased.`,
+          '    3. Record what the display does: skips it, shows a blank, repeats the previous',
+          '       channel, or refuses. Note whether the zone still reports its old channel count.',
+          '    4. Write the answer into docs/protocols/dm32uv.md.',
+          '',
+          '  The radio is restored to its baseline as soon as this test finishes, so read it now.',
+          '',
+        ].join('\n'),
+      )
+    } finally {
+      await session((t, id) =>
+        driver.writeImage(t, baseline, { ident: id, backup: { ...backup, identHash: id.identHash } }),
+      )
+    }
+
+    const { image: restored } = await read()
+    const back = block(restored, at!.blockId)!.subarray(at!.offset, at!.offset + SIZE)
+    const was = block(baseline, at!.blockId)!.subarray(at!.offset, at!.offset + SIZE)
+    expect(equalBytes(back, was), `channel ${victim} did not come back`).toBe(true)
   })
 })
 

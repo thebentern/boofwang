@@ -1150,6 +1150,21 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       }
       return []
     },
+
+    /**
+     * Whether this unit has a page for channel `slot`.
+     *
+     * The same test `encode` makes before it refuses a channel, asked before
+     * anything has been decided. Block ids are absolute: this radio has bank
+     * blocks 0x12, 0x13, 0x14 and then 0x18, so channels 255-509 have nowhere
+     * to live on it and the ones after them do not shuffle down to fill the
+     * hole. An operation that picks slot numbers has to see the hole, or it
+     * produces a codeplug that only fails at the point of writing.
+     */
+    storesSlot: (image: RadioImage, slot: number) => {
+      const at = channelSlot(slot)
+      return at !== null && blockData(image, at.blockId) !== null
+    },
   }
 
   return driver

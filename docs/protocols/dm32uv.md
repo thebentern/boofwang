@@ -435,10 +435,11 @@ exactly one. Under B, record 1's count of 16 exceeds the 15 slots B allows at
 all. Under A, the vendor's own software wrote "channel 0" as the first member of
 every list it ever saved.
 
-Writing the wrong one shifts every channel in the list, so neither is written.
-The name is unambiguous and is. Settling it needs one deliberate edit **on the
-radio's own keypad** — change a scan list's membership to something
-non-sequential, read the block back, and see which offset moved.
+**A, and it was settled on the radio the same day** — the write recorded under
+"Scan list membership — settled 2026-08-20" above put channels 23, 24 and 25
+into scan list 1 and read them back from `+0x18`. Both memberships are written.
+This paragraph used to end by saying neither was, and it stayed that way after
+the write that disproved it; corrected 2026-08-23.
 
 ### Channel keys
 
@@ -1115,6 +1116,123 @@ The **2,048-byte write**, still. It was not needed and so was not tried:
 `writeBootImageRegion` sends 38 confirmed pages instead. `writeBootImageTail`
 remains in the file, unused and unverified, for a radio that some day reports a
 region that is not a whole number of pages.
+
+## Renumbering the channel bank — 2026-08-23
+
+Sorting and compacting the bank is the operation that makes the open question
+about zone membership matter, so the two were settled together. Every number
+below was read out of this radio's own 241,664 bytes rather than taken from the
+driver's comments.
+
+### What this radio has already answered
+
+**The count byte bounds the list; the tail past it is ignored.** Zone 1,
+`Tactical`, holds a count of 14 and these 64 words at `+0x11`:
+
+```
+28 29 30 31 32 33 34 35 36 37 38 39 40 41 | 0 43 44 45 46 47 48 0 | ffff ...
+                    the count reaches here ^
+```
+
+Channels 46, 47 and 48 do not exist in a 45-channel bank, and 0 is not a channel
+at all. The radio shows fourteen. Zone 4, `Repeaters`, is a second instance of
+exactly the same thing: count 4, and a fifth word of 46 sitting past it. So a
+pointer *outside* the count costs nothing, which is why the encoder leaves the
+tail exactly as it found it - the smallest possible diff, and what the radio's
+own firmware evidently does.
+
+**Entries are absolute 1-based channel numbers.** All 45 of this radio's zone
+entries resolve to distinct named channels and account for the bank exactly:
+1-22 in `GMRS`, 23-27 in `MURS`, 28-41 in `Tactical`, 42-45 in `Repeaters`.
+There is no arrangement of relative or per-zone numbering that produces that.
+
+**Scan list 1 stores a duplicate, and it is real data.** Count 16, and the
+sixteenth word repeats the fifteenth (`… 0e 00 0f 00 0f 00`). It is carried
+through as found. A duplicate is legal and pointless, which is also what the
+membership editor says about one typed by hand.
+
+### What is still open, and it is now one narrow case
+
+**An entry inside the count pointing at a blank channel record.** Nothing in
+this radio's memory is an example of one, and no path in boofwang can produce
+one: the encoder drops a member the document has no channel for, deleting a
+channel takes it out of every list that named it in the same edit, the
+membership editor drops what it cannot resolve, and a renumber drops it rather
+than repointing it. The question is therefore *avoided* rather than answered,
+which is a weaker thing and is recorded as such.
+
+Settling it needs a deliberate edit on a radio somebody is willing to confuse:
+
+1. Read a baseline and keep it.
+2. Pick a zone with a contiguous list. Write it with a member pointing at a slot
+   whose channel record is erased - inside the count, not past it.
+3. Read the block back and confirm the bytes landed.
+4. On the radio itself, step through that zone and record what the display does
+   at the blank entry: skip it, show a blank, show the previous channel, or
+   refuse to leave the zone.
+5. Restore the baseline and confirm the sha256.
+
+`test/hardware/dm32uv.spec.ts` carries this as `zone membership pointing at a
+blank slot`, skipped like the rest of that file unless `BOOFWANG_HW` is set. It
+writes the dangling entry, reads it back, and restores - it cannot see the
+display, so the answer still comes from a person watching the radio, and the
+test's job is to set the state up reproducibly and put it back.
+
+### Eight settings that are channel numbers
+
+`aprsReportChannel1` through `aprsReportChannel8`, `u16le` at `0x320`-`0x32F` of
+block `0x04`, hold channel numbers - 0 meaning whichever channel the radio is
+on. They are written to the radio.
+
+Nothing about their shape says they are pointers: they are `int` fields with a
+range of 0 to 4000, indistinguishable in the schema from a timer or a squelch
+level. A sort that renumbered the bank and left them alone would have all eight
+APRS positions reporting on whatever channel happened to land on their old
+number, and the bytes really would reach the radio. `FieldSpec.channelRef` now
+declares them, and `planRenumber` reads that declaration rather than guessing
+from the label.
+
+All eight are `00 00` on this radio, so this is the field's documented meaning
+followed through, not an observed renumber. It is the reason the declaration is
+a schema fact rather than something inferred: there is no capture to infer from.
+
+### What a renumber cannot carry, and says so
+
+Two decoded fields hold channel numbers and are never written back, so the byte
+the radio holds is the byte it keeps:
+
+| Field | Where | Why it is not written |
+|---|---|---|
+| Scan list `priority1` / `priority2` | `0x11`, record `+0x0F`/`+0x13`, gated by the nibbles at `+0x0E` | decoded only; `encodeScanLists` writes the name, the members and the count |
+| Emergency `revertChannel` | `0x10` | the whole record is read-only bar the name |
+
+Rewriting the document's copy of one of those would show a number that was never
+sent, which is a worse failure than the one it papers over. So they are left
+exactly as they are and reported instead, naming the channel that will be under
+that number afterwards: "priority channel 1 stays 12, which becomes MURS-3
+instead of GMRS 12". Set them from the radio's own menu after writing.
+
+### Slots this unit has no memory for
+
+The bank is blocks `0x12`-`0x41`, allocated as the radio needs them. This unit
+has 19 of the 48: `0x12 0x13 0x14 0x18 0x1a 0x1c 0x1d 0x1f 0x20 0x22 0x23 0x30
+0x31 0x32 0x34 0x37 0x3b 0x3d 0x41`. Block ids are absolute, so the first gap -
+`0x15` through `0x17` - means channels 255 to 509 have nowhere to live here.
+
+`RadioDriver.storesSlot(image, n)` answers that, and it is deliberately the same
+test `encode` already makes before it refuses a channel by name rather than a
+second opinion about it. A renumber consults it and steps over the hole, leaving
+a gap in the numbering where the radio has no memory. That is the honest layout;
+packing straight through would produce a codeplug that only fails at the moment
+of writing.
+
+### A correction to what was written here before
+
+The section "Zone membership is writable" said scan list membership had not been
+settled. It had - by the write recorded under "Scan list membership — settled
+2026-08-20", three sections above it, which put channels 23, 24 and 25 into scan
+list 1 at `+0x18` and read them back off the radio. The driver has written scan
+list membership since. The stale paragraph is corrected in place.
 
 ## Not verified
 - **The 2,048-byte write, `57 <addr:3 LE> 00 08 <2048 bytes>`.** Still `DERIVED`

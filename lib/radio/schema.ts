@@ -47,6 +47,19 @@ export interface FieldSpec {
   readonly maxLength?: number
   /** Icon names used here must also be listed in nuxt.config's icon.clientBundle.icons. */
   readonly icon?: string
+  /**
+   * This setting holds a channel number, so renumbering channels must move it.
+   *
+   * Declared rather than guessed from the label. The DM-32UV's eight APRS
+   * report channels are `int` fields between 0 and 4000 and nothing else about
+   * them says they are pointers - so a sort that renumbered the bank left all
+   * eight reporting on whatever channel had landed on their old number, which
+   * reaches the radio because these bytes are written.
+   *
+   * A value the codeplug has no channel for is left exactly as it is: there is
+   * no channel to follow. `planRenumber` reports those rather than moving them.
+   */
+  readonly channelRef?: boolean
 }
 
 export interface SettingGroup {

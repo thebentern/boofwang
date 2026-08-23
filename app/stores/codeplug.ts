@@ -14,9 +14,18 @@ import type { RadioImage } from '#core/radio/image.js'
 import { diffImages } from '#core/radio/diff.js'
 import type { Diagnostic, RadioDriver } from '#core/radio/driver.js'
 import type { RadioSchema } from '#core/radio/schema.js'
+import type { ChannelOrder, RenumberPlan } from '#core/radio/renumber.js'
+import { applyRenumber, planChangesSomething, planFitsDocument, planRenumber } from '#core/radio/renumber.js'
 
 /** How many user-visible actions the history remembers. */
 const HISTORY_LIMIT = 50
+
+/** What the undo affordance calls each ordering. */
+const RENUMBER_LABEL: Record<ChannelOrder, string> = {
+  slot: 'close the gaps',
+  name: 'sort by name',
+  frequency: 'sort by frequency',
+}
 
 /** The two lists that name channels by number, and so have to be patched alongside them. */
 type MemberList = 'zones' | 'scanLists'
@@ -49,6 +58,32 @@ interface MemberPatch {
 }
 
 /**
+ * The lists outside the channel bank, whole, as they stood before an action.
+ *
+ * A positional `MemberPatch` says "channel 12 was third in this zone", which is
+ * the cheap way to take back a delete. It cannot express a renumber: that
+ * changes which *numbers* a list holds rather than where they sit, and every
+ * entry of every list at once. Recording it as patches would be one per entry
+ * with an ordering to get right, and getting it wrong leaves a zone holding the
+ * right channels in the wrong order - which on the radio is a zone somebody
+ * has to fix by hand.
+ *
+ * So a renumber records a copy instead. It is absolute, like a slot patch, so
+ * it goes back in any order; the arrays are small objects rather than anything
+ * holding a `Uint8Array`; and it is captured only by the action that needs it.
+ *
+ * Settings are in here because on the DM-32UV eight of them hold channel
+ * numbers, and an undo that moved the channels back while leaving those
+ * pointing at the new numbers would be the same "codeplug nobody made" that
+ * `replaceDocument` refuses to create.
+ */
+interface DocPatch {
+  readonly zones: readonly Zone[]
+  readonly scanLists: readonly ScanList[]
+  readonly settings: Readonly<Record<string, unknown>>
+}
+
+/**
  * One user-visible action, stored as what it changed things *from*.
  *
  * This is what makes the history affordable. An entry is a handful of slot
@@ -60,6 +95,8 @@ interface HistoryEntry {
   readonly label: string
   readonly slots: readonly SlotPatch[]
   readonly members: readonly MemberPatch[]
+  /** Present only for an action that rewrote the lists wholesale. See `DocPatch`. */
+  readonly doc: DocPatch | null
   /**
    * `dirty` as it stood before the action.
    *
@@ -84,6 +121,7 @@ interface Batch {
   /** Keyed by slot, because only the first value seen in an action is the one to undo to. */
   readonly slots: Map<number, SlotPatch>
   readonly members: MemberPatch[]
+  doc: DocPatch | null
   readonly lists: Set<MemberList>
   readonly dirtyBefore: boolean
   readonly foreignEdits: number
@@ -229,6 +267,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
       label,
       slots: new Map(),
       members: [],
+      doc: null,
       lists: new Set(),
       dirtyBefore: dirty.value,
       foreignEdits,
@@ -254,13 +293,16 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     const b = batch
     if (!b || --b.depth > 0) return null
     batch = null
-    if (b.slots.size === 0 && b.members.length === 0) return null
+    if (b.slots.size === 0 && b.members.length === 0 && !b.doc) return null
 
     const cp = doc.value
     if (cp) {
       if (b.slots.size > 0) publishChannels(b.slots.keys())
-      if (b.lists.has('zones')) zones.value = Object.freeze(cp.zones.map((z) => Object.freeze(z)))
-      if (b.lists.has('scanLists')) scanLists.value = Object.freeze(cp.scanLists.map((l) => Object.freeze(l)))
+      if (b.doc || b.lists.has('zones')) zones.value = Object.freeze(cp.zones.map((z) => Object.freeze(z)))
+      if (b.doc || b.lists.has('scanLists')) {
+        scanLists.value = Object.freeze(cp.scanLists.map((l) => Object.freeze(l)))
+      }
+      if (b.doc) settings.value = Object.freeze({ ...cp.settings })
     }
     revalidate()
     revision.value++
@@ -270,6 +312,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
       label: b.label,
       slots: [...b.slots.values()],
       members: b.members,
+      doc: b.doc,
       dirtyBefore: b.dirtyBefore,
       foreignEdits: b.foreignEdits,
     }
@@ -301,6 +344,33 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     if (!batch) return
     batch.members.push({ list, id, channel, at })
     batch.lists.add(list)
+  }
+
+  /**
+   * Note the lists outside the channel bank, once per action.
+   *
+   * Call it *before* changing any of them: first write wins, so a snapshot
+   * taken afterwards would record the half-changed state as the thing to undo
+   * to. That ordering is also what makes it safe alongside the positional
+   * member patches - a replay restores this first, and each member patch then
+   * finds the channel already where it says it was and does nothing.
+   */
+  function noteDoc() {
+    const cp = doc.value
+    if (!batch || !cp || batch.doc) return
+    batch.doc = {
+      zones: cp.zones.map((z) => ({ ...z, channels: [...z.channels] })),
+      scanLists: cp.scanLists.map((l) => ({ ...l, channels: [...l.channels] })),
+      settings: { ...cp.settings },
+    }
+  }
+
+  /** Put those lists back, recording what they held now so redo can return. */
+  function restoreDoc(cp: Codeplug, patch: DocPatch) {
+    noteDoc()
+    cp.zones = patch.zones.map((z) => ({ ...z, channels: [...z.channels] }))
+    cp.scanLists = patch.scanLists.map((l) => ({ ...l, channels: [...l.channels] }))
+    cp.settings = { ...patch.settings }
   }
 
   /**
@@ -409,6 +479,10 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     if (!cp) return null
     openBatch(entry.label, false)
     for (const p of entry.slots) writeSlot(p.slot, p.record)
+    // The wholesale copy before the positional patches, never after: it is
+    // absolute, and putting it back first is what leaves each member patch
+    // looking at a list that already agrees with it.
+    if (entry.doc) restoreDoc(cp, entry.doc)
     for (let i = entry.members.length - 1; i >= 0; i--) applyMember(cp, entry.members[i]!)
     const inverse = closeBatch()
 
@@ -631,15 +705,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     return created
   }
 
-  /**
-   * Rename a zone.
-   *
-   * The name is the only part of a zone this build writes. A zone's channel
-   * list is a set of absolute channel numbers, and what the radio does with one
-   * pointing at a slot that has since been emptied has not been established -
-   * so membership is shown but not edited, rather than edited and silently
-   * dropped at encode time.
-   */
+  /** Rename a zone. Its membership is edited separately, by `setZoneChannels`. */
   function renameZone(id: string, name: string) {
     const cp = doc.value
     if (!cp) return
@@ -993,6 +1059,65 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     })
   }
 
+  /**
+   * Where every channel would go if the bank were laid out in `order`.
+   *
+   * Built here rather than in the component because it needs the driver: only
+   * the driver knows which slot numbers the radio in front of the user actually
+   * has memory for, and a plan that picked one it does not have would produce a
+   * codeplug the encoder refuses at the moment of writing.
+   */
+  function renumberPlan(order: ChannelOrder): RenumberPlan | null {
+    const cp = doc.value
+    const s = schema.value
+    const d = driverRef.value
+    const img = image.value
+    if (!cp || !s) return null
+    const storesSlot = d?.storesSlot
+    return planRenumber(s, cp, {
+      order,
+      usable: storesSlot && img ? (slot: number) => storesSlot.call(d, img, slot) : undefined,
+    })
+  }
+
+  /**
+   * Lay the bank out the way a plan says, taking every reference with it.
+   *
+   * One transaction, because a renumber is one decision. The channel records
+   * and the lists that name them by number have to come back together: an undo
+   * that moved the channels and left the zones would be a codeplug nobody made,
+   * which is exactly what `DocPatch` is for.
+   *
+   * The plan is passed in rather than rebuilt from the order, so what a person
+   * agreed to in the preview is what happens - a channel edited between opening
+   * the dialog and confirming it cannot quietly change the destination of every
+   * other one.
+   *
+   * Refused outright when the plan could not place a channel, and when the
+   * channel bank has moved since the plan was made - undo and redo keep working
+   * while a dialog is open, so it can. `applyRenumber` throws on both; this
+   * returns false instead, because there is nothing for a person to fix and an
+   * exception out of a click handler is not an explanation.
+   */
+  function renumberChannels(plan: RenumberPlan): boolean {
+    const cp = doc.value
+    if (!cp || plan.unplaced.length > 0 || !planChangesSomething(plan)) return false
+    if (!planFitsDocument(cp, plan)) return false
+
+    const next = applyRenumber(cp, plan)
+    transact(RENUMBER_LABEL[plan.order], () => {
+      noteDoc()
+      // Both ends of every move: the slot a channel leaves has to be emptied in
+      // the same action, or the table shows it in two places at once.
+      const touched = new Set<number>([...plan.mapping.keys(), ...plan.mapping.values()])
+      for (const slot of touched) writeSlot(slot, next.channels.get(slot) ?? null)
+      cp.zones = next.zones
+      cp.scanLists = next.scanLists
+      cp.settings = next.settings
+    })
+    return true
+  }
+
   function revalidate() {
     const d = driverRef.value
     const cp = doc.value
@@ -1101,6 +1226,8 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     createChannel,
     setChannelRecord,
     deleteChannel,
+    renumberPlan,
+    renumberChannels,
     renameZone,
     renameTalkGroup,
     addZone,

@@ -6,6 +6,7 @@ import type { Codeplug } from '#core/model/codeplug.js'
 import { describeTone } from '#core/model/tones.js'
 import { formatFreq, formatPower, parseFreq } from '#core/model/units.js'
 import { diffChannels } from '#core/radio/channel-diff.js'
+import type { ChannelOrder, RenumberPlan } from '#core/radio/renumber.js'
 import { exportChirpCsv } from '#core/io/chirp-csv.js'
 
 /**
@@ -861,6 +862,57 @@ function deleteSelected() {
   selected.value.clear()
 }
 
+// ----------------------------------------------------------------- reorder
+
+/**
+ * Renumbering the bank, previewed before it happens.
+ *
+ * The preview is the feature, not decoration around it. Moving a channel to a
+ * different slot number moves every zone and scan list entry that names it, and
+ * on this radio eight APRS settings as well - so the one thing a person cannot
+ * check afterwards is whether all of that followed. The dialog answers it in
+ * advance: how many channels move, which lists get rewritten, and the two
+ * things a renumber cannot carry - a list entry pointing at a slot with nothing
+ * in it, and a number in a field boofwang reads and does not write.
+ *
+ * The plan is held rather than recomputed on confirm, so what was agreed to is
+ * what happens.
+ */
+const REORDERINGS = [
+  { order: 'slot', label: 'Close the gaps', hint: 'Keep the order they are in and pack them down' },
+  { order: 'name', label: 'Sort by name', hint: 'A to Z, with numbers read as numbers' },
+  { order: 'frequency', label: 'Sort by frequency', hint: 'Lowest receive frequency first' },
+] as const
+
+const pending = ref<RenumberPlan | null>(null)
+
+function preview(order: ChannelOrder) {
+  pending.value = codeplug.renumberPlan(order)
+}
+
+const reordering = computed(() => REORDERINGS.find((r) => r.order === pending.value?.order) ?? null)
+
+/** The first few moves, which is what makes "212 channels move" mean anything. */
+const MOVES_SHOWN = 8
+const shownMoves = computed(() => pending.value?.moves.slice(0, MOVES_SHOWN) ?? [])
+
+const listsRewritten = computed(() => {
+  const plan = pending.value
+  if (!plan) return { zones: [] as string[], scanLists: [] as string[] }
+  const named = (kind: 'zone' | 'scanList') =>
+    plan.rewritten.filter((r) => r.kind === kind).map((r) => `${r.name || 'unnamed'} (${r.entries})`)
+  return { zones: named('zone'), scanLists: named('scanList') }
+})
+
+const nameOfSlot = (slot: number | null) =>
+  slot === null ? 'nothing' : codeplug.doc?.channels.get(slot)?.name || `slot ${slot}`
+
+function applyPending() {
+  const plan = pending.value
+  pending.value = null
+  if (plan) codeplug.renumberChannels(plan)
+}
+
 // ------------------------------------------------------------------- export
 
 /**
@@ -1044,6 +1096,38 @@ const printedFacts = computed(() => {
           no entry point at all.
         -->
         <OpenCodeplugButton toolbar />
+
+        <!--
+          Reordering the bank. Every ordering opens the same preview, because
+          the cost of all three is the same one: channel numbers move, and
+          everything that names a channel by number has to move with them.
+        -->
+        <UPopover>
+          <button
+            type="button"
+            class="inline-flex items-center"
+            style="height: 31px; padding: 0 10px; gap: 6px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13.5px"
+            title="Give the channels new slot numbers, and move the zones and scan lists with them"
+          >
+            <UIcon name="i-lucide-arrow-up-down" style="width: 12px; height: 12px; color: var(--fn)" />
+            Reorder
+          </button>
+          <template #content>
+            <div style="padding: 6px; background: var(--pn); border: 1px solid var(--ln); border-radius: 6px">
+              <button
+                v-for="r in REORDERINGS"
+                :key="r.order"
+                type="button"
+                class="flex w-full text-left"
+                style="flex-direction: column; gap: 1px; padding: 7px 10px; border-radius: 4px; background: transparent"
+                @click="preview(r.order)"
+              >
+                <span style="font-size: 13.5px; color: var(--tx)">{{ r.label }}</span>
+                <span style="font-size: 12px; color: var(--fn)">{{ r.hint }}</span>
+              </button>
+            </div>
+          </template>
+        </UPopover>
 
         <!--
           Its own button rather than an entry in the Export menu: printing is a
@@ -1250,6 +1334,173 @@ const printedFacts = computed(() => {
             @click="deleteSelected()"
           />
           <RiskAction risk="neutral" ghost label="Cancel" @click="confirmingDelete = false" />
+        </div>
+      </template>
+    </UModal>
+
+    <!--
+      What renumbering the bank would do, before it does it.
+
+      The moves are the least of it. A channel number is a name that zones, scan
+      lists and eight of this radio's settings use, and whether every one of
+      them followed is the thing a person cannot check afterwards by looking at
+      the table. So the dialog says what moves, what gets rewritten alongside,
+      and - the part that matters - what will not be rewritten and what it will
+      mean instead.
+    -->
+    <UModal
+      :open="pending !== null"
+      :title="reordering ? reordering.label : ''"
+      :ui="{ content: 'max-w-xl' }"
+      @update:open="(v: boolean) => { if (!v) pending = null }"
+    >
+      <template #body>
+        <template v-if="pending">
+          <p
+            v-if="pending.unplaced.length > 0"
+            style="font-size: 14px; line-height: 1.6; color: var(--tx); max-width: 68ch"
+          >
+            {{ pending.unplaced.length }} channel{{ pending.unplaced.length === 1 ? '' : 's' }} would have no
+            slot to go to on this radio, so nothing is moved. Slot
+            <span class="font-mono tabular">{{ pending.unplaced.map((u) => u.channel).join(', ') }}</span>.
+          </p>
+
+          <p
+            v-else-if="pending.moves.length === 0 && pending.dropped.length === 0"
+            style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 68ch"
+          >
+            The channels are already in this order. Nothing would change.
+          </p>
+
+          <template v-else>
+            <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 68ch">
+              <span style="color: var(--tx)">{{ pending.moves.length }}</span> of
+              {{ codeplug.channelCount }} channels take a new slot number. Nothing is sent to the radio, and
+              <span style="color: var(--tx)">{{ undoHint }}</span> puts every number back in a single step.
+            </p>
+
+            <div
+              v-if="shownMoves.length"
+              class="mt-3 rounded-[7px]"
+              style="border: 1px solid var(--ln); background: var(--pn); padding: 10px 13px"
+            >
+              <div class="label-xs" style="color: var(--fn); letter-spacing: 0.08em; margin-bottom: 6px">
+                Moving
+              </div>
+              <div
+                v-for="m in shownMoves"
+                :key="m.from"
+                class="flex items-center"
+                style="gap: 7px; font-size: 13px; line-height: 1.7"
+              >
+                <span class="font-mono tabular" style="color: var(--mu); min-width: 42px">{{ m.from }}</span>
+                <UIcon name="i-lucide-arrow-right" style="width: 11px; height: 11px; color: var(--fn)" />
+                <span class="font-mono tabular" style="color: var(--tx); min-width: 42px">{{ m.to }}</span>
+                <span style="color: var(--mu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+                  {{ m.name || 'unnamed' }}
+                </span>
+              </div>
+              <p
+                v-if="pending.moves.length > shownMoves.length"
+                style="font-size: 12.5px; color: var(--fn); margin-top: 5px"
+              >
+                and {{ pending.moves.length - shownMoves.length }} more
+              </p>
+            </div>
+
+            <div
+              v-if="listsRewritten.zones.length || listsRewritten.scanLists.length"
+              class="mt-3 rounded-[7px]"
+              style="border: 1px solid var(--ln); background: var(--pn); padding: 10px 13px"
+            >
+              <div class="label-xs" style="color: var(--fn); letter-spacing: 0.08em; margin-bottom: 6px">
+                Rewritten in the same edit
+              </div>
+              <p v-if="listsRewritten.zones.length" style="font-size: 13px; line-height: 1.5; color: var(--tx)">
+                Zones: {{ listsRewritten.zones.join(', ') }}
+              </p>
+              <p
+                v-if="listsRewritten.scanLists.length"
+                style="font-size: 13px; line-height: 1.5; color: var(--tx)"
+              >
+                Scan lists: {{ listsRewritten.scanLists.join(', ') }}
+              </p>
+              <p
+                v-if="pending.settings.length"
+                style="font-size: 13px; line-height: 1.5; color: var(--tx)"
+              >
+                Settings: {{ pending.settings.length }} that hold a channel number
+              </p>
+              <p style="font-size: 12.5px; line-height: 1.5; color: var(--fn); margin-top: 5px">
+                Each entry follows the channel it names, keeping the order the radio presents it in.
+              </p>
+            </div>
+
+            <div
+              v-if="pending.dropped.length"
+              class="mt-3 rounded-[7px]"
+              style="border: 1px solid var(--cnL); background: var(--cnB); padding: 10px 13px"
+            >
+              <div class="flex items-center" style="gap: 6px; color: var(--cn); margin-bottom: 4px">
+                <UIcon name="i-lucide-triangle-alert" style="width: 12px; height: 12px" />
+                <span class="label-xs" style="letter-spacing: 0.08em">
+                  {{ pending.dropped.length }} entr{{ pending.dropped.length === 1 ? 'y' : 'ies' }} taken out
+                </span>
+              </div>
+              <p
+                v-for="d in pending.dropped.slice(0, 6)"
+                :key="`${d.kind}-${d.id}-${d.channel}`"
+                style="font-size: 13px; line-height: 1.5; color: var(--tx)"
+              >
+                {{ d.kind === 'zone' ? 'Zone' : 'Scan list' }} {{ d.name || 'unnamed' }} names channel
+                <span class="font-mono tabular">{{ d.channel }}</span>, which is an empty slot.
+              </p>
+              <p style="font-size: 12.5px; line-height: 1.5; color: var(--fn); margin-top: 5px">
+                They are dropped rather than moved. A renumber would otherwise turn a number pointing at
+                nothing into one pointing at somebody else's channel.
+              </p>
+            </div>
+
+            <div
+              v-if="pending.carried.length"
+              class="mt-3 rounded-[7px]"
+              style="border: 1px solid var(--cnL); background: var(--cnB); padding: 10px 13px"
+            >
+              <div class="flex items-center" style="gap: 6px; color: var(--cn); margin-bottom: 4px">
+                <UIcon name="i-lucide-triangle-alert" style="width: 12px; height: 12px" />
+                <span class="label-xs" style="letter-spacing: 0.08em">
+                  {{ pending.carried.length }} number{{ pending.carried.length === 1 ? '' : 's' }} boofwang
+                  does not write
+                </span>
+              </div>
+              <p
+                v-for="c in pending.carried.slice(0, 6)"
+                :key="`${c.kind}-${c.id}-${c.field}`"
+                style="font-size: 13px; line-height: 1.5; color: var(--tx)"
+              >
+                {{ c.name || 'unnamed' }} · {{ c.field }} stays
+                <span class="font-mono tabular">{{ c.channel }}</span>, which becomes
+                {{ nameOfSlot(c.becomes) }} instead of {{ nameOfSlot(c.was) }}.
+              </p>
+              <p style="font-size: 12.5px; line-height: 1.5; color: var(--fn); margin-top: 5px">
+                These are read from the radio and never sent back to it, so the number it holds is the number
+                it keeps. Set them from the radio's own menu after writing.
+              </p>
+            </div>
+          </template>
+        </template>
+      </template>
+
+      <template #footer>
+        <div class="flex items-center w-full" style="gap: 8px">
+          <RiskAction
+            v-if="pending && pending.unplaced.length === 0 && (pending.moves.length || pending.dropped.length)"
+            risk="caution"
+            icon="i-lucide-arrow-up-down"
+            :label="reordering ? reordering.label : 'Reorder'"
+            @click="applyPending()"
+          />
+          <RiskAction risk="neutral" ghost label="Cancel" @click="pending = null" />
         </div>
       </template>
     </UModal>
