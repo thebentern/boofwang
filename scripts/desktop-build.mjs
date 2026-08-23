@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /**
  * Package the desktop shell, signing it when there is anything to sign with.
@@ -79,5 +82,27 @@ if (process.platform === 'win32' && !has('CSC_LINK', 'CSC_KEY_PASSWORD')) {
 
 for (const note of notes) console.log(`desktop-build: ${note}`)
 
-const run = spawnSync('electron-builder', args, { stdio: 'inherit', shell: process.platform === 'win32' })
+/**
+ * Find electron-builder without relying on PATH.
+ *
+ * A pnpm script gets `node_modules/.bin` on PATH; this file does not, because
+ * CI runs it as `node scripts/desktop-build.mjs`. The first run on the three
+ * platforms failed identically and only after doing everything else right -
+ * "'electron-builder' is not recognized" on Windows, a bare exit 1 on the
+ * others. Resolving it here means the script behaves the same however it is
+ * invoked.
+ */
+function electronBuilder() {
+  const bin = join(dirname(fileURLToPath(import.meta.url)), '..', 'node_modules', '.bin', 'electron-builder')
+  const windows = process.platform === 'win32'
+  const local = windows ? `${bin}.cmd` : bin
+  return existsSync(local) ? local : 'electron-builder'
+}
+
+const command = electronBuilder()
+console.log(`desktop-build: ${command} ${args.join(' ')}`)
+
+// `shell` on Windows because .bin holds a .cmd, which CreateProcess will not
+// run on its own.
+const run = spawnSync(command, args, { stdio: 'inherit', shell: process.platform === 'win32' })
 process.exit(run.status ?? 1)
