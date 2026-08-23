@@ -2,12 +2,13 @@
 /**
  * Zones and talk groups.
  *
- * Both are decoded from the radio and both can be written, but only their
- * names: a zone's membership is a list of absolute channel numbers, and what
- * the radio does with one pointing at a slot that has since been emptied has
- * not been established. Membership is therefore shown - it is the thing that
- * tells you which zone is which - and marked as coming from the radio, rather
- * than made editable and silently dropped when the codeplug is encoded.
+ * Names and membership are both written. Membership is a list of absolute
+ * channel numbers, so the rule that keeps it honest is that a number here only
+ * ever names a channel that is actually there: the editor drops anything the
+ * codeplug has no channel for, deleting a channel takes it out of every list
+ * that named it, and renumbering the bank moves the entries with it. What the
+ * radio does with an in-count entry pointing at a blank record is still open -
+ * see `docs/protocols/dm32uv.md` - and none of those paths can create one.
  */
 useSeoMeta({ title: 'Zones and DMR lists' })
 

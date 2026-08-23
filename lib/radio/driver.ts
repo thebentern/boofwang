@@ -218,6 +218,21 @@ export interface RadioDriver {
    * start of a name - can only be told by where it sits relative to the others.
    */
   ownedRanges(regionStart: number, image?: RadioImage): readonly (readonly [number, number])[]
+
+  /**
+   * Whether this image has somewhere to put channel `slot`.
+   *
+   * Optional, and about the unit rather than the model. A radio whose channel
+   * bank is one flat array has nothing to answer and omits it; the DM-32UV
+   * allocates its bank a 4 KiB block at a time as the user programs into it, so
+   * a unit with blocks 0x12-0x14 and 0x18 has memory for channels 1-254 and
+   * 510-594 and none at all for the 255 numbers in between. `encode` already
+   * refuses a channel it has no page for, by name. This is the same fact asked
+   * in advance, so an operation that chooses slot numbers - renumbering the
+   * bank - can choose ones that exist rather than build a codeplug that is only
+   * refused at the point of writing it.
+   */
+  storesSlot?(image: RadioImage, slot: number): boolean
 }
 
 export class DriverError extends Error {
