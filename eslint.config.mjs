@@ -31,4 +31,23 @@ export default withNuxt(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
+  {
+    // The service worker template. It runs in a scope that has neither a window
+    // nor a module system, and two of the four placeholders
+    // `scripts/build-service-worker.mjs` fills in stand where an expression
+    // goes rather than inside a string - so they read as undefined globals
+    // here, by design, and this is the only file that may say so.
+    files: ['sw/**/*.js'],
+    languageOptions: {
+      globals: {
+        __BOOFWANG_BUILD__: 'readonly',
+        __BOOFWANG_PRECACHE__: 'readonly',
+        caches: 'readonly',
+        fetch: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        self: 'readonly',
+      },
+    },
+  },
 )

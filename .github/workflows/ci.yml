@@ -49,10 +49,15 @@ jobs:
       - name: Verify the GitHub Pages artifact
         run: |
           set -euo pipefail
-          for f in .nojekyll index.html 404.html; do
+          for f in .nojekyll index.html 404.html sw.js manifest.webmanifest; do
             test -e ".output/public/$f" || { echo "::error::.output/public/$f is missing"; exit 1; }
           done
           # Without .nojekyll, Pages runs Jekyll and strips /_nuxt/, which
           # silently serves a blank page.
           test -d .output/public/_nuxt || { echo "::error::no build assets emitted"; exit 1; }
+          # A worker still holding a placeholder parses, installs, and caches
+          # the build under a cache named after the placeholder - so the next
+          # build does not evict it and the site is pinned to this one forever.
+          ! grep -q '__BOOFWANG_' .output/public/sw.js \
+            || { echo "::error::sw.js still contains a build placeholder"; exit 1; }
           echo "artifact OK"

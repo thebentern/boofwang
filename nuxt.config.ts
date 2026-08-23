@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { fileURLToPath } from 'node:url'
+import { buildInfo } from './scripts/build-info.mjs'
 
 // Icons referenced from RadioSchema/FieldSpec *data* cannot be found by the
 // client-bundle scanner (it only sees statically written names). With
@@ -128,9 +129,17 @@ export default defineNuxtConfig({
           content:
             'Browser-based codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-82, Baofeng UV-5R Mini and Baofeng DM-32UV. Runs entirely in your browser over Web Serial.',
         },
-        // Tints the browser chrome on mobile to match the app's own surface.
-        { name: 'theme-color', content: '#101315', media: '(prefers-color-scheme: dark)' },
-        { name: 'theme-color', content: '#f7f8f8', media: '(prefers-color-scheme: light)' },
+        /*
+         * Tints the browser chrome on mobile to match the app's own surface.
+         *
+         * These are `--bg` from `app/assets/css/main.css` in each theme, and
+         * they have to stay that. Installed to a home screen the app fills the
+         * display and the chrome sits directly against the page: the two values
+         * that used to be here were close to the page but not equal to it, and
+         * the difference reads as a seam along the top edge of a phone.
+         */
+        { name: 'theme-color', content: '#141A22', media: '(prefers-color-scheme: dark)' },
+        { name: 'theme-color', content: '#F2F5F8', media: '(prefers-color-scheme: light)' },
       ],
       /*
        * Icons are served from the site root.
@@ -148,9 +157,31 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
         { rel: 'icon', type: 'image/x-icon', sizes: '16x16 32x32 48x48', href: '/favicon.ico' },
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        /*
+         * What makes the app installable, alongside the service worker written
+         * by `scripts/build-service-worker.mjs`. Its `start_url` and `scope`
+         * are `/` for the same reason the hrefs above have no prefix, and it
+         * would need the same treatment for a repository-subpath build.
+         */
+        { rel: 'manifest', href: '/manifest.webmanifest' },
       ],
     },
   },
+
+  /**
+   * Which build this is, compiled in.
+   *
+   * Not fetched at runtime, deliberately. The offline cache makes it possible
+   * for a browser to hold an old copy of the app indefinitely, and a version
+   * number read from a file could then disagree with the code reading it -
+   * which is the one situation the version display exists to catch. Baked into
+   * the bundle, it cannot.
+   *
+   * `scripts/build-info.mjs` is the single reading of git; the service worker
+   * gets its copy from the same function so the footer and the update prompt
+   * cannot tell different stories.
+   */
+  runtimeConfig: { public: { build: buildInfo() } },
 
   modules: ['@nuxt/ui', '@pinia/nuxt', '@vueuse/nuxt', '@nuxt/eslint'],
 

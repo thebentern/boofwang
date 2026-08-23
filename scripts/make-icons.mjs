@@ -26,6 +26,7 @@ import sharp from 'sharp'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const BUILD = join(HERE, '..', 'build')
+const PUBLIC = join(HERE, '..', 'public')
 const SVG = join(BUILD, 'icon.svg')
 
 /** The sizes an `.icns` carries, and the names `iconutil` insists on. */
@@ -49,6 +50,54 @@ function macVariant() {
     ${inner}
   </g>
 </svg>`
+}
+
+/**
+ * Substitute exactly once, or say what changed.
+ *
+ * The maskable variant below is made by editing three specific strings out of
+ * the drawing, and `String.replace` on a pattern that no longer matches does
+ * nothing at all and reports nothing at all. That failure would ship as a home
+ * screen icon with a rounded corner cut out of a rounded corner, which nobody
+ * would notice until somebody installed it on a phone.
+ */
+function swap(svg, find, replace) {
+  if (!svg.includes(find)) throw new Error(`build/icon.svg no longer contains:\n  ${find}`)
+  return svg.split(find).join(replace)
+}
+
+/**
+ * The maskable silhouette: full-bleed ground, drawing inset into the safe zone.
+ *
+ * Android crops a maskable icon to whatever shape the launcher wants, and
+ * guarantees only the centre circle of 80% diameter. Two consequences, and this
+ * variant exists because the committed drawing satisfies neither: its squircle
+ * corners would be cropped by a *second* rounded corner and read as a notch,
+ * and its mark reaches about 452 units from centre where the safe circle stops
+ * at 410.
+ *
+ * So the tile is squared and the drawing is scaled to 80% about the canvas
+ * centre - the same factor the macOS variant uses, which takes the mark to 364
+ * and leaves it comfortably inside. Scaling about the centre rather than
+ * re-centring keeps the mark sitting very slightly high, which is the one thing
+ * the drawing's own comment asks for.
+ */
+function maskableVariant() {
+  let out = source.replace(/^<\?xml[^>]*\?>\s*/, '')
+  out = swap(
+    out,
+    '<rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#ground)"/>',
+    '<rect x="0" y="0" width="1024" height="1024" fill="url(#ground)"/>',
+  )
+  // The rim hairline traces a squircle that is no longer there.
+  out = swap(
+    out,
+    '<rect x="4" y="4" width="1016" height="1016" rx="226" fill="none" stroke="url(#rim)" stroke-width="8"/>',
+    '',
+  )
+  const scale = 824 / 1024
+  out = swap(out, 'transform="translate(512 496)"', `transform="translate(512 ${512 + (496 - 512) * scale}) scale(${scale})"`)
+  return out
 }
 
 /**
@@ -151,20 +200,35 @@ const mac = macVariant()
 const smallBleed = smallVariant(228)
 const smallMac = smallVariant(228)
 
-outputs.push(['icon.png', await png(bleed, 512)])
+outputs.push([BUILD, 'icon.png', await png(bleed, 512)])
 outputs.push([
+  BUILD,
   'icon.ico',
   ico(await Promise.all(ICO_SIZES.map(async (size) => ({ size, data: await pngFor(bleed, smallBleed, size) })))),
 ])
 
+/*
+ * The icons `public/manifest.webmanifest` points at, so boofwang can be
+ * installed to a home screen and opened without a network.
+ *
+ * 192 and 512 are the two sizes Chrome requires before it will offer to install
+ * anything at all. They are the full-bleed drawing, because an `any` icon is
+ * placed as it is drawn; the maskable one is a separate silhouette because it
+ * is not.
+ */
+outputs.push([PUBLIC, 'icon-192.png', await png(bleed, 192)])
+outputs.push([PUBLIC, 'icon-512.png', await png(bleed, 512)])
+outputs.push([PUBLIC, 'icon-maskable-512.png', await png(maskableVariant(), 512)])
+
 // `iconutil` is macOS only. Elsewhere the committed `.icns` is left as it is,
 // and `--check` says so rather than reporting it stale on a Linux runner.
-if (process.platform === 'darwin') outputs.push(['icon.icns', await icns(mac, smallMac)])
+if (process.platform === 'darwin') outputs.push([BUILD, 'icon.icns', await icns(mac, smallMac)])
 else console.log('icon.icns: skipped, iconutil is macOS only')
 
 let stale = 0
-for (const [name, data] of outputs) {
-  const path = join(BUILD, name)
+for (const [dir, name, data] of outputs) {
+  const path = join(dir, name)
+  const label = `${dir === PUBLIC ? 'public' : 'build'}/${name}`
   let current = null
   try {
     current = readFileSync(path)
@@ -175,12 +239,12 @@ for (const [name, data] of outputs) {
   if (check) {
     if (!same) {
       stale++
-      console.error(`${name} is stale: run \`node scripts/make-icons.mjs\``)
+      console.error(`${label} is stale: run \`node scripts/make-icons.mjs\``)
     }
     continue
   }
   if (!same) writeFileSync(path, data)
-  console.log(`${name}: ${data.length.toLocaleString()} bytes${same ? ' (unchanged)' : ''}`)
+  console.log(`${label}: ${data.length.toLocaleString()} bytes${same ? ' (unchanged)' : ''}`)
 }
 
 if (check && stale > 0) process.exit(1)

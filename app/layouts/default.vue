@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatBuild } from '#core/version/build.js'
+
 /**
  * Persistent chrome: a 44px nav, the status bar beneath it, and a footer.
  *
@@ -40,6 +42,18 @@ const currentLabel = computed(() => nav.find((n) => n.to === activePath.value)?.
 
 const colorMode = useColorMode()
 const isDark = computed(() => colorMode.value === 'dark')
+
+/**
+ * The running build, in the footer, on every page.
+ *
+ * It is here rather than only on the About page because of the offline cache:
+ * once a browser can hold a copy of boofwang indefinitely, "which version is
+ * this" stops being trivia and becomes the first question worth asking when a
+ * radio does not behave. Registering the worker happens here too, since this
+ * layout is the one component every page mounts inside.
+ */
+const build = useBuildInfo()
+const { state: updateState } = useAppUpdate()
 </script>
 
 <template>
@@ -111,6 +125,13 @@ const isDark = computed(() => colorMode.value === 'dark')
       </div>
     </header>
 
+    <!--
+      Above the status bar rather than below it: the bar answers "what am I
+      working on", and this is about the program itself, which belongs with the
+      chrome. It renders nothing until there is something to say.
+    -->
+    <AppUpdateNotice />
+
     <AppStatusBar />
 
     <main class="flex-1">
@@ -123,7 +144,15 @@ const isDark = computed(() => colorMode.value === 'dark')
         class="mx-auto max-w-[1400px] px-4 py-5 flex flex-wrap items-center gap-x-4 gap-y-1.5"
         style="font-size: 13px; color: var(--fn)"
       >
-        <span class="font-mono">boofwa.ng</span>
+        <!--
+          The version is a link to where it is explained, not a decoration.
+          Someone reading a wrong frequency off a radio needs to be able to say
+          which build wrote it, and then find out how old that is.
+        -->
+        <NuxtLink to="/about" class="font-mono tabular" style="color: var(--fn)">
+          boofwa.ng {{ formatBuild(build) }}
+        </NuxtLink>
+        <span v-if="updateState.offlineReady">Offline ready</span>
         <span>GNU GPL v3 or later</span>
         <span>Everything runs in your browser. Nothing is uploaded anywhere.</span>
         <a

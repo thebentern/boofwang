@@ -23,6 +23,7 @@ export interface NavigatorLike {
   readonly userAgent?: string
   readonly serial?: unknown
   readonly bluetooth?: unknown
+  readonly serviceWorker?: unknown
 }
 
 export function detectBrowser(ua: string): string {
