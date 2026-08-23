@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { commitUrl, describeAge, formatBuild } from '#core/version/build.js'
+
 /**
  * The page that answers "who wrote this and what does it do with my data",
  * plus the one place that asks for anything back.
@@ -21,6 +23,34 @@ const ICON = 'width:13px;height:13px;color:var(--fn);flex-shrink:0'
 
 /** A link inside prose. Blue is the only unearned colour on this page. */
 const LINK = 'color:var(--in)'
+
+/**
+ * Which build this is, and whether it is stored on the device.
+ *
+ * The long form of the version in the footer. It exists because the offline
+ * copy makes a stale boofwang possible: a browser that has stored one build
+ * will keep opening it, and the two facts that let somebody tell whether that
+ * has happened to them are which commit they are running and when the app last
+ * managed to look for a newer one. Both are here, alongside the button that
+ * asks now.
+ */
+const build = useBuildInfo()
+const { state: update, pending, check } = useAppUpdate()
+
+const commitHref = computed(() => commitUrl(build))
+
+/*
+ * Recomputed on a tick rather than once at setup. This page is left open while
+ * somebody reads it, and "just now" that is quietly forty minutes old is the
+ * sort of small lie that makes a diagnostic worth less than nothing.
+ */
+const now = ref(new Date())
+let ticker: ReturnType<typeof setInterval> | undefined
+onMounted(() => (ticker = setInterval(() => (now.value = new Date()), 30_000)))
+onBeforeUnmount(() => clearInterval(ticker))
+
+const committedAge = computed(() => describeAge(build.committedAt, now.value))
+const checkedAge = computed(() => (update.lastCheckedAt ? describeAge(update.lastCheckedAt, now.value) : null))
 
 const credits = [
   {
@@ -59,6 +89,90 @@ const credits = [
       build</a>, which is the same application in a window of its own: it exists because two repeater
       directories refuse to answer a browser, and it can ask them on your behalf.
     </p>
+
+    <section style="margin-bottom: 22px">
+      <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 8px">
+        <UIcon name="i-lucide-box" :style="ICON" />
+        This build
+      </h2>
+
+      <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px">
+        <div style="padding: 15px 18px; border-bottom: 1px solid var(--ln)">
+          <div class="flex items-center flex-wrap gap-x-2.5 gap-y-1">
+            <span class="font-mono tabular" style="font-size: 14px; font-weight: 600; color: var(--tx)">
+              {{ formatBuild(build) }}
+            </span>
+            <a
+              v-if="commitHref"
+              :href="commitHref"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1"
+              style="font-size: 12.5px"
+              :style="LINK"
+            >
+              View this commit
+              <UIcon name="i-lucide-external-link" style="width: 11px; height: 11px" />
+            </a>
+          </div>
+          <p v-if="committedAge" style="margin-top: 3px; font-size: 12.5px; color: var(--fn)">
+            Committed {{ committedAge }}.
+          </p>
+        </div>
+
+        <div style="padding: 15px 18px">
+          <!--
+            Stated as a fact about this device, not as a feature. Whether the
+            app is stored here is the difference between it opening on a hilltop
+            and not opening at all, and it is not something a person can find
+            out any other way.
+          -->
+          <p style="font-size: 13.5px; line-height: 1.55; color: var(--mu)">
+            <template v-if="update.support.blocker === 'desktop-shell'">
+              This is the desktop build, which is already an installed application and already works without a
+              network. It updates by being replaced, from the releases page.
+            </template>
+            <template v-else-if="update.offlineReady">
+              Stored on this device. boofwang opens without a network, and the copy it opens is the one named
+              above until an update is applied.
+            </template>
+            <template v-else-if="update.support.supported">
+              Not stored on this device yet. Reload once and boofwang keeps a copy, so it will open without a
+              network afterwards.
+            </template>
+            <template v-else>
+              {{ update.support.advice }}
+            </template>
+          </p>
+
+          <div
+            v-if="update.support.supported"
+            class="flex items-center flex-wrap gap-x-3 gap-y-2"
+            style="margin-top: 11px"
+          >
+            <RiskAction
+              risk="neutral"
+              ghost
+              size="sm"
+              icon="i-lucide-refresh-cw"
+              :label="pending ? 'An update is waiting' : 'Check for updates'"
+              :loading="update.checking"
+              :disabled="pending"
+              @click="check()"
+            />
+            <span style="font-size: 12.5px; color: var(--fn)">
+              <template v-if="pending">Apply it from the bar at the top of the page.</template>
+              <template v-else-if="checkedAge">Last checked {{ checkedAge }}.</template>
+              <template v-else>Not checked yet on this device.</template>
+            </span>
+          </div>
+
+          <p v-if="update.failure" style="margin-top: 8px; font-size: 12.5px; color: var(--dg)">
+            The check did not complete: {{ update.failure }}
+          </p>
+        </div>
+      </div>
+    </section>
 
     <section style="margin-bottom: 22px">
       <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 6px">

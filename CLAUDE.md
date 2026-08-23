@@ -57,6 +57,16 @@ preset rows and the diff, and `channel-diff.ts` calls it out by name as `gain`.
 in a summary or an export that is not the full codeplug.** A fixture once shipped
 with fourteen real AES keys in it. Scan any new hardware capture before committing it.
 
+**The offline cache holds one build, states which, and never activates itself.**
+A browser can now keep a copy of boofwang indefinitely, so a stale copy writing an
+old understanding of a radio's memory is a real failure mode - which is why the
+build is named in the footer of every page and the About page says how old it is.
+`sw/worker.js` caches exactly what the build emitted, adds nothing
+opportunistically and never touches a cross-origin request, because the repeater
+directories are live. A waiting update is offered, never applied: a reload
+discards unwritten edits, so the offer is priced by the risk register and is
+withdrawn entirely while a transfer is running.
+
 ## Structure
 
 ```
@@ -70,8 +80,11 @@ lib/        framework-agnostic core. No vue, pinia, nuxt or ~/ imports — ESLin
   io/       CHIRP CSV in and out, CHIRP .img, .bwp, raw .bin, summaries, presets
   validate/ shared rules
   storage/  IndexedDB backups
+  version/  which build is running, and whether an update is worth a prompt
 app/        Nuxt UI, rendered from RadioSchema rather than per-radio code
-test/       core (node), app, nuxt vitest projects
+sw/         the offline cache. A classic worker script whose four constants
+            `scripts/build-service-worker.mjs` fills in over a built site
+test/       core (node), app, nuxt, electron, sw vitest projects
 docs/protocols/  one per radio: what is confirmed, what is derived, what is unverified
 reference/  vendored upstream sources. Git-ignored. `./scripts/fetch-reference.sh`
 ```

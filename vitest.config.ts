@@ -20,6 +20,17 @@ export default defineConfig({
         },
       },
       {
+        test: {
+          name: 'sw',
+          // The offline cache. Same reasoning as the electron project above:
+          // the worker's rules are checked as code rather than by deploying a
+          // site, installing it, taking the network away and looking. It is
+          // evaluated in a fake worker scope, so no DOM and no browser.
+          environment: 'node',
+          include: ['test/sw/**/*.spec.ts'],
+        },
+      },
+      {
         resolve: { alias: { '#core': core } },
         test: {
           name: 'core',

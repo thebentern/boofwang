@@ -7,6 +7,44 @@ Static site, no server, no account. Codeplugs stay on the machine.
 Live at [boofwa.ng](https://boofwa.ng), and as a
 [desktop build](https://github.com/thebentern/boofwang/releases) for macOS, Windows and Linux.
 
+## Working offline
+
+boofwang self-hosts its fonts and never calls out for an icon, because radios
+get programmed where there is no network. The site itself still needed one to
+load, which made both of those gestures rather than measures. It no longer does.
+
+Open [boofwa.ng](https://boofwa.ng) once on a network and the browser keeps a
+copy: the whole build, about 2 MB, precached atomically. After that it opens
+with the network off, on a laptop or on a phone doing Bluetooth to a UV-5R Mini
+in a field. Chromium browsers also offer to install it to the home screen or
+dock, which is the same copy in a window without a URL bar.
+
+**The version is stated in the footer of every page** - `boofwa.ng 0.1.1 ·
+a1b2c3d` - and in full on the About page, with how old the commit is and when
+this device last managed to look for a newer one. A codeplug editor that has
+quietly stopped being updated is a hazard of its own: the offsets under
+`lib/radios/` change when somebody works out that a byte meant something else,
+and an old copy will write the old understanding to a radio without hesitating.
+
+When a newer build arrives it is stated, never applied. Applying it means
+reloading, and a reload discards a codeplug that has been read and edited but
+not yet written, so the offer follows the risk register: one click when nothing
+is open, nothing at all while a transfer is running, and the destructive tier -
+what is lost, named, then a typed word - when there are unwritten edits.
+
+The cache is narrow on purpose. It holds exactly what the build emitted, adds
+nothing opportunistically, and never touches a cross-origin request: the
+repeater directories, the BrandMeister device list and the RadioID database are
+live, and a repeater that changed frequency six months ago is a licence problem
+rather than a convenience one. `sw/worker.js` states the four rules in full, and
+`test/sw/` runs that exact file in a fake worker scope, because the alternative
+way to check it is to deploy a site, install it, unplug the network and look at
+a blank page.
+
+The worker is written into the built site by `scripts/build-service-worker.mjs`,
+which runs as part of `pnpm build` and `pnpm generate`. The desktop build
+deliberately does not get one; see below.
+
 ## The desktop build
 
 The same application, in a window of its own. It exists for one reason: two
@@ -26,6 +64,15 @@ belongs to. Two capabilities are real today, `crossOriginFetch` and
 `customUserAgent`; a browser has neither and says so on the screen instead of
 failing.
 
+It gets no service worker. The shell is already an installed application and
+already works without a network, and it updates by being replaced through the
+releases page - so a cache in front of it would hold one release's assets in the
+profile and go on serving them after the application itself had been updated.
+That is an offline copy defeating an update, which is the exact failure the
+offline build is there to prevent. `lib/platform/offline-support.ts` decides it,
+and checks the host before anything else, because the shell carries Chromium and
+registers its own scheme as secure: every naive check passes there.
+
 ```bash
 pnpm desktop:dev      # generate the site, then run the shell against it
 pnpm desktop:build    # package for the current platform into dist-desktop/
@@ -43,16 +90,22 @@ repository secrets rather than changing code. `docs/signing.md` says what to
 obtain, what each option costs and what it actually buys, and
 `scripts/setup-signing.sh` sets the secrets once you have the files.
 
-The icons are generated from `build/icon.svg`:
+Every icon is generated from `build/icon.svg`, the desktop ones and the ones the
+web app manifest points at:
 
 ```bash
-pnpm icons          # regenerate icon.png, icon.ico and icon.icns
+pnpm icons          # build/icon.{png,ico,icns} and public/icon-{192,512,maskable-512}.png
 pnpm icons:check    # fail if the committed icons are stale
 ```
 
 They are committed because only macOS has `iconutil`, so a Windows or Linux
 build cannot make its own - and `icons:check` runs in CI so the committed ones
 cannot drift from the drawing.
+
+Three silhouettes come out of the one drawing. The macOS one is inset in its
+canvas; the maskable one is squared off and inset, because Android crops a
+maskable icon to whatever shape its launcher wants and a squircle cropped by a
+second squircle reads as a notch.
 
 ## Radios
 
@@ -207,7 +260,9 @@ lib/          framework-agnostic core; no Vue or Nuxt imports, runs in plain Nod
   io/         CHIRP CSV, CHIRP .img, .bwp, raw .bin, shareable summary
   storage/    IndexedDB backups
   platform/   browser capability checks
+  version/    which build is running, and whether an update is worth a prompt
 app/          Nuxt 4 UI, rendered from radio schemas rather than per-radio code
+sw/           the offline cache, a classic worker script filled in at build time
 ```
 
 The `lib/` boundary is enforced by an ESLint `no-restricted-imports` rule and by

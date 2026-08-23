@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SPDX = 'SPDX-License-Identifier: GPL-3.0-or-later'
-const ROOTS = ['lib', 'scripts', 'test']
+const ROOTS = ['lib', 'scripts', 'sw', 'test']
 const EXTS = ['.ts', '.mjs', '.js']
 const SKIP_DIRS = new Set(['node_modules', '.nuxt', '.output', 'dist', 'reference', 'vendor'])
 const EXTRA_FILES = ['nuxt.config.ts', 'vitest.config.ts', 'eslint.config.mjs']
