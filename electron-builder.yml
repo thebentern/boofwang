@@ -21,6 +21,12 @@ directories:
   output: dist-desktop
   buildResources: build
 
+# Named explicitly rather than left to the convention. electron-builder would
+# find `build/icon.*` on its own, and has been known to silently ship its own
+# default when one is missing - a build with the Electron logo on it is the kind
+# of thing nobody notices until it is on a release page.
+icon: build/icon.png
+
 # Only what the shell needs. `.output/public` is mapped into resources/site,
 # which is where `main.mjs` looks when `app.isPackaged`.
 files:
@@ -35,6 +41,7 @@ extraResources:
 # does, because Gatekeeper's quarantine message on a mounted image is the one
 # that offers no way forward.
 mac:
+  icon: build/icon.icns
   target:
     - target: zip
       arch: [arm64, x64]
@@ -46,11 +53,13 @@ mac:
   hardenedRuntime: false
 
 win:
+  icon: build/icon.ico
   target:
     - target: zip
       arch: [x64]
 
 linux:
+  icon: build/icon.png
   target:
     - target: AppImage
       arch: [x64]

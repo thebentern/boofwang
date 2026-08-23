@@ -37,6 +37,22 @@ downloaded build until it is allowed through Gatekeeper, and Windows
 SmartScreen will warn. On Linux a serial cable is a group-permissions question
 before it is a software one, usually `dialout` or `uucp`.
 
+The pipeline signs when credentials are present and builds unsigned when they
+are not, saying which in its own log, so turning it on is a matter of adding
+repository secrets rather than changing code. `docs/signing.md` says what to
+obtain, what each option costs and what it actually buys.
+
+The icons are generated from `build/icon.svg`:
+
+```bash
+pnpm icons          # regenerate icon.png, icon.ico and icon.icns
+pnpm icons:check    # fail if the committed icons are stale
+```
+
+They are committed because only macOS has `iconutil`, so a Windows or Linux
+build cannot make its own - and `icons:check` runs in CI so the committed ones
+cannot drift from the drawing.
+
 ## Radios
 
 | Radio | Memory | Read | Write | Hardware-verified |

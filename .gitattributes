@@ -16,6 +16,7 @@
 *.bin binary
 *.png binary
 *.ico binary
+*.icns binary
 *.woff binary
 *.woff2 binary
 *.zip binary

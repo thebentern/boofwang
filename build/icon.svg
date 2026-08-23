@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="boofwang">
+  <!--
+    The application icon.
+
+    The same radio tower as `public/favicon.svg` and the wordmark in the nav, so
+    the three read as one thing - but drawn again rather than scaled up. The
+    favicon is a 32px tile whose strokes are heavy enough to survive a tab strip;
+    at 1024 those proportions look like a warning sign. Here the mast is longer,
+    the arcs are a full pair instead of the inner pair alone, and the strokes are
+    proportionally thinner.
+
+    Palette is the app's own: the ground is the two slates the interface uses for
+    its page and its cards (#141A22 into #202C39), and the mark is the apricot
+    accent (#F29559). Nothing here is a colour that does not already appear on
+    screen, which is the point of having a palette.
+
+    Two versions come out of this file. One fills the canvas, for Windows
+    and Linux, whose own shells draw whatever container they want around it. The
+    macOS one is inset to 824 of 1024 with a squircle, which is the geometry Big
+    Sur onwards expects - an icon that fills its canvas on macOS looks oversized
+    next to every other icon in the Dock.
+  -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B3D4D"/>
+      <stop offset="0.55" stop-color="#202C39"/>
+      <stop offset="1" stop-color="#141A22"/>
+    </linearGradient>
+    <!--
+      A hairline of the lighter slate along the top edge. On a dark icon against
+      a dark Dock the silhouette otherwise goes soft; this is the same trick the
+      interface uses with its border token on a card.
+    -->
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#41576B" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#41576B" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#41576B" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <g id="tile">
+    <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#ground)"/>
+    <rect x="4" y="4" width="1016" height="1016" rx="226" fill="none" stroke="url(#rim)" stroke-width="8"/>
+  </g>
+
+  <!--
+    The mark. Centred on the tile rather than on the canvas, and sitting very
+    slightly high: a tower is bottom-heavy, and centring it by its bounding box
+    makes it look like it has slipped.
+  -->
+  <g transform="translate(512 496)">
+    <g fill="none" stroke="#F29559" stroke-width="34" stroke-linecap="round">
+      <!-- Outer arcs, which the favicon leaves out because they turn to mush at 16px. -->
+      <path d="M-286 236a330 330 0 0 1 0-472"/>
+      <path d="M286 -236a330 330 0 0 1 0 472"/>
+      <!-- Inner pair. -->
+      <path d="M-162 134a186 186 0 0 1 0-268"/>
+      <path d="M162 -134a186 186 0 0 1 0 268"/>
+      <!-- Mast, with the splayed foot that stops it reading as an exclamation mark. -->
+      <path d="M0 74v244"/>
+      <path d="M-96 318h192"/>
+    </g>
+    <circle cx="0" cy="-16" r="74" fill="#F29559"/>
+  </g>
+</svg>

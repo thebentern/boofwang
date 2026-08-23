@@ -52,7 +52,51 @@ jobs:
         env:
           NUXT_APP_BASE_URL: /
 
-      - run: pnpm electron-builder --config electron-builder.yml --publish never
+      # The icons are committed because only macOS has `iconutil`, so a build
+      # cannot regenerate them. This catches the case where the SVG moved and
+      # the icons did not - a release with a stale icon is not a thing anybody
+      # notices until it is published.
+      - run: pnpm icons:check
+        if: runner.os == 'macOS'
+
+      # electron-builder wants a *path* to the .p8, not its contents, so the
+      # secret holds base64 and this writes the file. Outside the workspace, so
+      # a stray `actions/upload-artifact` glob can never pick it up.
+      - name: Stage the notarization key
+        id: apple_key
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          KEY_B64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          # Branching in the shell rather than in `if:`, because the `secrets`
+          # context is not dependably available in a step condition and the
+          # failure mode is a step that silently never runs.
+          if [ -z "${KEY_B64:-}" ]; then
+            echo "no APPLE_API_KEY_BASE64: this build will not be notarized"
+            echo "path=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          key="${RUNNER_TEMP}/apple-api-key.p8"
+          printf '%s' "$KEY_B64" | base64 --decode > "$key"
+          chmod 600 "$key"
+          echo "path=$key" >> "$GITHUB_OUTPUT"
+
+      - name: Package
+        run: node scripts/desktop-build.mjs
+        env:
+          # Absent on a fork and on any run where the secrets have not been
+          # added: the build is then unsigned and says so in its own log, which
+          # is the state every release has shipped in so far.
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CERT_P12 || (runner.os == 'Windows' && secrets.WIN_CERT_PFX || '') }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CERT_PASSWORD || (runner.os == 'Windows' && secrets.WIN_CERT_PASSWORD || '') }}
+          # Notarization, App Store Connect API key form. Preferred over an
+          # Apple ID because it carries no password and is not tied to somebody's
+          # two-factor device.
+          APPLE_API_KEY: ${{ steps.apple_key.outputs.path }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
 
       - uses: actions/upload-artifact@v4
         with:
