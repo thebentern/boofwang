@@ -8,6 +8,16 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+  # Called by the Release workflow, which pushes the tag itself. A tag pushed
+  # with GITHUB_TOKEN does not fire the `push` trigger above - GitHub blocks
+  # that so runs cannot recurse - so the release path has to arrive here
+  # directly rather than through the tag.
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag to build from and attach the archives to
+        type: string
+        required: true
 
 permissions:
   contents: write
@@ -30,6 +40,11 @@ jobs:
             name: Linux
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The tag when Release called us, the triggering ref otherwise.
+          # Building `main` while attaching to a tag would ship archives that
+          # are not what the tag points at.
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -116,9 +131,10 @@ jobs:
     # Linux built, Windows failed the suite, and the release went out with
     # nothing attached at all. Publish what exists and say what is missing.
     #
-    # Only a tag makes a release. A manual run builds and leaves the archives on
+    # Only a tag makes a release, whether it arrived as a push or as a call from
+    # the Release workflow. A plain manual run builds and leaves the archives on
     # the run, which is what you want when checking whether it still builds.
-    if: always() && startsWith(github.ref, 'refs/tags/v')
+    if: always() && (inputs.tag || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,6 +146,9 @@ jobs:
       - name: Attach the archives to the release
         env:
           GH_TOKEN: ${{ github.token }}
+          # github.ref_name is the tag on a push, but the caller's branch when
+          # Release calls us - so the passed tag has to win where there is one.
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
           mapfile -t files < <(find artifacts -type f \
@@ -139,7 +158,7 @@ jobs:
             exit 1
           fi
           printf 'attaching %s\n' "${files[@]}"
-          gh release upload "${GITHUB_REF_NAME}" "${files[@]}" --clobber
+          gh release upload "$TAG" "${files[@]}" --clobber
 
       - name: Say which platforms are missing
         if: ${{ needs.build.result != 'success' }}

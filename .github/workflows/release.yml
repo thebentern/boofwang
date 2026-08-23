@@ -1,0 +1,175 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Release
+
+# Cutting a release is several steps that have to happen in a particular order,
+# and the order is not obvious from any one of them.
+#
+#   - The version in package.json decides the artifact filenames. Tagging v0.1.2
+#     without bumping first publishes a v0.1.2 release full of files named
+#     0.1.1, which nobody notices until the release page is up.
+#   - The Desktop workflow only uploads. `gh release upload` fails when the
+#     release does not already exist, so something has to create it.
+#   - The tag has to point at the bumped commit, not the one before it.
+#
+# So this does the ordering, and leaves the one part that is not mechanical -
+# the notes - to a person. The draft opens empty and waits to be written.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to raise
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      version:
+        description: An exact version instead, without the v. Overrides the choice above.
+        type: string
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  # Two of these at once would race on main and on the tag.
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Bump and tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The tag check below needs the existing tags.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The same gate everything else passes. A tag is the one thing here that
+      # cannot be quietly taken back once it is pushed, so the tree is checked
+      # before it is cut rather than after.
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: node scripts/check-headers.mjs
+
+      - name: Work out the version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXPLICIT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          current=$(node -p "require('./package.json').version")
+
+          if [ -n "${EXPLICIT:-}" ]; then
+            version="${EXPLICIT#v}"
+          else
+            version=$(node -e '
+              const [maj, min, pat] = process.argv[1].split(".").map(Number)
+              const bump = process.argv[2]
+              console.log(
+                bump === "major" ? `${maj + 1}.0.0`
+                  : bump === "minor" ? `${maj}.${min + 1}.0`
+                    : `${maj}.${min}.${pat + 1}`,
+              )
+            ' "$current" "$BUMP")
+          fi
+
+          # A malformed version reaches both the tag and the artifact filenames,
+          # and is only visible once they are published.
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::not a version: $version"; exit 1 ;;
+          esac
+
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "::error::v$version already exists"
+            exit 1
+          fi
+
+          echo "$current -> $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Bump, commit and tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs")
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"))
+            pkg.version = process.argv[1]
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n")
+          ' "$VERSION"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Named explicitly. `git add -A` here would sweep up anything else the
+          # checkout or the install left behind and put it behind a release
+          # commit, where it is hardest to notice.
+          git add package.json
+          git commit -m "Release $VERSION"
+          git tag -a "$TAG" -m "boofwang $VERSION"
+          git push origin HEAD:main
+          git push origin "$TAG"
+
+      - name: Open a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists, leaving it alone"
+          else
+            gh release create "$TAG" --draft --title "boofwang $VERSION" --notes ""
+          fi
+
+  build:
+    name: Build
+    needs: prepare
+    # Called, not triggered. A tag pushed with GITHUB_TOKEN does not start
+    # another workflow - GitHub blocks that so runs cannot recurse - so relying
+    # on the Desktop workflow's own `push: tags` trigger would leave a tag, a
+    # draft release, and no build at all.
+    uses: ./.github/workflows/desktop.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+
+  summary:
+    name: Summary
+    needs: [prepare, build]
+    # `always()` so that a failed build still says what exists and what to do
+    # about it, rather than leaving a tag behind with no explanation.
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          RESULT: ${{ needs.build.result }}
+        run: |
+          {
+            echo "## $TAG"
+            echo
+            if [ "$RESULT" = "success" ]; then
+              echo "Built and attached. The release is a **draft**: write the notes, then publish it."
+            else
+              echo "The build finished as \`$RESULT\`. The tag and the draft release exist."
+              echo "Re-run the Desktop workflow against \`$TAG\`, or delete the tag and the draft."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
