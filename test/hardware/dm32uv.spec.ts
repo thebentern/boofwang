@@ -63,6 +63,18 @@ const CHANNEL_BLOCK = 0x12
 const HEADER = 0x10
 const SIZE = 48
 
+/**
+ * When the port was last closed, across every test in this file.
+ *
+ * The settle wait used to be skipped on each test's own first session, which is
+ * right at suite start and wrong everywhere after it. The second test opened
+ * 1.2 seconds after the first one's restore closed the port and the radio
+ * answered 90 - not ready - so it failed every time it ran behind a sibling.
+ * The radio has no idea where one test ends and the next begins, so neither can
+ * this: the wait is measured from the close, not from the test boundary.
+ */
+let lastClosed = 0
+
 describe.skipIf(!HW)('DM-32UV on the bench', () => {
   it('reads, edits every field it can write, verifies each byte, and restores', { timeout: 1_800_000 }, async () => {
     expect(PORT, 'set BOOFWANG_HW_PORT to the adapter path').not.toBe('')
@@ -73,16 +85,16 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
     // One connection per operation, as the app does. This radio has no command
     // to leave programming mode; it resets when the port closes, and needs a
     // moment afterwards before it will answer a handshake.
-    let first = true
     async function session<T>(fn: (t: SerialTransport, ident: IdentifyResult) => Promise<T>): Promise<T> {
-      if (!first) await new Promise((r) => setTimeout(r, REOPEN_SETTLE_MS + 800))
-      first = false
+      const wait = REOPEN_SETTLE_MS + 800 - (Date.now() - lastClosed)
+      if (lastClosed !== 0 && wait > 0) await new Promise((r) => setTimeout(r, wait))
       const t = new SerialTransport(new BridgeSerialPort(URL_, info!))
       await t.open(driver.serial)
       try {
         return await fn(t, await driver.identify(t, {}))
       } finally {
         await t.close().catch(() => {})
+        lastClosed = Date.now()
       }
     }
 
@@ -413,12 +425,19 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       if (dmrChannel && txWant !== txWas) {
         const now = back.channels.get(dmrChannel.index)!
         expect(Number(now.extras.vendor!.txContact), 'the talk group did not reach the radio').toBe(txWant)
-        // Two bytes per channel, and only that channel's pair may have moved.
+        // Two bytes per channel, and only the pairs this test actually touched
+        // may have moved: the edited channel's, and the one added above, which
+        // lands in this same page. The first bench run allowed only the first
+        // of those and failed on `bytes moved: 55,91` - byte 55 the edit, byte
+        // 91 the added channel's own pair, both correct. The encoder was right
+        // and the assertion had forgotten what else this test does.
         const at = (dmrChannel.index - 1) * 2
+        const addedAt = (added - 1) * 2
+        const allowed = new Set([at, at + 1, addedAt, addedAt + 1])
         const nowPage = block(after, TXCONTACT_BLOCK_LOW)
         const wasPage = block(baseline, TXCONTACT_BLOCK_LOW)
         const moved = [...nowPage.keys()].filter((i) => nowPage[i] !== wasPage[i])
-        expect(moved.every((i) => i === at || i === at + 1), `bytes moved: ${moved}`).toBe(true)
+        expect(moved.every((i) => allowed.has(i)), `bytes moved: ${moved}`).toBe(true)
       }
 
       if (messagesWere.length > 0) {
@@ -702,16 +721,16 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
     const info = ports.find((p) => p.path === PORT)
     expect(info, `the bridge does not see ${PORT}`).toBeTruthy()
 
-    let first = true
     async function session<T>(fn: (t: SerialTransport, ident: IdentifyResult) => Promise<T>): Promise<T> {
-      if (!first) await new Promise((r) => setTimeout(r, REOPEN_SETTLE_MS + 800))
-      first = false
+      const wait = REOPEN_SETTLE_MS + 800 - (Date.now() - lastClosed)
+      if (lastClosed !== 0 && wait > 0) await new Promise((r) => setTimeout(r, wait))
       const t = new SerialTransport(new BridgeSerialPort(URL_, info!))
       await t.open(driver.serial)
       try {
         return await fn(t, await driver.identify(t, {}))
       } finally {
         await t.close().catch(() => {})
+        lastClosed = Date.now()
       }
     }
     const read = () => session(async (t, ident) => ({ image: await driver.readImage(t, ident, {}), ident }))
