@@ -31,6 +31,10 @@ export interface RawLayout {
  */
 export const RAW_LAYOUTS: readonly RawLayout[] = [
   { radioId: 'uvk5', layout: 'stock', regions: UVK5_REGIONS },
+  // The UV-5G is deliberately absent: its image is the same 6,472 bytes as the
+  // UV-82's, so a bare .bin cannot say which of the two it came from. A file
+  // that size opens as the UV-82, and a UV-5G codeplug keeps its identity by
+  // travelling as .bwp or CHIRP .img, both of which carry it.
   { radioId: 'uv82', layout: 'uv82', regions: UV82_REGIONS },
   ...UV5R_VARIANTS.map((v) => ({
     radioId: 'uv5rmini' as const,
@@ -65,6 +69,23 @@ function uvk5LayoutFor(metadata: ChirpMetadata): RawLayout | null {
     layout: variant.layout,
     regions: regionsFor(variant.calStart),
   }
+}
+
+/**
+ * The classic-family layout a CHIRP `.img` names, when its metadata says.
+ *
+ * A UV-5G image is byte-compatible with a UV-82 one - same size, same single
+ * region - so the size lookup alone would open every classic-family image as a
+ * UV-82. CHIRP records which driver class saved the file, and that is the same
+ * fact the ident magic establishes over a cable. The size still has to match;
+ * a claim on the wrong number of bytes is treated as no information, and the
+ * file falls through to the ordinary size lookup - the same fallback an
+ * unrecognised UV-K5 firmware string takes.
+ */
+function uv5gLayoutFor(metadata: ChirpMetadata, memoryLength: number): RawLayout | null {
+  if (metadata.rclass !== 'RadioddityUV5GRadio' && metadata.model !== 'UV-5G') return null
+  const layout: RawLayout = { radioId: 'uv5g', layout: 'uv5g', regions: UV82_REGIONS }
+  return totalOf(layout) === memoryLength ? layout : null
 }
 
 /**
@@ -146,7 +167,10 @@ export async function openImageFile(bytes: Uint8Array): Promise<OpenedImage> {
 
   if (looksLikeChirpImg(bytes)) {
     const { memory, metadata } = splitChirpImg(bytes)
-    const layout = uvk5LayoutFor(metadata) ?? RAW_LAYOUTS.find((l) => totalOf(l) === memory.length)
+    const layout =
+      uvk5LayoutFor(metadata) ??
+      uv5gLayoutFor(metadata, memory.length) ??
+      RAW_LAYOUTS.find((l) => totalOf(l) === memory.length)
     if (!layout) {
       const model = [metadata.vendor, metadata.model].filter(Boolean).join(' ')
       throw new OpenImageError(

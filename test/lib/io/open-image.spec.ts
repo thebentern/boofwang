@@ -43,9 +43,43 @@ describe('every raw layout is distinguishable by size', () => {
     expect(new Set(totals).size).toBe(totals.length)
   })
 
-  it('covers every radio that can be read', () => {
+  it('covers every radio that can be read, less the two deliberate absences', () => {
+    // The DM-32UV describes itself page by page and needs no size guess. The
+    // UV-5G is missing because it CANNOT be here: its image is the same 6,472
+    // bytes as the UV-82's, and a second entry of that length would turn the
+    // size guess into a coin toss. A bare UV-5G .bin opens as a UV-82; the
+    // identity survives in .bwp and CHIRP .img instead.
     const ids = new Set(RAW_LAYOUTS.map((l) => l.radioId))
     expect([...ids].sort()).toEqual(['uv5rmini', 'uv82', 'uvk5'])
+  })
+})
+
+describe('a UV-5G, which shares its length with the UV-82', () => {
+  const UV5G = new Uint8Array(
+    readFileSync(fileURLToPath(new URL('../../fixtures/images/uv5g-HN5RV011.bin', import.meta.url))),
+  )
+  const uv5gImage = (): RadioImage => ({
+    radioId: 'uv5g',
+    variant: 'HN5RV011',
+    layout: 'uv5g',
+    createdAt: '2026-08-30T00:00:00.000Z',
+    regions: [{ start: 0, data: UV5G.slice(), label: 'image' }],
+    meta: {},
+    sha256: '',
+  })
+
+  it('keeps its identity through a CHIRP .img, which carries the driver class', async () => {
+    const img = await encodeChirpImg(uv5gImage())
+    const opened = await openImageFile(img)
+    expect(opened.image.radioId).toBe('uv5g')
+    expect(opened.image.layout).toBe('uv5g')
+    expect(opened.image.regions[0]!.data.length).toBe(UV5G.length)
+  })
+
+  it('opens as a UV-82 from a bare .bin, which carries nothing', async () => {
+    const opened = await openImageFile(UV5G.slice())
+    expect(opened.note).toEqual({ kind: 'raw', guessedFrom: 'size' })
+    expect(opened.image.radioId).toBe('uv82')
   })
 })
 

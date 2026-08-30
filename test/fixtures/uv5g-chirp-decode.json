@@ -1,0 +1,412 @@
+{
+ "10": {
+  "bw": 12500,
+  "name": "GMRS9",
+  "power": "Low",
+  "rx": 467587500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467587500,
+  "txtone": null
+ },
+ "11": {
+  "bw": 12500,
+  "name": "GMRS10",
+  "power": "Low",
+  "rx": 467612500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467612500,
+  "txtone": null
+ },
+ "118": {
+  "bw": 25000,
+  "name": "NOAA1",
+  "power": "High",
+  "rx": 162550000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "119": {
+  "bw": 25000,
+  "name": "NOAA2",
+  "power": "High",
+  "rx": 162400000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "12": {
+  "bw": 12500,
+  "name": "GMRS11",
+  "power": "Low",
+  "rx": 467637500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467637500,
+  "txtone": null
+ },
+ "120": {
+  "bw": 25000,
+  "name": "NOAA3",
+  "power": "High",
+  "rx": 162475000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "121": {
+  "bw": 25000,
+  "name": "NOAA4",
+  "power": "High",
+  "rx": 162425000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "122": {
+  "bw": 25000,
+  "name": "NOAA5",
+  "power": "High",
+  "rx": 162450000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "123": {
+  "bw": 25000,
+  "name": "NOAA6",
+  "power": "High",
+  "rx": 162500000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "124": {
+  "bw": 25000,
+  "name": "NOAA7",
+  "power": "High",
+  "rx": 162525000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "125": {
+  "bw": 25000,
+  "name": "NOAA8",
+  "power": "High",
+  "rx": 161650000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "126": {
+  "bw": 25000,
+  "name": "NOAA9",
+  "power": "High",
+  "rx": 161775000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "127": {
+  "bw": 25000,
+  "name": "NOAA10",
+  "power": "High",
+  "rx": 161750000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "128": {
+  "bw": 25000,
+  "name": "NOAA11",
+  "power": "High",
+  "rx": 162000000,
+  "rxtone": null,
+  "skip": "skip",
+  "tx": 0,
+  "txtone": null
+ },
+ "13": {
+  "bw": 12500,
+  "name": "GMRS12",
+  "power": "Low",
+  "rx": 467662500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467662500,
+  "txtone": null
+ },
+ "14": {
+  "bw": 12500,
+  "name": "GMRS13",
+  "power": "Low",
+  "rx": 467687500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467687500,
+  "txtone": null
+ },
+ "15": {
+  "bw": 12500,
+  "name": "GMRS14",
+  "power": "Low",
+  "rx": 467712500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467712500,
+  "txtone": null
+ },
+ "16": {
+  "bw": 25000,
+  "name": "GMRS15",
+  "power": "High",
+  "rx": 462550000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462550000,
+  "txtone": null
+ },
+ "17": {
+  "bw": 25000,
+  "name": "GMRS16",
+  "power": "High",
+  "rx": 462575000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462575000,
+  "txtone": null
+ },
+ "18": {
+  "bw": 25000,
+  "name": "GMRS17",
+  "power": "High",
+  "rx": 462600000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462600000,
+  "txtone": null
+ },
+ "19": {
+  "bw": 25000,
+  "name": "GMRS18",
+  "power": "High",
+  "rx": 462625000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462625000,
+  "txtone": null
+ },
+ "2": {
+  "bw": 25000,
+  "name": "GMRS1",
+  "power": "High",
+  "rx": 462562500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462562500,
+  "txtone": null
+ },
+ "20": {
+  "bw": 25000,
+  "name": "GMRS19",
+  "power": "High",
+  "rx": 462650000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462650000,
+  "txtone": null
+ },
+ "21": {
+  "bw": 25000,
+  "name": "GMRS20",
+  "power": "High",
+  "rx": 462675000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462675000,
+  "txtone": null
+ },
+ "22": {
+  "bw": 25000,
+  "name": "GMRS21",
+  "power": "High",
+  "rx": 462700000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462700000,
+  "txtone": null
+ },
+ "23": {
+  "bw": 25000,
+  "name": "GMRS22",
+  "power": "High",
+  "rx": 462725000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462725000,
+  "txtone": null
+ },
+ "24": {
+  "bw": 25000,
+  "name": "REPTR1",
+  "power": "High",
+  "rx": 462550000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467550000,
+  "txtone": null
+ },
+ "25": {
+  "bw": 25000,
+  "name": "REPTR2",
+  "power": "High",
+  "rx": 462575000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467575000,
+  "txtone": null
+ },
+ "26": {
+  "bw": 25000,
+  "name": "REPTR3",
+  "power": "High",
+  "rx": 462600000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467600000,
+  "txtone": null
+ },
+ "27": {
+  "bw": 25000,
+  "name": "REPTR4",
+  "power": "High",
+  "rx": 462625000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467625000,
+  "txtone": null
+ },
+ "28": {
+  "bw": 25000,
+  "name": "REPTR5",
+  "power": "High",
+  "rx": 462650000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467650000,
+  "txtone": null
+ },
+ "29": {
+  "bw": 25000,
+  "name": "REPTR6",
+  "power": "High",
+  "rx": 462675000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467675000,
+  "txtone": null
+ },
+ "3": {
+  "bw": 25000,
+  "name": "GMRS2",
+  "power": "High",
+  "rx": 462587500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462587500,
+  "txtone": null
+ },
+ "30": {
+  "bw": 25000,
+  "name": "REPTR7",
+  "power": "High",
+  "rx": 462700000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467700000,
+  "txtone": null
+ },
+ "31": {
+  "bw": 25000,
+  "name": "REPTR8",
+  "power": "High",
+  "rx": 462725000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467725000,
+  "txtone": null
+ },
+ "4": {
+  "bw": 25000,
+  "name": "GMRS3",
+  "power": "High",
+  "rx": 462612500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462612500,
+  "txtone": null
+ },
+ "5": {
+  "bw": 25000,
+  "name": "GMRS4",
+  "power": "High",
+  "rx": 462637500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462637500,
+  "txtone": null
+ },
+ "6": {
+  "bw": 25000,
+  "name": "GMRS5",
+  "power": "High",
+  "rx": 462662500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462662500,
+  "txtone": null
+ },
+ "7": {
+  "bw": 25000,
+  "name": "GMRS6",
+  "power": "High",
+  "rx": 462687500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462687500,
+  "txtone": null
+ },
+ "8": {
+  "bw": 25000,
+  "name": "GMRS7",
+  "power": "High",
+  "rx": 462712500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 462712500,
+  "txtone": null
+ },
+ "9": {
+  "bw": 12500,
+  "name": "GMRS8",
+  "power": "Low",
+  "rx": 467562500,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 467562500,
+  "txtone": null
+ }
+}

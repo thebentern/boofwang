@@ -113,6 +113,7 @@ second squircle reads as a notch.
 |---|---|---|---|---|
 | Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write, restore |
 | Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | Yes | Read, write, restore |
+| Radioddity UV-5G | 128 channels, analog GMRS, 6 KB image | Yes | Yes | Read, write, restore |
 | Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | Yes | Read, write, restore; read also over Bluetooth |
 | Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Yes | Read, write, restore; startup picture |
 

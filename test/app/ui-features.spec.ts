@@ -193,7 +193,7 @@ describe('the connect screen does not guess the radio', () => {
 
   it('falls back to nothing rather than to a radio', () => {
     // Any bare radio id on the end of that chain is a guess.
-    for (const id of ['uvk5', 'uv82', 'uv5rmini', 'dm32uv']) {
+    for (const id of ['uvk5', 'uv82', 'uv5g', 'uv5rmini', 'dm32uv']) {
       expect(radioId, `radioId falls back to '${id}'`).not.toContain(`'${id}'`)
     }
     expect(radioId).toContain('null')

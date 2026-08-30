@@ -88,6 +88,16 @@ const IMAGES: Record<string, () => RadioImage> = {
     meta: {},
     sha256: '',
   }),
+  // The UV-82's layout behind a different magic; the region table is shared.
+  uv5g: () => ({
+    radioId: 'uv5g',
+    variant: 'HN5RV011',
+    layout: 'uv5g',
+    createdAt: '2026-08-30T00:00:00.000Z',
+    regions: flat(file('uv5g-HN5RV011.bin'), UV82_REGIONS),
+    meta: {},
+    sha256: '',
+  }),
   uv5rmini: () => {
     const blob = file('uv5rmini-5RMINI.bin')
     let off = 0
@@ -135,6 +145,7 @@ const CASES: readonly Case[] = [
   { id: 'uvk5', layout: 'stock', image: IMAGES.uvk5! },
   { id: 'uvk5', layout: 'egzumer', image: IMAGES['uvk5-egzumer']! },
   { id: 'uv82', layout: 'uv82', image: IMAGES.uv82! },
+  { id: 'uv5g', layout: 'uv5g', image: IMAGES.uv5g! },
   { id: 'uv5rmini', layout: 'uv5rmini', image: IMAGES.uv5rmini! },
   { id: 'dm32uv', layout: 'DP570UV', image: IMAGES.dm32uv! },
 ]

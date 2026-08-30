@@ -95,6 +95,7 @@ export function splitChirpImg(data: Uint8Array): ChirpImgParts {
 export const CHIRP_IDENTITY: Partial<Record<RadioId, { vendor: string; model: string; rclass: string }>> = {
   uvk5: { vendor: 'Quansheng', model: 'UV-K5', rclass: 'UVK5Radio' },
   uv82: { vendor: 'Baofeng', model: 'UV-82', rclass: 'BaofengUV82Radio' },
+  uv5g: { vendor: 'Radioddity', model: 'UV-5G', rclass: 'RadioddityUV5GRadio' },
   uv5rmini: { vendor: 'Baofeng', model: '5RM', rclass: 'BF5RM' },
 }
 

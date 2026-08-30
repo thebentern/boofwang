@@ -12,16 +12,17 @@ redistributing this code to be able to trace that.
 
 | Source | Licence | What we take from it |
 |---|---|---|
-| [CHIRP](https://chirpmyradio.com/) ([kk7ds/chirp](https://github.com/kk7ds/chirp)) | GPL-3.0 | Memory layouts, protocol framing and field encodings for the Quansheng UV-K5 under both stock firmware (`chirp/drivers/uvk5.py`) and the egzumer custom firmware (`chirp/drivers/uvk5_egzumer.py`), for the Baofeng UV-5R Mini (`chirp/drivers/baofeng_uv17Pro.py`) and for the Baofeng UV-82 (`chirp/drivers/uv5r.py`, which serves the whole UV-5R family); the CSV column model (`chirp/drivers/generic_csv.py`, `chirp/chirp_common.py`); the CTCSS/DTCS/tuning-step tables; and the stock channel configurations under `chirp/stock_configs/`. |
+| [CHIRP](https://chirpmyradio.com/) ([kk7ds/chirp](https://github.com/kk7ds/chirp)) | GPL-3.0 | Memory layouts, protocol framing and field encodings for the Quansheng UV-K5 under both stock firmware (`chirp/drivers/uvk5.py`) and the egzumer custom firmware (`chirp/drivers/uvk5_egzumer.py`), for the Baofeng UV-5R Mini (`chirp/drivers/baofeng_uv17Pro.py`) and for the Baofeng UV-82 and Radioddity UV-5G (`chirp/drivers/uv5r.py`, which serves the whole UV-5R family); the CSV column model (`chirp/drivers/generic_csv.py`, `chirp/chirp_common.py`); the CTCSS/DTCS/tuning-step tables; and the stock channel configurations under `chirp/stock_configs/`. |
 | [egzumer/uv-k5-firmware-custom](https://github.com/egzumer/uv-k5-firmware-custom) | Apache-2.0 | The firmware the `EGZUMER ` layout describes. No code is taken from it; boofwang's knowledge of its EEPROM comes from CHIRP's driver above. Listed because the layout is that project's design. |
 | [infamy/DM32-Protocol-Spec](https://github.com/infamy/DM32-Protocol-Spec) | MIT | The entirety of what boofwang knows about the Baofeng DM-32UV: serial handshake, command set, the logical-block page map, record layouts and the encryption key slot format. There is no CHIRP driver for this radio; this specification is the only public documentation of it. |
 | [sq5bpf/uvk5-reverse-engineering](https://github.com/sq5bpf/uvk5-reverse-engineering) | CC-BY-SA-4.0 | Jacek Lipkowski SQ5BPF's original analysis of the UV-K5: packet obfuscation table, CRC, command opcodes and the EEPROM map. |
 | [eCFR](https://www.ecfr.gov/) — 47 CFR Part 95 | Public domain (US Government) | FRS, GMRS and MURS channel tables, power limits and bandwidth limits. |
 | [NOAA/NWS](https://www.weather.gov/nwr/) | Public domain (US Government) | Weather radio channel frequencies. |
 
-Because CHIRP is GPL-3.0, files in `lib/radios/uvk5/` and `lib/radios/uv5rmini/`
-that transcribe its layout tables are derivative works of CHIRP. That is
-compatible with boofwang's own licence, and this table is the attribution.
+Because CHIRP is GPL-3.0, files in `lib/radios/uvk5/`, `lib/radios/uv82/`,
+`lib/radios/uv5g/` and `lib/radios/uv5rmini/` that transcribe its layout tables
+are derivative works of CHIRP. That is compatible with boofwang's own licence,
+and this table is the attribution.
 
 ## Fetched at runtime, never bundled
 
@@ -61,8 +62,10 @@ layouts; they are not redistributed as part of boofwang.
 
 It also assembles `reference/chirp_pkg`, an importable `chirp` package, so that
 a transcription can be checked against CHIRP's own parser rather than against a
-second reading of the same source. Two scripts use it:
-`scripts/crosscheck-chirp-csv.py` for the CSV export, and
+second reading of the same source. The scripts that use it:
+`scripts/crosscheck-chirp-csv.py` for the CSV export,
+`scripts/dump-uv5r-settings.py` and `scripts/dump-uv5r-channels.py` for the
+UV-5R-family fixtures, and
 `scripts/gen-egzumer-fixture.py`, which drives CHIRP's egzumer driver to build
 `test/fixtures/images/uvk5-egzumer-synthetic.bin` and the JSON of what CHIRP
 reads back out of it. **That fixture is synthetic, not a hardware capture** —

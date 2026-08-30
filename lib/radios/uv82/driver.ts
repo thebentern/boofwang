@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
 import { equalBytes } from '../../codec/struct.js'
-import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
+import { emptyCodeplug, type Channel, type Codeplug, type RadioId, type TxSpec } from '../../model/index.js'
 import { txFrequency } from '../../model/channel.js'
 import { validateCodeplug } from '../../validate/rules.js'
 import { CTCSS_DECIHZ, ctcss, dtcs, NO_TONE, type TonePair, type ToneSpec } from '../../model/tones.js'
@@ -101,7 +101,7 @@ export function classifyBasetype(version: string): { model: string; triPower: bo
   return null
 }
 
-export interface Uv82Options {
+export interface Uv5rFamilyOptions {
   /**
    * Whether this build may write.
    *
@@ -111,13 +111,51 @@ export interface Uv82Options {
   enableWrite?: boolean
 }
 
-export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
+/**
+ * One member of the classic UV-5R family.
+ *
+ * CHIRP's `uv5r.py` carries dozens of radios as subclasses of `BaofengUV5R`
+ * that differ only in ident magic, accepted firmware strings and band plan -
+ * the memory map, the block protocol and every quirk in this file are shared.
+ * This is the same seam: the driver below is written once and each family
+ * member supplies what its CHIRP class would.
+ */
+export interface Uv5rFamilyModel {
+  readonly id: RadioId
+  /** How the radio is named in errors and logs: 'UV-82', 'UV-5G'. */
+  readonly label: string
+  /** The seven-byte ident magic this member answers. */
+  readonly magic: Uint8Array
+  readonly schema: RadioSchema
+  /**
+   * Sort a firmware version string into a recognised model, or null.
+   *
+   * Null means the memory layout cannot be assumed and the radio is offered
+   * read-only. `triPower` refuses writing on members whose third power level
+   * this build cannot express.
+   */
+  readonly classify: (version: string) => { model: string; triPower: boolean } | null
+}
+
+const UV82_MODEL: Uv5rFamilyModel = {
+  id: 'uv82',
+  label: 'UV-82',
+  magic: MAGIC_UV82,
+  schema: UV82_SCHEMA,
+  classify: classifyBasetype,
+}
+
+export function createUv82Driver(options: Uv5rFamilyOptions = {}): RadioDriver {
+  return createUv5rFamilyDriver(UV82_MODEL, options)
+}
+
+export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFamilyOptions = {}): RadioDriver {
   const schema: RadioSchema = options.enableWrite
-    ? { ...UV82_SCHEMA, status: 'beta', capabilities: { ...UV82_SCHEMA.capabilities, write: true } }
-    : UV82_SCHEMA
+    ? { ...model.schema, status: 'beta', capabilities: { ...model.schema.capabilities, write: true } }
+    : model.schema
 
   const driver: RadioDriver = {
-    id: 'uv82',
+    id: model.id,
     schema,
     serial: { ...UV82_SERIAL, signals: { ...UV82_SERIAL.signals } },
     // No reset command exists in this protocol; the radio leaves clone mode
@@ -146,33 +184,36 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
       const opts = { timeoutMs, signal: ctx.signal }
 
       ctx.progress?.({ phase: 'handshake', done: 0, total: 1, label: 'Saying hello' })
-      const { ident, raw } = await doIdentify(t, MAGIC_UV82, opts)
+      const { ident, raw } = await doIdentify(t, model.magic, opts)
       const fw = await readFirmware(t, opts)
-      const basetype = classifyBasetype(fw.version)
+      const basetype = model.classify(fw.version)
 
-      ctx.log?.info(`UV-82 ident ${[...ident].map((b) => b.toString(16)).join(' ')}, firmware ${fw.version}`)
+      ctx.log?.info(`${model.label} ident ${[...ident].map((b) => b.toString(16)).join(' ')}, firmware ${fw.version}`)
       ctx.progress?.({ phase: 'handshake', done: 1, total: 1, label: fw.version })
 
       // The ident block differs between units, so it already identifies this
       // radio rather than merely its model - no separate fingerprint read is
       // needed the way the UV-K5 needs one.
       return {
-        radioId: 'uv82',
+        radioId: model.id,
         variant: fw.version,
-        layout: basetype?.triPower ? 'uv82hp' : 'uv82',
+        // 'uv82hp' for the tri-power UV-82, and the member's own id otherwise.
+        // The string is stored in backups, so it must never change spelling.
+        layout: basetype?.triPower ? `${model.id}hp` : model.id,
         raw,
         caps: {
           read: true,
           /*
-           * Writable only on a plain UV-82, and only on a firmware whose layout
-           * is recognised.
+           * Writable only on a firmware the member's classifier recognises,
+           * and never on a tri-power radio.
            *
-           * The HP is excluded deliberately. It shares this radio's magic and
-           * this driver identifies it, but it has three power levels where the
-           * plain UV-82 has two, indexed by the same two-bit field. This build
-           * models two, so a Low channel on an HP would decode as High and be
-           * written back at 8 W - promoting a channel the user never touched.
-           * Reading and backing one up is unaffected.
+           * The UV-82HP is the reason the flag exists: it shares the plain
+           * UV-82's magic and this driver identifies it, but it has three
+           * power levels where the plain radio has two, indexed by the same
+           * two-bit field. This build models two, so a Low channel on an HP
+           * would decode as High and be written back at 8 W - promoting a
+           * channel the user never touched. Reading and backing one up is
+           * unaffected.
            */
           write: schema.capabilities.write && basetype !== null && !basetype.triPower,
           ...(basetype === null
@@ -230,7 +271,7 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
       }
 
       return {
-        radioId: 'uv82',
+        radioId: model.id,
         variant: ident.variant,
         layout: ident.layout,
         createdAt: new Date().toISOString(),
@@ -246,11 +287,11 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
     },
 
     async writeImage(t: Transport, image: RadioImage, ctx: DriverCtx = {}): Promise<WriteReport> {
-      if (image.radioId !== 'uv82') throw new DriverError(`Not a UV-82 image: ${image.radioId}`)
+      if (image.radioId !== model.id) throw new DriverError(`Not a ${model.label} image: ${image.radioId}`)
       if (!schema.capabilities.write && !ctx.dryRun) {
-        throw new WriteBlockedError('Writing the UV-82 is not enabled in this build.')
+        throw new WriteBlockedError(`Writing the ${model.label} is not enabled in this build.`)
       }
-      if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('uv82')
+      if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError(model.id)
 
       const timeoutMs = ctx.readTimeoutMs ?? DEFAULT_DRIVER_TIMEOUT_MS
       const opts = { timeoutMs, signal: ctx.signal }
@@ -262,7 +303,7 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
       // radio answers a second handshake happily, but repeating it costs a
       // second and tells us nothing new.
       const ident = ctx.ident ?? (await driver.identify(t, ctx))
-      if (ctx.backup && ctx.backup.identHash !== ident.identHash) throw new BackupRequiredError('uv82')
+      if (ctx.backup && ctx.backup.identHash !== ident.identHash) throw new BackupRequiredError(model.id)
       if (!ctx.dryRun && !ident.caps.write) {
         throw new WriteBlockedError(
           ident.caps.reason ?? `This build does not write firmware ${ident.variant}.`,
@@ -440,17 +481,17 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
     },
 
     decode(image: RadioImage): Codeplug {
-      if (image.radioId !== 'uv82') throw new DriverError(`Not a UV-82 image: ${image.radioId}`)
+      if (image.radioId !== model.id) throw new DriverError(`Not a ${model.label} image: ${image.radioId}`)
       const found = locate(image, CHANNEL_BASE)
-      if (!found) throw new DriverError('UV-82 image has no memory region')
+      if (!found) throw new DriverError(`${model.label} image has no memory region`)
       const mem = found.region.data
 
-      const cp = emptyCodeplug('uv82', image.createdAt)
-      cp.meta.title = 'UV-82 codeplug'
+      const cp = emptyCodeplug(model.id, image.createdAt)
+      cp.meta.title = `${model.label} codeplug`
       cp.meta.variant = image.variant
 
       for (let i = 0; i < CHANNEL_COUNT; i++) {
-        const ch = decodeChannel(mem, i)
+        const ch = decodeChannel(mem, i, model.schema)
         if (ch) cp.channels.set(ch.index, ch)
       }
       cp.settings = decodeSettings(mem)
@@ -458,11 +499,11 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
     },
 
     encode(doc: Codeplug, base: RadioImage): RadioImage {
-      if (doc.radio !== 'uv82') throw new DriverError(`Not a UV-82 codeplug: ${doc.radio}`)
-      if (base.radioId !== 'uv82') throw new DriverError(`Not a UV-82 image: ${base.radioId}`)
+      if (doc.radio !== model.id) throw new DriverError(`Not a ${model.label} codeplug: ${doc.radio}`)
+      if (base.radioId !== model.id) throw new DriverError(`Not a ${model.label} image: ${base.radioId}`)
 
       const found = locate(base, 0)
-      if (!found) throw new DriverError('UV-82 image has no memory region')
+      if (!found) throw new DriverError(`${model.label} image has no memory region`)
 
       // A copy of the bytes that came off the radio, patched in place. There is
       // deliberately no way to build one from nothing: the parts of this memory
@@ -470,7 +511,7 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
       const mem = found.region.data.slice()
 
       for (let i = 0; i < CHANNEL_COUNT; i++) {
-        encodeChannel(mem, i, doc.channels.get(i + 1) ?? null)
+        encodeChannel(mem, i, doc.channels.get(i + 1) ?? null, model.schema)
       }
       encodeSettings(mem, doc.settings)
 
@@ -482,7 +523,7 @@ export function createUv82Driver(options: Uv82Options = {}): RadioDriver {
     },
 
     validate(doc: Codeplug): Diagnostic[] {
-      return validateCodeplug(doc, UV82_SCHEMA)
+      return validateCodeplug(doc, model.schema)
     },
 
     ownedRanges: (regionStart: number) => (regionStart === 0 ? uv82OwnedRanges() : []),
@@ -577,7 +618,12 @@ export function encodeSettings(mem: Uint8Array, settings: Codeplug['settings']):
   // reach the radio while the diff insisted something had.
 }
 
-export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): void {
+export function encodeChannel(
+  mem: Uint8Array,
+  i: number,
+  ch: Channel | null,
+  schema: RadioSchema = UV82_SCHEMA,
+): void {
   const addr = channelAddr(i)
 
   if (ch === null) {
@@ -604,10 +650,17 @@ export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): v
    * A receive-only channel keeps whichever marker it already carries.
    *
    * This family expresses "do not transmit" by filling the transmit frequency,
-   * and CHIRP accepts two fillings: all 0xFF and all 0x00. Both decode as
-   * inhibited, so normalising one to the other changes four bytes to say
-   * exactly what they already said - which breaks the byte-exact round trip and
+   * and this driver decodes two fillings as inhibited: all 0xFF and all 0x00.
+   * Normalising one to the other changes four bytes to say what this driver
+   * already read them as saying - which breaks the byte-exact round trip and
    * puts bytes on the wire that nobody asked to change.
+   *
+   * The cost of keeping a 0x00 fill is interop, and it is real: CHIRP's
+   * `_is_txinh` recognises only the 0xFF spelling, and reads a zero transmit
+   * frequency as a split with a 0 MHz target - transmit *enabled*, on a
+   * channel this driver shows as receive-only. No capture so far has carried
+   * a 0x00 fill; if one turns up, the trade-off recorded here is the thing to
+   * revisit.
    */
   const txBytes = mem.subarray(addr + 0x04, addr + 0x08)
   const alreadyInhibited = txBytes.every((b) => b === 0xff) || txBytes.every((b) => b === 0x00)
@@ -620,7 +673,7 @@ export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): v
     ...(ch.txAllowed ? { txFreq } : {}),
     rxTone: encodeToneWord(ch.tone.rx, `Channel ${ch.index} receive tone`),
     txTone: encodeToneWord(ch.tone.tx, `Channel ${ch.index} transmit tone`),
-    f0e: { lowPower: ch.power.mW <= UV82_SCHEMA.rf.powerLevels[1]!.mW ? POWER_LOW : 0 },
+    f0e: { lowPower: ch.power.mW <= schema.rf.powerLevels[1]!.mW ? POWER_LOW : 0 },
     f0f: {
       // `wide` is 1 for wide, the opposite sense to the UV-K5's bandwidth bit.
       wide: ch.bandwidthHz >= BANDWIDTH_WIDE_HZ ? 1 : 0,
@@ -643,9 +696,8 @@ export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): v
    * That is the failure this codebase cares about most - it is how a weather or
    * public-safety frequency ends up in a radio someone can key up - so the
    * marker is written explicitly rather than left to a numeric field that
-   * cannot express it. An existing 0x00 filling is left alone, because CHIRP
-   * reads that as inhibited too and rewriting it would put four pointless bytes
-   * on the wire.
+   * cannot express it. Only an existing filling, in either spelling, is left
+   * alone - see the trade-off recorded above `keepMarker`.
    */
   if (!ch.txAllowed && !keepMarker) mem.fill(0xff, addr + 0x04, addr + 0x08)
 
@@ -653,7 +705,7 @@ export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): v
 }
 
 /** Decode one channel record, or null when the slot is empty. */
-export function decodeChannel(mem: Uint8Array, i: number): Channel | null {
+export function decodeChannel(mem: Uint8Array, i: number, schema: RadioSchema = UV82_SCHEMA): Channel | null {
   const addr = channelAddr(i)
 
   // An unused slot is marked by its **first byte** alone being 0xFF, which is
@@ -688,7 +740,7 @@ export function decodeChannel(mem: Uint8Array, i: number): Channel | null {
   const txTone = decodeToneWord(raw.txTone)
   const tone: TonePair = rx === null && txTone === null ? NO_TONE : { rx, tx: txTone, rxInverted: false }
 
-  const level = raw.f0e.lowPower === POWER_LOW ? UV82_SCHEMA.rf.powerLevels[1]! : UV82_SCHEMA.rf.powerLevels[0]!
+  const level = raw.f0e.lowPower === POWER_LOW ? schema.rf.powerLevels[1]! : schema.rf.powerLevels[0]!
 
   return {
     index: i + 1,

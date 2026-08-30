@@ -66,15 +66,36 @@ export interface IdentResult {
  * the memory map stays where CHIRP put it.
  */
 export async function identify(t: Transport, magic: Uint8Array, opts?: ReadOpts): Promise<IdentResult> {
-  await sendMagic(t, magic, opts)
-
-  const ack = await t.readExactly(1, opts).catch(() => null)
+  /*
+   * The magic is tried three times, with the line drained before each try.
+   *
+   * Both halves earned their place on the UV-5G bench unit. The drain is for
+   * a byte left over in the adapter from an earlier session, which comes back
+   * as the answer to the magic. The retry is for the radio itself: the first
+   * contact after it has sat idle for a while was answered with 0xfe, every
+   * time, by a radio that then acknowledged the very next attempt - the
+   * first exchange evidently wakes it rather than reaching it. CHIRP has the
+   * same structure in `_ident_radio`, which sleeps and moves on to the next
+   * magic; with one magic per radio here, moving on means trying it again.
+   *
+   * An echo of our own magic still fails immediately: a shorted adapter
+   * answers every attempt identically, and three tries against it is just a
+   * slower way to say what one try already said.
+   */
+  let ack: Uint8Array | null = null
+  const ATTEMPTS = 3
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    await t.resync(120, { timeoutMs: 2000, ...(opts?.signal ? { signal: opts.signal } : {}) }).catch(() => {})
+    await sendMagic(t, magic, opts)
+    ack = await t.readExactly(1, opts).catch(() => null)
+    if (ack !== null && ack[0] === ACK) break
+    if (ack !== null && ack[0] === magic[0]) throw new LoopbackDetectedError('while identifying the radio')
+    if (attempt < ATTEMPTS) await delay(1000, opts?.signal)
+  }
   if (ack === null) {
     throw new NoRadioResponseError('the radio did not answer the identification sequence')
   }
   if (ack[0] !== ACK) {
-    // An echo of our own magic is the classic bad-adapter signature.
-    if (ack[0] === magic[0]) throw new LoopbackDetectedError('while identifying the radio')
     throw new ProtocolError('The radio refused the identification sequence', '06', hexDump(ack))
   }
 
