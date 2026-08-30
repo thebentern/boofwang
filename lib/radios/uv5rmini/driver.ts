@@ -609,11 +609,16 @@ export function encodeChannel(
   /*
    * Receive-only is written as four 0xFF bytes.
    *
-   * `_is_txinh` for this family accepts all-0xFF and all-0x00, and a numeric
-   * field cannot express either - writing a zero *frequency* is not the same as
-   * writing the marker. An existing marker is left in whichever spelling it
-   * already uses, because rewriting it would put four bytes on the wire to say
-   * what they already said.
+   * `_is_txinh` for this family (reference/baofeng_common.py) accepts all-0xFF
+   * and all-0x00, and a numeric field cannot express either - writing a zero
+   * *frequency* is not the same as writing the marker. An existing marker is
+   * left in whichever spelling it already uses, because rewriting it would put
+   * four bytes on the wire to say what they already said.
+   *
+   * The classic UV-5R family cannot do this: its `_is_txinh` (uv5r.py) accepts
+   * only all-0xFF, so the UV-82 driver canonicalises a zero filling on any
+   * record it changes. Do not unify the two - the keep-as-found here is safe
+   * precisely because this family's parser reads both spellings.
    */
   if (!ch.txAllowed && !keepMarker) mem.fill(0xff, addr + 0x04, addr + 0x08)
 }

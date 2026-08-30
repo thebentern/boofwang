@@ -65,8 +65,12 @@ Three traps, all confirmed against CHIRP:
 
 A channel is unused when its **first byte alone** is 0xFF. Transmit is
 inhibited when all four transmit-frequency bytes are 0xFF **or** all four are
-0x00. AM is not stored anywhere: it is derived from the receive frequency
-falling in the air band.
+0x00. That two-spelling rule is `baofeng_common.py`'s `_is_txinh` and it is
+family-specific: the classic UV-5R family's (`uv5r.py`) accepts only the 0xFF
+spelling, which is why the UV-82 driver canonicalises a zero filling on any
+record it changes and this driver can keep either spelling as found. AM is not
+stored anywhere: it is derived from the receive frequency falling in the air
+band.
 
 Names are 12 bytes at `+0x14`, padded with 0xFF. CHIRP maps both 0xFF and 0x00
 to spaces and then strips the trailing ones, rather than treating them as

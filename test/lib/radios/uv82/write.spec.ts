@@ -72,12 +72,14 @@ describe('the round-trip invariant, on real radio bytes', () => {
   })
 
 
-  it('keeps whichever receive-only marker the channel already carried', () => {
-    // This family marks "do not transmit" by filling the transmit frequency,
-    // and CHIRP accepts both all-0xFF and all-0x00. Normalising one to the
-    // other rewrites four bytes to say what they already said, which breaks
-    // the round trip and puts pointless bytes on the wire. Found by an
-    // adversarial review before this path ever reached a radio.
+  it('keeps whichever receive-only marker the channel carried, on a pure round trip', () => {
+    // This family marks "do not transmit" by filling the transmit frequency.
+    // boofwang decodes both all-0xFF and all-0x00 as inhibited, and an
+    // untouched record is passed through byte for byte, zero spelling
+    // included - that is what keeps encode(decode(image), image) exact.
+    // CHIRP's uv5r.py reads only the 0xFF spelling as inhibited, so any
+    // record this driver actually changes is canonicalised - tested under
+    // "receive-only, which is the one that matters".
     for (const fill of [0xff, 0x00] as const) {
       const img = image()
       const mem = memOf(img)
@@ -293,9 +295,10 @@ describe('receive-only, which is the one that matters', () => {
     expect([...mem.subarray(at + 4, at + 8)]).toEqual([0xff, 0xff, 0xff, 0xff])
   })
 
-  it('leaves an existing marker alone, in either spelling', () => {
-    // Both fillings decode as inhibited, so normalising one to the other would
-    // change four bytes to say what they already said and put them on the wire.
+  it('leaves an untouched record\'s marker alone, in either spelling', () => {
+    // Both fillings decode as inhibited here, and a record nothing else
+    // changed in is carried through exactly as read. The zero spelling is
+    // never something boofwang writes - it can only survive a pass-through.
     for (const fill of [0xff, 0x00] as const) {
       const img = image()
       const mem0 = memOf(img)
@@ -313,6 +316,55 @@ describe('receive-only, which is the one that matters', () => {
         new Array(4).fill(fill),
       )
     }
+  })
+
+  it('canonicalises a zero marker when the record is otherwise edited', () => {
+    /*
+     * CHIRP's `_is_txinh` for this family (uv5r.py) accepts exactly one
+     * marker: FF FF FF FF. A zero filling reads back as a split with transmit
+     * ENABLED - the gain failure. So the zero spelling survives only a pure
+     * pass-through; the moment anything else in the record changes, the
+     * marker is rewritten in the one spelling every reader agrees means
+     * inhibited. The record is exactly one write block, so an already-dirty
+     * record carries the four bytes at no extra cost on the wire.
+     */
+    const img = image()
+    const slot = 2
+    const at = channelAddr(slot - 1)
+    const patched = memOf(img).slice()
+    patched.fill(0x00, at + 4, at + 8)
+    const patchedImage: RadioImage = { ...img, regions: [{ ...img.regions[0]!, data: patched }] }
+
+    const doc = writable.decode(patchedImage)
+    const ch = doc.channels.get(slot)!
+    expect(ch.txAllowed).toBe(false)
+    doc.channels.set(slot, { ...ch, skip: ch.skip === 'skip' ? 'none' : 'skip' })
+
+    const out = memOf(writable.encode(doc, patchedImage))
+    expect([...out.subarray(at + 4, at + 8)]).toEqual([0xff, 0xff, 0xff, 0xff])
+  })
+
+  it('keeps a zero marker when only the name changed', () => {
+    // The name lives in its own range, so a name edit leaves the channel
+    // record block untouched - and an untouched record is carried through byte
+    // for byte, zero spelling included. This is the documented residual: an
+    // image that already carries 0x00 shows those channels as transmit-capable
+    // in CHIRP whether or not boofwang was ever in the loop.
+    const img = image()
+    const slot = 2
+    const at = channelAddr(slot - 1)
+    const patched = memOf(img).slice()
+    patched.fill(0x00, at + 4, at + 8)
+    const patchedImage: RadioImage = { ...img, regions: [{ ...img.regions[0]!, data: patched }] }
+
+    const doc = writable.decode(patchedImage)
+    const ch = doc.channels.get(slot)!
+    doc.channels.set(slot, { ...ch, name: 'RENAMED' })
+
+    const out = memOf(writable.encode(doc, patchedImage))
+    expect(
+      equalBytes(out.subarray(at, at + UV82_CHANNEL.size), patched.subarray(at, at + UV82_CHANNEL.size)),
+    ).toBe(true)
   })
 
   it('round-trips a CHIRP-programmed receive-only channel byte for byte', () => {
