@@ -600,18 +600,9 @@ export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): v
     return
   }
 
-  /*
-   * A receive-only channel keeps whichever marker it already carries.
-   *
-   * This family expresses "do not transmit" by filling the transmit frequency,
-   * and CHIRP accepts two fillings: all 0xFF and all 0x00. Both decode as
-   * inhibited, so normalising one to the other changes four bytes to say
-   * exactly what they already said - which breaks the byte-exact round trip and
-   * puts bytes on the wire that nobody asked to change.
-   */
-  const txBytes = mem.subarray(addr + 0x04, addr + 0x08)
-  const alreadyInhibited = txBytes.every((b) => b === 0xff) || txBytes.every((b) => b === 0x00)
-  const keepMarker = !ch.txAllowed && alreadyInhibited
+  // Captured before the struct write, so the receive-only marker decision
+  // below can tell an edited record from a pure round trip.
+  const before = mem.slice(addr, addr + UV82_CHANNEL.size)
 
   const txFreq = ch.txAllowed ? (txFrequency(ch) ?? ch.rxFreq) : 0
 
@@ -632,22 +623,33 @@ export function encodeChannel(mem: Uint8Array, i: number, ch: Channel | null): v
   })
 
   /*
-   * Receive-only is written as four 0xFF bytes, and only ever as that.
+   * Receive-only is written as four 0xFF bytes on every record this driver
+   * changes.
    *
-   * CHIRP's `_is_txinh` recognises exactly one marker - `FF FF FF FF`. A
-   * transmit frequency of zero is not an inhibit to it: it computes the
-   * distance from the receive frequency, calls the channel a split, and reports
-   * transmit as *enabled*. So a channel that boofwang marked receive-only would
-   * come back transmit-capable in CHIRP and, worse, on the radio.
+   * CHIRP's `_is_txinh` for this family (reference/uv5r.py) recognises exactly
+   * one marker - `FF FF FF FF`. A zero filling is not an inhibit to it: it
+   * computes the distance from the receive frequency, calls the channel a
+   * split, and reports transmit as *enabled*. An earlier version of this
+   * comment claimed CHIRP accepted both fillings, which looked right until it
+   * was checked against uv5r.py - `baofeng_common.py` does accept both, but
+   * that `_is_txinh` belongs to the UV-5R Mini's family, not this one.
    *
-   * That is the failure this codebase cares about most - it is how a weather or
-   * public-safety frequency ends up in a radio someone can key up - so the
-   * marker is written explicitly rather than left to a numeric field that
-   * cannot express it. An existing 0x00 filling is left alone, because CHIRP
-   * reads that as inhibited too and rewriting it would put four pointless bytes
-   * on the wire.
+   * So the marker is canonicalised whenever anything else in the record
+   * changed. The record is exactly one write block, so a record that already
+   * differs carries the four bytes at no extra cost on the wire. Only a record
+   * byte-identical to what was read keeps a zero filling - that is what keeps
+   * `encode(decode(image), image)` byte-exact, and it means boofwang never
+   * writes the 0x00 spelling, it can only pass one through untouched. The
+   * residual - an image already carrying 0x00 reads as transmit-capable in
+   * CHIRP whether or not boofwang ever touched it - is recorded in
+   * docs/protocols/uv82.md. No hardware capture has contained one yet.
    */
-  if (!ch.txAllowed && !keepMarker) mem.fill(0xff, addr + 0x04, addr + 0x08)
+  if (!ch.txAllowed) {
+    const txBytes = mem.subarray(addr + 0x04, addr + 0x08)
+    const foundMarker = txBytes.every((b) => b === 0xff) || txBytes.every((b) => b === 0x00)
+    const untouched = equalBytes(mem.subarray(addr, addr + UV82_CHANNEL.size), before)
+    if (!foundMarker || !untouched) mem.fill(0xff, addr + 0x04, addr + 0x08)
+  }
 
   UV82_NAME.write(mem, nameAddr(i), { name: ch.name.slice(0, NAME_LENGTH) })
 }
