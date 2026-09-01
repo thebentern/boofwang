@@ -98,12 +98,26 @@ take the same Kenwood plug. Whether its cable even wires the programming pins
 is unknown, and a PTT accessory has no reason to. So "this fob did not pass
 serial" is not yet "BL-1 dongles do not pass serial".
 
-## A second device: `BF_Writer_CD4`, 2026-08-31
+## A second device: the Baofeng BT-A1D, 2026-08-31
 
-A purpose-built Baofeng programming writer, on the same UV-82. It advertises
-vendor service **BF98** under the name `BF_Writer_CD4` - note the trailing
-space in the advertised name, which is the kind of detail a naive prefix
-filter breaks on.
+Baofeng's own **BT-A1D Wireless Programming Adapter**, which advertises as
+`BF_Writer_CD4` - note the trailing space in the advertised name, the kind of
+detail a naive prefix filter breaks on - under vendor service **BF98**. It is
+driven by Baofeng's **Ola Radio** app on Android and iOS.
+
+**It was tested against a UV-82, which the vendor does not claim.** The
+BT-A1D's published compatibility list is UV-5RM, UV-5RM Plus, UV-5RM Pro,
+UV-5RH, UV-5R, UV-5RX, K5 Plus, V1D and BF-888S. No UV-82, and no Quansheng
+UV-K5. So the silence recorded below is from a pairing the adapter was never
+sold for, and is weak evidence about the adapter itself. The obvious retry is
+a **UV-5R Mini**: it is on the list, and it is the radio whose driver here is
+best verified.
+
+That list also settles a question this file had open. The adapter spans the
+UV-5R at 9,600 and the UV-5RM at 115,200, so it must select a rate per radio
+rather than fixing one - which makes `AE10`, the four-byte register below, a
+near-certain mode or rate selector that the Ola app writes before it talks.
+Its factory 5 is simply what ships, not a rate that suits everything.
 
 ```
 service ff00
@@ -230,15 +244,17 @@ UUID FFE0 alone does not.
    that settled the Mini's profile. A UV-82 or UV-5G behind the dongle
    answers `06` to its seven-byte magic if the pipe and the rate are right.
 4. **Capture the vendor app doing real work - this is the step that is now
-   blocking.** The 2026-08-31 probe got as far as it could without it: the
-   dongle answers on FF22 but with a wrapper a single sample cannot decode.
-   Android developer options, Bluetooth HCI snoop log on; drive the TIDRADIO
-   app through one read and one write of a UV-K5; `adb bugreport`; open
-   `btsnoop_hci.log` in Wireshark. Line up the app's FF22 writes against its
-   FF21 notifies with a known plaintext (the UV-K5 hello above) and the
-   wrapper falls out: whether it is an XOR, a length/opcode framing, or a
-   mode command that precedes transparent traffic on FF02. That is the one
-   thing that turns FF22's 16-byte reply from a blob into a protocol.
+   blocking, and no public reverse engineering of these adapters exists to
+   borrow from.** Bench probing got as far as it can: the devices answer, but
+   with wrappers a single sample cannot decode. Turn on Android developer
+   options and the Bluetooth HCI snoop log, drive the vendor app - **Ola
+   Radio** for the Baofeng BT-A1D - through one read and one write of a radio
+   on the adapter's own supported list, then `adb bugreport` and open
+   `btsnoop_hci.log` in Wireshark. Line the app's writes up against its
+   notifies with a known plaintext and the wrapper falls out: what it writes
+   to `AE10` first, which characteristic carries the payload, and whether the
+   framing is an XOR, a length/opcode header, or a mode command that precedes
+   transparent traffic. Everything else in this file is waiting on that.
 5. **Then, in one commit:** fill the real UUIDs and advertised name into the
    profiles, flip `verified`, and record here the byte counts of the read
    and the write that proved them. `?ble=uart:service,write,notify` exists
