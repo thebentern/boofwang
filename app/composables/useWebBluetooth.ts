@@ -143,19 +143,29 @@ export async function requestBluetoothRadio(
    */
   const resolved = resolveBluetoothProfile()
   const candidates = resolved.overridden ? [resolved.profile] : (opts.profiles ?? [resolved.profile])
-  const services = [...new Set(candidates.map((c) => c.service))]
+  /*
+   * Two different lists, and conflating them emptied a chooser in a shipped
+   * build.
+   *
+   * `filters` may only name services a device ADVERTISES. `optionalServices`
+   * must name every service we will later ask `getPrimaryService` for, because
+   * Web Bluetooth refuses to hand over one that was not declared up front.
+   * They overlap for most devices and do not for the `BF_Writer` dongle,
+   * which advertises BF98 and keeps its characteristics in FF00 - so a filter
+   * built from the connect-time service listed nothing at all.
+   */
+  const advertised = [...new Set(candidates.flatMap((c) => c.advertisedServices ?? [c.service]))]
+  const services = [...new Set([...candidates.map((c) => c.service), ...advertised])]
 
   /*
-   * Filters are OR-ed by the browser: "advertises one of the services, or is
-   * named like one of these". `optionalServices` names every candidate's
-   * service on both branches, because Web Bluetooth will not hand over a
-   * service that was not named up front, whether or not it was filtered on -
-   * and the "show every device" hatch would otherwise strand whichever
+   * Filters are OR-ed by the browser: "advertises one of these services, or
+   * is named like one of these". `optionalServices` goes on both branches,
+   * the "show every device" hatch included, or that hatch strands whichever
    * candidate it did not list.
    */
   const filters = [
     ...[...new Set(candidates.flatMap((c) => c.namePrefixes))].map((namePrefix) => ({ namePrefix })),
-    ...services.map((service) => ({ services: [service] })),
+    ...advertised.map((service) => ({ services: [service] })),
   ]
 
   let device: BluetoothDevice

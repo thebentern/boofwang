@@ -127,6 +127,16 @@ before trusting one has paid for itself.
 service.** That commonality is why the shipped profile aims there. On this
 writer FF02 does draw a reply on FF01, unlike the fob.
 
+**It advertises BF98, not FF00** - and that difference shipped as a bug. The
+first release of the dongle profile filtered the chooser on FF00, which is
+where the characteristics live but is only discoverable *after* connecting.
+The writer broadcasts BF98 and the name `BF_Writer_CD4`, neither of which the
+filter named, so the chooser opened empty with the dongle a foot away: the
+exact failure the header of `bluetooth-uuids.ts` warns about, committed by
+trusting a GATT enumeration as an advertisement. `BluetoothProfile` now
+separates `service` (looked up after connecting) from `advertisedServices`
+(what the chooser may filter on), and a test pins the two apart.
+
 **What FF01 returns is not yet a radio.** Writing to FF02 produces a variable
 number of single-byte notifications - `f8`, `f0`, `fc`, `e0`, `c0` - and the
 count does not track the reply a radio would send: a sixteen-byte UV-K5 hello

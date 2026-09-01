@@ -508,6 +508,31 @@ describe('the dongle profiles', () => {
     expect(TIDRADIO_BL1_FF00.namePrefixes).toEqual(TIDRADIO_BL1_FFE0.namePrefixes)
   })
 
+  it('filter the chooser on what the dongle advertises, not what it enumerates', () => {
+    /*
+     * The bug this pins, which shipped and emptied a real chooser.
+     *
+     * FF00 is where the BF_Writer keeps its characteristics, learned by
+     * connecting. BF98 is what it broadcasts. `requestDevice` matches only
+     * the broadcast, so a filter built from FF00 listed nothing while the
+     * dongle sat a foot away - the empty-chooser failure the header of
+     * bluetooth-uuids.ts warns about, committed by trusting an enumeration
+     * as an advertisement.
+     */
+    expect(TIDRADIO_BL1_FF00.service).toBe(normaliseUuid('ff00'))
+    expect(TIDRADIO_BL1_FF00.advertisedServices).toContain(normaliseUuid('bf98'))
+    // And the fob's own advertisement is still covered.
+    expect(TIDRADIO_BL1_FF00.advertisedServices).toContain(normaliseUuid('ff00'))
+  })
+
+  it('carry the names both bench devices actually advertised', () => {
+    // `BF_Writer_CD4` and `TIDRADIO PTTf816cb-A`. Neither was matched by the
+    // original guesses, and the name filter is the hedge that saves a device
+    // whose advertised service nobody has recorded.
+    expect(TIDRADIO_BL1_FF00.namePrefixes).toContain('BF_Writer')
+    expect(TIDRADIO_BL1_FF00.namePrefixes).toContain('TIDRADIO')
+  })
+
   it('never become the default, which belongs to the one verified profile', () => {
     expect(DEFAULT_PROFILE).toBe(UV5RM_BLE)
     expect(KNOWN_PROFILES[0]).toBe(UV5RM_BLE)

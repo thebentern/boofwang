@@ -55,10 +55,31 @@ export interface BluetoothProfile {
   readonly id: string
   readonly label: string
   /**
-   * The advertised service, which is both the chooser's filter and the service
-   * the characteristics are looked up in.
+   * The service the characteristics are looked up in, after connecting.
+   *
+   * This is what `getPrimaryService` is called with. It is NOT reliably what
+   * the chooser can filter on - see `advertisedServices`.
    */
   readonly service: string
+  /**
+   * What this device puts in its ADVERTISEMENT, when that is not `service`.
+   *
+   * The distinction is not pedantry, it cost a live release. `requestDevice`
+   * matches a service only when the device broadcasts it, and a GATT
+   * enumeration happens after connecting and says nothing about what is
+   * broadcast. The `BF_Writer` dongle keeps its characteristics in FF00 and
+   * advertises BF98 - so a chooser filtered on FF00, which is what the
+   * enumeration showed, listed nothing at all while the device sat a foot
+   * away advertising happily. That is the empty-chooser failure this file's
+   * header warns about, produced by trusting an enumeration as an
+   * advertisement.
+   *
+   * Empty means the advertisement carries `service` itself, which is the
+   * ordinary case. Everything here goes into the chooser's filters, and both
+   * these and `service` go into `optionalServices`, because Web Bluetooth
+   * refuses to hand over a service that was not named up front.
+   */
+  readonly advertisedServices?: readonly string[]
   /**
    * The characteristic this program writes to.
    *
@@ -295,7 +316,18 @@ export const UV5RM_AE30_ECHO: BluetoothProfile = {
  * be U+002D (the `walkie-talkie` lesson above), and over-matching lists extra
  * chooser rows where under-matching lists nothing.
  */
-const BL1_NAME_PREFIXES: readonly string[] = ['BL-1', 'BL', 'TDBL', 'TD-PTT', 'TD', 'TID', 'TIDRADIO']
+/*
+ * Every prefix a dongle in this family has been seen advertising, plus the
+ * hedges. `BF_Writer` and `TIDRADIO` are real - read off the two devices on
+ * the bench - and the short forms stop before any separator, because a name
+ * rendered `BL-1` may hold a hyphen that is not U+002D and a filter carrying
+ * the wrong one matches nothing. Over-matching lists extra chooser rows,
+ * which somebody can look past; under-matching lists nothing, which is
+ * indistinguishable from a dongle that is switched off.
+ */
+const BL1_NAME_PREFIXES: readonly string[] = [
+  'BF_Writer', 'BF', 'BL-1', 'BL', 'TDBL', 'TD-PTT', 'TD', 'TIDRADIO', 'TID',
+]
 
 export const TIDRADIO_BL1_FF00: BluetoothProfile = {
   id: 'tidradio-bl1-ff00',
@@ -314,6 +346,16 @@ export const TIDRADIO_BL1_FF00: BluetoothProfile = {
    */
   write: normaliseUuid('ff02'),
   notify: normaliseUuid('ff01'),
+  /*
+   * BF98 is what the `BF_Writer` broadcasts, and it is not FF00.
+   *
+   * FF00 came from a GATT enumeration, which happens after connecting. The
+   * first release of this profile filtered the chooser on it and listed
+   * nothing with the dongle a foot away - the exact failure the header of
+   * this file warns about. FF00 stays here too because the TD-PTT fob does
+   * advertise it, and both go in the filter.
+   */
+  advertisedServices: [normaliseUuid('ff00'), normaliseUuid('bf98')],
   namePrefixes: BL1_NAME_PREFIXES,
   radioLink: 'serial',
   verified: false,

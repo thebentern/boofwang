@@ -84,6 +84,15 @@ describe('the Bluetooth chooser', () => {
     expect(CHOOSER).not.toMatch(/optionalServices: \[profile\.service\]/)
   })
 
+  it('filters on advertised services and declares the connect-time ones', () => {
+    // These are two different lists. A filter may only name what a device
+    // broadcasts; optionalServices must name everything getPrimaryService
+    // will be called with. Building the filter from the connect-time service
+    // is what emptied a chooser with a BF_Writer dongle a foot away.
+    expect(CHOOSER).toMatch(/advertisedServices \?\? \[c\.service\]/)
+    expect(CHOOSER).toMatch(/advertised\.map\(\(service\) => \(\{ services: \[service\] \}\)\)/)
+  })
+
   it('names the radio for the unfiltered list', () => {
     expect(PAGE).toMatch(/advertisedName/)
     expect(PAGE).toMatch(/:ble-name="bleName"/)
