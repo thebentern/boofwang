@@ -86,7 +86,19 @@ async function acquireLike(kind: TransportKind, radioId: RadioId | null): Promis
   } catch {
     forgetBluetoothGrant()
   }
-  return await requestBluetoothRadio(radioHasBluetooth ? {} : { profiles: BL1_DONGLE_PROFILES })
+  /*
+   * Same three cases as the connect screen. A radio with a module and a
+   * dongle-fit port offers its own profile first and the dongle behind it,
+   * because either device may be the one in range - the grant usually
+   * short-circuits this, but a refused reconnect lands here.
+   */
+  return await requestBluetoothRadio(
+    radioTakesDongle
+      ? radioHasBluetooth
+        ? { profiles: BL1_DONGLE_PROFILES, withDefault: true }
+        : { profiles: BL1_DONGLE_PROFILES }
+      : {},
+  )
 }
 
 /** What went wrong opening a link, in the terms of the carrier it was over. */

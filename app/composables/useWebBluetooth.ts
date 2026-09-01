@@ -129,7 +129,20 @@ export function describeBluetoothDevice(name: string | null | undefined, profile
 let granted: { device: BluetoothDevice; profile: BluetoothProfile } | null = null
 
 export async function requestBluetoothRadio(
-  opts: { everyDevice?: boolean; profiles?: readonly BluetoothProfile[] } = {},
+  opts: {
+    everyDevice?: boolean
+    profiles?: readonly BluetoothProfile[]
+    /**
+     * Try the radio's own profile first, then `profiles`.
+     *
+     * For a radio that has both a BLE module and a port a dongle fits - the
+     * UV-5R Mini is the one - either device may be the thing in the chooser,
+     * and which one the user reached for cannot be known until it answers.
+     * Asking for the verified module first and falling through to the dongle
+     * costs one failed `getPrimaryService` on a live connection.
+     */
+    withDefault?: boolean
+  } = {},
 ): Promise<PortChoice | null> {
   if (!bluetoothAvailable()) throw new Error('This browser does not support Web Bluetooth.')
 
@@ -142,7 +155,13 @@ export async function requestBluetoothRadio(
    * had.
    */
   const resolved = resolveBluetoothProfile()
-  const candidates = resolved.overridden ? [resolved.profile] : (opts.profiles ?? [resolved.profile])
+  const candidates = resolved.overridden
+    ? [resolved.profile]
+    : opts.profiles
+      ? opts.withDefault
+        ? [resolved.profile, ...opts.profiles]
+        : opts.profiles
+      : [resolved.profile]
   /*
    * Two different lists, and conflating them emptied a chooser in a shipped
    * build.

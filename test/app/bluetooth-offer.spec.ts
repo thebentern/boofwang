@@ -121,6 +121,18 @@ describe('the dongle offer', () => {
     expect(label).toMatch(/untested/)
   })
 
+  it('offers the dongle alongside the module for a radio that has both', () => {
+    /*
+     * The UV-5R Mini has a BLE module AND a port a dongle clips onto. Reading
+     * "has a module" as "never a dongle" made this screen ask a BF_Writer for
+     * the Mini's FFE0 service and report the dongle as the wrong device. It
+     * was the right device. Both candidate sets go to the chooser, its own
+     * verified profile first, and `linkTo` tries them in order.
+     */
+    expect(PAGE).toMatch(/const dongleAlso = computed\([\s\S]*?capabilities\.dongle/)
+    expect(PAGE).toMatch(/profiles: BL1_DONGLE_PROFILES, withDefault: true/)
+  })
+
   it('does not call the radio a Bluetooth radio on the connected card', () => {
     expect(PAGE).toMatch(/:bluetooth-label="dongleRoute \? 'Bluetooth dongle' : 'Bluetooth'"/)
   })

@@ -84,6 +84,9 @@ describe('the paths that reconnect', () => {
     // And the chooser fallback offers the dongle candidates for a dongle-only
     // radio, never another radio's service.
     expect(chooser).toMatch(/BL1_DONGLE_PROFILES/)
+    // And a radio with both a module and a dongle port offers both, its own
+    // verified profile first - not the module alone.
+    expect(chooser).toMatch(/withDefault: true/)
   })
 })
 

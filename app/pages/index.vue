@@ -426,11 +426,20 @@ async function connectBluetooth(everyDevice = false) {
 
   let choice: PortChoice | null
   try {
-    // A dongle radio offers the dongle's candidate profiles; a radio with its
-    // own module keeps the default path, byte for byte. A `?ble=` override
-    // beats both, inside the chooser itself.
+    /*
+     * What to ask the chooser for. A dongle-only radio offers the dongle
+     * profiles alone. A radio with a module AND a dongle-fit port offers its
+     * own verified profile first and the dongle profiles behind it, because
+     * either device may be the one in the user's hand. A radio with only a
+     * module keeps the default path, byte for byte. A `?ble=` override beats
+     * all three, inside the chooser itself.
+     */
     choice = await requestBluetoothRadio(
-      dongleRoute.value ? { everyDevice, profiles: BL1_DONGLE_PROFILES } : { everyDevice },
+      dongleRoute.value
+        ? { everyDevice, profiles: BL1_DONGLE_PROFILES }
+        : dongleAlso.value
+          ? { everyDevice, profiles: BL1_DONGLE_PROFILES, withDefault: true }
+          : { everyDevice },
     )
   } catch (e) {
     toast.add({
@@ -524,6 +533,20 @@ const dongleRoute = computed(
     radioId.value !== null &&
     SCHEMAS[radioId.value]?.capabilities.dongle !== undefined &&
     SCHEMAS[radioId.value]?.capabilities.transports.includes('bluetooth') !== true,
+)
+
+/**
+ * Whether this radio's port also takes a dongle, whatever else it has.
+ *
+ * Different from `dongleRoute`, which asks whether the dongle is the ONLY
+ * wireless way in. The UV-5R Mini has both a BLE module of its own and a port
+ * a dongle clips onto, and treating "has a module" as "never a dongle" is
+ * what made this screen ask a BF_Writer for the Mini's FFE0 service and
+ * report that the dongle was the wrong device. It was the right device; the
+ * question was wrong.
+ */
+const dongleAlso = computed(
+  () => radioId.value !== null && SCHEMAS[radioId.value]?.capabilities.dongle !== undefined,
 )
 
 /**
