@@ -112,13 +112,20 @@ describe('the dongle offer', () => {
     expect(PAGE).toMatch(/profiles: BL1_DONGLE_PROFILES/)
   })
 
-  it('derives its caveat from the candidates rather than asserting one', () => {
-    // The "untested" wording must come off by itself the day a capture lands
-    // and a profile flips to verified - same rule as bleLabel always had.
+  it('derives its caveat from THIS radio, not from the dongle profile', () => {
+    /*
+     * The profile is verified - a BT-A1D carried a UV-5R Mini codeplug - and
+     * keying the label on that would have promoted every cable-only radio to
+     * "connect" on the strength of a different radio's success. A UV-82 on
+     * the same dongle the same day drew nothing, so the claim has to be made
+     * per radio and `dongleProven` is where that fact lives.
+     */
     const label = /const bleLabel = computed\(\(\) => \{([\s\S]*?)\n\}\)/.exec(PAGE)?.[1] ?? ''
     expect(label, 'bleLabel is no longer the computed this checks').not.toBe('')
-    expect(label).toMatch(/BL1_DONGLE_PROFILES\.some\(\(p\) => p\.verified\)/)
+    expect(label).toMatch(/dongleProven\.value/)
+    expect(label).not.toMatch(/BL1_DONGLE_PROFILES\.some/)
     expect(label).toMatch(/untested/)
+    expect(PAGE).toMatch(/const dongleProven = computed\([\s\S]*?capabilities\.dongleProven/)
   })
 
   it('offers the dongle alongside the module for a radio that has both', () => {

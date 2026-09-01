@@ -500,9 +500,17 @@ function onAction(key: string) {
  */
 const bleLabel = computed(() => {
   if (dongleRoute.value) {
-    return BL1_DONGLE_PROFILES.some((p) => p.verified)
-      ? 'Connect through a Bluetooth dongle'
-      : 'Try a Bluetooth dongle (untested)'
+    /*
+     * Keyed on this radio, not on the dongle profile.
+     *
+     * The profile is now verified - a BT-A1D carried a whole UV-5R Mini
+     * codeplug through it - but that proves the GATT layout, not that any
+     * given radio behind one answers. A UV-82 on the same dongle the same day
+     * drew nothing. Reading the profile's flag here would have promoted every
+     * cable-only radio to "connect" on the strength of a different radio's
+     * success, which is the overclaim this screen exists not to make.
+     */
+    return dongleProven.value ? 'Connect through a Bluetooth dongle' : 'Try a Bluetooth dongle (untested)'
   }
   return bluetoothProfile().verified ? 'Connect over Bluetooth' : 'Try Bluetooth (untested)'
 })
@@ -545,6 +553,11 @@ const dongleRoute = computed(
  * report that the dongle was the wrong device. It was the right device; the
  * question was wrong.
  */
+/** Whether a codeplug has actually come off THIS radio through a dongle. */
+const dongleProven = computed(
+  () => radioId.value !== null && SCHEMAS[radioId.value]?.capabilities.dongleProven === true,
+)
+
 const dongleAlso = computed(
   () => radioId.value !== null && SCHEMAS[radioId.value]?.capabilities.dongle !== undefined,
 )
@@ -607,8 +620,9 @@ const bleNote = computed(() => {
   if (dongleRoute.value) {
     return (
       `This browser does have Web Bluetooth, and the ${radioName.value} is programmed through a port ` +
-      'that clip-on Bluetooth dongles fit. Two have been tried against this build and neither carried ' +
-      'a radio, so this route is a guess worth attempting rather than one that has worked.'
+      'that clip-on Bluetooth dongles fit. One has carried a whole codeplug off a UV-5R Mini, so the ' +
+      'route works; whether it reaches this radio has not been shown, and a UV-82 behind the same ' +
+      'dongle stayed silent.'
     )
   }
   /*

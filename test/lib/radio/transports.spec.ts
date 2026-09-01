@@ -48,6 +48,19 @@ describe('transport declarations', () => {
     expect(declared).toEqual(DONGLE_RADIOS)
   })
 
+  it('pins which radios have actually been read through a dongle', () => {
+    /*
+     * A Baofeng BT-A1D carried a UV-5R Mini codeplug on 2026-09-01 and drew
+     * nothing at all from a UV-82 the same day. `dongle` says the jack fits;
+     * this says a codeplug has come off. Keeping them apart is what stops one
+     * radio's success labelling every other radio's button "connect".
+     */
+    const proven = RADIO_IDS.filter((id) => SCHEMAS[id]?.capabilities.dongleProven === true)
+    expect(proven).toEqual(['uv5rmini'])
+    // And nothing claims proof without the port that carries it.
+    for (const id of proven) expect(SCHEMAS[id]?.capabilities.dongle).toBe('k2')
+  })
+
   it('keeps the dongle a port fact, never a transport', () => {
     // 'bluetooth' in `transports` means the radio has a BLE module of its
     // own. A dongle radio claiming it there would put the wrong words on the

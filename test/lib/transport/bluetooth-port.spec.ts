@@ -449,8 +449,11 @@ describe('the UUIDs themselves', () => {
  * the honest record here is unverified, serial-believing, never the default.
  */
 describe('the dongle profiles', () => {
-  it('are both unverified, and stay that way until a radio answers through one', () => {
-    expect(TIDRADIO_BL1_FF00.verified).toBe(false)
+  it('mark the FF00 shape verified, because a radio answered through it', () => {
+    // A Baofeng BT-A1D carried a whole UV-5R Mini codeplug over FF02/FF01 on
+    // 2026-09-01. The FFE0 shape is still a guess: no device has carried
+    // anything over it, and the flag has to keep saying so.
+    expect(TIDRADIO_BL1_FF00.verified).toBe(true)
     expect(TIDRADIO_BL1_FFE0.verified).toBe(false)
   })
 

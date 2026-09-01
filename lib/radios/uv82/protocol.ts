@@ -39,12 +39,34 @@ const ACK = 0x06
 export const MAGIC_UV82 = Uint8Array.from([0x50, 0xbb, 0xff, 0x20, 0x13, 0x01, 0x05])
 
 /**
- * Send the magic one byte at a time.
+ * Send the magic, paced for the carrier it is going over.
  *
- * CHIRP pauses ~10 ms between bytes and it is not decoration: sent as a single
- * write, these radios frequently miss it. Cheap insurance on a 7-byte string.
+ * Over a cable, one byte at a time. CHIRP pauses ~10 ms between bytes and it
+ * is not decoration: sent as a single write, these radios frequently miss it.
+ * Cheap insurance on a 7-byte string.
+ *
+ * Over Bluetooth, one write. That pacing is a cable remedy and it is actively
+ * harmful through a BLE-to-UART dongle, where a GATT write is a message
+ * rather than a stream: a bench probe found seven single-byte writes drew
+ * nothing whatever from a Baofeng BT-A1D, while the same seven bytes in one
+ * write drew a reply, and a sixteen-byte write drew six. A dongle forwarding
+ * whole writes has no reason to reassemble seven of them, and there is no
+ * UART on this side of the link whose timing we could be protecting anyway.
+ *
+ * Keyed on `kind`, the carrier, not on `radioLink`: how to chunk a write
+ * belongs to the link the host is on, where the block size belongs to what
+ * the radio believes. This is the distinction those two fields exist for.
+ *
+ * Reasoned from that probe rather than proven: a UV-5R Mini has been read
+ * through this dongle, and its driver already sent its magic as one write, so
+ * no classic-family radio has yet answered through one either way. See
+ * docs/protocols/ble-dongle.md.
  */
 async function sendMagic(t: Transport, magic: Uint8Array, opts?: ReadOpts): Promise<void> {
+  if (t.kind === 'bluetooth') {
+    await t.write(magic, opts)
+    return
+  }
   for (const byte of magic) {
     await t.write(Uint8Array.from([byte]), opts)
     await delay(10, opts?.signal)

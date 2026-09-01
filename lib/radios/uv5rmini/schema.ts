@@ -134,16 +134,24 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
     // before anyone types a confirmation for a write that will not happen.
     writeTransports: ['serial'],
     /*
-     * The K-port dongle route on top of the built-in module, both untested
-     * caveats included: the dongle's far-side UART rate is unknown and this
-     * radio clones at 115200. There is a genuine ambiguity here too - an
-     * FFE0-variant BL-1 and this radio's own module share a service UUID, so
-     * a session that offered both candidate lists could not tell them apart.
-     * Harmless while reads are link-identical and Bluetooth-carrier writes
-     * are refused; recorded in docs/protocols/ble-dongle.md for the day a
-     * capture exists.
+     * The K-port dongle route, on top of the built-in module. A dongle
+     * reached this radio at 115200 with no configuration, which also answers
+     * the rate question that hung over this field for a day.
+     *
+     * One ambiguity survives and is worth keeping written down: an
+     * FFE0-variant dongle would be service-identical to this radio's own
+     * module, so a session offering both candidate lists could not tell them
+     * apart by UUID. The BT-A1D is FF00 and does not collide, and reads are
+     * link-identical either way. See docs/protocols/ble-dongle.md.
      */
     dongle: 'k2',
+    /*
+     * And proven through one. A Baofeng BT-A1D carried this radio's whole
+     * codeplug on 2026-09-01 - 1,000 slots, 21 channels, `5RMINI +L00000` -
+     * which makes this the first radio here reachable three ways: cable, its
+     * own BLE module, and a clip-on dongle.
+     */
+    dongleProven: true,
   },
 
   memory: {

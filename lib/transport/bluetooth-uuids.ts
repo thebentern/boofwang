@@ -358,7 +358,22 @@ export const TIDRADIO_BL1_FF00: BluetoothProfile = {
   advertisedServices: [normaliseUuid('ff00'), normaliseUuid('bf98')],
   namePrefixes: BL1_NAME_PREFIXES,
   radioLink: 'serial',
-  verified: false,
+  /*
+   * Earned on 2026-09-01: a Baofeng BT-A1D advertising as `BF_Writer_CD4`
+   * carried a whole UV-5R Mini codeplug - 1,000 slots, 21 programmed
+   * channels, identified as `5RMINI +L00000` - into the browser over FF02
+   * and FF01, with AE10 left at its factory 5. Nothing was written to the
+   * dongle to configure it first.
+   *
+   * What that does and does not prove is worth keeping straight. The profile
+   * is proven: this GATT layout is a transparent serial pipe. The route is
+   * proven for the UV-5R Mini and for no other radio - a UV-82 behind the
+   * same dongle drew nothing at all, and the difference looks like framing
+   * rather than baud, since the Mini's driver sends its identify magic as one
+   * 16-byte write where the classic family dribbles seven bytes 10 ms apart.
+   * See docs/protocols/ble-dongle.md.
+   */
+  verified: true,
 }
 
 /**

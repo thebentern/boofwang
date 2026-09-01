@@ -72,6 +72,55 @@ describe('the fake port derives like the real ones', () => {
   })
 })
 
+describe('how a magic is paced is a carrier question', () => {
+  it('sends the classic magic in one write over Bluetooth, byte-wise on a cable', async () => {
+    /*
+     * A GATT write is a message, not a stream. Seven single-byte writes drew
+     * nothing at all from a Baofeng BT-A1D where the same seven bytes in one
+     * write drew a reply, so the 10 ms-per-byte pacing CHIRP needs on a cable
+     * is actively harmful through a dongle. Keyed on the carrier, because
+     * chunking belongs to the link the host is on - not to what the radio
+     * believes, which is what picks block sizes.
+     */
+    const { identify, MAGIC_UV82 } = await import('#core/radios/uv82/protocol.js')
+
+    async function magicWrites(kind: 'serial' | 'bluetooth'): Promise<Uint8Array[]> {
+      const writes: Uint8Array[] = []
+      const t = {
+        kind,
+        radioLink: 'serial',
+        async write(b: Uint8Array) {
+          writes.push(b.slice())
+        },
+        async readExactly() {
+          throw new Error('stop after the magic')
+        },
+        async resync() {
+          return new Uint8Array(0)
+        },
+      } as unknown as Parameters<typeof identify>[0]
+      await identify(t, MAGIC_UV82, { timeoutMs: 50 }).catch(() => {})
+      return writes
+    }
+
+    /*
+     * The claim is the shape of each write, not how many. `identify` tries
+     * the magic three times before giving up, so counting writes counts
+     * retries too - which is what the first version of this test did, and it
+     * failed for a reason that had nothing to do with pacing.
+     */
+    const overBle = await magicWrites('bluetooth')
+    expect(overBle.length).toBeGreaterThan(0)
+    for (const w of overBle) expect(w).toEqual(MAGIC_UV82)
+
+    const overCable = await magicWrites('serial')
+    expect(overCable.length).toBeGreaterThan(0)
+    for (const w of overCable) expect(w).toHaveLength(1)
+    // And the bytes are the same magic either way, one attempt's worth.
+    expect(Uint8Array.from(overCable.slice(0, MAGIC_UV82.length).flatMap((w) => [...w]))).toEqual(MAGIC_UV82)
+  }, 20_000)
+})
+
 describe('what the split decides', () => {
   it('gives a radio behind a dongle the cable block size', () => {
     // The single assertion this whole change exists for.

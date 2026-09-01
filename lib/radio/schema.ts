@@ -146,13 +146,23 @@ export interface RadioSchema {
      * The radio behind a dongle is an ordinary cabled radio - it never knows
      * the cable became a radio link - so this is deliberately not an entry in
      * `transports`, which means "this radio has a BLE module of its own".
-     * Absent means no dongle route is offered. Two dongles have now been
-     * enumerated and neither carried a radio's words, so this says which
-     * radios have the right jack, never that a dongle works; the connect
-     * screen derives its caveats from the dongle profiles' own `verified`
-     * flags. See docs/protocols/ble-dongle.md.
+     * Absent means no dongle route is offered. This says the jack fits and
+     * nothing more - whether a dongle carries THIS radio is `dongleProven`
+     * below, and the two are not the same question. See
+     * docs/protocols/ble-dongle.md.
      */
     readonly dongle?: 'k2'
+    /**
+     * Whether a codeplug has actually come off THIS radio through a dongle.
+     *
+     * Separate from the dongle profile's own `verified`, and the separation
+     * is the point: the profile being proven says the GATT layout is a real
+     * serial pipe, which it now is. It says nothing about a given radio
+     * behind it. A Baofeng BT-A1D read a whole UV-5R Mini codeplug on
+     * 2026-09-01 and drew nothing at all from a UV-82 on the same day, so
+     * one flag cannot speak for both and the interface must not let it.
+     */
+    readonly dongleProven?: true
     /** Non-empty when writing needs an explicit per-feature unlock. */
     readonly writeRequiresUnlock?: string
     /**

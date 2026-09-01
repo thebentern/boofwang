@@ -10,19 +10,59 @@ hangs off, and the reason `Transport` now answers two questions instead of
 one: `kind` is the carrier the host is on, `radioLink` is what the radio
 believes. A dongle is `kind: 'bluetooth', radioLink: 'serial'`.
 
-## Two devices enumerated, neither verified
+## Verified read, 2026-09-01
 
-Two units have been put on a bench against real radios - a TIDRADIO TD-PTT
-fob and a `BF_Writer` programming adapter - and between them they settled
-some of the original guesses and broke others. Nothing is `verified: true`,
-and the reason is now specific rather than "nobody has looked": **no radio
-has answered a handshake through either one.** Every piece of interface copy
-derives its caveat from the `verified: false` flag, so proving one right will
-remove the caveats by itself.
+A **Baofeng BT-A1D**, advertising as `BF_Writer_CD4`, carried a whole UV-5R
+Mini codeplug into the browser. This is the first time a dongle has relayed a
+radio's words here, and it is what `TIDRADIO_BL1_FF00.verified` now rests on.
 
-What the two devices agree on is the shape the shipped profile aims at: an
-FF00 vendor service carrying FF02 to write and FF01 to listen. What neither
-has done is carry a radio's words.
+| | |
+|---|---|
+| Dongle | Baofeng BT-A1D, advertised `BF_Writer_CD4`, service `BF98` |
+| Radio | Baofeng UV-5R Mini, identified `5RMINI +L00000` |
+| GATT used | service `FF00`, write `FF02`, notify `FF01` |
+| `AE10` | left at its factory `5` - nothing was written to configure the dongle |
+| Result | 1,000 slots, 21 programmed channels, backup taken, checks clear |
+
+Three things this settles that guesswork could not:
+
+- **FF02/FF01 is a transparent serial pipe.** The profile aimed there on the
+  strength of two devices sharing the shape, and it was right.
+- **The dongle needs no configuration.** No mode command, no rate command,
+  `AE10` untouched at 5 - and the Mini clones at 115,200, so whatever 5
+  selects is compatible with that or the dongle autobauds. The baud question
+  that hung over this file for two days was a red herring.
+- **The radio never knew.** It ran its ordinary wired protocol throughout,
+  which is what `radioLink: 'serial'` exists to record.
+
+### What it does not settle: the UV-82 stayed silent
+
+The same dongle drew nothing at all from a UV-82 on the same day. So the
+route is proven for one radio, not for the port shape, and the schema keeps
+those apart: `dongle` says the jack fits, `dongleProven` says a codeplug has
+actually come off that radio through one.
+
+The difference between the two looks like **frame shape rather than baud**.
+The UV-5R Mini's driver sends its identify magic as a single 16-byte write.
+The classic UV-5R family - UV-82, UV-5G - dribbles seven bytes 10 ms apart,
+because CHIRP found that radios miss a fast burst on their own UART. Against
+this dongle that pacing draws nothing whatever, while single writes draw
+replies; a bench probe saw the same split before boofwang did:
+
+| Written to FF02 | Came back |
+|---|---|
+| 7 bytes, one at a time | nothing, ever |
+| 7 bytes, one write | one byte |
+| 16 bytes, one write | six bytes |
+
+A GATT write is a message, not a stream, and a dongle forwarding whole
+writes has no reason to reassemble seven of them. `sendMagic` now sends the
+magic in one write when the carrier is Bluetooth and keeps the 10 ms pacing
+on a cable, which is a carrier decision rather than a radio one - exactly
+the axis `kind` and `radioLink` were split to tell apart. **That change is
+reasoned from the evidence above and has not itself been proven on a classic
+radio behind a dongle.** If a UV-82 or UV-5G answers through one, this is
+the paragraph to come back and correct.
 
 ## The first device: `TIDRADIO PTTf816cb-A`, 2026-08-31
 

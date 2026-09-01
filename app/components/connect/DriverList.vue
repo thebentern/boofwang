@@ -162,7 +162,7 @@ const rows = computed(() =>
           v-else-if="row.dongle"
           class="items-center gap-1 whitespace-nowrap hidden sm:flex"
           style="font-size: 12.5px; color: var(--fn)"
-          title="Has the port a clip-on Bluetooth dongle fits. Two dongles have been tried and neither carried a radio."
+          title="Has the port a clip-on Bluetooth dongle fits. A dongle has carried a UV-5R Mini codeplug, but has not been shown to reach this radio."
         >
           <UIcon name="i-lucide-bluetooth" style="width: 11px; height: 11px" />
           Dongle
