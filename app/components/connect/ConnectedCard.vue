@@ -38,6 +38,15 @@ const props = defineProps<{
    * and the one radio with a wireless profile had nowhere to be reached from.
    */
   bluetooth?: boolean
+  /**
+   * What the wireless button calls its route.
+   *
+   * 'Bluetooth' for a radio with its own module; the connect screen passes
+   * 'Bluetooth dongle' for a cable-only radio reached through a clip-on
+   * bridge, because calling that radio a Bluetooth radio would be the card
+   * claiming something the hardware does not have.
+   */
+  bluetoothLabel?: string
 }>()
 
 const emit = defineEmits<{ read: []; otherPort: []; choose: [RadioId]; bluetooth: [] }>()
@@ -105,7 +114,7 @@ const items = computed(() =>
           v-if="bluetooth"
           risk="neutral"
           ghost
-          label="Bluetooth"
+          :label="bluetoothLabel ?? 'Bluetooth'"
           icon="i-lucide-bluetooth"
           :disabled="busy"
           @click="emit('bluetooth')"

@@ -17,6 +17,20 @@ import { bluetoothProfile } from '#core/transport/bluetooth-uuids.js'
  */
 const BLUETOOTH_RADIOS: readonly RadioId[] = ['uv5rmini']
 
+/**
+ * Which radios may offer the clip-on dongle route.
+ *
+ * A different claim from `BLUETOOTH_RADIOS`, pinned for the same reason: the
+ * dongle is the Bluetooth device and the radio behind it is not, so this list
+ * is about programming ports, not radio modules. The DM-32UV is absent
+ * despite having the same two-pin jack - its protocol needs the port-close
+ * resets a dongle cannot deliver (the schema comment argues it in full).
+ * Editing this list is the moment to ask whether the radio's clone baud is
+ * one a real dongle has been shown to bridge; today none has, and every
+ * offer is labelled untested.
+ */
+const DONGLE_RADIOS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5rmini']
+
 describe('transport declarations', () => {
   it.each(RADIO_IDS)('%s can be reached over a cable', (id) => {
     // No radio here is wireless-only, and one that was would need a connect
@@ -27,6 +41,21 @@ describe('transport declarations', () => {
   it('offers Bluetooth for exactly the radios that have a profile', () => {
     const declared = RADIO_IDS.filter((id) => SCHEMAS[id]?.capabilities.transports.includes('bluetooth'))
     expect(declared).toEqual(BLUETOOTH_RADIOS)
+  })
+
+  it('offers the dongle route for exactly the pinned radios', () => {
+    const declared = RADIO_IDS.filter((id) => SCHEMAS[id]?.capabilities.dongle !== undefined)
+    expect(declared).toEqual(DONGLE_RADIOS)
+  })
+
+  it('keeps the dongle a port fact, never a transport', () => {
+    // 'bluetooth' in `transports` means the radio has a BLE module of its
+    // own. A dongle radio claiming it there would put the wrong words on the
+    // connect screen and, on the UV-5R Mini, the wrong block size on the wire.
+    for (const id of DONGLE_RADIOS) {
+      expect(SCHEMAS[id]?.capabilities.dongle).toBe('k2')
+      expect(SCHEMAS[id]?.capabilities.transports).toContain('serial')
+    }
   })
 
   /*

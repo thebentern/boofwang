@@ -227,6 +227,15 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
        * the write - so without this guard the upload would have gone out. The
        * write gate reads `capabilities.writeTransports` and says "Blocked"
        * before anyone types a token; this is the enforcement behind that.
+       *
+       * Keyed on the carrier deliberately, so a BLE-to-UART dongle inherits
+       * the refusal even though the radio behind one takes the verified 0x40
+       * cable blocks. The hazard argued above is not the block format - it is
+       * a whole-image write over a slow radio link that can drop halfway on a
+       * radio that erases flash as it goes, and a dongle is exactly as slow
+       * and exactly as droppable as the radio's own module. What earns either
+       * path a write is the same evidence: a radio surviving one, with the
+       * byte counts recorded in docs/protocols/uv5rmini.md.
        */
       if (!ctx.dryRun && t.kind === 'bluetooth' && !options.allowBluetoothWrite) {
         throw new WriteBlockedError(
@@ -301,12 +310,19 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
       }
 
       /*
-       * Over Bluetooth the radio takes twice as much per frame, which halves
-       * the number of acknowledgement round trips - and a BLE round trip is
-       * what makes this transfer slow. Reads stay at 0x40 either way, so the
-       * two plans differ and the read-back pass gets its own.
+       * Over its own Bluetooth module the radio takes twice as much per
+       * frame, which halves the number of acknowledgement round trips - and a
+       * BLE round trip is what makes this transfer slow. Reads stay at 0x40
+       * either way, so the two plans differ and the read-back pass gets its
+       * own.
+       *
+       * Keyed on `radioLink`, not `kind`: what sets the block size is what
+       * the RADIO believes it is connected by. Behind a BLE-to-UART dongle
+       * the carrier is Bluetooth but the radio sees its own wired UART and
+       * takes 0x40 - sending it the 0x80 frames its wireless mode negotiates
+       * would write a malformed codeplug rather than fail cleanly.
        */
-      const blockSize = uploadBlockSize(t.kind)
+      const blockSize = uploadBlockSize(t.radioLink)
       const blocks = plan(blockSize)
       const verifyBlocks = blockSize === BLOCK_SIZE ? blocks : plan(BLOCK_SIZE)
 

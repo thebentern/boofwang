@@ -131,6 +131,16 @@ export interface BluetoothPortOptions {
    * the page still has it.
    */
   disconnectOnClose?: boolean
+  /**
+   * What the radio at the far end believes it is connected by.
+   *
+   * `'bluetooth'` by default, which is the fused case: the BLE module is
+   * inside the radio and the radio knows it is on a wireless link. A
+   * BLE-to-UART dongle - the TIDRADIO BL-1 family clipped onto a two-pin
+   * programming port - passes `'serial'`, because the radio behind it sees
+   * its own wired UART and behaves exactly as it does on a cable.
+   */
+  radioLink?: TransportKind
 }
 
 export class BluetoothLinkError extends TransportError {
@@ -140,8 +150,16 @@ export class BluetoothLinkError extends TransportError {
 const DEFAULT_MAX_WRITE_BYTES = 20
 
 export class BluetoothPort implements SerialPortLike {
-  /** The capability flag a driver reads to pick its block size. */
+  /** The carrier, full stop. Protocol constants key on `radioLink` instead. */
   readonly kind: TransportKind = 'bluetooth'
+
+  /**
+   * What the radio believes it is connected by: its own BLE module unless the
+   * options said this port is a dongle. This, not `kind`, is what a driver
+   * reads to pick a block size - keying that on the carrier is how a radio
+   * behind a dongle would have been sent 0x80 blocks it never agreed to.
+   */
+  readonly radioLink: TransportKind
 
   readable: ReadableStream<Uint8Array> | null = null
   writable: WritableStream<Uint8Array> | null = null
@@ -157,6 +175,7 @@ export class BluetoothPort implements SerialPortLike {
   constructor(link: BluetoothLink, options: BluetoothPortOptions = {}) {
     this.#link = link
     this.#options = options
+    this.radioLink = options.radioLink ?? 'bluetooth'
   }
 
   get label(): string {
@@ -172,6 +191,15 @@ export class BluetoothPort implements SerialPortLike {
    * should not have to carry a second options bag for the same operation.
    * `openSettleMs` is observed, because the reason for it - give the far end a
    * moment before the first byte - applies to a BLE module just as much.
+   *
+   * Behind a BLE-to-UART dongle the dismissal is only half true: a real UART
+   * exists on the dongle's far side, at some rate the dongle fixes, and
+   * `baudRate` genuinely describes what the radio expects. Whether the BL-1
+   * family takes a rate command before passing traffic is unknown - nobody
+   * has captured one - so nothing is sent, and a dongle whose UART rate does
+   * not match the radio's clone rate looks exactly like a radio that is
+   * switched off. If a capture ever shows a rate command, this is where it
+   * would be sent. See docs/protocols/ble-dongle.md.
    */
   async open(options: SerialOpenOptions): Promise<void> {
     if (this.#open) throw new BluetoothLinkError('This Bluetooth port is already open')

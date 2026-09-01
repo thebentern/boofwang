@@ -347,13 +347,45 @@ function fill(text: string): string {
     .replaceAll('{model}', props.model)
     .replaceAll('{browser}', props.browserName)
     .replaceAll('{advice}', props.advice ?? '')
-    .replaceAll('{bleName}', props.bleName ?? 'the radio')
+    // On a dongle session the unnamed device is the dongle, not the radio -
+    // the radio is on the far side of it and was never in the chooser.
+    .replaceAll('{bleName}', props.bleName ?? (via.value === 'dongle' ? 'the dongle' : 'the radio'))
 }
 
 const copy = computed(() => STATES[props.state])
 
-/** A state that is only ever about one carrier says so; otherwise the page does. */
-const via = computed<HopVia>(() => copy.value.via ?? props.via ?? 'adapter')
+/**
+ * A state that is only ever about one carrier says so; otherwise the page
+ * does. A state that says 'bluetooth' is not wrong on a dongle session - it
+ * is the same carrier - but the page knows the more specific fact, so the
+ * trail shows the dongle a person can actually reseat.
+ */
+const via = computed<HopVia>(() => {
+  const stated = copy.value.via
+  if (stated === 'bluetooth' && props.via === 'dongle') return 'dongle'
+  return stated ?? props.via ?? 'adapter'
+})
+
+/**
+ * The advice lines, with the one substitution a dongle needs.
+ *
+ * "Put the radio into wireless CPS mode" is the right first move for a radio
+ * with a BLE module and a meaningless one for a radio reached through a
+ * clip-on bridge - a dongled radio has no such mode, and the thing to check
+ * is the dongle itself.
+ */
+const steps = computed(() => {
+  const raw = copy.value.steps ?? []
+  if (via.value !== 'dongle') return raw
+  return raw.map(([icon, text]) =>
+    text.includes('wireless CPS mode')
+      ? ([
+          'i-lucide-radio',
+          'Check the dongle is pushed all the way onto the two-pin port, powered, and the radio is switched on.',
+        ] as const)
+      : ([icon, text] as const),
+  )
+})
 
 const bleNote = computed(() => (copy.value.showBleNote ? (props.bleNote ?? '') : ''))
 
@@ -404,7 +436,7 @@ const IN_PROGRESS: readonly FaultState[] = ['picking', 'reading', 'ble-picking']
  */
 const actions = computed(() => {
   const listed = (copy.value.actions ?? []).filter((a) => a.key !== 'trace' || props.traceAvailable)
-  const stranded = via.value === 'bluetooth' && !IN_PROGRESS.includes(props.state)
+  const stranded = (via.value === 'bluetooth' || via.value === 'dongle') && !IN_PROGRESS.includes(props.state)
   if (!stranded || listed.some((a) => a.key === 'cable')) return listed
   // Before the log, which is the least likely next move.
   const at = listed.findIndex((a) => a.key === 'trace')
@@ -489,10 +521,12 @@ const actions = computed(() => {
           </div>
         </div>
 
-        <div v-if="copy.steps" class="mt-3 grid gap-1.5">
-          <div v-for="[icon, text] in copy.steps" :key="text" class="flex gap-2 items-baseline">
+        <div v-if="steps.length" class="mt-3 grid gap-1.5">
+          <div v-for="[icon, text] in steps" :key="text" class="flex gap-2 items-baseline">
             <UIcon :name="icon" class="shrink-0" style="width: 13px; height: 13px; color: var(--fn)" />
-            <span style="font-size: 14px; line-height: 1.55; color: var(--mu)">{{ text }}</span>
+            <!-- Filled like the title and body: a step carrying {bleName}
+                 rendered the hole itself until this went through `fill`. -->
+            <span style="font-size: 14px; line-height: 1.55; color: var(--mu)">{{ fill(text) }}</span>
           </div>
         </div>
 

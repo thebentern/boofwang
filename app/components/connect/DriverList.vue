@@ -79,6 +79,18 @@ function wirelessOf(schema: RadioSchema | null): boolean {
   return schema?.capabilities.transports.includes('bluetooth') === true
 }
 
+/**
+ * Whether this row can be reached through a clip-on Bluetooth dongle.
+ *
+ * A different claim from `wirelessOf` and kept apart deliberately: that one
+ * means the radio has a BLE module in it, this one means its programming port
+ * takes a BLE-to-serial bridge. The chip only shows where the built-in module
+ * chip does not, so a radio with both says the stronger, verified thing.
+ */
+function dongleOf(schema: RadioSchema | null): boolean {
+  return schema?.capabilities.dongle !== undefined && !wirelessOf(schema)
+}
+
 const CHIP_STYLES: Record<ChipTone, { border: string; background: string; color: string }> = {
   ok: { border: 'var(--okL)', background: 'var(--okB)', color: 'var(--ok)' },
   cn: { border: 'var(--cnL)', background: 'var(--cnB)', color: 'var(--cn)' },
@@ -94,6 +106,7 @@ const rows = computed(() =>
       name: schema ? `${schema.vendor} ${schema.model}` : id,
       memory: memoryOf(schema),
       wireless: wirelessOf(schema),
+      dongle: dongleOf(schema),
       status: statusOf(id, schema),
       /** A row you can pick. A driver with no implementation has no handshake to send. */
       usable: isImplemented(id) && schema?.capabilities.read === true,
@@ -144,6 +157,15 @@ const rows = computed(() =>
         >
           <UIcon name="i-lucide-bluetooth" style="width: 11px; height: 11px" />
           Bluetooth
+        </span>
+        <span
+          v-else-if="row.dongle"
+          class="items-center gap-1 whitespace-nowrap hidden sm:flex"
+          style="font-size: 12.5px; color: var(--fn)"
+          title="Has the port a clip-on Bluetooth dongle fits. Two dongles have been tried and neither carried a radio."
+        >
+          <UIcon name="i-lucide-bluetooth" style="width: 11px; height: 11px" />
+          Dongle
         </span>
         <span
           class="chip ms-auto shrink-0"

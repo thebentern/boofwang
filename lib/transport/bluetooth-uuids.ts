@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import type { TransportKind } from './transport.js'
 
 /**
  * ===========================================================================
- * THE UUIDS BELOW HAVE NEVER BEEN SEEN ON A RADIO. THIS IS WHERE THEY GO.
+ * EVERY UUID HERE IS A GUESS UNTIL ITS `verified` FLAG SAYS OTHERWISE.
  * ===========================================================================
+ *
+ * One profile has been proven - `UV5RM_BLE`, by a real radio answering its
+ * own identify magic - and that is the exception that shows the rule: the
+ * rest of this file is assumption, held to the discipline below until a
+ * device answers.
  *
  * `navigator.bluetooth.requestDevice()` needs a service UUID to filter on, and
  * the chooser will not show a radio whose advertised service is not in that
@@ -89,7 +95,17 @@ export interface BluetoothProfile {
    * row is theirs.
    */
   readonly advertisedName?: string
-  /** True only once a radio has answered a handshake over this profile. */
+  /**
+   * What the radio behind this profile believes it is connected by.
+   *
+   * Absent means `'bluetooth'`: the BLE module is inside the radio, which is
+   * every profile until the dongles. A BLE-to-UART dongle profile says
+   * `'serial'`, because the peripheral is the dongle and the radio behind it
+   * is on its own wired UART - the fact that decides the UV-5R Mini's upload
+   * block size, among whatever else a driver ever varies by link.
+   */
+  readonly radioLink?: TransportKind
+  /** True only once a device has answered a handshake over this profile. */
   readonly verified: boolean
 }
 
@@ -222,12 +238,142 @@ export const UV5RM_AE30_ECHO: BluetoothProfile = {
   verified: false,
 }
 
+/*
+ * The TIDRADIO BL-1 family: BL-1, TDBL-1, BL-2, and the TD-PTT fob with its
+ * Kenwood cable attached. Not radios - BLE-to-UART bridges that clip onto a
+ * radio's two-pin programming port. The BLE peripheral is the dongle; the
+ * radio behind it is an ordinary cabled radio that does not know anything
+ * changed, which is what `radioLink: 'serial'` records.
+ *
+ * A real one has now been enumerated - a TD-PTT fob, name
+ * `TIDRADIO PTTf816cb-A`, on 2026-08-31 - and it is neither of the shapes
+ * this file first guessed. It advertises vendor service FF00 and exposes two
+ * write/notify pairs inside it (FF02/FF01 and FF22/FF21) plus an AE00 service
+ * echoing the UV-5R Mini's AE-family layout. So the primary candidate is what
+ * that unit showed; the HM-10 FFE0 shape is kept behind it because cheap
+ * dongles in this family vary and a different unit may carry it.
+ *
+ * Still `verified: false`, and the reason is now measured rather than
+ * cautious. Two radios were held behind it and sent their own identify magic:
+ * a UV-K5 (38,400 baud) and a UV-82 (9,600 - the family these are sold for).
+ * Neither answered. What FF22 does instead is the finding:
+ *
+ *   4 bytes in -> 4 bytes back    16 in -> 16 back    1 in -> 1 back
+ *
+ * Exactly one byte out per byte written, every time, on FF21. No radio
+ * protocol in this codebase does that: a UV-82 answers a seven-byte magic
+ * with a single 0x06, and a UV-K5 answers a sixteen-byte hello with a framed
+ * reply of about twenty-six. So FF22/FF21 is a per-byte status channel, not
+ * a data path - recorded below as `TIDRADIO_FF22_PER_BYTE` for the same
+ * reason `UV5RM_AE30_ECHO` is recorded, and pointed at by nothing.
+ *
+ * The bytes it returns do vary with the radio attached (all `00` behind the
+ * UV-82, varied and deterministic behind the UV-K5), so the dongle is
+ * sampling something. What it is not doing is carrying a radio's reply.
+ * FF02/FF01 - the other pair, and the one shaped like a transparent serial
+ * link - stayed silent to everything, and FF02 reads back empty.
+ *
+ * A second device, a `BF_Writer_CD4` purpose-built programming writer, was
+ * enumerated the next day and agrees on the shape that matters: an FF00
+ * service carrying FF02 (write) and FF01 (notify), which is why this profile
+ * aims there. It also carries an AE01/AE02 pair that echoes verbatim - the
+ * AE30 loopback above, on different hardware - and an AE10 register that
+ * takes a one-byte write, reads back what it is given, factory value 5, and
+ * takes the whole dongle off the air when written 0. Sweeping that register
+ * is not a way to find a baud rate; it is a way to need a power cycle.
+ *
+ * On the writer FF02 does draw a reply on FF01, but not a radio's: a
+ * variable count of single bytes, `f8` `f0` `fc` `e0` `c0`, runs of ones
+ * then zeros, which is a UART sampling a line at the wrong rate or an idle
+ * one. Neither device has carried a radio's words. Until an HCI snoop of the
+ * vendor app doing a real read says which characteristic carries a payload
+ * and what configures it first, this profile aims at the plausible pair and
+ * promises nothing.
+ *
+ * The name prefixes are now half-confirmed: `TID` matched the real device.
+ * The pre-hyphen short forms stay because a hyphen rendered on screen may not
+ * be U+002D (the `walkie-talkie` lesson above), and over-matching lists extra
+ * chooser rows where under-matching lists nothing.
+ */
+const BL1_NAME_PREFIXES: readonly string[] = ['BL-1', 'BL', 'TDBL', 'TD-PTT', 'TD', 'TID', 'TIDRADIO']
+
+export const TIDRADIO_BL1_FF00: BluetoothProfile = {
+  id: 'tidradio-bl1-ff00',
+  label: 'TIDRADIO dongle (FF00 vendor serial)',
+  service: normaliseUuid('ff00'),
+  /*
+   * FF02/FF01, not the pair that answers.
+   *
+   * FF22 replies to everything one byte per byte, which is a status channel
+   * and would feed a driver a stream shaped like data - the AE30 mistake in
+   * a new costume. FF02/FF01 is the pair shaped like a transparent serial
+   * link, and it has never returned a byte. Silence is the honest failure
+   * here: a driver aimed at it times out saying the radio did not answer,
+   * which is true, instead of misreporting a protocol error against bytes
+   * the radio never sent.
+   */
+  write: normaliseUuid('ff02'),
+  notify: normaliseUuid('ff01'),
+  namePrefixes: BL1_NAME_PREFIXES,
+  radioLink: 'serial',
+  verified: false,
+}
+
+/**
+ * The characteristic that answers a byte for every byte, kept so it is
+ * recognised rather than rediscovered.
+ *
+ * Never a default and never tried automatically, exactly like the UV-5R
+ * Mini's AE30 echo above. It is here so that anyone probing a TIDRADIO
+ * dongle, finding the only pair that talks back, and concluding they have
+ * found the data path has something to read first. Four bytes in, four
+ * bytes out; sixteen in, sixteen out. That is not a radio.
+ */
+export const TIDRADIO_FF22_PER_BYTE: BluetoothProfile = {
+  id: 'tidradio-ff22-per-byte',
+  label: 'TIDRADIO FF22 — answers one byte per byte, not a data path',
+  service: normaliseUuid('ff00'),
+  write: normaliseUuid('ff22'),
+  notify: normaliseUuid('ff21'),
+  namePrefixes: [],
+  radioLink: 'serial',
+  verified: false,
+}
+
+export const TIDRADIO_BL1_FFE0: BluetoothProfile = {
+  id: 'tidradio-bl1-ffe0',
+  label: 'TIDRADIO dongle (HM-10 transparent serial)',
+  service: normaliseUuid('ffe0'),
+  write: normaliseUuid('ffe1'),
+  notify: normaliseUuid('ffe1'),
+  namePrefixes: BL1_NAME_PREFIXES,
+  radioLink: 'serial',
+  verified: false,
+}
+
+/**
+ * The candidates a dongle connect tries, in order.
+ *
+ * The enumerated FF00 shape first, because a real unit showed it; the FFE0
+ * HM-10 shape behind it for a unit that carries that instead. A device
+ * carries one, and the loser costs one failed `getPrimaryService` on the
+ * same connection. Note the FFE0 variant is service-identical to
+ * `UV5RM_BLE`: an FFE0 dongle and a UV-5R Mini's own module cannot be told
+ * apart by UUID alone, only by which candidate list the session was opened
+ * with. docs/protocols/ble-dongle.md records why that ambiguity is currently
+ * harmless.
+ */
+export const BL1_DONGLE_PROFILES: readonly BluetoothProfile[] = [TIDRADIO_BL1_FF00, TIDRADIO_BL1_FFE0]
+
 export const KNOWN_PROFILES: readonly BluetoothProfile[] = [
   UV5RM_BLE,
   UV5RM_AE30_ECHO,
   // Kept because it is the convention most of these modules follow, even
   // though the one radio anybody has tested does not use it.
   NORDIC_UART,
+  TIDRADIO_BL1_FF00,
+  TIDRADIO_BL1_FFE0,
+  TIDRADIO_FF22_PER_BYTE,
 ]
 
 /**
@@ -239,7 +385,18 @@ export const KNOWN_PROFILES: readonly BluetoothProfile[] = [
  * go into `NORDIC_UART` above.
  */
 export function parseBluetoothProfile(spec: string): BluetoothProfile {
-  const parts = spec
+  /*
+   * A `uart:` prefix marks the device as a BLE-to-UART dongle: the radio
+   * behind it is on its own wired UART, so the profile carries
+   * `radioLink: 'serial'`. The person this exists for is chasing a real BL-1
+   * with a UV-5R Mini clipped to it - without the prefix the driver would
+   * pick the 0x80 wireless upload blocks the radio, on a cable as far as it
+   * knows, never agreed to.
+   */
+  const uart = spec.trim().toLowerCase().startsWith('uart:')
+  const body = uart ? spec.trim().slice('uart:'.length) : spec
+
+  const parts = body
     .split(',')
     .map((p) => p.trim())
     .filter((p) => p.length > 0)
@@ -247,7 +404,8 @@ export function parseBluetoothProfile(spec: string): BluetoothProfile {
   if (parts.length !== 2 && parts.length !== 3) {
     throw new BluetoothUuidError(
       'A Bluetooth profile is `service,write,notify` - or `service,characteristic` when one ' +
-        `characteristic carries both directions. Got ${JSON.stringify(spec)}.`,
+        'characteristic carries both directions, with a `uart:` prefix when the device is a ' +
+        `BLE-to-UART dongle. Got ${JSON.stringify(spec)}.`,
     )
   }
 
@@ -261,7 +419,16 @@ export function parseBluetoothProfile(spec: string): BluetoothProfile {
    * chasing a radio this build does not know, and a name prefix from a
    * different one would filter theirs straight back out.
    */
-  return { id: 'custom', label: 'Custom profile', service, write, notify, namePrefixes: [], verified: false }
+  return {
+    id: 'custom',
+    label: 'Custom profile',
+    service,
+    write,
+    notify,
+    namePrefixes: [],
+    ...(uart ? { radioLink: 'serial' as const } : {}),
+    verified: false,
+  }
 }
 
 /**

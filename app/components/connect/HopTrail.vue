@@ -28,10 +28,15 @@
  * stack, the machine's radio, and the pairing all sit between the page and the
  * handset. So the middle chip changes what it is rather than disappearing, and
  * the trail stays three wide.
+ *
+ * A dongle session puts a physical middle hop back: a BLE-to-serial bridge
+ * clipped onto the radio's programming port, reached over Bluetooth. The
+ * chip names it, because "check the dongle" and "check the pairing" are
+ * different first moves.
  */
 export type HopTone = 'ok' | 'cn' | 'dg' | 'in' | 'neutral'
 export type HopLink = 'ok' | 'work' | 'bad' | 'warn' | 'none'
-export type HopVia = 'adapter' | 'bluetooth'
+export type HopVia = 'adapter' | 'bluetooth' | 'dongle'
 
 const props = withDefaults(
   defineProps<{
@@ -54,6 +59,7 @@ const props = withDefaults(
 const MIDDLE: Record<HopVia, { label: string; icon: string }> = {
   adapter: { label: 'adapter', icon: 'i-lucide-usb' },
   bluetooth: { label: 'bluetooth', icon: 'i-lucide-signal' },
+  dongle: { label: 'dongle', icon: 'i-lucide-bluetooth' },
 }
 
 const middle = computed(() => MIDDLE[props.via])

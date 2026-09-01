@@ -32,6 +32,16 @@ export interface BridgePortInfo {
    * the wrong size while looking entirely healthy.
    */
   kind?: TransportKind | null
+  /**
+   * What the radio behind the bridge believes it is connected by.
+   *
+   * Absent means "same as `kind`". A bridge standing in for a BLE-to-UART
+   * dongle would report `kind: 'bluetooth', radioLink: 'serial'` - which is
+   * also how a real dongle will be verified when one reaches a bench, since
+   * the dev bridge is the only way to iterate on a driver without a chooser
+   * click per attempt.
+   */
+  radioLink?: TransportKind | null
 }
 
 export class BridgeError extends Error {
@@ -100,6 +110,7 @@ export class BridgeSerialPort implements SerialPortLike {
   #url: string
   #path: string
   #kind: TransportKind
+  #radioLink: TransportKind
   #info: { usbVendorId?: number; usbProductId?: number }
   #ws: WebSocket | null = null
   #pending: Pending | null = null
@@ -109,6 +120,7 @@ export class BridgeSerialPort implements SerialPortLike {
     this.#url = url
     this.#path = port.path
     this.#kind = port.kind ?? 'serial'
+    this.#radioLink = port.radioLink ?? this.#kind
     this.#info = {
       ...(port.vendorId === null ? {} : { usbVendorId: port.vendorId }),
       ...(port.productId === null ? {} : { usbProductId: port.productId }),
@@ -122,6 +134,10 @@ export class BridgeSerialPort implements SerialPortLike {
   /** Reported to the transport, and from there to any driver that varies on it. */
   get kind(): TransportKind {
     return this.#kind
+  }
+
+  get radioLink(): TransportKind {
+    return this.#radioLink
   }
 
   getInfo(): { usbVendorId?: number; usbProductId?: number } {

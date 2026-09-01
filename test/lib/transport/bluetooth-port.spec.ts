@@ -6,10 +6,14 @@ import { SerialTransport } from '#core/transport/serial-transport.js'
 import { RecordingTransport } from '#core/transport/recording-transport.js'
 import { DeviceDisconnectedError } from '#core/transport/errors.js'
 import {
+  BL1_DONGLE_PROFILES,
   BluetoothUuidError,
   DEFAULT_PROFILE,
   KNOWN_PROFILES,
   NORDIC_UART,
+  TIDRADIO_BL1_FF00,
+  TIDRADIO_BL1_FFE0,
+  TIDRADIO_FF22_PER_BYTE,
   UV5RM_AE30_ECHO,
   UV5RM_BLE,
   bluetoothProfile,
@@ -431,5 +435,94 @@ describe('the UUIDs themselves', () => {
     expect(bluetoothProfile()).toBe(custom)
     resetBluetoothProfile()
     expect(bluetoothProfile()).toBe(DEFAULT_PROFILE)
+  })
+})
+
+/**
+ * The BL-1 dongle candidates: unverified, and every flag has to say so.
+ *
+ * A real TD-PTT fob was enumerated on 2026-08-31 - service FF00, name
+ * `TIDRADIO PTTf816cb-A` - so the primary candidate is no longer a pure
+ * guess about the UUIDs. But no radio has answered a handshake through it:
+ * FF22 replied to a raw UV-K5 frame with 16 bytes that are not a valid
+ * frame, which reads as the dongle's own control channel, not a radio. So
+ * the honest record here is unverified, serial-believing, never the default.
+ */
+describe('the dongle profiles', () => {
+  it('are both unverified, and stay that way until a radio answers through one', () => {
+    expect(TIDRADIO_BL1_FF00.verified).toBe(false)
+    expect(TIDRADIO_BL1_FFE0.verified).toBe(false)
+  })
+
+  it('say the radio behind them believes it is on a cable', () => {
+    // This is the field that keeps the UV-5R Mini's upload at 0x40 blocks
+    // through a dongle. A profile that lost it would rewrite the block size.
+    expect(TIDRADIO_BL1_FF00.radioLink).toBe('serial')
+    expect(TIDRADIO_BL1_FFE0.radioLink).toBe('serial')
+    // And the radio-module profiles say nothing, which means bluetooth.
+    expect(UV5RM_BLE.radioLink).toBeUndefined()
+  })
+
+  it('lead with the shape a real dongle enumerated as', () => {
+    expect(BL1_DONGLE_PROFILES).toEqual([TIDRADIO_BL1_FF00, TIDRADIO_BL1_FFE0])
+    // FF00 is the service the TD-PTT fob advertised. The HM-10 FFE0 shape is
+    // kept behind it for a unit that carries that instead.
+    expect(TIDRADIO_BL1_FF00.service).toBe(normaliseUuid('ff00'))
+    // The FFE0 variant is service-identical to the UV-5R Mini's own module -
+    // the ambiguity docs/protocols/ble-dongle.md records. It is only ever
+    // offered from the dongle candidate list, never resolved by UUID alone.
+    expect(TIDRADIO_BL1_FFE0.service).toBe(UV5RM_BLE.service)
+  })
+
+  it('aim at the silent pair, not the one that answers a byte per byte', () => {
+    /*
+     * FF22 replies to everything one byte per byte - 4 in, 4 out; 16 in, 16
+     * out - which is a status channel, not a radio. A driver aimed there
+     * would see a stream shaped like data and report a protocol error
+     * against bytes no radio sent: the AE30 loopback mistake in a new
+     * costume. FF02/FF01 is the transparent-looking pair, and its silence is
+     * the honest failure.
+     */
+    expect(TIDRADIO_BL1_FF00.write).toBe(normaliseUuid('ff02'))
+    expect(TIDRADIO_BL1_FF00.notify).toBe(normaliseUuid('ff01'))
+    expect(TIDRADIO_BL1_FF00.write).not.toBe(TIDRADIO_FF22_PER_BYTE.write)
+  })
+
+  it('record the per-byte responder so it is recognised, never tried', () => {
+    // Same treatment as UV5RM_AE30_ECHO: present so the next person probing a
+    // TIDRADIO dongle, finding the only pair that talks back, has something
+    // to read before concluding they found the data path.
+    expect(TIDRADIO_FF22_PER_BYTE.verified).toBe(false)
+    expect(TIDRADIO_FF22_PER_BYTE.namePrefixes).toEqual([])
+    expect(BL1_DONGLE_PROFILES).not.toContain(TIDRADIO_FF22_PER_BYTE)
+    expect(DEFAULT_PROFILE).not.toBe(TIDRADIO_FF22_PER_BYTE)
+  })
+
+  it('carry the prefix that matched a real device, plus pre-hyphen hedges', () => {
+    // `TID` matched `TIDRADIO PTTf816cb-A`. The short forms stay because a
+    // name rendered `BL-1` may hold a hyphen that is not U+002D, and a prefix
+    // carrying the wrong one matches nothing. Over-matching lists extra
+    // chooser rows; under-matching lists nothing.
+    expect(TIDRADIO_BL1_FF00.namePrefixes).toContain('TID')
+    expect(TIDRADIO_BL1_FF00.namePrefixes).toContain('BL')
+    expect(TIDRADIO_BL1_FF00.namePrefixes).toEqual(TIDRADIO_BL1_FFE0.namePrefixes)
+  })
+
+  it('never become the default, which belongs to the one verified profile', () => {
+    expect(DEFAULT_PROFILE).toBe(UV5RM_BLE)
+    expect(KNOWN_PROFILES[0]).toBe(UV5RM_BLE)
+    expect(KNOWN_PROFILES).toContain(TIDRADIO_BL1_FF00)
+    expect(KNOWN_PROFILES).toContain(TIDRADIO_BL1_FFE0)
+  })
+
+  it('parses the uart: override the person chasing a real dongle needs', () => {
+    // Without the prefix, a hand-entered dongle profile would leave the
+    // driver on the wireless block size - the exact bug the axis split fixed.
+    const p = parseBluetoothProfile('uart:ffe0,ffe1')
+    expect(p.radioLink).toBe('serial')
+    expect(p.write).toBe(p.notify)
+    expect(p.verified).toBe(false)
+    // And a plain override keeps meaning a radio's own module.
+    expect(parseBluetoothProfile('ffe0,ffe1').radioLink).toBeUndefined()
   })
 })

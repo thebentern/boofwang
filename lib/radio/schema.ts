@@ -115,11 +115,13 @@ export interface RadioSchema {
      *
      * Declared rather than inferred because nothing else says it: no codeplug,
      * no USB id and no other schema field tells the connect screen whether a
-     * radio has a BLE module in it.
+     * radio has a BLE module in it. A radio reachable through a clip-on
+     * BLE-to-serial dongle does NOT belong here - that is `dongle` below,
+     * because the dongle is the Bluetooth device and the radio is not.
      */
     readonly transports: readonly TransportKind[]
     /**
-     * Which of those carriers the driver will WRITE over.
+     * Which carriers this radio's write path is verified over.
      *
      * A subset of `transports`, and it exists because the two halves of the
      * write path disagreed about it for a day: one change taught the app to
@@ -129,8 +131,28 @@ export interface RadioSchema {
      * gate explains and the driver enforces, and this is the single fact both
      * read so they cannot disagree again. Omitted means every carrier in
      * `transports`.
+     *
+     * Carrier, deliberately: a write over a BLE-to-UART dongle sends the
+     * radio its verified cable bytes, but over a slower link that can drop
+     * halfway, and no radio has survived one - so the Bluetooth carrier stays
+     * blocked for writing until one does, dongle or module alike.
      */
     readonly writeTransports?: readonly TransportKind[]
+    /**
+     * The physical programming jack a clip-on BLE-to-serial dongle fits,
+     * when one does. 'k2' is the two-pin Kenwood plug the TIDRADIO BL-1
+     * family clips onto.
+     *
+     * The radio behind a dongle is an ordinary cabled radio - it never knows
+     * the cable became a radio link - so this is deliberately not an entry in
+     * `transports`, which means "this radio has a BLE module of its own".
+     * Absent means no dongle route is offered. Two dongles have now been
+     * enumerated and neither carried a radio's words, so this says which
+     * radios have the right jack, never that a dongle works; the connect
+     * screen derives its caveats from the dongle profiles' own `verified`
+     * flags. See docs/protocols/ble-dongle.md.
+     */
+    readonly dongle?: 'k2'
     /** Non-empty when writing needs an explicit per-feature unlock. */
     readonly writeRequiresUnlock?: string
     /**

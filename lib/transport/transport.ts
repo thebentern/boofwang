@@ -37,24 +37,40 @@ export interface ReadOpts {
 export type TransportState = 'closed' | 'open' | 'desynced' | 'disconnected'
 
 /**
- * What is actually carrying the bytes.
+ * A link technology, used to answer two different questions.
  *
- * The protocols are identical over a cable and over BLE, but a few of their
- * constants are not: the UV-5R Mini uploads in 0x80 blocks over Bluetooth and
- * 0x40 over a cable, and a short final block is padded. A driver has to be able
- * to ask.
+ * `Transport.kind` asks which carrier the HOST is using - that is what error
+ * messages, reconnect logic and chooser selection care about. It used to be
+ * the only question, until the BLE-to-UART dongles arrived: a TIDRADIO BL-1
+ * clips onto a radio's two-pin programming port, so the host is on Bluetooth
+ * while the radio behind it sees its own wired UART and behaves exactly as it
+ * does on a cable. `Transport.radioLink` asks that second question - what the
+ * RADIO believes it is connected by - and it is the one a protocol constant
+ * must key on. Conflating them wrote the wrong upload block size: the UV-5R
+ * Mini takes 0x80 blocks over its own Bluetooth module and 0x40 over a cable,
+ * and a Mini behind a dongle is on a cable as far as it knows.
  *
- * CHIRP answers the same question by sniffing the serial port's path for
+ * CHIRP answers the carrier question by sniffing the serial port's path for
  * `/tmp/ttyBLE…`, which is a desktop workaround for having no other way to
- * know. In a browser the transport is constructed from the thing it talks to,
- * so it can simply say - and a driver that is told never has to guess wrong.
+ * know - and which cannot see a transparent dongle at all. In a browser the
+ * transport is constructed from the thing it talks to, so both answers are
+ * simply stated, and a driver that is told never has to guess wrong.
  */
 export type TransportKind = 'serial' | 'bluetooth'
 
 export interface Transport {
   readonly state: TransportState
-  /** Which carrier this is, for the handful of constants that differ. */
+  /** The carrier the host is on. For messages and reconnects, never protocol. */
   readonly kind: TransportKind
+  /**
+   * What the radio believes it is connected by.
+   *
+   * Identical to `kind` except behind a BLE-to-UART dongle, where the host is
+   * on Bluetooth and the radio is on its own wired UART. The handful of
+   * protocol constants that differ by link - the UV-5R Mini's upload block
+   * size is the one that exists today - key on this, never on `kind`.
+   */
+  readonly radioLink: TransportKind
   open(opts: SerialOpenOptions): Promise<void>
   close(): Promise<void>
   write(data: Uint8Array, opts?: ReadOpts): Promise<void>
@@ -88,6 +104,14 @@ export interface SerialPortLike {
    * Absent means `'serial'`.
    */
   readonly kind?: TransportKind | undefined
+  /**
+   * What the radio at the far end believes it is connected by.
+   *
+   * Optional for the same structural reason, and absent means "same as
+   * `kind`" - the fused case, which every port except a BLE-to-UART dongle
+   * is. A dongle port declares `kind: 'bluetooth', radioLink: 'serial'`.
+   */
+  readonly radioLink?: TransportKind | undefined
   open(options: SerialOpenOptions): Promise<void>
   close(): Promise<void>
   setSignals?(signals: { dataTerminalReady?: boolean; requestToSend?: boolean; break?: boolean }): Promise<void>

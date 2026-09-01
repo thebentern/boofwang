@@ -22,14 +22,21 @@ export interface FakeSerialPortOptions {
   latencyMs?: number
   info?: { usbVendorId?: number; usbProductId?: number }
   /**
-   * What the driver above should believe it is talking over.
-   *
-   * Lets a test exercise the Bluetooth constants - the UV-5R Mini's 0x80 upload
-   * block and its 0xFF padding - through the real transport and the real driver
-   * without a GATT stack in the way. What differs over BLE is what the driver
-   * decides, not how the bytes travel, so this is the honest seam to fake.
+   * The carrier this fake claims. Absent falls back to `'serial'`, and
+   * `radioLink` follows it unless set apart - so a test that sets only
+   * `kind: 'bluetooth'` fakes a radio with its own BLE module, which is what
+   * every such test meant before the two were distinct.
    */
   kind?: TransportKind
+  /**
+   * What the radio should believe it is talking over, when that differs from
+   * the carrier. Setting `kind: 'bluetooth', radioLink: 'serial'` fakes a
+   * BLE-to-UART dongle: the UV-5R Mini behind one must take 0x40 upload
+   * blocks - the cable constants - while every carrier-facing surface still
+   * sees Bluetooth. What differs by link is what the driver decides, not how
+   * the bytes travel, so this is the honest seam to fake.
+   */
+  radioLink?: TransportKind
 }
 
 export class FakeSerialPort implements SerialPortLike {
@@ -56,6 +63,10 @@ export class FakeSerialPort implements SerialPortLike {
 
   get kind(): TransportKind | undefined {
     return this.#opts.kind
+  }
+
+  get radioLink(): TransportKind | undefined {
+    return this.#opts.radioLink
   }
 
   /** Concatenation of everything written, for assertions. */

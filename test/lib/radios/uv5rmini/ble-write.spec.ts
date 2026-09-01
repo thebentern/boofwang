@@ -75,7 +75,7 @@ const driver = createUv5rMiniDriver({ enableWrite: true, allowBluetoothWrite: tr
  * that the frames can be inspected directly. The GATT stack gets exercised for
  * real further down, where the bytes go through `BluetoothPort` and back.
  */
-function scriptedRadio(kind: TransportKind) {
+function scriptedRadio(kind: TransportKind, radioLink: TransportKind = kind) {
   const writes: { addr: number; data: Uint8Array }[] = []
   const reads: { addr: number; length: number }[] = []
   const memory = new Map<number, Uint8Array>()
@@ -83,6 +83,9 @@ function scriptedRadio(kind: TransportKind) {
 
   const transport = {
     kind,
+    // Defaults to the carrier - the fused case every radio was before the
+    // BLE-to-UART dongles. The dongle tests pass ('bluetooth', 'serial').
+    radioLink,
     async write(bytes: Uint8Array) {
       const addr = ((bytes[1]! << 8) | bytes[2]!) >>> 0
       if (bytes[0] === 0x57) {
@@ -224,6 +227,57 @@ describe('what goes on the wire over Bluetooth', () => {
   })
 })
 
+/**
+ * A BLE-to-UART dongle: Bluetooth carrier, cable-believing radio.
+ *
+ * The TIDRADIO BL-1 family clips onto the two-pin programming port, so the
+ * radio behind one is in its wired CPS mode and takes 0x40 blocks - the size
+ * that has actually been verified on hardware. Before `radioLink` existed,
+ * the block size keyed on the carrier, and a Mini behind a dongle would have
+ * been sent the 0x80 frames its cable mode never negotiates: a malformed
+ * codeplug rather than a clean failure. This is the regression suite for
+ * that.
+ */
+describe('what goes on the wire through a dongle', () => {
+  it('sends the 521 cable blocks of 0x40, not the 262 wireless ones', async () => {
+    const radio = scriptedRadio('bluetooth', 'serial')
+    const report = await driver.writeImage(radio.transport, image(), {
+      backup: BACKUP,
+      ident: IDENT,
+      baseImage: image(),
+    })
+
+    expect(radio.writes).toHaveLength(521)
+    expect(new Set(radio.writes.map((w) => w.data.length))).toEqual(new Set([BLOCK_SIZE]))
+    expect(report.blocksWritten).toBe(521)
+    expect(report.bytesWritten).toBe(521 * BLOCK_SIZE)
+    expect(report.verified).toBe(true)
+  })
+
+  it('is byte-identical to the cable session, padding included - there is none', async () => {
+    // Stricter than the own-module comparison above, which allows the 0x80
+    // path its 0xFF padding past region ends. A transparent dongle changes
+    // nothing the radio can see, so the two write lists must agree on every
+    // address and touch not one byte more.
+    const dongle = scriptedRadio('bluetooth', 'serial')
+    const cable = scriptedRadio('serial')
+    await driver.writeImage(dongle.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() })
+    await driver.writeImage(cable.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() })
+
+    expect(dongle.writes.map((w) => w.addr)).toEqual(cable.writes.map((w) => w.addr))
+    for (const [i, w] of dongle.writes.entries()) {
+      expect(w.data, `block 0x${w.addr.toString(16)}`).toEqual(cable.writes[i]!.data)
+    }
+  })
+
+  it('reads back in the same 0x40 blocks as everything else', async () => {
+    const radio = scriptedRadio('bluetooth', 'serial')
+    await driver.writeImage(radio.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() })
+    expect(radio.reads).toHaveLength(521)
+    expect(new Set(radio.reads.map((r) => r.length))).toEqual(new Set([BLOCK_SIZE]))
+  })
+})
+
 describe('writeBlock guards the sizes it can frame', () => {
   it('takes either legal size', async () => {
     const radio = scriptedRadio('bluetooth')
@@ -306,11 +360,32 @@ describe('the whole stack, over a real GATT link', () => {
     await t.close()
   })
 
-  it('tells the driver above it that it is Bluetooth', async () => {
+  it('tells the driver above it what the radio believes', async () => {
+    // `radioLink`, not `kind`: the carrier is Bluetooth either way, and the
+    // block size follows the radio's own belief.
     const { link } = gattRadio()
     const t = new SerialTransport(new BluetoothPort(link))
     await t.open({ baudRate: 115_200 })
-    expect(uploadBlockSize(t.kind)).toBe(BLE_UPLOAD_BLOCK_SIZE)
+    expect(uploadBlockSize(t.radioLink)).toBe(BLE_UPLOAD_BLOCK_SIZE)
+    await t.close()
+  })
+
+  it('carries a cable-sized frame through the same 20-byte fragmentation for a dongle', async () => {
+    // The dongle changes the block size, never the GATT plumbing: a 0x40
+    // frame is 68 bytes, which is four writes, and the radio behind the
+    // dongle sees the frame its cable mode expects.
+    const { link, stored } = gattRadio()
+    const port = new BluetoothPort(link, { maxWriteBytes: 20, radioLink: 'serial' })
+    const t = new SerialTransport(port)
+    await t.open({ baudRate: 115_200 })
+
+    expect(uploadBlockSize(t.radioLink)).toBe(BLOCK_SIZE)
+
+    const block = Uint8Array.from({ length: BLOCK_SIZE }, (_, i) => (i * 11) & 0xff)
+    await writeBlock(t, 0x2000, block)
+    expect(stored.get(0x2000)).toEqual(block)
+    expect(link.writes.map((w) => w.length)).toEqual([20, 20, 20, 8])
+
     await t.close()
   })
 })
@@ -341,6 +416,21 @@ describe('writing over Bluetooth is off by default', () => {
     await expect(attempt).rejects.toThrow(/^This radio cannot be written over Bluetooth yet\./)
     await expect(attempt).rejects.toThrow(/Use the cable to write\.$/)
     await expect(attempt).rejects.not.toThrow(/not understood well enough/)
+  })
+
+  it('refuses a dongle transport for the same reason', async () => {
+    /*
+     * Deliberately keyed on the carrier: the radio behind a dongle takes the
+     * verified 0x40 blocks, but the hazard the refusal guards - a whole-image
+     * write over a slow radio link that can drop halfway, on a radio that
+     * erases flash as it goes - is exactly as real through a dongle as
+     * through the radio's own module. What lifts it is a radio surviving a
+     * write, whichever wireless path carries it.
+     */
+    const driver = createUv5rMiniDriver({ enableWrite: true })
+    const dongle = scriptedRadio('bluetooth', 'serial')
+    const attempt = driver.writeImage(dongle.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() })
+    await expect(attempt).rejects.toThrow(/^This radio cannot be written over Bluetooth yet\./)
   })
 
   it('still writes over a cable', async () => {

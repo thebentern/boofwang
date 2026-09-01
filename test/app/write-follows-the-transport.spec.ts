@@ -74,6 +74,38 @@ describe('the paths that reconnect', () => {
     expect(chooser).toMatch(/reconnectBluetoothRadio\(\)/)
     expect(chooser.indexOf('reconnectBluetoothRadio')).toBeLessThan(chooser.indexOf('requestBluetoothRadio'))
   })
+
+  it('take the Bluetooth branch for a dongle radio whose schema is cable-only', () => {
+    // A dongle session's carrier is Bluetooth while the radio's `transports`
+    // says serial - the old gate ANDed the two and sent every dongle write to
+    // the serial chooser, in front of somebody holding no cable.
+    const chooser = body(SESSION, 'acquireLike')
+    expect(chooser).toMatch(/capabilities\.dongle/)
+    // And the chooser fallback offers the dongle candidates for a dongle-only
+    // radio, never another radio's service.
+    expect(chooser).toMatch(/BL1_DONGLE_PROFILES/)
+  })
+})
+
+describe('the grant remembers what it answered on', () => {
+  it('reconnects with the granted profile, not a fresh default', () => {
+    /*
+     * `reconnectBluetoothRadio` used to resolve the global default afresh,
+     * which is the UV-5R Mini's profile - so a write reacquire after a dongle
+     * read would have asked the dongle for a service it does not have. The
+     * grant now carries the profile the device actually answered on, and only
+     * a live `?ble=` override outranks it.
+     */
+    const BLUETOOTH = readFileSync(
+      fileURLToPath(new URL('../../app/composables/useWebBluetooth.ts', import.meta.url)),
+      'utf8',
+    )
+    expect(BLUETOOTH).toMatch(/granted: \{ device: BluetoothDevice; profile: BluetoothProfile \} \| null/)
+    const reconnect = BLUETOOTH.slice(BLUETOOTH.indexOf('export async function reconnectBluetoothRadio'))
+      .split('export ')[1]!
+    expect(reconnect).toMatch(/granted\.profile/)
+    expect(reconnect).toMatch(/resolved\.overridden \? \[resolved\.profile\] : \[granted\.profile\]/)
+  })
 })
 
 describe('the carrier outlives the connection', () => {

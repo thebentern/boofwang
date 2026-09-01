@@ -221,4 +221,23 @@ describe('the carrier the session is on', () => {
     expect(UV5RMINI_SCHEMA.capabilities.transports).toContain('bluetooth')
     expect(UV5RMINI_SCHEMA.capabilities.writeTransports).toEqual(['serial'])
   })
+
+  it('blocks a dongle write the same way, because the carrier is the hazard', () => {
+    /*
+     * A serial-only schema over a 'bluetooth' carrier is exactly what a
+     * cable-only radio behind a BLE-to-UART dongle produces: `writeTransports`
+     * falls back to `transports`, which is ['serial'], and the session's
+     * carrier is Bluetooth. The radio would take its verified cable bytes,
+     * but over a slow droppable link no write has survived - so the block is
+     * correct and its copy stays true. What lifts it is a verified session,
+     * recorded, and 'bluetooth' added to the schema's writeTransports.
+     */
+    const dongled = {
+      ...WRITABLE_SCHEMA,
+      capabilities: { ...WRITABLE_SCHEMA.capabilities, transports: ['serial'] as const, dongle: 'k2' as const },
+    }
+    const r = evaluateWriteGate(ok({ schema: dongled, transport: 'bluetooth' }))
+    expect(r.allowed).toBe(false)
+    expect(r.blockers.map((b) => b.code)).toContain('transport-write-unverified')
+  })
 })

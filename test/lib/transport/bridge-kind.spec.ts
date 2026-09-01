@@ -34,12 +34,24 @@ describe('what the bridge says it is', () => {
 
   it('drives the block size a UV-5R Mini write actually uses', () => {
     // The two halves joined up: what the bridge reports decides what goes on
-    // the wire.
+    // the wire. The driver reads `radioLink`, which follows `kind` unless the
+    // bridge says the two are apart.
     const cable = new BridgeSerialPort('ws://x', port())
     const radio = new BridgeSerialPort('ws://x', port({ kind: 'bluetooth' }))
 
-    expect(uploadBlockSize(cable.kind)).toBe(BLOCK_SIZE)
-    expect(uploadBlockSize(radio.kind)).toBe(BLE_UPLOAD_BLOCK_SIZE)
+    expect(uploadBlockSize(cable.radioLink)).toBe(BLOCK_SIZE)
+    expect(uploadBlockSize(radio.radioLink)).toBe(BLE_UPLOAD_BLOCK_SIZE)
     expect(BLE_UPLOAD_BLOCK_SIZE).not.toBe(BLOCK_SIZE)
+  })
+
+  it('can stand in for a dongle: Bluetooth carrier, cable-believing radio', () => {
+    // A bridge impersonating a TIDRADIO BL-1 reports the carrier and the
+    // radio's belief apart, and the block size follows the radio - which is
+    // how a real dongle will be verified against hardware when one lands.
+    const dongle = new BridgeSerialPort('ws://x', port({ kind: 'bluetooth', radioLink: 'serial' }))
+
+    expect(dongle.kind).toBe('bluetooth')
+    expect(dongle.radioLink).toBe('serial')
+    expect(uploadBlockSize(dongle.radioLink)).toBe(BLOCK_SIZE)
   })
 })

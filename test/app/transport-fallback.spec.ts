@@ -22,7 +22,7 @@ describe('a stranded Bluetooth attempt', () => {
   it('is offered the cable from any settled state', () => {
     // The rule is carrier-based rather than listed per state, because a
     // Bluetooth read that times out lands in the shared `off` state.
-    expect(fault).toMatch(/via\.value === 'bluetooth'/)
+    expect(fault).toMatch(/via\.value === 'bluetooth' \|\| via\.value === 'dongle'/)
     expect(fault).toContain('USE_CABLE')
   })
 
@@ -46,5 +46,31 @@ describe('a stranded Bluetooth attempt', () => {
     const fn = page.slice(page.indexOf('async function useCableInstead'))
     expect(fn.slice(0, 260)).toContain('device.error = null')
     expect(fn.slice(0, 260)).toContain('blePicking.value = false')
+  })
+})
+
+/**
+ * A dongle session is the Bluetooth carrier with a physical middle hop back.
+ *
+ * The fault copy has to know: telling somebody with a BL-1 on a UV-82 to "put
+ * the radio into wireless CPS mode" describes a mode their radio does not
+ * have, and the thing to check is the dongle on the port.
+ */
+describe('a stranded dongle attempt', () => {
+  it('takes the dongle via when the page knows the more specific fact', () => {
+    // A state that says 'bluetooth' is not wrong on a dongle session - just
+    // less specific - so the trail shows the dongle a person can reseat.
+    expect(fault).toMatch(/stated === 'bluetooth' && props\.via === 'dongle'/)
+  })
+
+  it('never tells a dongle user about wireless CPS mode', () => {
+    // The advice line is substituted, not appended: one list of steps, with
+    // the dongle swap made where the wireless-CPS line would have been.
+    expect(fault).toMatch(/via\.value !== 'dongle'[\s\S]{0,200}wireless CPS mode/)
+    expect(fault).toMatch(/pushed all the way onto the two-pin port/)
+  })
+
+  it('marks the dongle attempt on the page before the chooser opens', () => {
+    expect(page).toMatch(/via\.value = dongleRoute\.value \? 'dongle' : 'bluetooth'/)
   })
 })

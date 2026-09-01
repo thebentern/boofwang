@@ -64,8 +64,8 @@ describe('the Bluetooth offer', () => {
  * has seen advertised and listed nothing at all.
  */
 describe('the Bluetooth chooser', () => {
-  it('filters on the advertised name, not only on the service', () => {
-    expect(CHOOSER).toMatch(/namePrefixes\.map\(\(namePrefix\) => \(\{ namePrefix \}\)\)/)
+  it('filters on the advertised names, not only on the services', () => {
+    expect(CHOOSER).toMatch(/\.map\(\(namePrefix\) => \(\{ namePrefix \}\)\)/)
   })
 
   it('keeps a way out of a filter that cannot match', () => {
@@ -75,8 +75,44 @@ describe('the Bluetooth chooser', () => {
     expect(PAGE).toMatch(/'bluetooth-all'/)
   })
 
+  it('names every candidate service up front, on both chooser branches', () => {
+    // Web Bluetooth refuses a service that was not in `optionalServices`, so
+    // a one-service list would strand the escape hatch - and the dongle path,
+    // whose two GATT guesses are exactly why this is a list - on whichever
+    // variant was not named.
+    expect(CHOOSER).toMatch(/optionalServices: services/)
+    expect(CHOOSER).not.toMatch(/optionalServices: \[profile\.service\]/)
+  })
+
   it('names the radio for the unfiltered list', () => {
     expect(PAGE).toMatch(/advertisedName/)
     expect(PAGE).toMatch(/:ble-name="bleName"/)
+  })
+})
+
+/**
+ * The dongle route: a cable-only radio reached through a clip-on BLE-to-UART
+ * bridge. The dongle is the Bluetooth device; the radio behind it is not.
+ */
+describe('the dongle offer', () => {
+  it('reads the schema, not a list of radio ids kept in the UI', () => {
+    expect(PAGE).toMatch(/const dongleRoute = computed\([\s\S]*?capabilities\.dongle/)
+  })
+
+  it('hands the chooser the dongle candidates on the dongle route', () => {
+    expect(PAGE).toMatch(/profiles: BL1_DONGLE_PROFILES/)
+  })
+
+  it('derives its caveat from the candidates rather than asserting one', () => {
+    // The "untested" wording must come off by itself the day a capture lands
+    // and a profile flips to verified - same rule as bleLabel always had.
+    const label = /const bleLabel = computed\(\(\) => \{([\s\S]*?)\n\}\)/.exec(PAGE)?.[1] ?? ''
+    expect(label, 'bleLabel is no longer the computed this checks').not.toBe('')
+    expect(label).toMatch(/BL1_DONGLE_PROFILES\.some\(\(p\) => p\.verified\)/)
+    expect(label).toMatch(/untested/)
+  })
+
+  it('does not call the radio a Bluetooth radio on the connected card', () => {
+    expect(PAGE).toMatch(/:bluetooth-label="dongleRoute \? 'Bluetooth dongle' : 'Bluetooth'"/)
   })
 })

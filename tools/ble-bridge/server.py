@@ -52,10 +52,23 @@ ALLOWED_ORIGINS = ("http://localhost", "http://127.0.0.1", "http://[::1]")
 
 # The Baofeng wireless CPS profile, confirmed by a radio answering its own
 # identify magic on it. See lib/transport/bluetooth-uuids.ts, which holds the
-# same numbers for the browser-side path.
+# same numbers for the browser-side path. Overridable per run, because the
+# TIDRADIO BLE-to-UART dongles carry a different service (FF00, write FF02,
+# notify FF01, enumerated off a TD-PTT on 2026-08-31) and chasing the next
+# unknown device must not need an edit here.
 SERVICE = "0000ffe0-0000-1000-8000-00805f9b34fb"
 WRITE_CHAR = "0000ffe1-0000-1000-8000-00805f9b34fb"
 NOTIFY_CHAR = "0000ffe1-0000-1000-8000-00805f9b34fb"
+
+BASE_UUID = "0000xxxx-0000-1000-8000-00805f9b34fb"
+
+
+def expand_uuid(value: str) -> str:
+    """Accept a 16-bit alias the way the TS side does, and lower-case either."""
+    v = value.strip().lower().removeprefix("0x")
+    if len(v) == 4 and all(c in "0123456789abcdef" for c in v):
+        return BASE_UUID.replace("xxxx", v)
+    return v
 
 # The floor an ATT payload is guaranteed to carry. Negotiating higher is
 # possible but not worth the failure mode: a write that silently truncates
@@ -88,7 +101,7 @@ class Discovery:
 
     def _on_detect(self, device, adv):
         uuids = [u.lower() for u in (adv.service_uuids or [])]
-        if not self.args.all and SERVICE not in uuids:
+        if not self.args.all and self.args.service not in uuids:
             return
         name = device.name or adv.local_name
         if device.address not in self.seen:
@@ -102,6 +115,9 @@ class Discovery:
             # The whole reason this field exists: a driver that varies on the
             # carrier has to be told, not left to guess.
             "kind": "bluetooth",
+            # And its sibling: behind a BLE-to-UART dongle the radio believes
+            # it is on a cable, and the block-size decision follows the radio.
+            **({"radioLink": "serial"} if self.args.uart else {}),
         }
 
     async def start(self):
@@ -147,10 +163,10 @@ class Bridge:
         log(f"connecting to {address}")
         client = BleakClient(address)
         await client.connect()
-        await client.start_notify(NOTIFY_CHAR, self.on_notify)
+        await client.start_notify(self.args.notify, self.on_notify)
         self.client = client
         self.rx = self.tx = 0
-        log(f"connected to {address} over {NOTIFY_CHAR[4:8].upper()}")
+        log(f"connected to {address} over {self.args.notify[4:8].upper()}")
         await self.send({"op": "open", "ok": True, "path": address, "kind": "bluetooth"})
 
     async def write(self, payload: bytes):
@@ -159,7 +175,7 @@ class Bridge:
         # The page cannot know the MTU, so the split happens here. Without it a
         # frame longer than the payload limit is silently truncated.
         for i in range(0, len(payload), MTU_PAYLOAD):
-            await self.client.write_gatt_char(WRITE_CHAR, payload[i:i + MTU_PAYLOAD], response=False)
+            await self.client.write_gatt_char(self.args.write, payload[i:i + MTU_PAYLOAD], response=False)
         self.tx += len(payload)
 
     async def close_radio(self, reason: str):
@@ -167,7 +183,7 @@ class Bridge:
         if client is None:
             return
         try:
-            await client.stop_notify(NOTIFY_CHAR)
+            await client.stop_notify(self.args.notify)
         except Exception:
             pass
         try:
@@ -229,7 +245,7 @@ async def serve(args):
     async with websockets.serve(connection, HOST, args.port, max_size=None):
         log(f"boofwang bluetooth bridge listening on ws://{HOST}:{args.port}")
         log("development only: not part of the built app, and nothing starts it automatically")
-        log(f"filtering the scan on {SERVICE}" + ("  (--all to see everything)" if not args.all else ""))
+        log(f"filtering the scan on {args.service}" + ("  (--all to see everything)" if not args.all else ""))
         log("scanning continuously; a port list is answered from what has been seen")
         await asyncio.Future()
 
@@ -237,8 +253,16 @@ async def serve(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--port", type=int, default=PORT, help=f"websocket port (default {PORT})")
-    p.add_argument("--all", action="store_true", help="list every device, not just ones advertising the CPS service")
+    p.add_argument("--all", action="store_true", help="list every device, not just ones advertising the service")
+    p.add_argument("--service", default=SERVICE, help="service UUID to filter the scan on (16-bit aliases accepted)")
+    p.add_argument("--write", default=WRITE_CHAR, help="characteristic to write to")
+    p.add_argument("--notify", default=NOTIFY_CHAR, help="characteristic to listen on")
+    p.add_argument("--uart", action="store_true",
+                   help="the far end is a BLE-to-UART dongle: report radioLink serial so drivers use cable constants")
     args = p.parse_args()
+    args.service = expand_uuid(args.service)
+    args.write = expand_uuid(args.write)
+    args.notify = expand_uuid(args.notify)
     try:
         asyncio.run(serve(args))
     except KeyboardInterrupt:

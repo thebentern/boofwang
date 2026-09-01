@@ -38,7 +38,8 @@ export function bluetoothAvailable(): boolean {
  *
  * `?ble=<service>,<write>,<notify>` overrides the built-in profile for the rest
  * of the session; `?ble=scan` keeps the profile but drops the chooser's filter;
- * `?ble=off` clears both.
+ * `?ble=off` clears both. A `uart:` prefix on the UUID form marks the device
+ * as a BLE-to-UART dongle, so the driver treats the radio behind it as cabled.
  *
  * This works in a production build, unlike the dev serial bridge, and
  * deliberately so: the only way anyone finds the real UUIDs is with a radio in
@@ -72,21 +73,31 @@ export function bluetoothOverride(): string | null {
  * An unparseable override is reported rather than silently ignored: someone who
  * pasted a UUID wrongly is one character away from success and deserves to be
  * told which character.
+ *
+ * `overridden` says whether a `?ble=` UUID set is in force. The dongle path
+ * needs to know: an override always wins - it exists for chasing hardware
+ * this build does not know - and a caller's candidate list steps aside for it.
  */
-export function resolveBluetoothProfile(): { profile: BluetoothProfile; scan: boolean } {
+export function resolveBluetoothProfile(): { profile: BluetoothProfile; scan: boolean; overridden: boolean } {
   const override = bluetoothOverride()
   if (!override) {
     resetBluetoothProfile()
-    return { profile: bluetoothProfile(), scan: false }
+    return { profile: bluetoothProfile(), scan: false, overridden: false }
   }
-  if (override === 'scan') return { profile: bluetoothProfile(), scan: true }
+  if (override === 'scan') return { profile: bluetoothProfile(), scan: true, overridden: false }
 
   const profile = parseBluetoothProfile(override)
   setBluetoothProfile(profile)
-  return { profile, scan: false }
+  return { profile, scan: false, overridden: true }
 }
 
-export function describeBluetoothDevice(name: string | null | undefined): string {
+export function describeBluetoothDevice(name: string | null | undefined, profile?: BluetoothProfile): string {
+  // A dongle session names the dongle. The radio behind one is not a
+  // Bluetooth radio, and a label claiming it is would be the app repeating
+  // the conflation this profile field exists to end.
+  if (profile?.radioLink === 'serial') {
+    return name && name.length > 0 ? `${name}, a Bluetooth dongle` : 'a Bluetooth dongle'
+  }
   return name && name.length > 0 ? `${name} over Bluetooth` : 'a Bluetooth radio'
 }
 
@@ -115,27 +126,44 @@ export function describeBluetoothDevice(name: string | null | undefined): string
  * this the write would have to raise a second chooser for a radio the user
  * has already picked once.
  */
-let granted: BluetoothDevice | null = null
+let granted: { device: BluetoothDevice; profile: BluetoothProfile } | null = null
 
-export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}): Promise<PortChoice | null> {
+export async function requestBluetoothRadio(
+  opts: { everyDevice?: boolean; profiles?: readonly BluetoothProfile[] } = {},
+): Promise<PortChoice | null> {
   if (!bluetoothAvailable()) throw new Error('This browser does not support Web Bluetooth.')
 
-  const { profile, scan } = resolveBluetoothProfile()
+  /*
+   * Which profiles to try. A `?ble=` override beats a caller's candidates -
+   * it exists for chasing hardware this build does not know, and the dongle
+   * button must not take that tool away. Otherwise the caller's list stands
+   * (the dongle path passes its two GATT guesses), and with neither, the
+   * resolved default is exactly the single-profile path this function always
+   * had.
+   */
+  const resolved = resolveBluetoothProfile()
+  const candidates = resolved.overridden ? [resolved.profile] : (opts.profiles ?? [resolved.profile])
+  const services = [...new Set(candidates.map((c) => c.service))]
 
   /*
-   * Filters are OR-ed by the browser: "advertises the service, or is named like
-   * one of these". `optionalServices` is on both branches because Web Bluetooth
-   * will not hand over a service that was not named up front, whether or not it
-   * was filtered on.
+   * Filters are OR-ed by the browser: "advertises one of the services, or is
+   * named like one of these". `optionalServices` names every candidate's
+   * service on both branches, because Web Bluetooth will not hand over a
+   * service that was not named up front, whether or not it was filtered on -
+   * and the "show every device" hatch would otherwise strand whichever
+   * candidate it did not list.
    */
-  const filters = [...profile.namePrefixes.map((namePrefix) => ({ namePrefix })), { services: [profile.service] }]
+  const filters = [
+    ...[...new Set(candidates.flatMap((c) => c.namePrefixes))].map((namePrefix) => ({ namePrefix })),
+    ...services.map((service) => ({ services: [service] })),
+  ]
 
   let device: BluetoothDevice
   try {
     device = await navigator.bluetooth.requestDevice(
-      scan || opts.everyDevice
-        ? { acceptAllDevices: true, optionalServices: [profile.service] }
-        : { filters, optionalServices: [profile.service] },
+      resolved.scan || opts.everyDevice
+        ? { acceptAllDevices: true, optionalServices: services }
+        : { filters, optionalServices: services },
     )
   } catch (e) {
     // The user dismissing the chooser is not an error worth surfacing, which is
@@ -144,11 +172,13 @@ export async function requestBluetoothRadio(opts: { everyDevice?: boolean } = {}
     throw e
   }
 
-  // Granted only once the link has proved the service is there. Assigning it
+  // Granted only once the link has proved a service is there. Assigning it
   // first meant a non-radio picked in the chooser was "granted" for the rest
-  // of the session, and every later write tried to reconnect to it.
-  const choice = await linkTo(device, profile)
-  granted = device
+  // of the session, and every later write tried to reconnect to it. The
+  // winning profile is remembered with the device: a reconnect that resolved
+  // the default afresh would ask a dongle for the UV-5R Mini's service.
+  const { choice, profile } = await linkTo(device, candidates)
+  granted = { device, profile }
   return choice
 }
 
@@ -169,44 +199,71 @@ export function forgetBluetoothGrant(): void {
  * Null rather than a throw when there is nothing to reconnect: the caller's
  * next move is to open the chooser, and a missing grant is the ordinary state
  * on a fresh page rather than a fault.
+ *
+ * The grant's own profile is what gets reconnected - the one the device
+ * actually answered on. Resolving the default afresh here is how a dongle
+ * session's write reacquire would have asked the dongle for the UV-5R Mini's
+ * service. A live `?ble=` override still wins, as it does everywhere.
  */
 export async function reconnectBluetoothRadio(): Promise<PortChoice | null> {
   if (!bluetoothAvailable() || !granted) return null
-  const { profile } = resolveBluetoothProfile()
-  return await linkTo(granted, profile)
+  const resolved = resolveBluetoothProfile()
+  const candidates = resolved.overridden ? [resolved.profile] : [granted.profile]
+  const { choice } = await linkTo(granted.device, candidates)
+  return choice
 }
 
 /**
  * Connect a granted device and wrap it as a port.
  *
  * Shared by the chooser and the reconnect, because everything below the
- * chooser is identical: the same GATT connect, the same service, the same two
- * characteristics. Splitting it the other way - a reconnect that re-ran the
- * chooser - is what would put a second dialogue in front of a write.
+ * chooser is identical: the same GATT connect, the same service lookup, the
+ * same two characteristics. Splitting it the other way - a reconnect that
+ * re-ran the chooser - is what would put a second dialogue in front of a
+ * write.
+ *
+ * Candidates are tried in order and the first whose service the device
+ * carries wins. A device carries one variant, so the losers cost a failed
+ * `getPrimaryService` each on the same connection - the connection is only
+ * dropped once every candidate has failed. This is what lets the dongle path
+ * offer its two GATT guesses without knowing which one a given unit is.
  */
-async function linkTo(device: BluetoothDevice, profile: BluetoothProfile): Promise<PortChoice> {
+async function linkTo(
+  device: BluetoothDevice,
+  candidates: readonly BluetoothProfile[],
+): Promise<{ choice: PortChoice; profile: BluetoothProfile }> {
   const server = await device.gatt?.connect()
   if (!server) throw new Error(`${device.name ?? 'That device'} would not accept a GATT connection.`)
 
-  let service: BluetoothRemoteGATTService
-  try {
-    service = await server.getPrimaryService(profile.service)
-  } catch {
+  let service: BluetoothRemoteGATTService | null = null
+  let profile: BluetoothProfile | null = null
+  for (const candidate of candidates) {
+    try {
+      service = await server.getPrimaryService(candidate.service)
+      profile = candidate
+      break
+    } catch {
+      // Not this variant. The next candidate gets the same live connection.
+    }
+  }
+
+  if (!service || !profile) {
     device.gatt?.disconnect()
     /*
-     * The device connected and does not have the service we expected.
+     * The device connected and has none of the services we know to ask for.
      *
      * Web Bluetooth will not enumerate services that were not named up front,
-     * so the app genuinely cannot list what the radio does have - that has to
-     * come from a Bluetooth scanner such as nRF Connect. Saying so is more use
-     * than a generic failure, because it names the next step precisely.
+     * so the app genuinely cannot list what the device does have - that has
+     * to come from a Bluetooth scanner such as nRF Connect. Saying so is more
+     * use than a generic failure, because it names the next step precisely.
      */
+    const tried = candidates.map((c) => `${c.label} (${c.service})`).join(', ')
     throw new Error(
-      `${device.name ?? 'That device'} does not offer the ${profile.label} service ` +
-        `(${profile.service}). That UUID was read off a UV-5R Mini in wireless CPS mode, so this is most ` +
-        'likely a different device from the chooser rather than a wrong number. If it is the radio, read ' +
-        'its real service and characteristic with a Bluetooth scanner such as nRF Connect, then reload ' +
-        'with ?ble=service,write,notify to try them.',
+      `${device.name ?? 'That device'} does not offer ${candidates.length === 1 ? 'the service' : 'any of the services'} ` +
+        `this build knows to try: ${tried}. It may be a different device from the chooser. If it is yours, ` +
+        'read its real service and characteristic with a Bluetooth scanner such as nRF Connect, then ' +
+        'reload with ?ble=service,write,notify to try them - prefix the list with uart: if the device is ' +
+        'a Bluetooth-to-serial dongle.',
     )
   }
 
@@ -215,12 +272,20 @@ async function linkTo(device: BluetoothDevice, profile: BluetoothProfile): Promi
   // asking for the same UUID twice is not guaranteed to give the same object.
   const notify = profile.notify === profile.write ? write : await service.getCharacteristic(profile.notify)
 
-  const port = new BluetoothPort({
-    write: write as unknown as GattCharacteristicLike,
-    notify: notify as unknown as GattCharacteristicLike,
-    device: device as unknown as GattDeviceLike,
-    label: device.name ?? 'Bluetooth radio',
-  })
+  const port = new BluetoothPort(
+    {
+      write: write as unknown as GattCharacteristicLike,
+      notify: notify as unknown as GattCharacteristicLike,
+      device: device as unknown as GattDeviceLike,
+      label: device.name ?? 'Bluetooth radio',
+    },
+    // What the radio behind this link believes it is on. 'serial' marks a
+    // BLE-to-UART dongle, and the block-size decision downstream reads it.
+    { radioLink: profile.radioLink ?? 'bluetooth' },
+  )
 
-  return { port, info: {}, label: describeBluetoothDevice(device.name) }
+  return {
+    choice: { port, info: {}, label: describeBluetoothDevice(device.name, profile) },
+    profile,
+  }
 }

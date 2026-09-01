@@ -538,7 +538,11 @@ export const UVK5_SCHEMA: RadioSchema = {
   aliases: ['UV-K5(8)', 'UV-K6', 'Retevis RA79', 'Quansheng UV-5R Plus'],
   status: 'read-only',
 
-  capabilities: { read: true, write: false, transports: ['serial'] },
+  // The K-port dongle route is offered untested, with one caveat beyond the
+  // usual: this radio clones at 38400 baud, and the BL-1 family's far-side
+  // UART rate is unknown. A rate mismatch looks exactly like a radio that is
+  // switched off. See docs/protocols/ble-dongle.md.
+  capabilities: { read: true, write: false, transports: ['serial'], dongle: 'k2' },
 
   memory: {
     channelCount: 200,

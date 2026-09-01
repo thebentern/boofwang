@@ -776,6 +776,17 @@ export const DM32UV_SCHEMA: RadioSchema = {
   aliases: ['DP570UV'],
   status: 'read-only',
 
+  /*
+   * No dongle route, and not because of the plug: this radio programs
+   * through the same two-pin Kenwood jack as the rest (Baofeng's own
+   * programming guide says so, contrary to a persistent USB-C assumption).
+   * The protocol is the problem. Its state machine exits programming mode on
+   * a port close - a DTR reset - and recovery needs a real reopen after
+   * REOPEN_SETTLE_MS (docs/protocols/dm32uv.md). A BLE dongle's far-side
+   * UART never closes between app sessions and carries no DTR, so the one
+   * documented way out of a wedged session cannot run. At 115200 baud it is
+   * also outside the rate anyone would guess a BL-1 fixes its UART at.
+   */
   capabilities: { read: true, write: false, transports: ['serial'] },
 
   memory: {

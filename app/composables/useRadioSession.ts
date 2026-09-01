@@ -12,6 +12,7 @@ import type { PortChoice } from '~/composables/useWebSerial'
 import type { TransportKind } from '#core/transport/transport.js'
 import { forgetBluetoothGrant,
   reconnectBluetoothRadio, requestBluetoothRadio } from '~/composables/useWebBluetooth'
+import { BL1_DONGLE_PROFILES } from '#core/transport/bluetooth-uuids.js'
 
 /**
  * What `device.connect` needs to label the connection.
@@ -55,16 +56,29 @@ async function acquireLike(kind: TransportKind, radioId: RadioId | null): Promis
    * the README documents for exercising BLE on hardware, and a BLE write is
    * exactly what it would be used to verify.
    */
+  /*
+   * Two distinct facts open the Bluetooth branch: the radio has a BLE module
+   * of its own (`transports`), or it can be reached through a clip-on
+   * BLE-to-serial dongle (`dongle`). The carrier the session is on is the
+   * same either way; which candidate profiles the chooser fallback offers is
+   * not, and a dongle-only radio must never be asked for another radio's
+   * service.
+   */
   const schema = radioId ? SCHEMAS[radioId] : null
   const radioHasBluetooth = schema?.capabilities.transports.includes('bluetooth') ?? false
-  if (kind !== 'bluetooth' || !radioHasBluetooth || bridgeEnabled()) return await acquirePort()
+  const radioTakesDongle = schema?.capabilities.dongle !== undefined
+  if (kind !== 'bluetooth' || !(radioHasBluetooth || radioTakesDongle) || bridgeEnabled()) {
+    return await acquirePort()
+  }
 
   /*
    * A rejected reconnect is a missing grant, not a dead end. `??` only falls
    * through on null; a thrown DOMException from gatt.connect - radio switched
    * off, out of range, or a non-radio picked in the chooser - used to escape
    * here as "could not reach the radio over Bluetooth", with no way back to the
-   * chooser and, after a refused write, no way to the cable either.
+   * chooser and, after a refused write, no way to the cable either. The
+   * reconnect itself carries the grant's own profile, so a dongle session
+   * reacquires as a dongle without anything here having to say so.
    */
   try {
     const again = await reconnectBluetoothRadio()
@@ -72,7 +86,7 @@ async function acquireLike(kind: TransportKind, radioId: RadioId | null): Promis
   } catch {
     forgetBluetoothGrant()
   }
-  return await requestBluetoothRadio()
+  return await requestBluetoothRadio(radioHasBluetooth ? {} : { profiles: BL1_DONGLE_PROFILES })
 }
 
 /** What went wrong opening a link, in the terms of the carrier it was over. */

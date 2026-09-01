@@ -147,7 +147,10 @@ export const UV82_SCHEMA: RadioSchema = {
   aliases: ['UV-82X3', 'UV-82HP', 'Radioddity UV-82X3'],
   status: 'read-only',
 
-  capabilities: { read: true, write: false, transports: ['serial'] },
+  // The dongle is the K-port kind, and this radio's 9600-baud clone rate is
+  // the classic-Baofeng family those dongles are sold for. Untested: no BL-1
+  // has been enumerated, and the connect screen says so.
+  capabilities: { read: true, write: false, transports: ['serial'], dongle: 'k2' },
 
   memory: {
     channelCount: CHANNEL_COUNT,

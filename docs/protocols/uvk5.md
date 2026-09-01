@@ -5,6 +5,10 @@ Protocol and layout are transcribed from CHIRP's `chirp/drivers/uvk5.py`
 (GPL-3.0); see [../provenance.md](../provenance.md). This file records what has
 actually been confirmed against a radio, as opposed to what the source says.
 
+The connect screen also offers this radio through a clip-on BLE-to-serial
+dongle, untested and doubtful at this radio's 38,400-baud clone rate - see
+[ble-dongle.md](ble-dongle.md).
+
 ## Verified sessions
 
 ### 2026-08-19 — read, stock firmware 2.01.32

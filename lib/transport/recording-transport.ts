@@ -57,11 +57,16 @@ export class RecordingTransport implements Transport {
   }
 
   /**
-   * Passed straight through. A driver reads this to choose a block size, and a
-   * recorded session must not change what it would have sent.
+   * Both passed straight through. A driver reads `radioLink` to choose a
+   * block size, and a recorded session must not change what it would have
+   * sent.
    */
   get kind(): TransportKind {
     return this.#inner.kind
+  }
+
+  get radioLink(): TransportKind {
+    return this.#inner.radioLink
   }
 
   open(opts: Parameters<Transport['open']>[0]): Promise<void> {

@@ -133,6 +133,17 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
     // thing - see `allowBluetoothWrite` - and this is what lets the gate say so
     // before anyone types a confirmation for a write that will not happen.
     writeTransports: ['serial'],
+    /*
+     * The K-port dongle route on top of the built-in module, both untested
+     * caveats included: the dongle's far-side UART rate is unknown and this
+     * radio clones at 115200. There is a genuine ambiguity here too - an
+     * FFE0-variant BL-1 and this radio's own module share a service UUID, so
+     * a session that offered both candidate lists could not tell them apart.
+     * Harmless while reads are link-identical and Bluetooth-carrier writes
+     * are refused; recorded in docs/protocols/ble-dongle.md for the day a
+     * capture exists.
+     */
+    dongle: 'k2',
   },
 
   memory: {

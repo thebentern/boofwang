@@ -270,8 +270,21 @@ and has read a whole codeplug off a real radio, where `noble` is fragile there.
 The scan filters on the CPS service by default; `--all` lists everything.
 
 The bridge reports `kind: "bluetooth"`, which is not cosmetic - the UV-5R Mini
-sends 0x80 upload blocks over Bluetooth where the cable takes 0x40, and a bridge
-that failed to say so would write the wrong size while looking healthy.
+sends 0x80 upload blocks over its own Bluetooth module where the cable takes
+0x40, and a bridge that failed to say so would write the wrong size while
+looking healthy.
+
+The carrier is not the whole story, because of dongles. A TIDRADIO BL-1 clips
+onto a radio's two-pin programming port and bridges BLE to the radio's own
+UART: the host is on Bluetooth while the radio behind it behaves exactly as on
+a cable, and takes the cable block size. `Transport` carries the two facts
+separately - `kind` for the carrier, `radioLink` for what the radio believes -
+and the connect screen offers the dongle route for the K-port radios, marked
+untested. Two dongles have been enumerated on a bench - a TD-PTT fob and a
+`BF_Writer` - and neither carried a radio's words, so the route is offered as
+a guess worth attempting rather than one that has worked. Both captures, what
+each device does instead, and the one step that would settle it are in
+[`docs/protocols/ble-dongle.md`](docs/protocols/ble-dongle.md).
 
 macOS refuses Bluetooth to an application that has not been granted it, and
 refuses by killing the process rather than returning an error. An instant exit

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RadioId } from '#core/model/codeplug.js'
 import { RADIO_IDS, SCHEMAS, isImplemented } from '#core/radio/registry.js'
-import { bluetoothProfile } from '#core/transport/bluetooth-uuids.js'
+import { BL1_DONGLE_PROFILES, bluetoothProfile } from '#core/transport/bluetooth-uuids.js'
 import type { FaultState } from '~/components/connect/LinkFault.vue'
 import type { PortChoice } from '~/composables/useWebSerial'
 
@@ -71,7 +71,7 @@ const blePicking = ref(false)
  * applies. Reset on every attempt rather than remembered, so a cable read after
  * a failed Bluetooth one does not inherit its diagnosis.
  */
-const via = ref<'adapter' | 'bluetooth'>('adapter')
+const via = ref<'adapter' | 'bluetooth' | 'dongle'>('adapter')
 
 async function refreshAdapters() {
   adapters.value = (await grantedPorts()).map((p) => p.info)
@@ -201,8 +201,9 @@ function classify(message: string): FaultState {
   // Over Bluetooth there is no adapter to echo and no plug to reseat, so the
   // two states whose remedies are entirely about a cable route elsewhere. A
   // silent radio on a GATT link is much more likely to be our characteristic
-  // than their radio, and the copy has to say the honest thing.
-  if (via.value === 'bluetooth') {
+  // than their radio, and the copy has to say the honest thing. A dongle is
+  // the same carrier with the same failure shapes.
+  if (via.value === 'bluetooth' || via.value === 'dongle') {
     if (/returning boofwang.s own data/i.test(message)) return 'ble-off'
     if (/\n\s*(expected|received):/.test(message)) return 'wrong'
     return 'ble-off'
@@ -420,12 +421,17 @@ async function connectBluetooth(everyDevice = false) {
   if (withoutARadio()) return
   fault.value = null
   device.error = null
-  via.value = 'bluetooth'
+  via.value = dongleRoute.value ? 'dongle' : 'bluetooth'
   blePicking.value = true
 
   let choice: PortChoice | null
   try {
-    choice = await requestBluetoothRadio({ everyDevice })
+    // A dongle radio offers the dongle's candidate profiles; a radio with its
+    // own module keeps the default path, byte for byte. A `?ble=` override
+    // beats both, inside the chooser itself.
+    choice = await requestBluetoothRadio(
+      dongleRoute.value ? { everyDevice, profiles: BL1_DONGLE_PROFILES } : { everyDevice },
+    )
   } catch (e) {
     toast.add({
       title: 'Could not open the Bluetooth chooser',
@@ -478,12 +484,19 @@ function onAction(key: string) {
 /**
  * Whether to offer Bluetooth at all, and what to call it.
  *
- * The label is derived from the profile's own `verified` flag rather than
+ * The label is derived from the profiles' own `verified` flags rather than
  * written here, so the day somebody captures the real UUIDs and proves them
- * against a radio, the caveat comes off by itself. Nothing in this screen can
- * describe Bluetooth as working while that flag says otherwise.
+ * against a device, the caveat comes off by itself. Nothing in this screen can
+ * describe Bluetooth as working while those flags say otherwise.
  */
-const bleLabel = bluetoothProfile().verified ? 'Connect over Bluetooth' : 'Try Bluetooth (untested)'
+const bleLabel = computed(() => {
+  if (dongleRoute.value) {
+    return BL1_DONGLE_PROFILES.some((p) => p.verified)
+      ? 'Connect through a Bluetooth dongle'
+      : 'Try a Bluetooth dongle (untested)'
+  }
+  return bluetoothProfile().verified ? 'Connect over Bluetooth' : 'Try Bluetooth (untested)'
+})
 
 /**
  * Whether the radio in hand can be reached without a cable at all.
@@ -494,6 +507,23 @@ const bleLabel = bluetoothProfile().verified ? 'Connect over Bluetooth' : 'Try B
  */
 const radioDoesBluetooth = computed(
   () => radioId.value === null || SCHEMAS[radioId.value]?.capabilities.transports.includes('bluetooth') === true,
+)
+
+/**
+ * Whether this session's Bluetooth route is a clip-on dongle.
+ *
+ * True only for a picked radio that has a dongle-fit programming port and no
+ * BLE module of its own. A radio with both - the UV-5R Mini - keeps its own
+ * verified module as the route this button takes; the dongle can still reach
+ * it through the chooser's escape hatch or `?ble=uart:`, and the ambiguity
+ * that mixing the two candidate lists would create is recorded in
+ * docs/protocols/ble-dongle.md.
+ */
+const dongleRoute = computed(
+  () =>
+    radioId.value !== null &&
+    SCHEMAS[radioId.value]?.capabilities.dongle !== undefined &&
+    SCHEMAS[radioId.value]?.capabilities.transports.includes('bluetooth') !== true,
 )
 
 /**
@@ -513,7 +543,10 @@ const radioDoesBluetooth = computed(
  */
 const BLE_OFFER_STATES: readonly (FaultState | 'ready')[] = ['first', 'empty', 'unsupported', 'ready']
 const offerBluetooth = computed(
-  () => bluetooth.value.supported && radioDoesBluetooth.value && BLE_OFFER_STATES.includes(link.value),
+  () =>
+    bluetooth.value.supported &&
+    (radioDoesBluetooth.value || dongleRoute.value) &&
+    BLE_OFFER_STATES.includes(link.value),
 )
 
 /**
@@ -535,10 +568,26 @@ const offerBluetooth = computed(
  * profile rather than written here, so a radio whose name nobody has recorded
  * says "the radio" instead of naming the wrong one.
  */
-const bleName = computed(() => bluetoothProfile().advertisedName)
+// No dongle advertisement has ever been recorded, so the dongle route offers
+// no name rather than the default profile's - which belongs to a radio.
+const bleName = computed(() => (dongleRoute.value ? undefined : bluetoothProfile().advertisedName))
 
 const bleNote = computed(() => {
   if (!bluetooth.value.supported) return bluetooth.value.advice
+  /*
+   * A dongle radio gets the dongle sentence: the radio itself is cable-only,
+   * the wireless route is a clip-on bridge, and no dongle has yet carried a
+   * radio's words. Two have been tried and neither worked, which is a
+   * stronger and more useful thing to say than "untested" - somebody with a
+   * third dongle should know what they are walking into.
+   */
+  if (dongleRoute.value) {
+    return (
+      `This browser does have Web Bluetooth, and the ${radioName.value} is programmed through a port ` +
+      'that clip-on Bluetooth dongles fit. Two have been tried against this build and neither carried ' +
+      'a radio, so this route is a guess worth attempting rather than one that has worked.'
+    )
+  }
   /*
    * The browser can do Bluetooth and this radio cannot, which is a different
    * sentence and has to be said. Otherwise the card offers a route, the button
@@ -583,6 +632,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       :options="radioOptions"
       :busy="connecting"
       :bluetooth="offerBluetooth"
+      :bluetooth-label="dongleRoute ? 'Bluetooth dongle' : 'Bluetooth'"
       @read="readRadio"
       @other-port="pickPort"
       @choose="chosen = $event"

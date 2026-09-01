@@ -6,6 +6,9 @@ Offsets transcribed from CHIRP's `uv5r.py` (GPL-3.0). See
 quirk are the [UV-82's](uv82.md); this file records only what is different and
 what was verified on this radio.
 
+The connect screen also offers this radio through a clip-on BLE-to-serial
+dongle, untested - see [ble-dongle.md](ble-dongle.md).
+
 ## Four radios answer to "UV-5G"
 
 The single most important fact about this radio is its name, which it shares

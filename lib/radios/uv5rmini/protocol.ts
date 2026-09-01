@@ -43,12 +43,15 @@ export const BLE_UPLOAD_BLOCK_SIZE = 0x80
 /**
  * How much of an image to put in one write frame.
  *
- * Takes the transport's own answer rather than sniffing anything. CHIRP has to
- * guess from the serial device's path because a desktop BLE-to-serial bridge is
- * all it can see; here the port knows what it is.
+ * Takes `Transport.radioLink` - what the RADIO believes it is connected by -
+ * never `Transport.kind`, the carrier. The two disagree behind a BLE-to-UART
+ * dongle: the host is on Bluetooth while the radio sees its own wired UART
+ * and takes the 0x40 cable blocks. CHIRP has to guess this from the serial
+ * device's path because a desktop BLE-to-serial bridge is all it can see;
+ * here the port knows what it is and says so on the right axis.
  *
- * Tolerates `undefined` so that a fake transport in a test, which has no reason
- * to declare a carrier, gets the cable behaviour it is asking for.
+ * Tolerates `undefined` so that a fake transport in a test, which has no
+ * reason to declare a link, gets the cable behaviour it is asking for.
  */
 export function uploadBlockSize(kind: TransportKind | undefined): number {
   return kind === 'bluetooth' ? BLE_UPLOAD_BLOCK_SIZE : BLOCK_SIZE
@@ -304,8 +307,8 @@ export async function writeBlock(
 ): Promise<void> {
   if (data.length !== BLOCK_SIZE && data.length !== BLE_UPLOAD_BLOCK_SIZE) {
     throw new DriverError(
-      `A block is ${BLOCK_SIZE} bytes over a cable and ${BLE_UPLOAD_BLOCK_SIZE} over Bluetooth, ` +
-        `not ${data.length}`,
+      `A block is ${BLOCK_SIZE} bytes when the radio is on a cable and ${BLE_UPLOAD_BLOCK_SIZE} when it ` +
+        `is on its own Bluetooth module, not ${data.length}`,
     )
   }
   await t.write(frame(0x57, addr, data.length, encrypt(data)), opts)

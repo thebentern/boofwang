@@ -31,7 +31,9 @@ export const UV5G_SCHEMA: RadioSchema = {
   aliases: ['Baofeng UV-5G'],
   status: 'read-only',
 
-  capabilities: { read: true, write: false, transports: ['serial'] },
+  // Same K-port and same 9600-baud clone rate as the UV-82, so the same
+  // untested dongle route. See docs/protocols/ble-dongle.md.
+  capabilities: { read: true, write: false, transports: ['serial'], dongle: 'k2' },
 
   memory: {
     channelCount: CHANNEL_COUNT,

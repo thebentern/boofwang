@@ -73,6 +73,15 @@ export class SerialTransport implements Transport {
     return this.#port.kind ?? 'serial'
   }
 
+  /**
+   * Falls back to `kind`: every port is fused - the radio believes what the
+   * host uses - except a BLE-to-UART dongle, which is the only port that
+   * declares the two apart.
+   */
+  get radioLink(): TransportKind {
+    return this.#port.radioLink ?? this.#port.kind ?? 'serial'
+  }
+
   get port(): SerialPortLike {
     return this.#port
   }

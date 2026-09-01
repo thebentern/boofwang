@@ -265,7 +265,11 @@ edited. Exposing them in the interface is
 ## Bluetooth, verified 2026-08-21
 
 The radio can be read over Bluetooth Low Energy instead of the cable, and has
-been.
+been. This section is about the radio's own BLE module; the untested clip-on
+dongle route, and the FFE0 ambiguity between the two, are in
+[ble-dongle.md](ble-dongle.md). The upload block size follows what the radio
+believes it is on - 0x80 over this module, 0x40 behind a dongle - which is
+`Transport.radioLink`, not the carrier.
 
 | | |
 |---|---|
