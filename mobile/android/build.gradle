@@ -21,6 +21,13 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // usb-serial-for-android is published on JitPack. The plugin module
+        // declares this too, next to the pinned version, but that is not
+        // enough on its own: Gradle resolves a transitive dependency with the
+        // repositories of the project doing the resolving, so :app needs it
+        // as well or :app:checkDebugAarMetadata cannot find the .aar that
+        // :boofwang-usb-serial compiled against.
+        maven { url = "https://jitpack.io" }
     }
 }
 
