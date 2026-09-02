@@ -1,0 +1,229 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Mobile
+
+# Two shapes of run. On a pull request and on main the native projects are
+# compiled unsigned, so a Kotlin or Swift file that no longer builds is caught
+# before a tag. On a tag, and when Release calls us, the Android build is
+# signed and attached to the release and the iOS archive is exported for
+# App Store Connect - when the secrets exist. Without them each job says so
+# and produces what it can, which is the state every release ships in until
+# someone sets them up. docs/mobile.md is the guide.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+  # Called by the Release workflow, which pushes the tag itself. See
+  # desktop.yml for why the tag push alone would not start this.
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag to build from and attach the APK to
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+
+      - run: pnpm install --frozen-lockfile
+
+      # The same gate the web build passes. An APK is harder to replace than
+      # a deploy, so it does not skip the checks.
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: node scripts/check-headers.mjs
+
+      - run: pnpm mobile:site
+      - run: pnpm exec cap sync android
+
+      - name: Work out the version
+        id: version
+        run: |
+          set -euo pipefail
+          echo "name=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          # Monotonic across runs, which is all Play asks of it.
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build a debug APK
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon assembleDebug -PversionName=${{ steps.version.outputs.name }} -PversionCode=${{ steps.version.outputs.code }}
+
+      # Branching in the shell rather than in `if:`, for the reason
+      # desktop.yml gives: the secrets context is not dependably available in
+      # a step condition, and the failure mode is a step that silently never
+      # runs. The keystore is decoded outside the workspace so no artifact
+      # glob can pick it up.
+      - name: Build and sign a release, when there is a key
+        id: release
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TAGGED: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+        working-directory: mobile/android
+        run: |
+          set -euo pipefail
+          if [ "$TAGGED" != "true" ]; then
+            echo "not a tag: no release build"
+            echo "built=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "${KEYSTORE_B64:-}" ]; then
+            echo "no ANDROID_KEYSTORE_BASE64: this release will have no signed APK"
+            echo "built=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          keystore="${RUNNER_TEMP}/release.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore"
+          chmod 600 "$keystore"
+          ./gradlew --no-daemon assembleRelease bundleRelease \
+            -PversionName=${{ steps.version.outputs.name }} -PversionCode=${{ steps.version.outputs.code }} \
+            -Pandroid.injected.signing.store.file="$keystore" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+          echo "built=1" >> "$GITHUB_OUTPUT"
+
+      - name: Name the artifacts
+        env:
+          VERSION: ${{ steps.version.outputs.name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist-mobile
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "dist-mobile/boofwang-${VERSION}-android-debug.apk"
+          if [ -f mobile/android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp mobile/android/app/build/outputs/apk/release/app-release.apk "dist-mobile/boofwang-${VERSION}-android.apk"
+            cp mobile/android/app/build/outputs/bundle/release/app-release.aab "dist-mobile/boofwang-${VERSION}-android.aab"
+          fi
+          ls -l dist-mobile
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobile-android
+          path: dist-mobile/*
+          if-no-files-found: error
+
+  ios:
+    name: iOS
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm mobile:site
+      - run: pnpm exec cap sync ios
+
+      # Proves the project compiles. No certificate is needed for a simulator
+      # build, which is the point: a pull request from a fork gets this check.
+      - name: Build for the simulator
+        working-directory: mobile/ios/App
+        run: |
+          set -euo pipefail
+          xcodebuild -project App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -20
+
+      # The signed archive needs an Apple Distribution certificate and an App
+      # Store provisioning profile - not the Developer ID identity the desktop
+      # build is notarised with. docs/mobile.md says which and how.
+      - name: Archive and export, when there is a certificate
+        env:
+          CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE_B64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          TAGGED: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          set -euo pipefail
+          if [ "$TAGGED" != "true" ]; then
+            echo "not a tag: no archive"
+            exit 0
+          fi
+          if [ -z "${CERT_P12:-}" ] || [ -z "${PROFILE_B64:-}" ]; then
+            echo "no IOS_DIST_CERT_P12 or IOS_PROVISIONING_PROFILE_BASE64: this release will have no .ipa"
+            exit 0
+          fi
+          keychain="${RUNNER_TEMP}/build.keychain-db"
+          security create-keychain -p "" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "" "$keychain"
+          printf '%s' "$CERT_P12" | base64 --decode > "${RUNNER_TEMP}/dist.p12"
+          security import "${RUNNER_TEMP}/dist.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security list-keychain -d user -s "$keychain"
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          printf '%s' "$PROFILE_B64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/boofwang.mobileprovision
+
+          version=$(node -p "require('./package.json').version")
+          cd mobile/ios/App
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphoneos \
+            -archivePath "${RUNNER_TEMP}/App.xcarchive" \
+            MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive | tail -20
+          xcodebuild -exportArchive -archivePath "${RUNNER_TEMP}/App.xcarchive" \
+            -exportOptionsPlist ../../ExportOptions.plist -exportPath "${RUNNER_TEMP}/export" | tail -20
+          mkdir -p "$GITHUB_WORKSPACE/dist-mobile"
+          cp "${RUNNER_TEMP}"/export/*.ipa "$GITHUB_WORKSPACE/dist-mobile/boofwang-${version}-ios.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobile-ios
+          path: dist-mobile/*.ipa
+          if-no-files-found: ignore
+
+  release:
+    name: Release
+    needs: [android, ios]
+    # Publish what exists and say what is missing, as desktop.yml does.
+    if: always() && (inputs.tag || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - run: ls -R artifacts
+
+      # Only the signed APK goes on the release: people sideload from GitHub.
+      # The .aab is for Play and the .ipa for App Store Connect, and both stay
+      # on the run as artifacts.
+      - name: Attach the APK to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find artifacts -type f -name '*-android.apk' | sort)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::warning::No signed APK was built. The release has no Android build."
+            exit 0
+          fi
+          printf 'attaching %s\n' "${files[@]}"
+          gh release upload "$TAG" "${files[@]}" --clobber

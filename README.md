@@ -107,6 +107,28 @@ canvas; the maskable one is squared off and inset, because Android crops a
 maskable icon to whatever shape its launcher wants and a squircle cropped by a
 second squircle reads as a notch.
 
+## The mobile apps
+
+The same site again, bundled into an Android app and an iOS app by
+[Capacitor](https://capacitorjs.com). Here the argument the desktop section
+makes runs the other way: there is no Chromium to carry on a phone, no mobile
+WebView has Web Serial, and only Android's has Web Bluetooth. So the cable and
+the Bluetooth radio arrive through native plugins - an in-repo USB serial
+plugin on Android, and a community Bluetooth LE plugin on both - and each ends
+in the same `SerialPortLike` seam the browser transports end in. Everything
+above that seam is unchanged; a test holds the plugins to `app/mobile/`.
+
+Android has USB (an OTG cable to the same CH340, FTDI, CP210x and PL2303
+adapters) and Bluetooth. iOS has Bluetooth only: an iPhone cannot drive a USB
+serial adapter, and the connect page says so once. A write over Bluetooth is
+refused on every platform until one has been verified on hardware, so today an
+iPhone can read, back up, edit and export a UV-5R Mini and write nothing.
+
+Nothing about the apps has yet been run on a phone. [`docs/mobile.md`](docs/mobile.md)
+is the build, signing and verification record, and its table of what has been
+exercised is empty until it is not. The Radios table below mentions Android or
+iOS for a radio only once that radio's protocol note carries the entry.
+
 ## Radios
 
 | Radio | Memory | Read | Write | Hardware-verified |
@@ -121,8 +143,10 @@ CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
 
 The UV-5R Mini can also be read over Bluetooth, with no cable at all — the
 radio's wireless CPS mode speaks the same protocol over a GATT characteristic.
-Browser support is narrower than Web Serial: Chrome and Edge on desktop and
-Android, and nothing on Safari, Firefox or iOS.
+In a browser, support is narrower than Web Serial: Chrome and Edge on desktop
+and Android, and nothing on Safari, Firefox or iOS. The mobile apps carry
+their own Bluetooth stack, which is what would put this on an iPhone; see
+[`docs/mobile.md`](docs/mobile.md) for what has and has not been exercised.
 
 Per-radio protocol notes, including exactly what has and has not been exercised
 against hardware, are in [`docs/protocols/`](docs/protocols/).

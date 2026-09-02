@@ -151,9 +151,16 @@ jobs:
     with:
       tag: ${{ needs.prepare.outputs.tag }}
 
+  mobile:
+    name: Mobile
+    needs: prepare
+    uses: ./.github/workflows/mobile.yml
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+
   summary:
     name: Summary
-    needs: [prepare, build]
+    needs: [prepare, build, mobile]
     # `always()` so that a failed build still says what exists and what to do
     # about it, rather than leaving a tag behind with no explanation.
     if: always() && needs.prepare.result == 'success'
@@ -162,14 +169,21 @@ jobs:
       - env:
           TAG: ${{ needs.prepare.outputs.tag }}
           RESULT: ${{ needs.build.result }}
+          MOBILE: ${{ needs.mobile.result }}
         run: |
           {
             echo "## $TAG"
             echo
             if [ "$RESULT" = "success" ]; then
-              echo "Built and attached. The release is a **draft**: write the notes, then publish it."
+              echo "Desktop built and attached."
             else
-              echo "The build finished as \`$RESULT\`. The tag and the draft release exist."
-              echo "Re-run the Desktop workflow against \`$TAG\`, or delete the tag and the draft."
+              echo "The desktop build finished as \`$RESULT\`. Re-run the Desktop workflow against \`$TAG\`."
             fi
+            if [ "$MOBILE" = "success" ]; then
+              echo "Mobile built. The APK is attached when a keystore was configured; the .aab and .ipa stay on the Mobile run."
+            else
+              echo "The mobile build finished as \`$MOBILE\`. Re-run the Mobile workflow against \`$TAG\`."
+            fi
+            echo
+            echo "The release is a **draft**: write the notes, then publish it."
           } >> "$GITHUB_STEP_SUMMARY"
