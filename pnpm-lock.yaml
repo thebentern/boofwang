@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@boofwang/usb-serial':
+        specifier: file:mobile/plugins/usb-serial
+        version: file:mobile/plugins/usb-serial(@capacitor/core@8.5.1)
       '@capacitor-community/bluetooth-le':
         specifier: ^8.3.0
         version: 8.3.0(@capacitor/core@8.5.1)
@@ -305,6 +308,11 @@ packages:
         optional: true
       commander:
         optional: true
+
+  '@boofwang/usb-serial@file:mobile/plugins/usb-serial':
+    resolution: {directory: mobile/plugins/usb-serial, type: directory}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor-community/bluetooth-le@8.3.0':
     resolution: {integrity: sha512-bjI+m8mZ2AB9xIgwPu9T40QoAC7NErYt6q13zMHBzW3hIAITqQKFiElKOUsX813ItXzb81GoRqjlbSeHlKEzQg==}
@@ -7047,6 +7055,10 @@ snapshots:
     optionalDependencies:
       cac: 7.0.0
       citty: 0.2.2
+
+  '@boofwang/usb-serial@file:mobile/plugins/usb-serial(@capacitor/core@8.5.1)':
+    dependencies:
+      '@capacitor/core': 8.5.1
 
   '@capacitor-community/bluetooth-le@8.3.0(@capacitor/core@8.5.1)':
     dependencies:

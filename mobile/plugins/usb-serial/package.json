@@ -1,0 +1,19 @@
+{
+  "name": "@boofwang/usb-serial",
+  "version": "0.1.0",
+  "description": "USB serial for boofwang's Android app, over usb-serial-for-android",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": ["src", "android"],
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": ">=8.0.0"
+  }
+}

@@ -2,6 +2,9 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../../node_modules/.pnpm/@capacitor+android@8.5.1_@capacitor+core@8.5.1/node_modules/@capacitor/android/capacitor')
 
+include ':boofwang-usb-serial'
+project(':boofwang-usb-serial').projectDir = new File('../../node_modules/.pnpm/@boofwang+usb-serial@file+mobile+plugins+usb-serial_@capacitor+core@8.5.1/node_modules/@boofwang/usb-serial/android')
+
 include ':capacitor-community-bluetooth-le'
 project(':capacitor-community-bluetooth-le').projectDir = new File('../../node_modules/.pnpm/@capacitor-community+bluetooth-le@8.3.0_@capacitor+core@8.5.1/node_modules/@capacitor-community/bluetooth-le/android')
 

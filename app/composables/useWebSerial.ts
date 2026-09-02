@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { SerialPortLike } from '#core/transport/transport.js'
 import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial-port.js'
+import { hostSupports } from '#core/platform/host.js'
 import { KNOWN_BRIDGE_VENDORS } from '#core/transport/usb-bridges.js'
 
 /**
@@ -39,7 +40,19 @@ export function describeAdapter(info: { usbVendorId?: number; usbProductId?: num
 }
 
 export function serialAvailable(): boolean {
+  if (nativeSerial()) return true
   return typeof navigator !== 'undefined' && 'serial' in navigator
+}
+
+/**
+ * Whether the shell, not the browser, supplies the serial port.
+ *
+ * The Android app's cable lives in `app/mobile/serial.ts`, reached by a
+ * dynamic import so a browser never downloads it. The bridge still wins over
+ * it below, for the same reason it wins over the real chooser.
+ */
+function nativeSerial(): boolean {
+  return hostSupports(useShell().host, ['nativeSerial'])
 }
 
 /**
@@ -64,53 +77,30 @@ export async function requestPort(): Promise<PortChoice | null> {
 
 /** Ports already granted, so a return visit can reconnect without a prompt. */
 export async function grantedPorts(): Promise<PortChoice[]> {
+  if (nativeSerial()) return (await import('~/mobile/serial')).grantedNativePorts()
   if (!serialAvailable()) return []
   const ports = await navigator.serial.getPorts()
   return ports.map((p) => ({ port: p as unknown as SerialPortLike, info: p.getInfo?.() ?? {} }))
 }
 
-/** Fires when a granted device is physically unplugged. */
-export function onSerialDisconnect(cb: (port: SerialPortLike) => void): () => void {
+/**
+ * Fires when a granted device is physically unplugged.
+ *
+ * The port is null inside the Android app: the plugin reports the device,
+ * not a port object, and nothing that listens here keys on the port.
+ */
+export function onSerialDisconnect(cb: (port: SerialPortLike | null) => void): () => void {
+  if (nativeSerial()) {
+    let off: (() => void) | null = null
+    void import('~/mobile/serial').then((m) => {
+      off = m.onNativeDetached(() => cb(null))
+    })
+    return () => off?.()
+  }
   if (!serialAvailable()) return () => {}
   const handler = (ev: Event) => cb((ev.target ?? (ev as unknown as { port: unknown }).port) as SerialPortLike)
   navigator.serial.addEventListener('disconnect', handler)
   return () => navigator.serial.removeEventListener('disconnect', handler)
-}
-
-/**
- * Hand the user a file.
- *
- * `showSaveFilePicker` is Chromium-only, and Firefox 151 can drive a radio but
- * cannot use it - so the download fallback is the normal path for a real share
- * of users, not an edge case.
- */
-export async function saveFile(data: Uint8Array | string, filename: string, mime: string): Promise<boolean> {
-  const blob = new Blob([data as BlobPart], { type: mime })
-
-  const picker = (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker
-  if (typeof picker === 'function') {
-    try {
-      const handle = await (picker as (o: unknown) => Promise<FileSystemFileHandle>)({
-        suggestedName: filename,
-        types: [{ description: 'boofwang codeplug', accept: { [mime]: [`.${filename.split('.').pop()}`] } }],
-      })
-      const writable = await handle.createWritable()
-      await writable.write(blob)
-      await writable.close()
-      return true
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return false
-      // Anything else: fall through to the download below rather than failing.
-    }
-  }
-
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-  return true
 }
 
 // ---------------------------------------------------------- dev-only bridge --
@@ -212,7 +202,9 @@ export async function requestBridgePort(): Promise<PortChoice | null> {
   }
 }
 
-/** Bridge if it is enabled, otherwise the real chooser. */
+/** Bridge if it is enabled, then the shell's cable, otherwise the real chooser. */
 export async function acquirePort(): Promise<PortChoice | null> {
-  return bridgeEnabled() ? requestBridgePort() : requestPort()
+  if (bridgeEnabled()) return requestBridgePort()
+  if (nativeSerial()) return (await import('~/mobile/serial')).requestNativePort()
+  return requestPort()
 }
