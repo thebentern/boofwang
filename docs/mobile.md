@@ -249,8 +249,8 @@ the radio's own protocol note; this table points at it.
 
 | # | Platform | Radio | Carrier | Scope | Result |
 |---|---|---|---|---|---|
-| S1 | Android | none | none | secure context, `sha256Hex`, timer path, cold-load of `/channels`, external links, back button, file open and save, IndexedDB after a force-quit | not run |
-| S1 | iOS | none | none | the same | not run |
+| S1 | Android | none | none | secure context, `sha256Hex`, timer path, cold-load of `/channels`, external links, back button, file open and save, IndexedDB after a force-quit | part, 2026-09-02, Pixel 8 Pro, Android 17, WebView 151.0.7922.199. Secure context, `sha256Hex`, timer path, cold-load and IndexedDB after a force-quit all pass. **The back button does nothing.** External links, file open and save not run. [Below](#s1-on-two-real-devices) |
+| S1 | iOS | none | none | the same | part, 2026-09-02, iPad Pro 11-inch (M4), iPadOS 26. Secure context, `sha256Hex`, timer path and IndexedDB pass. Cold-load, external links, file open and save, Files app not run. [Below](#s1-on-two-real-devices) |
 | A1 | Android | UV-K5 | USB | read, write, restore | not run |
 | A2 | Android | UV-82 | USB | read, write, restore | not run |
 | A3 | Android | UV-5R Mini | USB | read, write, restore | not run |
@@ -283,19 +283,66 @@ tell:
   app session gets silence or `0x90`, try in order a buffer purge, an FTDI
   reset and a DTR pulse on close, and record which the radio needed in
   `protocols/dm32uv.md`. Until then: reads, second session unverified.
-- ~~**The blob-URL timer worker under `capacitor://localhost`.**~~ Measured, on
-  a simulator and an emulator rather than on devices: it does not fall back.
-  See "What the WebViews answered" below. What is left of this item is the
-  first round trip, which is dear enough to matter and has not been timed on
-  real hardware.
+- ~~**The blob-URL timer worker under `capacitor://localhost`.**~~ Answered on
+  both real devices: it does not fall back, and warm it costs nothing. See
+  [S1 on two real devices](#s1-on-two-real-devices).
+
+## S1 on two real devices
+
+A phone and a tablet, 2 September 2026. Neither had a radio attached, so this
+is the part of S1 that a radio is not needed for; the rest of the row says
+what was left.
+
+| | Pixel 8 Pro | iPad Pro 11-inch (M4) |
+|---|---|---|
+| OS | Android 17, build `CP2A.260805.005`, WebView 151.0.7922.199 | iPadOS 26 |
+| Origin | `https://localhost/` | `capacitor://localhost` |
+| `isSecureContext` | true | true |
+| `sha256Hex`'s digest of no bytes | `e3b0c442…b7852b855`, correct | the same, correct |
+| User agent carries `boofwang-mobile` | yes | not checked |
+| Timer path taken | worker | worker |
+| Worker start plus first 10 ms sleep | 26 ms | 22 ms |
+| Warm 10 ms sleep, median of 8 | 11 ms | 13 ms |
+| Warm 10 ms sleep, worst of 8 | 12 ms | 47 ms |
+| Plain `setTimeout(10)`, median of 8 | 11 ms | 11 ms |
+| Cold load of `/channels` after a forced reload | renders, "No codeplug open" | not run |
+| IndexedDB after a force-quit | value written before the kill read back after it | not run |
+
+The write path is clear on both. The blob-URL worker is real on both, and the
+emulator's warning about its cost was the emulator's, not the platform's: on
+the Pixel a warm 10 ms sleep through the worker is 11 ms against 11 ms plain,
+and the 420 ms first round trip an emulator showed is 26 ms here. The
+DM-32UV's 10 ms steps are not being stretched by this.
+
+### The Android back button does nothing
+
+At `/channels` with two entries of history, `KEYCODE_BACK` neither took the
+WebView back nor left the page. At `/`, it did not exit the app either. The
+activity stayed resumed both times, so the key is arriving and being swallowed
+rather than missing the app.
+
+The manifest does not set `android:enableOnBackInvokedCallback`, and the app
+targets SDK 36, where the platform default is the predictive-back callback and
+not the legacy `onBackPressed`. That is the first place to look, but it is a
+hypothesis and not a diagnosis.
+
+One caveat that has to travel with this: the presses were `adb shell input
+keyevent 4`, and a synthesised key is not a swipe. Predictive back is gesture
+driven and the two paths are not identical, so **this needs one confirmation
+by hand** - swipe back in the app on a real phone - before it is treated as a
+defect rather than as an artefact of how it was tested.
+
+Not run on either device: external links opening in the system browser,
+opening a `.bwp` through the file picker, saving one to Documents, and on iOS
+whether the Files app shows the boofwang folder.
 
 ## What the WebViews answered
 
-Both shells boot and their WebViews were asked, in the WebView, what the app
-depends on. This is a simulator and an emulator, so it is not S1 and fills in
-no row below; the point of doing it early is that a `crypto.subtle` that is
-missing blocks every write, and finding that out at a bench with a radio in
-hand would be the expensive way to learn it.
+The same questions, asked first on a simulator and an emulator before either
+real device was to hand. Kept because the comparison is the useful part: it
+is where the claim that the timer worker costs more than it saves came from,
+and the section above is where a real device withdrew it. Neither of these
+fills in a row.
 
 Measured 2 September 2026: an iPhone 17 Pro simulator on iOS 26.5, and the
 `Medium_Phone_API_36.0` emulator, `sdk_gphone64_arm64`, API 36.
@@ -327,12 +374,12 @@ question.
 And in the foreground the worker costs more than it saves: 25 ms against 15 ms
 on Android, 13 ms against 11 ms on iOS. That is not an argument for removing
 it - it earns its place in a hidden browser tab, which is what it was written
-for, and these are emulated machines - but it does mean the DM-32UV's 10 ms
-steps are already being stretched two-and-a-half-fold on Android before a
-radio is involved. The first round trip after the worker starts cost 420 ms
-there. The plugin creates the worker at boot and the first sleep comes later,
-so it should be warm by then; "should be" is not "was", and A4 is where that
-gets settled.
+for. That reading did not survive hardware: on a Pixel 8 Pro the same
+measurement is 11 ms against 11 ms, and the 420 ms first round trip is 26 ms.
+The lesson is about emulators rather than about the plugin - a 10 ms timer
+measured on emulated hardware says almost nothing about a 10 ms timer, and
+the DM-32UV's programming-mode entry is exactly the thing that would have
+been misjudged from it.
 
 One other thing the emulator showed: the Android app asks for the nearby-devices
 permission as soon as it launches, before anyone has asked to connect to
