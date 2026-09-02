@@ -14,9 +14,11 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SPDX = 'SPDX-License-Identifier: GPL-3.0-or-later'
-const ROOTS = ['lib', 'scripts', 'sw', 'test']
+const ROOTS = ['lib', 'mobile', 'scripts', 'sw', 'test']
 const EXTS = ['.ts', '.mjs', '.js']
-const SKIP_DIRS = new Set(['node_modules', '.nuxt', '.output', 'dist', 'reference', 'vendor'])
+// `android` and `ios` are the generated Capacitor projects under mobile/: no
+// authored .ts lives there, and the web build is copied beneath them.
+const SKIP_DIRS = new Set(['node_modules', '.nuxt', '.output', 'dist', 'reference', 'vendor', 'android', 'ios'])
 const EXTRA_FILES = ['nuxt.config.ts', 'vitest.config.ts', 'eslint.config.mjs']
 
 function* walk(dir) {

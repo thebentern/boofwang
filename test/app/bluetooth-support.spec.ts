@@ -113,3 +113,72 @@ describe('the two gates disagree in exactly the places they should', () => {
     expect(bt.supported).toBe(false)
   })
 })
+
+describe('inside the mobile shell', () => {
+  it('is supported on an iPhone, which no browser there can be', () => {
+    // The single most important case in this file. The same user agent, in a
+    // browser tab, yields "No browser on iPhone or iPad can do this" - and is
+    // right. Inside the app the shell supplies the link through the OS stack,
+    // and reciting that paragraph to somebody holding the app is wrong.
+    const r = evaluateBluetoothSupport(nav(IOS_CHROME, false), true, {}, 'ios')
+    expect(r.supported).toBe(true)
+    expect(r.blocker).toBe('none')
+    expect(r.browser).toBe('iOS')
+    expect(r.anotherBrowserWouldHelp).toBe(false)
+    expect(r.advice).toBe('')
+  })
+
+  it('still refuses that user agent in a browser tab', () => {
+    expect(evaluateBluetoothSupport(nav(IOS_CHROME, false), true, {}, 'browser').blocker).toBe('unsupported-browser')
+  })
+
+  it('is supported on Android and labels the host, not the WebView', () => {
+    const r = evaluateBluetoothSupport(nav(ANDROID_CHROME, false), true, {}, 'android')
+    expect(r.supported).toBe(true)
+    expect(r.browser).toBe('Android')
+  })
+
+  it('names the settings path when permission was refused', () => {
+    for (const host of ['ios', 'android'] as const) {
+      const r = evaluateBluetoothSupport(nav(IOS_CHROME, false), true, { permission: 'denied' }, host)
+      expect(r.blocker, host).toBe('permission-denied')
+      expect(r.supported, host).toBe(false)
+      expect(r.anotherBrowserWouldHelp, host).toBe(false)
+      expect(r.advice, host).toMatch(/permission/)
+      expect(r.advice, host).toMatch(/Settings/)
+      expect(r.advice, host).not.toMatch(/Chrome/)
+    }
+  })
+
+  it('says the adapter is off, as a switch rather than a download', () => {
+    const r = evaluateBluetoothSupport(nav(IOS_CHROME, false), true, { adapterAvailable: false }, 'ios')
+    expect(r.blocker).toBe('bluetooth-off')
+    expect(r.supported).toBe(false)
+    expect(r.advice).toMatch(/switched off/)
+    expect(r.advice).not.toMatch(/adapter/)
+  })
+
+  it('reports a refused permission before a switched-off adapter', () => {
+    // Both can be true at once. Turning Bluetooth on does nothing for somebody
+    // whose permission is denied, so the permission is the one to name.
+    const r = evaluateBluetoothSupport(nav(IOS_CHROME, false), true, { permission: 'denied', adapterAvailable: false }, 'ios')
+    expect(r.blocker).toBe('permission-denied')
+  })
+
+  it('treats a prompt or unknown permission as nothing to say yet', () => {
+    for (const permission of ['prompt', 'granted', null, undefined] as const) {
+      const r = evaluateBluetoothSupport(nav(IOS_CHROME, false), true, { ...(permission === undefined ? {} : { permission }) }, 'ios')
+      expect(r.supported, String(permission)).toBe(true)
+    }
+  })
+
+  it('never suggests another browser inside a shell', () => {
+    for (const probe of [{}, { permission: 'denied' as const }, { adapterAvailable: false }]) {
+      expect(evaluateBluetoothSupport(nav(IOS_CHROME, false), true, probe, 'ios').anotherBrowserWouldHelp).toBe(false)
+    }
+  })
+
+  it('does not consult the secure-context flag inside the shell', () => {
+    expect(evaluateBluetoothSupport(nav(IOS_CHROME, false), false, {}, 'ios').supported).toBe(true)
+  })
+})

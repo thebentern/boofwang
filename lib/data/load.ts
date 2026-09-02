@@ -40,7 +40,7 @@ export async function loadSource(id: string, host: HostKind): Promise<SourceImpl
   if (!hostSupports(host, meta.needs)) {
     throw new SourceUnavailableError(
       id,
-      `${meta.name} cannot be reached from the browser. It needs the desktop app.`,
+      `${meta.name} cannot be reached from the browser. It needs the desktop or mobile app.`,
     )
   }
 

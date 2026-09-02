@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { detectBrowser, isAppleMobile, type NavigatorLike } from './browser.js'
+import { capabilitiesFor, hostLabel, shellProvidesTransports, type HostKind } from './host.js'
 
 /**
  * Whether this browser can reach a radio over Bluetooth, and why not if it cannot.
@@ -13,6 +14,11 @@ import { detectBrowser, isAppleMobile, type NavigatorLike } from './browser.js'
  * browser on iOS is WebKit underneath, there is no iPhone or iPad on which any
  * browser will do this.
  *
+ * That stays true of browsers. Inside the native app the shell supplies the
+ * link through the OS Bluetooth stack, which is why the host is consulted
+ * first: the WebView's user agent still says iPhone, and the paragraph above
+ * would otherwise be recited to somebody it no longer applies to.
+ *
  * The one place this is *wider* than Web Serial is Android, where Chrome has
  * Web Bluetooth and no browser has Web Serial. That is the entire reason the
  * feature is worth having: it is the only way this tool runs on a phone.
@@ -25,7 +31,13 @@ import { detectBrowser, isAppleMobile, type NavigatorLike } from './browser.js'
  * how the advice strings stay right.
  */
 
-export type BluetoothBlocker = 'unsupported-browser' | 'insecure-context' | 'no-adapter' | 'none'
+export type BluetoothBlocker =
+  | 'unsupported-browser'
+  | 'insecure-context'
+  | 'no-adapter'
+  | 'bluetooth-off'
+  | 'permission-denied'
+  | 'none'
 
 export interface BluetoothSupport {
   supported: boolean
@@ -37,7 +49,8 @@ export interface BluetoothSupport {
   /**
    * Whether another browser would fix it.
    *
-   * False on iOS, where the engine is WebKit whatever the icon says. The connect
+   * False on iOS, where the engine is WebKit whatever the icon says, and false
+   * inside either shell, where there is no browser to change. The connect
    * screen uses this to decide whether offering "use Chrome instead" is help or
    * a wild goose chase.
    */
@@ -47,19 +60,60 @@ export interface BluetoothSupport {
 export interface BluetoothProbe {
   /**
    * What `navigator.bluetooth.getAvailability()` said, or null if it was not
-   * asked - which is also what a browser without the method leaves it as.
+   * asked - which is also what a browser without the method leaves it as. In
+   * the mobile shell, whether the OS adapter is switched on.
    */
   adapterAvailable?: boolean | null
   /** `navigator.maxTouchPoints`, which is how an iPad is told from a Mac. */
   maxTouchPoints?: number
+  /**
+   * The OS permission state, as the mobile shell reports it. Null or absent
+   * when nobody asked, which a browser never does: there the permission is
+   * granted per device, inside the picker, and has no state to read.
+   */
+  permission?: 'granted' | 'denied' | 'prompt' | null
 }
 
 export function evaluateBluetoothSupport(
   nav: NavigatorLike | undefined,
   isSecure: boolean,
   probe: BluetoothProbe = {},
+  host: HostKind = 'browser',
 ): BluetoothSupport {
   const ua = nav?.userAgent ?? ''
+
+  // The shell first, for the same reason as in `serial-support.ts`: the Web
+  // API is absent and the user agent describes the WebView, not the app. The
+  // secure-context check is skipped as well - a shell serves its own bundle
+  // from a scheme it registered as secure, and the flag the page sees for it
+  // is not something a person can act on.
+  if (shellProvidesTransports(host) && capabilitiesFor(host).nativeBluetooth) {
+    const browser = hostLabel(host) ?? detectBrowser(ua)
+    if (probe.permission === 'denied') {
+      return {
+        supported: false,
+        blocker: 'permission-denied',
+        secureContext: true,
+        browser,
+        anotherBrowserWouldHelp: false,
+        advice:
+          'Bluetooth permission was refused. On an iPhone it is under Settings, boofwang, Bluetooth. ' +
+          'On Android it is under Settings, Apps, boofwang, Permissions.',
+      }
+    }
+    if (probe.adapterAvailable === false) {
+      return {
+        supported: false,
+        blocker: 'bluetooth-off',
+        secureContext: true,
+        browser,
+        anotherBrowserWouldHelp: false,
+        advice: 'Bluetooth is switched off on this device. Turn it on and try again.',
+      }
+    }
+    return { supported: true, blocker: 'none', secureContext: true, browser, anotherBrowserWouldHelp: false, advice: '' }
+  }
+
   const browser = detectBrowser(ua)
   const appleMobile = isAppleMobile(ua, probe.maxTouchPoints ?? 0)
   const hasApi = nav !== undefined && 'bluetooth' in nav

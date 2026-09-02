@@ -20,6 +20,10 @@ export default withNuxt(
             { group: ['pinia', '@pinia/*'], message: 'lib/ must stay framework-agnostic.' },
             { group: ['#app', '#app/*', '#imports', 'nuxt', 'nuxt/*', '@nuxt/*'], message: 'lib/ must stay framework-agnostic.' },
             { group: ['~/*', '@/*', '~~/*'], message: 'lib/ must not reach into app/.' },
+            // The mobile shell's plugins are host code, like Electron's preload.
+            // They live under app/mobile/, behind the same SerialPortLike seam
+            // the dev bridge and GATT use, so lib/ never learns Capacitor's API.
+            { group: ['@capacitor/*', '@capacitor-community/*'], message: 'lib/ must not depend on the mobile shell.' },
           ],
         },
       ],

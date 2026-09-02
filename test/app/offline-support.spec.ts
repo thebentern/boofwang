@@ -46,6 +46,18 @@ describe('where an offline copy belongs', () => {
     expect(evaluateOfflineSupport(CHROME, true, 'desktop', false).advice).toBe('')
   })
 
+  it('is never kept in the mobile shell either, and says nothing about it', () => {
+    // Same reasoning as the desktop shell: the assets are bundled into the app
+    // and updates arrive through the store, so a worker would only serve a
+    // version the store had already replaced.
+    for (const host of ['android', 'ios'] as const) {
+      const support = evaluateOfflineSupport(CHROME, true, host, false)
+      expect(support.supported, host).toBe(false)
+      expect(support.blocker, host).toBe('mobile-shell')
+      expect(support.advice, host).toBe('')
+    }
+  })
+
   it('is not kept by the dev server', () => {
     const support = evaluateOfflineSupport(CHROME, true, 'browser', true)
     expect(support.blocker).toBe('development')
@@ -75,5 +87,6 @@ describe('where an offline copy belongs', () => {
     // Every other blocker is also true of a desktop shell served over http in
     // dev, and only one of them is the reason.
     expect(evaluateOfflineSupport(undefined, false, 'desktop', true).blocker).toBe('desktop-shell')
+    expect(evaluateOfflineSupport(undefined, false, 'ios', true).blocker).toBe('mobile-shell')
   })
 })

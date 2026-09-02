@@ -23,6 +23,7 @@ import type { RadioImage } from '../../radio/image.js'
 import type { RadioSchema } from '../../radio/schema.js'
 import { locate } from '../../radio/image.js'
 import type { Transport } from '../../transport/transport.js'
+import { isKnownBridgeVendor } from '../../transport/usb-bridges.js'
 import {
   BANDWIDTH_NARROW_HZ,
   BANDWIDTH_WIDE_HZ,
@@ -175,8 +176,7 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
     },
 
     match(info) {
-      const KNOWN_BRIDGES = [0x1a86, 0x067b, 0x10c4, 0x0403]
-      return info.usbVendorId !== undefined && KNOWN_BRIDGES.includes(info.usbVendorId) ? 'possible' : 'no'
+      return isKnownBridgeVendor(info.usbVendorId) ? 'possible' : 'no'
     },
 
     async identify(t: Transport, ctx: DriverCtx = {}): Promise<IdentifyResult> {

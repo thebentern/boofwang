@@ -24,6 +24,7 @@ import type { RadioImage } from '../../radio/image.js'
 import type { RadioSchema } from '../../radio/schema.js'
 import { cloneImage, locate } from '../../radio/image.js'
 import type { Transport } from '../../transport/transport.js'
+import { isKnownBridgeVendor } from '../../transport/usb-bridges.js'
 import {
   attrAddr,
   BANDWIDTH_NARROW_HZ,
@@ -183,8 +184,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
       // (10c4) and FTDI (0403) are all common. Every one of them is also in
       // countless unrelated devices, so this only orders the port picker; the
       // handshake is what actually identifies a radio.
-      const KNOWN_BRIDGES = [0x1a86, 0x067b, 0x10c4, 0x0403]
-      return info.usbVendorId !== undefined && KNOWN_BRIDGES.includes(info.usbVendorId) ? 'possible' : 'no'
+      return isKnownBridgeVendor(info.usbVendorId) ? 'possible' : 'no'
     },
 
     async identify(t: Transport, ctx: DriverCtx = {}): Promise<IdentifyResult> {

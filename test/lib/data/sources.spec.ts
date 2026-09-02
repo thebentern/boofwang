@@ -123,7 +123,7 @@ describe('radioid', () => {
 describe('loadSource enforces what availableSources only explains', () => {
   it('refuses a source the host cannot reach, naming the reason', async () => {
     await expect(loadSource('hearham', 'browser')).rejects.toThrow(SourceUnavailableError)
-    await expect(loadSource('hearham', 'browser')).rejects.toThrow(/desktop app/)
+    await expect(loadSource('hearham', 'browser')).rejects.toThrow(/desktop or mobile app/)
   })
 
   it('hands over the same source on a host that can reach it', async () => {

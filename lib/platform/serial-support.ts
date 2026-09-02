@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { detectBrowser, type NavigatorLike } from './browser.js'
+import { capabilitiesFor, hostLabel, shellProvidesTransports, type HostKind } from './host.js'
 
 /**
  * Whether this browser can talk to a radio at all, and why not if it cannot.
@@ -10,9 +11,14 @@ import { detectBrowser, type NavigatorLike } from './browser.js'
  * GitHub Pages provides - but only over https, so a user who reaches the site
  * over plain http gets `navigator.serial === undefined` and deserves a better
  * message than "nothing happened".
+ *
+ * Inside the mobile shell none of that applies: the WebView has no Web Serial
+ * and the shell supplies ports through a plugin, or cannot supply them at all
+ * because the device has no USB host. That is decided from the host alone,
+ * before anything the navigator says is consulted.
  */
 
-export type SerialBlocker = 'unsupported-browser' | 'insecure-context' | 'none'
+export type SerialBlocker = 'unsupported-browser' | 'insecure-context' | 'no-usb-host' | 'none'
 
 export type { NavigatorLike } from './browser.js'
 
@@ -25,7 +31,32 @@ export interface SerialSupport {
   advice: string
 }
 
-export function evaluateSerialSupport(nav: NavigatorLike | undefined, isSecure: boolean): SerialSupport {
+export function evaluateSerialSupport(
+  nav: NavigatorLike | undefined,
+  isSecure: boolean,
+  host: HostKind = 'browser',
+): SerialSupport {
+  // The shell is asked first, before the secure-context and API checks. Inside
+  // it the Web APIs are absent and the WebView's user agent is sniffed as
+  // Chrome or Safari, so every later check would answer a question about a
+  // browser that is not running: "Safari does not implement Web Serial" is
+  // true and useless to somebody holding an app.
+  if (shellProvidesTransports(host)) {
+    const browser = hostLabel(host) ?? detectBrowser(nav?.userAgent ?? '')
+    if (capabilitiesFor(host).nativeSerial) {
+      return { supported: true, blocker: 'none', secureContext: true, browser, advice: '' }
+    }
+    return {
+      supported: false,
+      blocker: 'no-usb-host',
+      secureContext: true,
+      browser,
+      advice:
+        'An iPhone or iPad cannot drive a USB programming cable. Bluetooth is the way in on this device: ' +
+        'the UV-5R Mini has a wireless mode of its own, and a clip-on dongle fits radios with the two-pin port.',
+    }
+  }
+
   const ua = nav?.userAgent ?? ''
   const browser = detectBrowser(ua)
   const hasApi = typeof nav !== 'undefined' && 'serial' in nav
