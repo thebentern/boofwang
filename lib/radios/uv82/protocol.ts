@@ -45,22 +45,22 @@ export const MAGIC_UV82 = Uint8Array.from([0x50, 0xbb, 0xff, 0x20, 0x13, 0x01, 0
  * is not decoration: sent as a single write, these radios frequently miss it.
  * Cheap insurance on a 7-byte string.
  *
- * Over Bluetooth, one write. That pacing is a cable remedy and it is actively
- * harmful through a BLE-to-UART dongle, where a GATT write is a message
- * rather than a stream: a bench probe found seven single-byte writes drew
- * nothing whatever from a Baofeng BT-A1D, while the same seven bytes in one
- * write drew a reply, and a sixteen-byte write drew six. A dongle forwarding
- * whole writes has no reason to reassemble seven of them, and there is no
- * UART on this side of the link whose timing we could be protecting anyway.
+ * Over Bluetooth, one write. Seven single-byte writes are seven round trips
+ * down the slowest link in the system to deliver seven bytes, and there is
+ * no UART on this side of a GATT link whose timing the pacing could be
+ * protecting. The UV-5R Mini's driver has always sent its magic whole.
  *
  * Keyed on `kind`, the carrier, not on `radioLink`: how to chunk a write
  * belongs to the link the host is on, where the block size belongs to what
  * the radio believes. This is the distinction those two fields exist for.
  *
- * Reasoned from that probe rather than proven: a UV-5R Mini has been read
- * through this dongle, and its driver already sent its magic as one write, so
- * no classic-family radio has yet answered through one either way. See
- * docs/protocols/ble-dongle.md.
+ * Worth knowing what this is NOT. It was written to explain why a UV-82
+ * behind a Baofeng BT-A1D drew nothing where a UV-5R Mini through the same
+ * dongle read a whole codeplug - a bench probe had found single-byte writes
+ * drawing silence and whole writes drawing replies. That hypothesis is dead:
+ * the UV-82 was tried again with the magic going out whole, confirmed on the
+ * wire by a trace, and stayed just as silent. This is a round-trip
+ * improvement and nothing more. See docs/protocols/ble-dongle.md.
  */
 async function sendMagic(t: Transport, magic: Uint8Array, opts?: ReadOpts): Promise<void> {
   if (t.kind === 'bluetooth') {

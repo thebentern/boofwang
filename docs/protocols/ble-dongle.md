@@ -56,13 +56,31 @@ replies; a bench probe saw the same split before boofwang did:
 | 16 bytes, one write | six bytes |
 
 A GATT write is a message, not a stream, and a dongle forwarding whole
-writes has no reason to reassemble seven of them. `sendMagic` now sends the
-magic in one write when the carrier is Bluetooth and keeps the 10 ms pacing
-on a cable, which is a carrier decision rather than a radio one - exactly
-the axis `kind` and `radioLink` were split to tell apart. **That change is
-reasoned from the evidence above and has not itself been proven on a classic
-radio behind a dongle.** If a UV-82 or UV-5G answers through one, this is
-the paragraph to come back and correct.
+writes has no reason to reassemble seven of them. So `sendMagic` was changed
+to send the magic in one write when the carrier is Bluetooth, keeping the
+10 ms pacing on a cable.
+
+**It did not work, and this is the paragraph that said to come back and say
+so.** A UV-82 behind a BT-A1D was tried again with the magic going out as a
+single seven-byte write - confirmed on the wire by a session trace, three
+attempts at `50bbff20130105` - and the radio stayed as silent as it had been
+with the bytes dribbled. Frame shape is not what stops it.
+
+The change is kept, but on a narrower argument than the one that motivated
+it: seven single-byte GATT writes are seven round trips down the slowest
+link in the system to deliver seven bytes, and the Mini's driver has always
+sent its magic whole. It is not a fix for anything, and nothing here should
+be read as saying the classic family works through a dongle.
+
+What is left standing is the plainest explanation, which was in front of us
+from the vendor's own page: **the BT-A1D does not claim the UV-82.** Its
+supported list is UV-5RM, UV-5RM Plus, UV-5RM Pro, UV-5RH, UV-5R, UV-5RX,
+K5 Plus, V1D and BF-888S. The one radio it carried here is on that list. The
+two radios it stayed silent behind - a UV-82 and a Quansheng UV-K5 - are
+not. That may be the rate `AE10` selects, or the pins its cable wires, and
+this bench cannot tell which without the HCI capture. It is no longer worth
+guessing at: two hypotheses have now died here, and the second one cost a
+driver change that fixed nothing.
 
 ## The first device: `TIDRADIO PTTf816cb-A`, 2026-08-31
 
