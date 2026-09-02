@@ -244,7 +244,57 @@ tell:
   app session gets silence or `0x90`, try in order a buffer purge, an FTDI
   reset and a DTR pulse on close, and record which the radio needed in
   `protocols/dm32uv.md`. Until then: reads, second session unverified.
-- **The blob-URL timer worker under `capacitor://localhost`.** The
-  unthrottled-timers plugin falls back silently. A foreground WebView is not
-  clamped the way a hidden tab is, so this matters less than in a browser,
-  but the DM-32UV's 10 ms steps are the thing that would notice.
+- ~~**The blob-URL timer worker under `capacitor://localhost`.**~~ Measured, on
+  a simulator and an emulator rather than on devices: it does not fall back.
+  See "What the WebViews answered" below. What is left of this item is the
+  first round trip, which is dear enough to matter and has not been timed on
+  real hardware.
+
+## What the WebViews answered
+
+Both shells boot and their WebViews were asked, in the WebView, what the app
+depends on. This is a simulator and an emulator, so it is not S1 and fills in
+no row below; the point of doing it early is that a `crypto.subtle` that is
+missing blocks every write, and finding that out at a bench with a radio in
+hand would be the expensive way to learn it.
+
+Measured 2 September 2026: an iPhone 17 Pro simulator on iOS 26.5, and the
+`Medium_Phone_API_36.0` emulator, `sdk_gphone64_arm64`, API 36.
+
+| | iOS 26.5 simulator | Android API 36 emulator |
+|---|---|---|
+| Origin | `capacitor://localhost` | `https://localhost/` |
+| `isSecureContext` | true | true |
+| `crypto.subtle` | present | present |
+| `sha256Hex`'s digest of no bytes | `e3b0c442…b7852b855`, correct | the same, correct |
+| `Worker` from a `blob:` URL | created, `blob:capacitor:` | created, `blob:https:` |
+| Timer path taken | worker | worker |
+| Worker start plus first 10 ms sleep | 33 ms | 420 ms |
+| Warm 10 ms sleep, median of 8 | 13 ms | 25 ms |
+| Warm 10 ms sleep, worst of 8 | 60 ms | 92 ms |
+| Plain `setTimeout(10)`, median of 8 | 11 ms | 15 ms |
+| `indexedDB.open` | opened | opened |
+
+Three things follow.
+
+The write path is not blocked. A local origin is a secure context under both
+schemes, `crypto.subtle` is there, and the primitive `sha256Hex` is built on
+returns the right answer for a known input.
+
+The worker is real, not the silent fallback. A `blob:` URL inherits the custom
+scheme on both platforms and `new Worker` accepts it, which was the open
+question.
+
+And in the foreground the worker costs more than it saves: 25 ms against 15 ms
+on Android, 13 ms against 11 ms on iOS. That is not an argument for removing
+it - it earns its place in a hidden browser tab, which is what it was written
+for, and these are emulated machines - but it does mean the DM-32UV's 10 ms
+steps are already being stretched two-and-a-half-fold on Android before a
+radio is involved. The first round trip after the worker starts cost 420 ms
+there. The plugin creates the worker at boot and the first sleep comes later,
+so it should be warm by then; "should be" is not "was", and A4 is where that
+gets settled.
+
+One other thing the emulator showed: the Android app asks for the nearby-devices
+permission as soon as it launches, before anyone has asked to connect to
+anything. The iOS app does not. Worth deciding whether that is wanted.
