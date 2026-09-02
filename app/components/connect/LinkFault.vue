@@ -167,7 +167,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     radio: 'in',
     links: ['ok', 'work'],
     title: 'Reading the {model}',
-    body: 'The memory is copied block by block. The backup is written the moment the last block lands.',
+    body: 'The memory is copied block by block. The backup is written the moment the last block lands.{inFront}',
     progress: true,
     actions: [{ key: 'cancel', label: 'Cancel', icon: 'i-lucide-x', ghost: true }],
   },
@@ -368,6 +368,10 @@ function fill(text: string): string {
     .replaceAll('{model}', props.model)
     .replaceAll('{browser}', props.browserName)
     .replaceAll('{advice}', props.advice ?? '')
+    // Inside a phone shell the OS freezes the page seconds after the app
+    // leaves the foreground, and the transfer with it. Said once, on the
+    // card that is showing while it could happen.
+    .replaceAll('{inFront}', props.firstHop === 'app' ? ' Keep boofwang in front until this finishes.' : '')
     // On a dongle session the unnamed device is the dongle, not the radio -
     // the radio is on the far side of it and was never in the chooser.
     .replaceAll('{bleName}', props.bleName ?? (via.value === 'dongle' ? 'the dongle' : 'the radio'))

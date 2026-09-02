@@ -59,7 +59,11 @@ const { state: updateState } = useAppUpdate()
 
 <template>
   <div class="min-h-screen flex flex-col" style="background: var(--bg); color: var(--tx)">
-    <header class="sticky top-0 z-20 print-hide" style="background: var(--pn); border-bottom: 1px solid var(--ln)">
+    <!-- The insets are zero everywhere but inside a phone shell drawn edge to edge. -->
+    <header
+      class="sticky top-0 z-20 print-hide"
+      style="background: var(--pn); border-bottom: 1px solid var(--ln); padding-top: env(safe-area-inset-top)"
+    >
       <div class="mx-auto max-w-[1400px] px-4 flex items-center gap-5" style="height: 52px">
         <NuxtLink to="/" class="flex items-center gap-2 shrink-0">
           <UIcon name="i-lucide-radio-tower" style="width: 15px; height: 15px; color: var(--ac)" />
@@ -142,7 +146,7 @@ const { state: updateState } = useAppUpdate()
     </main>
 
     <!-- Neither the nav above nor the links below can be followed off a sheet of paper. -->
-    <footer class="print-hide" style="border-top: 1px solid var(--ln)">
+    <footer class="print-hide" style="border-top: 1px solid var(--ln); padding-bottom: env(safe-area-inset-bottom)">
       <div
         class="mx-auto max-w-[1400px] px-4 py-5 flex flex-wrap items-center gap-x-4 gap-y-1.5"
         style="font-size: 13px; color: var(--fn)"

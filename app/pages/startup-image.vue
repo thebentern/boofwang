@@ -57,16 +57,15 @@ watch(
   },
 )
 
-function downloadCurrent() {
+async function downloadCurrent() {
   const held = boot.backup.value
   if (!held) return
-  const blob = new Blob([held.slice(0, BOOT_IMAGE_BYTES) as BlobPart], { type: 'application/octet-stream' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `dm32uv-startup-${new Date().toISOString().slice(0, 10)}.bin`
-  a.click()
-  URL.revokeObjectURL(url)
+  const saved = await saveFile(
+    held.slice(0, BOOT_IMAGE_BYTES),
+    `dm32uv-startup-${new Date().toISOString().slice(0, 10)}.bin`,
+    'application/octet-stream',
+  )
+  if (!saved) return
   toast.add({
     title: 'Saved',
     description: 'Raw 240 x 320 pixels. Nothing else boofwang stores contains this region, so keep it.',

@@ -51,6 +51,19 @@ const ROW_HEIGHT = 30
  * never a default: the table opens with every column the radio has.
  */
 const optional = reactive({ tone: true, mode: true, bandwidth: true, step: true, power: true, flag: true })
+/*
+ * A phone-width viewport starts with three columns off. The fixed columns
+ * alone are about 400px, so on a 390px screen every optional one is a
+ * horizontal scroll; the toggles above the table put them back. A viewport
+ * rule, not a host rule - a narrow browser window gets the same start.
+ */
+onMounted(() => {
+  if (window.innerWidth < 640) {
+    optional.tone = false
+    optional.bandwidth = false
+    optional.step = false
+  }
+})
 
 const OPTIONAL_COLUMNS = [
   { key: 'tone', label: 'Tone', width: 52 },

@@ -492,9 +492,15 @@ export function useRadioSession() {
     } catch (e) {
       device.captureFailure(e)
       const message = e instanceof Error ? e.message : String(e)
+      // A transfer the host took the app away from is not the radio's fault,
+      // and saying so is the difference between "keep the screen on" and a
+      // bug report about a radio that answered every byte it was asked for.
+      const interrupted = transfer.interrupted
       toast.add({
-        title: 'Could not read the radio',
-        description: message,
+        title: interrupted ? 'The read was interrupted' : 'Could not read the radio',
+        description: interrupted
+          ? `boofwang went to the background while the radio was being read, and the link did not survive it. ${message}`
+          : message,
         icon: 'i-lucide-triangle-alert',
         color: 'error',
         duration: 0,

@@ -58,6 +58,8 @@ defineExpose({ reset: () => (typed.value = '') })
         v-model="typed"
         type="text"
         autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
         spellcheck="false"
         :aria-label="`Type ${token} to confirm`"
         class="font-mono rounded-[6px] px-2.5 outline-none focus:ring-0"

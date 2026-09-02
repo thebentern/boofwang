@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { KNOWN_BRIDGE_VENDORS } from '#core/transport/usb-bridges.js'
@@ -133,3 +133,45 @@ describe('the repository', () => {
     expect(pkg.scripts['desktop:site']).not.toContain('build-service-worker')
   })
 })
+
+describe('the shell code in app/', () => {
+  const appFiles = (dir: string): string[] =>
+    readdirSync(fileURLToPath(new URL(dir, root)), { withFileTypes: true }).flatMap((d) =>
+      d.isDirectory() ? appFiles(`${dir}${d.name}/`) : /\.(ts|vue)$/.test(d.name) ? [`${dir}${d.name}`] : [],
+    )
+
+  it('imports Capacitor only from app/mobile/', () => {
+    // The seam is SerialPortLike and the bridge; a plugin import anywhere
+    // else is a second host switch, and the browser build would ship it.
+    const offenders = appFiles('app/').filter(
+      (f) => !f.startsWith('app/mobile/') && /from '@capacitor|import\('@capacitor/.test(read(f)),
+    )
+    expect(offenders).toEqual([])
+  })
+
+  it('has one anchor download, in useFileSave', () => {
+    // The blob-and-anchor save does nothing useful in a WebView. One copy is
+    // gated by the bridge; a second copy would not be.
+    const anchors = appFiles('app/').filter((f) => /a\.download\s*=/.test(read(f)))
+    expect(anchors).toEqual(['app/composables/useFileSave.ts'])
+  })
+})
+
+/**
+ * Skipped without a build, like source-gating.spec.ts. The chunk holding the
+ * Capacitor runtime may be prefetched - a browser may fetch it idly - but it
+ * must never be modulepreloaded, which would execute it in every tab.
+ */
+const PUBLIC = fileURLToPath(new URL('.output/public', root))
+const built = existsSync(`${PUBLIC}/index.html`)
+
+describe.skipIf(!built)('the built bundle', () => {
+  it('keeps the Capacitor runtime out of every modulepreloaded chunk', () => {
+    const index = readFileSync(`${PUBLIC}/index.html`, 'utf8')
+    const preloaded = [...index.matchAll(/rel="modulepreload"[^>]*href="\/_nuxt\/([^"]+)"/g)].map((m) => m[1]!)
+    expect(preloaded.length).toBeGreaterThan(0)
+    const offenders = preloaded.filter((f) => /registerPlugin\(|CapacitorHttp/.test(readFileSync(`${PUBLIC}/_nuxt/${f}`, 'utf8')))
+    expect(offenders).toEqual([])
+  })
+})
+

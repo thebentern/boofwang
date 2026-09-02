@@ -19,6 +19,7 @@ import type { Codeplug } from '#core/model/codeplug.js'
 import type { RadioDriver } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
 import type { RadioSchema } from '#core/radio/schema.js'
+import { hostSupports } from '#core/platform/host.js'
 
 /**
  * `toolbar` for the form that sits beside Print and Export on the channel
@@ -27,6 +28,11 @@ import type { RadioSchema } from '#core/radio/schema.js'
  * applying somebody else's to it.
  */
 const { toolbar = false } = defineProps<{ toolbar?: boolean }>()
+
+const ACCEPT = '.bwp,.bin,.img,application/octet-stream'
+// The share sheet capability is the shell's; where files leave through it,
+// they also arrive through a picker that cannot take an `accept` list.
+const looseAccept = hostSupports(useShell().host, ['shareSheet'])
 
 const codeplug = useCodeplugStore()
 const toast = useToast()
@@ -372,7 +378,12 @@ async function applyToOpen() {
 
 <template>
   <div>
-    <input ref="input" type="file" accept=".bwp,.bin,.img,application/octet-stream" class="hidden" @change="onPick" >
+    <!--
+      No `accept` inside a phone shell. iOS maps the list to document types
+      and greys out every file for an extension it does not know, which .bwp
+      is; Android widens an unknown extension to everything anyway.
+    -->
+    <input ref="input" type="file" :accept="looseAccept ? undefined : ACCEPT" class="hidden" @change="onPick" >
     <button
       v-if="toolbar"
       type="button"
