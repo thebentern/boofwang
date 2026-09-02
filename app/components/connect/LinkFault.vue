@@ -107,6 +107,15 @@ const props = defineProps<{
    * someone which row is theirs.
    */
   bleName?: string
+  /**
+   * Whether the shell picked the adapter itself, instead of raising a chooser.
+   *
+   * Only the Android app does, and it changes what `picking` is honestly able
+   * to say. There is no list there to be unable to see and no chip name to look
+   * for in one: `app/mobile/serial.ts` takes the adapter on the OTG port and
+   * the dialogue that follows is Android's, about that one device.
+   */
+  shellPicksPort?: boolean
   /** What the middle hop is for this session, unless the state overrides it. */
   via?: HopVia
   /** The transport's own record of this failure. Never invented here. */
@@ -377,7 +386,33 @@ function fill(text: string): string {
     .replaceAll('{bleName}', props.bleName ?? (via.value === 'dongle' ? 'the dongle' : 'the radio'))
 }
 
-const copy = computed(() => STATES[props.state])
+/**
+ * `picking` inside the Android app, where nothing is being picked from.
+ *
+ * Not a separate `FaultState`, because it is the same moment in the same flow
+ * with the same trail and the same lack of anything to offer: what differs is
+ * only which dialogue is up. Splitting it would have put the distinction in
+ * `link`, `IN_PROGRESS` and every list of states, to say one thing.
+ *
+ * The browser copy's two claims are both false here. There is a list, and it is
+ * ours - so we can say what is on it - and the chip names underneath are
+ * guidance for finding your cable in a chooser nobody is looking at.
+ */
+const PICKING_IN_APP: FaultCopy = {
+  tone: 'in',
+  adapter: 'in',
+  radio: 'neutral',
+  links: ['work', 'none'],
+  title: 'boofwang is asking Android for the cable',
+  body:
+    'There is no list to choose from. boofwang takes the adapter on the OTG port itself, so what Android ' +
+    'shows is a permission prompt for that one device. With more than one adapter attached it refuses to ' +
+    'guess and says so instead.',
+}
+
+const copy = computed(() =>
+  props.state === 'picking' && props.shellPicksPort ? PICKING_IN_APP : STATES[props.state],
+)
 
 /**
  * A state that is only ever about one carrier says so; otherwise the page
