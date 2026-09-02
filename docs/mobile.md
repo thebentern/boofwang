@@ -66,6 +66,42 @@ not installed". Install it once from Xcode, Settings, Components, or with
 `xcodebuild -downloadPlatform iOS`; it is several gigabytes. The CI runner's
 Xcode has it already.
 
+The first `xcodebuild … build` on a fresh checkout also has to clone the two
+remote Swift packages, and it gives no sign that it is doing so: the run sat
+for thirteen minutes having used two seconds of CPU and written nothing to
+DerivedData. Resolving them as their own step first says what is happening
+and makes the build that follows ordinary.
+
+```bash
+xcodebuild -project App.xcodeproj -scheme App -resolvePackageDependencies
+```
+
+### What the two projects have compiled as
+
+Both, on a Mac, on 2 September 2026. This is the toolchain check, not a
+hardware one; the table at the end of this document is still empty.
+
+| | Android | iOS |
+|---|---|---|
+| Toolchain | JDK 21.0.10, Android Studio's JBR, compileSdk 36 | Xcode 26.6 (17F113), iOS SDK 26.5 |
+| Command | `./gradlew assembleDebug -PversionName=0.0.0-local -PversionCode=1` | `xcodebuild -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build` |
+| Result | 305 tasks in 59 s, a 5,655,399 byte `app-debug.apk` | `BUILD SUCCEEDED`, `App.app` |
+| Contents | `ng/boofwa/usbserial/UsbSerialPlugin` and `com/hoho/android/usbserial`, by `dexdump` over every `classes*.dex` | all six plugin classes in the binary, by `nm`, and the site under `public/` |
+
+The Java had never been compiled and was expected to need work. Checked
+against the 3.9.0 API jar it did not: `setDTR`, `setRTS`, `write`,
+`setParameters`, `SerialInputOutputManager`'s two-argument constructor,
+`start`, `stop` and the `Listener`'s `onNewData(byte[])` and
+`onRunError(Exception)` all match as written. One thing was wrong, and it was
+Gradle rather than Java - the app project could not see JitPack, so it could
+not resolve the library the plugin module compiles against.
+
+The iOS app has been installed on an iPhone 17 Pro simulator running iOS 26.5
+and launched. It renders, and the connect page correctly says Bluetooth is the
+way in on this device, so host detection works under `capacitor://localhost`.
+A simulator has no Bluetooth and no USB, so this is not S1 and fills in
+nothing below.
+
 **Live reload is not committed.** Capacitor can point the WebView at the dev
 server (`server.url` in `capacitor.config.ts`) so edits appear without a
 sync. That turns off the local server and with it the secure context, so
