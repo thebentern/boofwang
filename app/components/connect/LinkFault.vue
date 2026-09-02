@@ -107,6 +107,19 @@ const props = defineProps<{
    * someone which row is theirs.
    */
   bleName?: string
+  /**
+   * Whether this device can present a USB serial port at all.
+   *
+   * `usbHost` in lib/platform/host.ts, false only on an iPhone or iPad. It is
+   * a fact about the hardware rather than about a browser or a plugin, and it
+   * decides whether the cable is a route that exists to be offered.
+   *
+   * Required, unlike its neighbours, because there is no safe default. An
+   * optional boolean prop is cast to false when it is absent, which would
+   * withdraw the way back to the cable on every host at once and say nothing.
+   * Required makes forgetting it a typecheck failure instead.
+   */
+  usbHost: boolean
   /** What the middle hop is for this session, unless the state overrides it. */
   via?: HopVia
   /** The transport's own record of this failure. Never invented here. */
@@ -452,16 +465,31 @@ const IN_PROGRESS: readonly FaultState[] = ['picking', 'reading', 'ble-picking']
 
 /**
  * Actions that need a trace are hidden when there is none, rather than failing
- * on click. Anything reached over Bluetooth also gains a way back to the cable.
+ * on click. Anything reached over Bluetooth also gains a way back to the cable,
+ * on a device that has one.
  *
- * That last part is a rule rather than an entry in each Bluetooth state,
- * because a Bluetooth attempt can fail into the shared states too - a read that
- * times out lands in `off`, not `ble-off` - and hardcoding it three times would
- * have left exactly those cases stuck.
+ * The cable is a rule rather than an entry in each Bluetooth state, because a
+ * Bluetooth attempt can fail into the shared states too - a read that times out
+ * lands in `off`, not `ble-off` - and hardcoding it three times would have left
+ * exactly those cases stuck.
+ *
+ * `usbHost` is what that rule cost. The `no-cable` card declares
+ * `via: 'bluetooth'` and lists no actions of its own, so on an iPhone the rule
+ * appended the only button on a card whose entire text says no cable can ever
+ * work on this hardware - and the button led to `requestPort` in a WebView with
+ * no `navigator.serial`, so the card contradicted itself and then reported that
+ * the browser does not support Web Serial.
+ *
+ * The question is the capability and not the state name, for the same reason
+ * the rule is not per-state: `no-cable` is the only card an iPhone reaches
+ * today only because `link` ranks it above every other, and a state test would
+ * go quiet the day a transfer or a Bluetooth fault outranks it. The device has
+ * no cable to offer from any card.
  */
 const actions = computed(() => {
   const listed = (copy.value.actions ?? []).filter((a) => a.key !== 'trace' || props.traceAvailable)
-  const stranded = (via.value === 'bluetooth' || via.value === 'dongle') && !IN_PROGRESS.includes(props.state)
+  const stranded =
+    props.usbHost && (via.value === 'bluetooth' || via.value === 'dongle') && !IN_PROGRESS.includes(props.state)
   if (!stranded || listed.some((a) => a.key === 'cable')) return listed
   // Before the log, which is the least likely next move.
   const at = listed.findIndex((a) => a.key === 'trace')

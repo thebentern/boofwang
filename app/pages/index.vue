@@ -2,7 +2,7 @@
 import type { RadioId } from '#core/model/codeplug.js'
 import { RADIO_IDS, SCHEMAS, isImplemented } from '#core/radio/registry.js'
 import { BL1_DONGLE_PROFILES, bluetoothProfile } from '#core/transport/bluetooth-uuids.js'
-import { shellProvidesTransports } from '#core/platform/host.js'
+import { hostSupports, shellProvidesTransports } from '#core/platform/host.js'
 import type { FaultState } from '~/components/connect/LinkFault.vue'
 import type { PortChoice } from '~/composables/useWebSerial'
 
@@ -38,6 +38,16 @@ const bluetooth = useBluetoothSupport()
 const inShell = shellProvidesTransports(useShell().host)
 const firstHop = inShell ? 'app' : 'browser'
 const bleHave = inShell ? 'This device has Bluetooth' : 'This browser does have Web Bluetooth'
+/*
+ * Whether a programming cable is a route this device has at all.
+ *
+ * Asked as a capability rather than as "is this an iPhone", and separately from
+ * `inShell`, because the two mobile shells differ on exactly this: an Android
+ * phone drives a cable through its own plugin, an iPhone has no USB host for
+ * one to attach to. The fault card needs it to decide whether "use a cable
+ * instead" is an offer or a dead end.
+ */
+const usbHost = hostSupports(useShell().host, ['usbHost'])
 const device = useDeviceStore()
 const codeplug = useCodeplugStore()
 const transfer = useTransferStore()
@@ -706,6 +716,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       :advice="support.advice"
       :ble-note="bleNote"
       :ble-name="bleName"
+      :usb-host="usbHost"
       :via="via"
       :log="log"
       :progress="progress"
