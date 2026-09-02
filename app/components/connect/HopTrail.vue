@@ -47,8 +47,14 @@ const props = withDefaults(
     links: readonly [HopLink, HopLink]
     /** What the middle hop is: a programming cable, or a Bluetooth link. */
     via?: HopVia
+    /**
+     * What the first hop is called. 'browser' in a tab; 'app' inside a shell,
+     * where a chip reading "browser" on an App Store build is a small lie
+     * that a person debugging a dead link does not need.
+     */
+    browserLabel?: string
   }>(),
-  { browser: 'ok', via: 'adapter' },
+  { browser: 'ok', via: 'adapter', browserLabel: 'browser' },
 )
 
 /**
@@ -111,7 +117,7 @@ const secondLink = computed(() => props.links[1])
  */
 const description = computed(
   () =>
-    `Connection trail: browser to ${middle.value.label} ${LINK_WORDS[props.links[0]]}, ` +
+    `Connection trail: ${props.browserLabel} to ${middle.value.label} ${LINK_WORDS[props.links[0]]}, ` +
     `${middle.value.label} to radio ${LINK_WORDS[props.links[1]]}.`,
 )
 </script>
@@ -124,7 +130,7 @@ const description = computed(
       :style="chip(browser)"
     >
       <UIcon name="i-lucide-laptop" style="width: 11px; height: 11px" />
-      browser
+      {{ browserLabel }}
     </span>
 
     <span

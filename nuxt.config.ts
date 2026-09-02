@@ -123,7 +123,9 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: 'en' },
       meta: [
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        // viewport-fit=cover lets the mobile shell paint under the notch and
+        // the home indicator; the layout then pads by env(safe-area-inset-*).
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
         {
           name: 'description',
           content:

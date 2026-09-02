@@ -2,7 +2,7 @@
 import { loadSource, SourceUnavailableError } from '#core/data/load.js'
 import { availableSources, unreachableSources } from '#core/data/registry.js'
 import type { SourceQuery, SourceResult, TalkGroupResult } from '#core/data/source.js'
-import { detectHost, type HostKind } from '#core/platform/host.js'
+import type { HostKind } from '#core/platform/host.js'
 
 /**
  * Reaching the repeater directories.
@@ -13,17 +13,9 @@ import { detectHost, type HostKind } from '#core/platform/host.js'
  * correct for the host it is running on.
  */
 
-/**
- * Which host this is, decided once.
- *
- * `detectHost` fails closed, so a missing preload, a half-initialised bridge and
- * an ordinary browser tab all answer `'browser'`. Read lazily rather than at
- * module scope because the build prerenders these pages with no `window` at all.
- */
-let host: HostKind | null = null
+/** Which host this is. `useShell` decides once and fails closed. */
 function currentHost(): HostKind {
-  host ??= detectHost(typeof window === 'undefined' ? undefined : (window as { boofwang?: unknown }).boofwang)
-  return host
+  return useShell().host
 }
 
 /**
@@ -39,15 +31,14 @@ const responseCache = new Map<string, unknown>()
 /**
  * The shell's privileged fetch, when there is a shell.
  *
- * The desktop build's preload exposes this; a browser tab has nothing here and
- * gets `undefined`. Read through the same `window.boofwang` object `detectHost`
- * reads, and typed as narrowly as it is used - if a future preload stops
- * providing it, this falls back to the browser path rather than throwing.
+ * The desktop preload and the mobile bridge both expose this; a browser tab
+ * has no bridge and gets `null`. Typed as narrowly as it is used - if a future
+ * shell stops providing it, this falls back to the browser path rather than
+ * throwing.
  */
 function shellFetchJson(): ((url: string) => Promise<unknown>) | null {
-  if (typeof window === 'undefined') return null
-  const shell = (window as { boofwang?: { fetchJson?: unknown } }).boofwang
-  return typeof shell?.fetchJson === 'function' ? (shell.fetchJson as (url: string) => Promise<unknown>) : null
+  const { bridge } = useShell()
+  return typeof bridge?.fetchJson === 'function' ? (url) => bridge.fetchJson!(url) : null
 }
 
 async function cachedJson(url: string): Promise<unknown> {

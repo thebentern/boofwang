@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { SerialPortLike } from '#core/transport/transport.js'
 import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial-port.js'
+import { KNOWN_BRIDGE_VENDORS } from '#core/transport/usb-bridges.js'
 
 /**
  * The only place in boofwang that touches `navigator.serial`.
@@ -23,26 +24,17 @@ export interface PortChoice {
 }
 
 /**
- * Well-known USB-serial bridges, by vendor id.
- *
- * Named so an error can say "Prolific PL2303" rather than "067b:2303". Worth
- * the table: counterfeit PL2303 chips in particular cause a disproportionate
- * share of programming-cable failures, and recognising one by name is the
- * difference between a user replacing a cable and a user filing a bug.
+ * Name an adapter by its USB-serial chip, from the one table in
+ * `lib/transport/usb-bridges.ts`. Saying "Prolific PL2303" rather than
+ * "067b:2303" is the difference between a user replacing a cable and a user
+ * filing a bug.
  */
-const USB_BRIDGES: Record<number, string> = {
-  0x1a86: 'QinHeng CH340',
-  0x067b: 'Prolific PL2303',
-  0x10c4: 'Silicon Labs CP210x',
-  0x0403: 'FTDI',
-}
-
 export function describeAdapter(info: { usbVendorId?: number; usbProductId?: number }): string {
   const vid = info.usbVendorId
   const pid = info.usbProductId
   if (vid === undefined) return 'an unidentified serial port'
   const hex = `${vid.toString(16).padStart(4, '0')}:${(pid ?? 0).toString(16).padStart(4, '0')}`
-  const name = USB_BRIDGES[vid]
+  const name = KNOWN_BRIDGE_VENDORS[vid]
   return name ? `${name} (${hex})` : `USB device ${hex}`
 }
 
@@ -194,7 +186,7 @@ export async function requestBridgePort(): Promise<PortChoice | null> {
 
   let chosen = ports[0]!
   if (ports.length > 1) {
-    const known = ports.filter((p) => p.vendorId !== null && p.vendorId in USB_BRIDGES)
+    const known = ports.filter((p) => p.vendorId !== null && p.vendorId in KNOWN_BRIDGE_VENDORS)
     if (known.length !== 1) {
       throw new Error(
         `The bridge sees ${ports.length} adapters and cannot choose between them: ` +

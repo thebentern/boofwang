@@ -24,7 +24,7 @@ const emit = defineEmits<{ edit: [Channel]; create: [number] }>()
 
 const codeplug = useCodeplugStore()
 const session = useRadioSession()
-const { printing, print } = usePrintMode()
+const { printing, print, available: printAvailable } = usePrintMode()
 
 type Facet = 'all' | 'rx' | 'err' | 'edit' | 'empty'
 type EditCol = 'name' | 'rx'
@@ -1232,6 +1232,7 @@ const printedFacts = computed(() => {
           mode, which Ctrl+P cannot.
         -->
         <button
+          v-if="printAvailable"
           type="button"
           class="inline-flex items-center"
           style="height: 31px; padding: 0 10px; gap: 6px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13.5px"

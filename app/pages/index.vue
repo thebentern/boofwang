@@ -2,6 +2,7 @@
 import type { RadioId } from '#core/model/codeplug.js'
 import { RADIO_IDS, SCHEMAS, isImplemented } from '#core/radio/registry.js'
 import { BL1_DONGLE_PROFILES, bluetoothProfile } from '#core/transport/bluetooth-uuids.js'
+import { shellProvidesTransports } from '#core/platform/host.js'
 import type { FaultState } from '~/components/connect/LinkFault.vue'
 import type { PortChoice } from '~/composables/useWebSerial'
 
@@ -29,6 +30,14 @@ useSeoMeta({ title: 'Connect' })
 
 const support = useSerialSupport()
 const bluetooth = useBluetoothSupport()
+/*
+ * Whether a shell, not a browser, is the thing talking to the radio. Two
+ * sentences depend on it: what the first hop of the trail is called, and
+ * whether "this browser does have Web Bluetooth" is a true thing to say.
+ */
+const inShell = shellProvidesTransports(useShell().host)
+const firstHop = inShell ? 'app' : 'browser'
+const bleHave = inShell ? 'This device has Bluetooth' : 'This browser does have Web Bluetooth'
 const device = useDeviceStore()
 const codeplug = useCodeplugStore()
 const transfer = useTransferStore()
@@ -176,6 +185,9 @@ const link = computed<FaultState | 'ready'>(() => {
   if (!mounted.value) return 'first'
   if (support.value.blocker === 'insecure-context') return 'insecure'
   if (support.value.blocker === 'unsupported-browser') return 'unsupported'
+  // An iPhone or iPad: no cable will ever work here, and the card says so
+  // once, with the wireless route beside it.
+  if (support.value.blocker === 'no-usb-host') return 'no-cable'
   if (transfer.active) return 'reading'
   if (blePicking.value) return 'ble-picking'
   if (picking.value) return 'picking'
@@ -577,7 +589,7 @@ const dongleAlso = computed(
  * cards, which carry their own "try again" and would otherwise show two buttons
  * for the same action.
  */
-const BLE_OFFER_STATES: readonly (FaultState | 'ready')[] = ['first', 'empty', 'unsupported', 'ready']
+const BLE_OFFER_STATES: readonly (FaultState | 'ready')[] = ['first', 'empty', 'unsupported', 'no-cable', 'ready']
 const offerBluetooth = computed(
   () =>
     bluetooth.value.supported &&
@@ -619,7 +631,7 @@ const bleNote = computed(() => {
    */
   if (dongleRoute.value) {
     return (
-      `This browser does have Web Bluetooth, and the ${radioName.value} is programmed through a port ` +
+      `${bleHave}, and the ${radioName.value} is programmed through a port ` +
       'that clip-on Bluetooth dongles fit. One has carried a whole codeplug off a UV-5R Mini, so the ' +
       'route works. It has not been shown to reach this radio, and a Baofeng BT-A1D never reached a ' +
       'UV-82 at all, so treat this as worth an attempt rather than a route that works.'
@@ -632,19 +644,28 @@ const bleNote = computed(() => {
    * deliberately withheld.
    */
   if (!radioDoesBluetooth.value) {
-    return `This browser does have Web Bluetooth, but the ${radioName.value} is programmed over a cable only. ` +
+    /*
+     * On an iPhone this is the whole story for a cable-only radio, and it is
+     * said here and nowhere else: not in the header, not on the About page,
+     * not on every card.
+     */
+    if (support.value.blocker === 'no-usb-host') {
+      return `The ${radioName.value} is programmed over a cable only, and this device cannot drive one. ` +
+        'A computer or an Android phone is the way to program it.'
+    }
+    return `${bleHave}, but the ${radioName.value} is programmed over a cable only. ` +
       'The Baofeng UV-5R Mini is the one radio here that has been read wirelessly.'
   }
-  if (bluetoothProfile().verified) return 'This browser does have Web Bluetooth, so try connecting that way instead.'
+  if (bluetoothProfile().verified) return `${bleHave}, so try connecting that way instead.`
   return (
-    'This browser does have Web Bluetooth, which is a different API, so there is one more thing to try ' +
+    `${bleHave}, which is a different API, so there is one more thing to try ` +
     'below. It has never been tested against a radio, and the service number it looks for is a guess, so ' +
     'do not be surprised when it finds nothing.'
   )
 })
 
 /** The states where reaching for a file instead of a cable is the sensible move. */
-const FILE_STATES: readonly FaultState[] = ['first', 'empty', 'unsupported', 'insecure', 'ble-empty']
+const FILE_STATES: readonly FaultState[] = ['first', 'empty', 'unsupported', 'no-cable', 'insecure', 'ble-empty']
 const offerFile = computed(() => link.value !== 'ready' && FILE_STATES.includes(link.value))
 
 /**
@@ -681,6 +702,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       :state="link"
       :model="radioName"
       :browser-name="support.browser"
+      :first-hop="firstHop"
       :advice="support.advice"
       :ble-note="bleNote"
       :ble-name="bleName"

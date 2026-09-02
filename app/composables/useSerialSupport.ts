@@ -20,7 +20,7 @@ const UNKNOWN: SerialSupport = {
 export function useSerialSupport() {
   const support = ref<SerialSupport>(UNKNOWN)
   onMounted(() => {
-    support.value = evaluateSerialSupport(navigator, window.isSecureContext)
+    support.value = evaluateSerialSupport(navigator, window.isSecureContext, useShell().host)
   })
   return support
 }

@@ -132,6 +132,10 @@ const credits = [
               This is the desktop build, which is already an installed application and already works without a
               network. It updates by being replaced, from the releases page.
             </template>
+            <template v-else-if="update.support.blocker === 'mobile-shell'">
+              This build is bundled inside the app. It updates when the app does, through the store it was
+              installed from, and never on its own.
+            </template>
             <template v-else-if="update.offlineReady">
               Stored on this device. boofwang opens without a network, and the copy it opens is the one named
               above until an update is applied.

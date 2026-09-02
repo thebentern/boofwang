@@ -29,6 +29,12 @@ export type FaultState =
   | 'unsupported'
   | 'insecure'
   /*
+   * The mobile shell on an iPhone or iPad. Not a fault in the browser sense -
+   * nothing is missing or misconfigured - but the cable route does not exist
+   * on that hardware and the card has to say what does.
+   */
+  | 'no-cable'
+  /*
    * The Bluetooth states.
    *
    * Separate rather than reusing the cable ones because the remedies are
@@ -87,6 +93,8 @@ const props = defineProps<{
   model: string
   /** The browser's own name, for the sentence about its port chooser. */
   browserName: string
+  /** What the first hop of the trail is called: 'browser', or 'app' in a shell. */
+  firstHop?: string
   /** Why Web Serial is unavailable, when it is. */
   advice?: string
   /** Where Bluetooth stands for this browser: an alternative, or why not. */
@@ -143,8 +151,9 @@ const STATES: Record<FaultState, FaultCopy> = {
     body:
       'We cannot style that list, read it, or tell whether your cable is in it. So here is the one useful ' +
       'thing we can say: a programming cable appears as its USB-serial chip, never as a radio.',
-    // The four bridges `USB_BRIDGES` in useWebSerial knows by name, which are
-    // the four a programming cable is realistically built around.
+    // The four bridges `KNOWN_BRIDGE_VENDORS` in lib/transport/usb-bridges.ts
+    // knows by name, which are the four a programming cable is realistically
+    // built around.
     staticLog:
       'CH340 · USB Serial         1a86:7523\n' +
       'CP2102 USB to UART         10c4:ea60\n' +
@@ -273,6 +282,18 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['none', 'none'],
     title: 'This page needs a secure connection',
     body: '{advice}',
+  },
+
+  'no-cable': {
+    tone: 'in',
+    browser: 'neutral',
+    adapter: 'neutral',
+    radio: 'neutral',
+    via: 'bluetooth',
+    links: ['none', 'none'],
+    title: 'Bluetooth is the way in on this device',
+    body: '{advice}',
+    showBleNote: true,
   },
 
   'ble-picking': {
@@ -474,6 +495,7 @@ const actions = computed(() => {
           :radio="copy.radio"
           :links="copy.links"
           :via="via"
+          :browser-label="firstHop ?? 'browser'"
         />
 
         <p style="margin: 0; font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 78ch">

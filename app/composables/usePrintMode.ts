@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { hostSupports } from '#core/platform/host.js'
 
 /**
  * Is this page about to be printed?
@@ -87,5 +88,13 @@ export function usePrintMode() {
     }
   }
 
-  return { printing: readonly(printing), print }
+  /*
+   * Whether printing reaches anything. `window.print()` is a no-op in both
+   * mobile WebViews - Android needs a native print bridge nobody has written,
+   * WebKit's simply returns - and a button that does nothing is worse than no
+   * button. The `@media print` rules stay; they cost nothing.
+   */
+  const available = hostSupports(useShell().host, ['print'])
+
+  return { printing: readonly(printing), print, available }
 }

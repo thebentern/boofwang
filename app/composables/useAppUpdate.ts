@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { detectHost } from '#core/platform/host.js'
 import { evaluateOfflineSupport, type OfflineSupport } from '#core/platform/offline-support.js'
 import { readBuildInfo, worthPrompting, type BuildInfo } from '#core/version/build.js'
 
@@ -254,7 +253,7 @@ function start() {
    * of a packaged application is an offline cache that survives the application
    * being replaced.
    */
-  const host = detectHost(typeof window === 'undefined' ? undefined : (window as { boofwang?: unknown }).boofwang)
+  const { host } = useShell()
   state.support = evaluateOfflineSupport(
     typeof navigator === 'undefined' ? undefined : navigator,
     typeof window !== 'undefined' && window.isSecureContext,
