@@ -20,8 +20,9 @@ import { describeAdapter, type PortChoice } from '~/composables/useWebSerial'
  * those the app refuses to guess.
  *
  * Nothing in this file has been run on a phone or against a radio. The port
- * it wraps has been proven equivalent to the browser's against fixtures; the
- * plugin and this glue have not been compiled.
+ * it wraps has been proven equivalent to the browser's against fixtures, and
+ * the plugin it calls now compiles; this glue has not been exercised against
+ * the real bridge.
  */
 
 export function nativeSerialAvailable(): boolean {
@@ -65,24 +66,50 @@ function linkFor(device: UsbSerialDevice): NativeSerialLink {
     label: describeAdapter(info),
 
     async open(params: NativeSerialOpenParams) {
+      // Events that arrived before there was a handle to match them against.
+      //
+      // The plugin starts its reader thread inside open() and resolves the
+      // call afterwards, so the first bytes can cross the bridge before this
+      // side has been told which handle they carry - an adapter whose FIFO
+      // already holds bytes delivers them the instant the thread runs. Each
+      // event is held as a closure that re-checks the handle when it is
+      // flushed, so the check itself still lives in one place per event kind.
+      let early: (() => void)[] | null = []
+      const whenOpen = (run: () => void) => {
+        if (early) early.push(run)
+        else run()
+      }
+
       subscriptions.push(
-        UsbSerial.addListener('data', (e) => {
-          if (e.handle !== handle) return
-          // A fresh array per event: the decoder's buffer is ours, but the
-          // port copies again regardless, and two copies are cheaper than
-          // one shared buffer that a later event overwrites.
-          const bytes = fromBase64(e.data)
-          for (const cb of dataHandlers) cb(bytes)
-        }),
-        UsbSerial.addListener('error', (e) => {
-          if (e.handle === handle) lost(e.message)
-        }),
+        UsbSerial.addListener('data', (e) =>
+          whenOpen(() => {
+            if (e.handle !== handle) return
+            // A fresh array per event: the decoder's buffer is ours, but the
+            // port copies again regardless, and two copies are cheaper than
+            // one shared buffer that a later event overwrites.
+            const bytes = fromBase64(e.data)
+            for (const cb of dataHandlers) cb(bytes)
+          }),
+        ),
+        UsbSerial.addListener('error', (e) =>
+          whenOpen(() => {
+            if (e.handle === handle) lost(e.message)
+          }),
+        ),
         UsbSerial.addListener('detached', (e) => {
           if (e.deviceId === device.deviceId) lost('The adapter was unplugged.')
         }),
       )
+      // Registered, not merely asked for. addListener crosses the bridge and
+      // returns a promise; leaving it in flight while the reader thread starts
+      // is the subscription-taken-after-the-open this file takes it before.
+      await Promise.all(subscriptions)
+
       const opened = await UsbSerial.open({ deviceId: device.deviceId, ...params })
       handle = opened.handle
+      const queued = early
+      early = null
+      for (const run of queued) run()
     },
 
     async write(data: Uint8Array) {
