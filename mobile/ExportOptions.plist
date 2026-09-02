@@ -10,6 +10,15 @@
 	<true/>
 	<key>signingStyle</key>
 	<string>manual</string>
+	<!--
+		Benjamin Meadors, the individual team, which is the one the desktop
+		builds are signed and notarised with. Stated rather than inferred
+		because this account belongs to more than one team, and
+		docs/signing.md records what picking the other one costs: an
+		employer's name on the app and one of their slots spent.
+	-->
+	<key>teamID</key>
+	<string>6YF6QJH524</string>
 	<key>provisioningProfiles</key>
 	<dict>
 		<key>ng.boofwa.app</key>

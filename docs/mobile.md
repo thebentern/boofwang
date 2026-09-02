@@ -170,6 +170,15 @@ applies to artifact names.
 
 ### iOS
 
+The team is `6YF6QJH524`, `O=Benjamin Meadors` - the individual one, the same
+team the desktop builds are signed and notarised with. It is written down in
+two places rather than left to whatever Xcode has selected: `DEVELOPMENT_TEAM`
+in the App target's Debug and Release configurations, and `teamID` in
+`mobile/ExportOptions.plist`. The account belongs to more than one team, and
+`docs/signing.md` says what picking the other costs - an employer's name on
+the app and one of their slots spent. An unset team is how that happens by
+accident.
+
 The certificate is an **Apple Distribution** identity, not the Developer ID
 one the desktop build is notarised with; `docs/signing.md` records how much
 time the wrong certificate type cost once already. You need:
@@ -185,6 +194,36 @@ run, exported for App Store Connect; uploading it to TestFlight is a manual
 step until the App Store Connect key's role has been confirmed sufficient
 for `altool`, which has not been tried. Without them the run builds the
 project for the simulator, which is the check a pull request gets.
+
+#### Putting a build on your own iPhone or iPad
+
+None of the release machinery above is involved. A development build needs an
+Apple Development certificate and a profile for `ng.boofwa.app` carrying the
+device's identifier, and Xcode makes all three itself the first time, but only
+for an Apple ID it is signed in as. With none it stops at:
+
+```
+error: No Accounts: Add a new account in Accounts settings.
+```
+
+So: Xcode, Settings, Accounts, add the Apple ID that owns team `6YF6QJH524`,
+then let the build create what is missing.
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+  -project mobile/ios/App/App.xcodeproj -scheme App -configuration Debug \
+  -sdk iphoneos -destination 'generic/platform=iOS' \
+  -allowProvisioningUpdates build
+```
+
+That registers the App ID `ng.boofwa.app` in the portal if it is not there
+already, which is a change to the account and not only to this checkout. It
+lands under `6YF6QJH524` because the target names the team; without that it
+would land under whichever team the signed-in account offers first.
+
+The device also has to be paired and in Developer Mode - `xcrun devicectl list
+devices` says `available (paired)` when it is, and `unavailable` when the
+cable is out, the phone is locked or Developer Mode is off.
 
 ## The licence question
 
