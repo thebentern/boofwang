@@ -72,15 +72,23 @@ link in the system to deliver seven bytes, and the Mini's driver has always
 sent its magic whole. It is not a fix for anything, and nothing here should
 be read as saying the classic family works through a dongle.
 
-What is left standing is the plainest explanation, which was in front of us
-from the vendor's own page: **the BT-A1D does not claim the UV-82.** Its
+What is left standing is the plainest explanation, which was on the vendor's
+own page the whole time: **the BT-A1D does not claim the UV-82.** Its
 supported list is UV-5RM, UV-5RM Plus, UV-5RM Pro, UV-5RH, UV-5R, UV-5RX,
-K5 Plus, V1D and BF-888S. The one radio it carried here is on that list. The
-two radios it stayed silent behind - a UV-82 and a Quansheng UV-K5 - are
-not. That may be the rate `AE10` selects, or the pins its cable wires, and
-this bench cannot tell which without the HCI capture. It is no longer worth
-guessing at: two hypotheses have now died here, and the second one cost a
-driver change that fixed nothing.
+K5 Plus, V1D and BF-888S. The one radio it carried here is on that list; the
+two it never carried - a UV-82 and a Quansheng UV-K5 - are not.
+
+With the radio-off control in hand, the rate is no longer even a candidate:
+nothing was ever coming back from the radio to be sampled at the wrong
+speed. Whether the cable does not wire the UV-82's pins, or the dongle never
+drives them, is not something this bench can distinguish and no longer
+matters much - either way this adapter does not reach this radio.
+
+Three hypotheses died here in three days: frame shape, then rate, then the
+control that showed there was nothing to explain. The pattern in all three
+is the same - a suggestive reading taken as evidence before the cheap
+disconfirming test was run. The HCI capture remains the only route that
+reads an answer off the vendor's own software rather than inferring one.
 
 ## The first device: `TIDRADIO PTTf816cb-A`, 2026-08-31
 
@@ -209,14 +217,34 @@ trusting a GATT enumeration as an advertisement. `BluetoothProfile` now
 separates `service` (looked up after connecting) from `advertisedServices`
 (what the chooser may filter on), and a test pins the two apart.
 
-**What FF01 returns is not yet a radio.** Writing to FF02 produces a variable
-number of single-byte notifications - `f8`, `f0`, `fc`, `e0`, `c0` - and the
-count does not track the reply a radio would send: a sixteen-byte UV-K5 hello
-drew six of them, sixteen zero bytes drew eight, and the UV-82's magic drew
-two where a real `06` is one byte. Runs of ones followed by zeros are what a
-UART yields sampling a line at the wrong rate or an idle one, so this is
-consistent with a bridge that is wired but not carrying the radio - and
-equally consistent with a floating pin. One bench cannot tell those apart.
+**What FF01 returns is not the radio, and that is now settled.** Writing to
+FF02 produces a variable number of single-byte notifications - `f8`, `f0`,
+`fc`, `e0`, `c0`, `ff` - which look exactly like a UART sampling a line at
+the wrong rate. That reading is wrong, and it took three controls to prove
+it:
+
+| Control | Result |
+|---|---|
+| Radio attached and on, magic sent | bytes, 5 of 5 attempts |
+| Radio **unplugged** from the dongle | **silence, 0 of 5** |
+| Radio attached but **switched off**, magic sent | **bytes, 5 of 5** |
+
+The middle row is what fooled us: the traffic depends on the radio being
+plugged in, which reads like the radio answering. The last row settles it. A
+radio that is switched off cannot answer a handshake, and it produced the
+same `fc` / `f8` / `ff` family as a live one. So the bytes are the dongle's
+UART sampling a line that the radio's *presence* biases - a pull-up and some
+noise tripping a start bit - and not the radio's voice at any rate.
+
+Everything built on those bytes fell with them. `AE10` was swept 1 to 12
+against both pacings, 0 excluded, on the theory that the radio was answering
+at the wrong speed; nothing ever returned `06`, and now it is clear nothing
+could have. **The UV-82 has never answered through this dongle.**
+
+The lesson is about the control rather than the dongle: "the output changes
+when I unplug the radio" is not "the radio is transmitting". The cheap
+distinguishing test - leave it plugged in and switch it off - should have
+come first, and would have saved two sweeps and a driver change.
 
 **AE10 is a four-byte register that reads back what is written, factory value
 5** - and it is not to be swept blindly. Writing `0` to it took the dongle off

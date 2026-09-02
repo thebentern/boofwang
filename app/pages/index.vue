@@ -621,8 +621,8 @@ const bleNote = computed(() => {
     return (
       `This browser does have Web Bluetooth, and the ${radioName.value} is programmed through a port ` +
       'that clip-on Bluetooth dongles fit. One has carried a whole codeplug off a UV-5R Mini, so the ' +
-      'route works; whether it reaches this radio has not been shown, and a UV-82 behind the same ' +
-      'dongle stayed silent.'
+      'route works. It has not been shown to reach this radio, and a Baofeng BT-A1D never reached a ' +
+      'UV-82 at all, so treat this as worth an attempt rather than a route that works.'
     )
   }
   /*
