@@ -60,6 +60,12 @@ setting:
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer pnpm mobile:ios
 ```
 
+Xcode 26 ships the iOS SDK but not the platform runtime the build needs, and
+`xcodebuild` then reports every destination as ineligible with "iOS 26.5 is
+not installed". Install it once from Xcode, Settings, Components, or with
+`xcodebuild -downloadPlatform iOS`; it is several gigabytes. The CI runner's
+Xcode has it already.
+
 **Live reload is not committed.** Capacitor can point the WebView at the dev
 server (`server.url` in `capacitor.config.ts`) so edits appear without a
 sync. That turns off the local server and with it the secure context, so
