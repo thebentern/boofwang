@@ -102,7 +102,9 @@ describe('the picking card', () => {
 
   it('has a version for the app, where there is no list to be shown', () => {
     expect(fault).toContain('const PICKING_IN_APP')
-    expect(fault).toMatch(/props\.state === 'picking' && props\.shellPicksPort/)
+    expect(fault).toContain('picking: PICKING_IN_APP')
+    // The table is only ever consulted where the shell does the picking.
+    expect(fault).toMatch(/props\.shellPicksPort \? IN_APP\[props\.state\]/)
   })
 
   it('never claims a list it cannot see, in the one place it owns the list', () => {
