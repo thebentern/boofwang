@@ -3,7 +3,18 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 
 export default withNuxt(
   {
-    ignores: ['.nuxt/**', '.output/**', 'dist/**', 'node_modules/**', 'vendor/**', 'public/presets/**'],
+    ignores: [
+      '.nuxt/**',
+      '.output/**',
+      'dist/**',
+      'node_modules/**',
+      'vendor/**',
+      'public/presets/**',
+      // The generated Capacitor projects. The built site is copied beneath
+      // them, and linting a bundle is nobody's idea of a gate.
+      'mobile/android/**',
+      'mobile/ios/**',
+    ],
   },
   {
     // lib/ is the framework-agnostic core. Keeping it pure is what lets the

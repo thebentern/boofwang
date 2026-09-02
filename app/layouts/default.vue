@@ -132,6 +132,8 @@ const { state: updateState } = useAppUpdate()
       chrome. It renders nothing until there is something to say.
     -->
     <AppUpdateNotice />
+    <!-- The mobile shell's Bluetooth list. Renders nothing until a scan opens it. -->
+    <ConnectBluetoothScanList />
 
     <AppStatusBar />
 

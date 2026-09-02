@@ -701,7 +701,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       v-else
       :state="link"
       :model="radioName"
-      :browser-name="support.browser"
+      :browser-name="inShell ? 'boofwang' : support.browser"
       :first-hop="firstHop"
       :advice="support.advice"
       :ble-note="bleNote"

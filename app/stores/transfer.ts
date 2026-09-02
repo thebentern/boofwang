@@ -16,6 +16,15 @@ export const useTransferStore = defineStore('transfer', () => {
   const total = ref(0)
   const label = ref('')
   const log = ref<string[]>([])
+  /**
+   * Whether the host took the app away from the transfer while it ran.
+   *
+   * Set by the mobile shell when the app goes to the background, and by
+   * nothing else. A read that fails after this is blamed on the interruption
+   * rather than on the radio, which is the difference between "try again with
+   * the screen on" and a bug report about a radio that was never at fault.
+   */
+  const interrupted = ref(false)
 
   let controller: AbortController | null = null
   let lastEmit = 0
@@ -30,6 +39,7 @@ export const useTransferStore = defineStore('transfer', () => {
     total.value = 0
     label.value = what
     log.value = [what]
+    interrupted.value = false
     lastEmit = 0
     controller = new AbortController()
     return controller.signal
@@ -55,10 +65,32 @@ export const useTransferStore = defineStore('transfer', () => {
     controller?.abort()
   }
 
+  function markInterrupted() {
+    if (interrupted.value) return
+    interrupted.value = true
+    note(`boofwang went to the background at ${Math.round(percent.value)}%`)
+  }
+
   function end() {
     active.value = false
     controller = null
   }
 
-  return { active, phase, done, total, label, log, percent, canCancel, begin, report, note, cancel, end }
+  return {
+    active,
+    phase,
+    done,
+    total,
+    label,
+    log,
+    interrupted,
+    percent,
+    canCancel,
+    begin,
+    report,
+    note,
+    markInterrupted,
+    cancel,
+    end,
+  }
 })

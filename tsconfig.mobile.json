@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.core.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.mobile.tsbuildinfo"
+  },
+  // The mobile shell's own TypeScript: the Capacitor config and the in-repo
+  // plugin's JS side. The generated native projects hold no authored .ts.
+  "include": ["capacitor.config.ts", "mobile/plugins/**/src/**/*.ts"],
+  "exclude": []
+}

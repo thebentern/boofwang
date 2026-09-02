@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The USB-serial bridges a programming cable can contain, by vendor id, in
+    decimal as Android requires. Generated from and checked against
+    KNOWN_BRIDGE_VENDORS in lib/transport/usb-bridges.ts: a vendor added
+    there without a line here would make the cable work only after a manual
+    permission prompt, and a line here without one there would offer the app
+    for a device no driver would ever claim.
+
+    6790 = 0x1a86 QinHeng CH340
+    1659 = 0x067b Prolific PL2303
+    4292 = 0x10c4 Silicon Labs CP210x
+    1027 = 0x0403 FTDI
+-->
+<resources>
+    <usb-device vendor-id="6790" />
+    <usb-device vendor-id="1659" />
+    <usb-device vendor-id="4292" />
+    <usb-device vendor-id="1027" />
+</resources>

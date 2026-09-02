@@ -8,6 +8,7 @@ import {
   type BluetoothProfile,
 } from '#core/transport/bluetooth-uuids.js'
 import type { PortChoice } from '~/composables/useWebSerial'
+import { hostSupports } from '#core/platform/host.js'
 
 /**
  * The only place in boofwang that touches `navigator.bluetooth`.
@@ -30,7 +31,21 @@ import type { PortChoice } from '~/composables/useWebSerial'
  */
 
 export function bluetoothAvailable(): boolean {
+  if (nativeBluetooth()) return true
   return typeof navigator !== 'undefined' && 'bluetooth' in navigator
+}
+
+/**
+ * Whether the shell, not the browser, supplies the Bluetooth link.
+ *
+ * The mobile shell's plugin lives in `app/mobile/bluetooth.ts`, reached by a
+ * dynamic import so a browser never downloads it. Every entry point below
+ * dispatches there first and otherwise runs the `navigator.bluetooth` body
+ * unchanged - which is the code that read 33,344 bytes off a UV-5R Mini, and
+ * is not swapped for a plugin's web backend on that account.
+ */
+function nativeBluetooth(): boolean {
+  return hostSupports(useShell().host, ['nativeBluetooth'])
 }
 
 /**
@@ -65,6 +80,19 @@ export function bluetoothOverride(): string | null {
     return value
   }
   return sessionStorage.getItem(BLE_KEY)
+}
+
+/**
+ * Set or clear the override without a URL.
+ *
+ * The mobile shell has no address bar, so its device list carries a field
+ * that lands here. Same key, same session scope, same precedence: the next
+ * `resolveBluetoothProfile()` reads it exactly as it would read `?ble=`.
+ */
+export function setBluetoothOverride(value: string | null): void {
+  if (typeof window === 'undefined') return
+  if (value === null || value === '') sessionStorage.removeItem(BLE_KEY)
+  else sessionStorage.setItem(BLE_KEY, value)
 }
 
 /**
@@ -144,6 +172,7 @@ export async function requestBluetoothRadio(
     withDefault?: boolean
   } = {},
 ): Promise<PortChoice | null> {
+  if (nativeBluetooth()) return (await import('~/mobile/bluetooth')).requestNativeBluetoothRadio(opts)
   if (!bluetoothAvailable()) throw new Error('This browser does not support Web Bluetooth.')
 
   /*
@@ -220,6 +249,7 @@ export async function requestBluetoothRadio(
  */
 export function forgetBluetoothGrant(): void {
   granted = null
+  if (nativeBluetooth()) void import('~/mobile/bluetooth').then((m) => m.forgetNativeBluetoothGrant())
 }
 
 /**
@@ -235,6 +265,7 @@ export function forgetBluetoothGrant(): void {
  * service. A live `?ble=` override still wins, as it does everywhere.
  */
 export async function reconnectBluetoothRadio(): Promise<PortChoice | null> {
+  if (nativeBluetooth()) return (await import('~/mobile/bluetooth')).reconnectNativeBluetoothRadio()
   if (!bluetoothAvailable() || !granted) return null
   const resolved = resolveBluetoothProfile()
   const candidates = resolved.overridden ? [resolved.profile] : [granted.profile]

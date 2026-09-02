@@ -155,3 +155,22 @@ __pycache__/
 
 # Desktop build output.
 dist-desktop/
+
+# Capacitor: the web build copied into the native projects, and native build
+# output. The projects themselves are committed, as Capacitor intends.
+mobile/android/app/src/main/assets/public/
+mobile/android/app/src/main/assets/capacitor.config.json
+mobile/android/app/src/main/assets/capacitor.plugins.json
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/.idea/
+mobile/android/local.properties
+mobile/android/*.keystore
+mobile/ios/App/App/public/
+mobile/ios/App/App/capacitor.config.json
+mobile/ios/App/Pods/
+mobile/ios/App/build/
+mobile/ios/App/App.xcworkspace/xcuserdata/
+mobile/ios/App/App.xcodeproj/xcuserdata/
+mobile/ios/DerivedData/

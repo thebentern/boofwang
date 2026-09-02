@@ -19,7 +19,7 @@ const EXTS = ['.ts', '.mjs', '.js']
 // `android` and `ios` are the generated Capacitor projects under mobile/: no
 // authored .ts lives there, and the web build is copied beneath them.
 const SKIP_DIRS = new Set(['node_modules', '.nuxt', '.output', 'dist', 'reference', 'vendor', 'android', 'ios'])
-const EXTRA_FILES = ['nuxt.config.ts', 'vitest.config.ts', 'eslint.config.mjs']
+const EXTRA_FILES = ['nuxt.config.ts', 'vitest.config.ts', 'eslint.config.mjs', 'capacitor.config.ts']
 
 function* walk(dir) {
   let entries
