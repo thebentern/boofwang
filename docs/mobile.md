@@ -315,7 +315,7 @@ the radio's own protocol note; this table points at it.
 | B1 | Android | DM-32UV | USB | backgrounded at about half of a read | **did not reproduce**, 2026-09-03, Pixel 8 Pro, Android 17. Four reads backgrounded at blocks 3, 4, 29 and 49 of 59, away up to 58 s, one with the screen off and the device dozing. All four completed, all 262,144 bytes at sha `363eecd6dac6f291`. Keep-awake verified held. [Below](#b1-backgrounding-did-not-break-a-usb-read) |
 | B2 | Android | UV-5R Mini | Bluetooth | backgrounded at about half of a read | not run |
 | B3 | iOS | UV-5R Mini | Bluetooth | backgrounded at about half of a read | not run |
-| B4 | either | UV-K5 | USB | backgrounded mid-write, only after B1, with a restorable backup | not run |
+| B4 | either | UV-K5 | USB | backgrounded mid-write, only after B1, with a restorable backup | not run - **not reachable on this radio**. A DM-32UV restore sends only differing pages, so a safe run (an image identical to the radio) has no write to interrupt, and a long enough one would mean editing somebody's radio substantially. [Below](#b4-why-it-could-not-be-run) |
 | W1 | bench, BLE bridge | UV-5R Mini | own module | one-field write, read back, restore | not run |
 | W2 | Android | UV-5R Mini | own module | the same, through the app | not run |
 | W3 | iOS | UV-5R Mini | own module | the same, through the app | not run |
@@ -563,13 +563,14 @@ The restore put them back. The final image holds `00 00 ff ff ff ff ff ff`
 again, because a restore writes the bytes the backup holds rather than
 re-encoding a document, which is the behaviour that makes it a way back.
 
-#### What this run did not establish
+#### The count of 42, resolved
 
-The restore's progress counted to 42, which is `targets.length` - the pages in
-the writable scope that it walks - and not necessarily the number it sent. The
-screen says it sends only the blocks that differ, and only one page did. Those
-two are consistent if the skip happens inside the loop, and this run did not
-capture enough to say so. Nobody should read 42 as forty-two writes.
+The restore's progress counts to 42, which is `targets.length` - the pages in
+the writable scope it walks - and not the number it sends. That was left open
+here and is now settled: restoring an image **identical** to what the radio
+holds completes with no write phase at all and leaves the sha256 unchanged. The
+skip happens inside the loop, the screen's "sends only the blocks that differ"
+is literally true, and 42 is pages considered, not written.
 
 ## A12: the key slots
 
@@ -754,3 +755,31 @@ real interruption. They remain argued from source.
 
 B2, B3 and B4 stay "not run": Bluetooth, iOS, and mid-write, none of which
 this session could reach.
+
+## B4: why it could not be run
+
+3 September 2026, same radio and phone. B4 is "backgrounded mid-write, only
+after B1, with a restorable backup". B1 is done and the backups are there, so
+the preconditions were met. It still could not be run honestly.
+
+The safe way to test a mid-write interruption is to write an image identical to
+what the radio already holds: then every byte sent equals the byte already
+there, and an interruption at any point cannot change the radio. That was tried.
+The restore ran its 200-entry scan, found nothing differing, sent nothing, and
+finished - and a read afterwards returned sha256 `363eecd6dac6f291`, unchanged.
+So the safe version has no write to interrupt.
+
+The unsafe version needs a restore that actually sends pages, which means an
+image that differs from the radio in enough places to take long enough to catch.
+Every difference available here is one page - the channel rename was one, the
+key slot was one - and one page is a couple of seconds. Manufacturing a longer
+one would mean making substantial edits to somebody's working radio for the sake
+of interrupting the write that puts them back. That is a worse trade than
+leaving the row unrun, so it is left unrun.
+
+What would make B4 reachable: a radio nobody minds, or a build with a
+deliberately slowed write for the bench. Neither is a reason to change the
+shipping driver.
+
+The attempt did establish the thing above about page counts, which was worth
+having on its own.
