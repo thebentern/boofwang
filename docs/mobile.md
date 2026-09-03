@@ -304,9 +304,9 @@ the radio's own protocol note; this table points at it.
 | A1 | Android | UV-K5 | USB | read, write, restore | not run |
 | A2 | Android | UV-82 | USB | read, write, restore | not run |
 | A3 | Android | UV-5R Mini | USB | read, write, restore | not run |
-| A4 | Android | DM-32UV | USB | read, write, restore | **read: pass. write: attested.** 2026-09-02, Pixel 8 Pro, Android 17, FTDI FT232R `0403:6001`, firmware `DM32.01.01.040`. Read: 200-entry block scan, 59 blocks, 262,144 bytes, about 35 s, two consecutive reads byte-identical at sha256 `363eecd6dac6f291`. Write: four channels edited and written by the owner; the before and after images differ in exactly the four intended bytes and nothing else. Restore not run. [Below](#a4-the-dm-32uv-on-a-pixel) |
+| A4 | Android | DM-32UV | USB | read, write, restore | **pass.** 2026-09-02, Pixel 8 Pro, Android 17, FTDI FT232R `0403:6001`, firmware `DM32.01.01.040`. Read 262,144 bytes in about 35 s, twice byte-identical. One channel renamed, written as 1 block / 4,096 bytes, verified; an independent read found 14 changed bytes, all in that channel's name field, and nothing else in 262,144. Restored from the pre-write backup and read again: sha256 back to `363eecd6dac6f291`, zero bytes different. [Below](#a4-the-dm-32uv-on-a-pixel) |
 | A5-A8 | Android | UV-5R Mini | CH340, PL2303, CP210x, FTDI | read | not run |
-| A9 | Android | DM-32UV | USB | close-as-reset and `REOPEN_SETTLE_MS` | **pass**, 2026-09-02, same session as A4. A second read through the plugin's close and reopen returned the same 262,144 bytes. [Below](#a4-the-dm-32uv-on-a-pixel) |
+| A9 | Android | DM-32UV | USB | close-as-reset and `REOPEN_SETTLE_MS` | **pass**, 2026-09-02. Four reads, a write and a restore across one app process, each through the plugin's close and reopen, all answered normally. [Below](#a4-the-dm-32uv-on-a-pixel) |
 | A10 | Android | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
 | A11 | Android | UV-5R Mini | BT-A1D dongle | read | not run |
 | I1 | iOS | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
@@ -505,3 +505,67 @@ suspected.
 What is still not done: no restore back to the original sha256, and no read of
 this radio the same day by the web build in desktop Chrome, which is the
 cross-check that would let the read half say pass without qualification.
+
+### The write and restore cycle, driven end to end
+
+Run on 2 September 2026 on the same radio, cable and phone as the read above.
+Every step went through the interface, including both typed confirmations: the
+gates exist so a person types them, and a test that injects them past the
+gate is not a test of the thing.
+
+| Step | What happened |
+|---|---|
+| Baseline | Read, sha256 `363eecd6dac6f291` |
+| Edit | Channel 45 renamed `Test DMR` to `BOOFTEST` |
+| Diff | `1 channel change · 0 gains transmit · 0 slots erased · 0 receive-only lost`, `1 block · 4,096 bytes on the wire` |
+| Confirm | `WRITE` typed; the send button is disabled until it is |
+| Write | `VERIFIED. 1 block written, all read back and matched` |
+| Read back | 14 bytes changed in 262,144, all in one page |
+| Restore | Pre-write backup, `RESTORE` typed, 200-entry scan then 42 in-scope pages walked |
+| Final read | sha256 `363eecd6dac6f291`, **zero bytes different** |
+
+The edit was deliberately a name. It cannot move a frequency, a power level or
+`txForbid`, so the worst case for a test on somebody's own radio is a channel
+with a silly label, and the diff's own counters confirmed the write carried
+none of those: nought gaining transmit, nought receive-only lost.
+
+The read-back is the part worth having. A whole 4,096-byte page went to the
+radio and exactly 14 bytes came back different - the rest of channel 45's
+record, both neighbouring records, and all 58 other blocks were untouched. That
+is `encode(doc, base)` on real hardware over the Android plugin: the page was
+patched from the image that was read, not rebuilt, so bytes this codebase has
+never decoded survived because they were carried through.
+
+#### Fourteen bytes for an eight-character name
+
+The name is eight characters and fourteen bytes changed, which is worth
+writing down rather than rounding off.
+
+```
+before  54 65 73 74 20 44 4d 52  00 00 ff ff ff ff ff ff   "Test DMR" 00 00 then six FF
+after   42 4f 4f 46 54 45 53 54  00 00 00 00 00 00 00 00   "BOOFTEST" then eight 00
+```
+
+Eight name bytes, and six padding bytes normalised from `0xFF` to `0x00`. The
+field is declared `ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })`, so the
+encoder pads the whole field with its own filler while the radio had left
+erased flash in the tail. Nothing decodes differently - the first terminator is
+at index 8 either way - and the field is one the driver owns, so the gate is
+right not to raise `unowned-bytes-changed` over it.
+
+It is still six bytes the diff did not mention. The diff speaks in channels, by
+design and for good reasons, but "one channel change" covered a byte change
+slightly wider than the edit. Nothing here needs fixing; it is recorded so that
+the next person diffing two images does not spend an evening on it.
+
+The restore put them back. The final image holds `00 00 ff ff ff ff ff ff`
+again, because a restore writes the bytes the backup holds rather than
+re-encoding a document, which is the behaviour that makes it a way back.
+
+#### What this run did not establish
+
+The restore's progress counted to 42, which is `targets.length` - the pages in
+the writable scope that it walks - and not necessarily the number it sent. The
+screen says it sends only the blocks that differ, and only one page did. Those
+two are consistent if the skip happens inside the loop, and this run did not
+capture enough to say so. Nobody should read 42 as forty-two writes.
