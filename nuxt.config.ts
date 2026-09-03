@@ -9,6 +9,7 @@ import { buildInfo } from './scripts/build-info.mjs'
 const SCHEMA_ICONS = [
   'lucide:antenna',
   'lucide:arrow-right',
+  'lucide:audio-waveform',
   'lucide:arrow-up-down',
   'lucide:arrow-up-right',
   'lucide:badge-check',

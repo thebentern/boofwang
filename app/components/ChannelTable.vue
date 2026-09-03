@@ -43,6 +43,33 @@ const selected = ref(new Set<number>())
 
 const ROW_HEIGHT = 30
 
+/**
+ * The phone form: one card per channel instead of a row of twelve columns.
+ *
+ * A twelve-column grid asks for about 754px and a phone has 375. Scrolling it
+ * sideways is the wrong answer for the same reason dropping columns is - the
+ * name and the frequencies are what a person scans for, and both were off the
+ * right edge. So below `sm` the row stops being a table row: name over
+ * frequencies over chips, with the slot number and a chevron on the right.
+ *
+ * Same data, same `view()`, same virtualiser. Only the arrangement changes,
+ * which is why there is no second component: two renderers of one row view
+ * cannot disagree about what a channel says.
+ */
+const PHONE_ROW_HEIGHT = 78
+const narrow = ref(false)
+function measureWidth() {
+  narrow.value = window.innerWidth < 640
+}
+onMounted(() => {
+  measureWidth()
+  window.addEventListener('resize', measureWidth)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measureWidth))
+
+/** What the virtualiser is told a row costs. Printing is always the table. */
+const rowHeight = computed(() => (narrow.value && !printing.value ? PHONE_ROW_HEIGHT : ROW_HEIGHT))
+
 /*
  * The columns that can be put away.
  *
@@ -103,6 +130,13 @@ const minWidth = computed(() => {
   // A sheet of paper cannot be scrolled sideways, so the floor that protects a
   // narrow laptop would only push the last columns off the edge of the page.
   if (printing.value) return 0
+  /*
+   * Neither can a phone, and the card form has no columns to protect. Leaving
+   * the floor on made the body 676px inside a 501px viewport, so the slot
+   * number and the chevron sat off the right edge - present in the DOM, three
+   * quarters of the way through a horizontal scroll nobody would think to make.
+   */
+  if (narrow.value) return 0
   const shown = OPTIONAL_COLUMNS.filter((c) => optional[c.key])
   const px = FIXED_WIDTH + shown.reduce((n, c) => n + c.width, 0)
   return px + 8 * (6 + shown.length) + 20
@@ -445,6 +479,14 @@ interface RowView {
   bandwidth: string
   step: string
   power: string
+  /**
+   * Power with its wattage, for the card.
+   *
+   * The table's Power column is 54px and gets the label alone; a card has the
+   * room and the reader has no column header to tell them what "Low" is a
+   * measure of. Both come from the same channel, so they cannot disagree.
+   */
+  powerDetail: string
   flag: string
   flagIcon: string
   flagColor: string
@@ -514,6 +556,11 @@ function view(r: SlotRow): RowView {
     bandwidth: c ? (c.bandwidthHz / 1000).toFixed(2) : '—',
     step: c ? (c.tuningStep / 1000).toFixed(2) : '—',
     power: c ? (c.power.label ?? formatPower(c.power.mW)) : '—',
+    powerDetail: c
+      ? c.power.label
+        ? `${c.power.label} · ${formatPower(c.power.mW)}`
+        : formatPower(c.power.mW)
+      : '—',
     flag,
     flagIcon:
       state === 'error'
@@ -539,10 +586,22 @@ const virtualizer = useVirtualizer(
   computed(() => ({
     count: rows.value.length,
     getScrollElement: () => scroller.value ?? null,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight.value,
     overscan: 12,
   })),
 )
+
+/*
+ * Re-measure when the form changes, or the rows keep the height they were first
+ * estimated at.
+ *
+ * `estimateSize` is read once per item and cached. `narrow` is false until
+ * `onMounted` runs, so the virtualiser sizes every row at 30px before the
+ * phone layout is known, and then renders the card grid inside a 30px box:
+ * the name, the frequencies and the chips all land on top of each other. The
+ * options being a computed is not enough - the cache has to be dropped.
+ */
+watch(rowHeight, () => virtualizer.value.measure())
 
 const totalHeight = computed(() => virtualizer.value.getTotalSize())
 
@@ -587,6 +646,44 @@ const bodyStyle = computed(() =>
     ? { position: 'relative' as const }
     : { height: `${totalHeight.value}px`, minWidth: `${minWidth.value}px`, position: 'relative' as const },
 )
+
+/** Mode, power and state chips. One object so the three cannot drift apart. */
+const PHONE_CHIP = {
+  gap: '4px',
+  fontSize: '11.5px',
+  padding: '2px 7px',
+  borderRadius: '4px',
+  background: 'var(--pn3)',
+  color: 'var(--mu)',
+  whiteSpace: 'nowrap' as const,
+}
+
+/**
+ * The phone row: band edge, gutter, content, slot number.
+ *
+ * `align-items: start` rather than centre because the content column is three
+ * stacked lines of different heights and centring it would float the name away
+ * from the top of the card. The right padding is on the row and the left is
+ * not, so the band edge can sit flush against the container's own border.
+ */
+function phoneRowStyle(r: { start: number; size: number; row: SlotRow; view: RowView }) {
+  return {
+    display: 'grid',
+    gridTemplateColumns: '3px 18px 1fr auto',
+    columnGap: '10px',
+    alignItems: 'start',
+    padding: '11px 13px 11px 0',
+    height: `${r.size}px`,
+    cursor: r.row.channel ? 'pointer' : 'default',
+    borderBottom: '1px solid var(--ln)',
+    background: r.view.background,
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    transform: `translateY(${r.start}px)`,
+  }
+}
 
 /**
  * The band edge is an inset shadow, not a grid column and not a left border.
@@ -634,9 +731,9 @@ function ensureVisible(position: number) {
   // twice: once as the offset of every row, and once as the strip of viewport
   // the row must clear.
   const header = headerEl.value?.offsetHeight ?? 0
-  const top = header + position * ROW_HEIGHT
+  const top = header + position * rowHeight.value
   const highest = top - header
-  const lowest = top + ROW_HEIGHT - el.clientHeight
+  const lowest = top + rowHeight.value - el.clientHeight
   if (el.scrollTop > highest) el.scrollTop = highest
   else if (el.scrollTop < lowest) el.scrollTop = lowest
 }
@@ -1353,7 +1450,8 @@ const printedFacts = computed(() => {
           </template>
         </UPopover>
 
-        <UPopover>
+        <!-- No columns to toggle on a phone: the card shows every field it has. -->
+        <UPopover v-if="!narrow">
           <button
             type="button"
             class="inline-flex items-center"
@@ -1818,7 +1916,7 @@ const printedFacts = computed(() => {
     <!-- Table -->
     <div class="ch-frame" style="border: 1px solid var(--ln); border-radius: 7px; overflow: hidden; background: var(--pn)">
       <div ref="scroller" class="overflow-auto ch-scroll" style="max-height: calc(100vh - 300px); min-height: 180px">
-        <div ref="headerEl" :style="headerStyle">
+        <div v-if="!narrow || printing" ref="headerEl" :style="headerStyle">
           <span v-if="!printing">
             <button
               type="button"
@@ -1853,7 +1951,90 @@ const printedFacts = computed(() => {
           <span v-if="optional.flag" />
         </div>
 
-        <div :style="bodyStyle">
+        <!--
+          The phone form. A list, not floating cards: rows are separated by a
+          hairline inside one bordered container, because four thousand cards
+          with gaps between them is four thousand shadows to scroll past.
+        -->
+        <div v-if="narrow && !printing" :style="bodyStyle">
+          <div
+            v-for="r in renderedRows"
+            :key="r.key"
+            class="ch-row"
+            :style="phoneRowStyle(r)"
+            :tabindex="0"
+            :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty. Tap to program it`"
+            @click="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
+            @keydown.enter.self="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
+          >
+            <!-- Band edge: a real column here, not an inset shadow, because
+                 this row has no sticky header to stay in step with. -->
+            <span
+              :style="{
+                alignSelf: 'stretch',
+                margin: '-11px 0 -10px',
+                background: r.view.band ? `var(${r.view.band.token})` : 'transparent',
+              }"
+            />
+
+            <!-- Status gutter. Nothing at all for a healthy row, which is what
+                 makes the ones that do carry a mark findable. -->
+            <span class="flex items-center justify-center" style="height: 20px">
+              <UIcon
+                v-if="r.view.gutter"
+                :name="r.view.gutter.icon"
+                :title="r.view.gutter.title"
+                :style="{ width: '13px', height: '13px', color: r.view.gutter.color }"
+              />
+            </span>
+
+            <span style="min-width: 0">
+              <span
+                class="block truncate"
+                :style="{ fontSize: '15px', fontWeight: 600, lineHeight: '20px', color: r.view.dim ? 'var(--fn)' : 'var(--tx)' }"
+              >{{ r.view.name }}</span>
+
+              <span
+                class="flex items-center font-mono tabular"
+                style="margin-top: 3px; gap: 7px; font-size: 13px; line-height: 18px"
+              >
+                <span style="color: var(--mu)">{{ r.view.rx }}</span>
+                <span style="color: var(--fn)">{{ r.view.shift }}</span>
+                <span :style="{ color: r.view.txColor, fontWeight: r.view.txWeight }">{{ r.view.tx }}</span>
+              </span>
+
+              <span v-if="r.row.channel" class="flex flex-wrap" style="margin-top: 6px; gap: 6px">
+                <span class="chip inline-flex items-center" :style="PHONE_CHIP" title="Modulation">
+                  <UIcon name="i-lucide-audio-waveform" style="width: 11px; height: 11px; color: var(--fn)" />
+                  {{ r.view.mode }}
+                </span>
+                <span class="chip inline-flex items-center" :style="PHONE_CHIP" title="Transmit power">
+                  <UIcon name="i-lucide-zap" style="width: 11px; height: 11px; color: var(--ac2)" />
+                  {{ r.view.powerDetail }}
+                </span>
+                <span
+                  v-if="r.view.flag"
+                  class="chip inline-flex items-center"
+                  :style="{
+                    ...PHONE_CHIP,
+                    background: r.view.state === 'edited' ? 'var(--inB)' : 'var(--cnB)',
+                    color: r.view.state === 'edited' ? 'var(--in)' : 'var(--cn)',
+                  }"
+                >{{ r.view.flag }}</span>
+              </span>
+            </span>
+
+            <span class="flex flex-col items-end" style="gap: 6px">
+              <span
+                class="font-mono tabular"
+                style="font-size: 12px; line-height: 20px; color: var(--fn)"
+              >{{ r.row.index }}</span>
+              <UIcon name="i-lucide-chevron-right" style="width: 15px; height: 15px; color: var(--ln2)" />
+            </span>
+          </div>
+        </div>
+
+        <div v-else :style="bodyStyle">
           <div
             v-for="r in renderedRows"
             :key="r.key"
