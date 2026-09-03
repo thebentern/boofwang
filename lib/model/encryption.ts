@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { serviceFor } from './bands.js'
 import type { EncryptionType } from './codeplug.js'
 
 /**
@@ -151,56 +152,50 @@ export interface EncryptionLegality {
  * Written for the US; boofwang makes no claim about other administrations.
  */
 export function encryptionLegality(rxHz: number): EncryptionLegality {
-  const mhz = rxHz / 1e6
-
-  // Amateur allocations. 47 CFR 97.113(a)(4) forbids "messages encoded for the
-  // purpose of obscuring their meaning".
-  const amateur =
-    (mhz >= 50 && mhz <= 54) ||
-    (mhz >= 144 && mhz <= 148) ||
-    (mhz >= 219 && mhz <= 225) ||
-    (mhz >= 420 && mhz <= 450) ||
-    (mhz >= 902 && mhz <= 928)
-  if (amateur) {
-    return {
-      allowed: false,
-      service: 'amateur',
-      reason: 'Encryption is prohibited on the amateur bands: transmissions may not be encoded to obscure their meaning.',
-      cfr: '47 CFR 97.113(a)(4)',
-    }
-  }
-
-  // GMRS and FRS share these channels; both forbid obscuring meaning.
-  const gmrsFrs = (mhz >= 462.5 && mhz <= 462.75) || (mhz >= 467.5 && mhz <= 467.75)
-  if (gmrsFrs) {
-    return {
-      allowed: false,
-      service: 'GMRS/FRS',
-      reason: 'Encryption is prohibited on GMRS and FRS: messages may not be encoded to obscure their meaning.',
-      cfr: '47 CFR 95.1731 / 95.587',
-    }
-  }
-
-  const murs = [151.82, 151.88, 151.94, 154.57, 154.6].some((f) => Math.abs(mhz - f) < 0.001)
-  if (murs) {
-    return {
-      allowed: false,
-      service: 'MURS',
-      reason: 'Encryption is prohibited on MURS.',
-      cfr: '47 CFR 95.2731',
-    }
-  }
-
-  if (mhz >= 162.4 && mhz <= 162.55) {
-    return { allowed: false, service: 'NOAA weather', reason: 'This is a receive-only weather channel.' }
-  }
-
-  return {
-    allowed: true,
-    service: 'land mobile',
-    reason:
-      'Encryption is permitted here only under a licence that authorises it — typically a Part 90 land-mobile ' +
-      'licence for business, industrial or public-safety use. You are responsible for holding one.',
-    cfr: '47 CFR Part 90',
+  /*
+   * The ranges live in `lib/model/bands.ts` now, because the channel list also
+   * needs them to color a row edge. Two copies would drift, and the direction
+   * that drifts silently is the dangerous one: a row edge in the wrong hue
+   * looks like a design choice, while this function being wrong is a license
+   * problem. The sentences stay here - they are about encryption law, not about
+   * which band a frequency is in.
+   */
+  switch (serviceFor(rxHz).service) {
+    case 'amateur':
+      return {
+        allowed: false,
+        service: 'amateur',
+        reason:
+          'Encryption is prohibited on the amateur bands: transmissions may not be encoded to obscure their meaning.',
+        cfr: '47 CFR 97.113(a)(4)',
+      }
+    case 'GMRS/FRS':
+      return {
+        allowed: false,
+        service: 'GMRS/FRS',
+        reason: 'Encryption is prohibited on GMRS and FRS: messages may not be encoded to obscure their meaning.',
+        cfr: '47 CFR 95.1731 / 95.587',
+      }
+    case 'MURS':
+      return { allowed: false, service: 'MURS', reason: 'Encryption is prohibited on MURS.', cfr: '47 CFR 95.2731' }
+    case 'NOAA weather':
+      return { allowed: false, service: 'NOAA weather', reason: 'This is a receive-only weather channel.' }
+    /*
+     * The air band is new to this decision and answers the same way weather
+     * does. It used to fall through to land mobile, which said encryption was
+     * permitted under a Part 90 license. True of the block in the abstract and
+     * useless about 121.5 MHz, where nobody is transmitting at all.
+     */
+    case 'air':
+      return { allowed: false, service: 'air', reason: 'This is a receive-only aeronautical channel.' }
+    case 'land mobile':
+      return {
+        allowed: true,
+        service: 'land mobile',
+        reason:
+          'Encryption is permitted here only under a license that authorizes it. Typically a Part 90 land-mobile ' +
+          'license for business, industrial or public-safety use. You are responsible for holding one.',
+        cfr: '47 CFR Part 90',
+      }
   }
 }

@@ -115,6 +115,25 @@
   /* Solid button and its text */
   --sd: #EAF0F6;
   --sdT: #202C39;
+
+  /*
+   * Band edges. One low-chroma family stepped by hue in oklch off the accent's
+   * own hue, and deliberately none of the semantic four: green means verified,
+   * amber caution, red danger and blue informational across the whole
+   * interface and inside RiskAction, so a band spending one of those would
+   * make the risk register unreadable.
+   *
+   * They appear on exactly one surface, a 3px leading edge that carries no
+   * other signal. At that width a hue is a category, not a warning, which is
+   * what a service is. Land mobile is the catch-all and is nearly neutral on
+   * purpose: it is "nothing more specific matched", not a claim.
+   */
+  --band-amateur: oklch(0.75 0.13 50);
+  --band-gmrs: oklch(0.79 0.1 96);
+  --band-murs: oklch(0.78 0.07 148);
+  --band-noaa: oklch(0.75 0.09 232);
+  --band-air: oklch(0.74 0.09 292);
+  --band-landmobile: oklch(0.66 0.015 250);
 }
 
 :root.light,
@@ -158,6 +177,18 @@
   --okL: #1F7A3247;
   --cnB: #7D570017;
   --cnL: #7D570047;
+
+  /*
+   * The same hues, darker and a touch more chromatic. A 3px edge at the dark
+   * theme's lightness disappears against warm paper, and these sit against
+   * `--bg` rather than a panel, which is the lightest surface in the system.
+   */
+  --band-amateur: oklch(0.55 0.15 50);
+  --band-gmrs: oklch(0.58 0.12 96);
+  --band-murs: oklch(0.54 0.1 148);
+  --band-noaa: oklch(0.52 0.12 232);
+  --band-air: oklch(0.52 0.12 292);
+  --band-landmobile: oklch(0.55 0.02 250);
   --dgB: #C0203F17;
   --dgL: #C0203F47;
   --inB: #0A5CC017;
@@ -202,6 +233,12 @@
   --color-okT: var(--okT);
   --color-sd: var(--sd);
   --color-sdT: var(--sdT);
+  --color-band-amateur: var(--band-amateur);
+  --color-band-gmrs: var(--band-gmrs);
+  --color-band-murs: var(--band-murs);
+  --color-band-noaa: var(--band-noaa);
+  --color-band-air: var(--band-air);
+  --color-band-landmobile: var(--band-landmobile);
 }
 
 html,
@@ -319,6 +356,25 @@ body {
     --cnB: transparent;
     --dgB: transparent;
     --inB: transparent;
+
+    /*
+     * The band edge goes to ink rather than to transparent, which is the one
+     * place this block treats a color differently from the tints above it.
+     *
+     * A tint is decoration and loses nothing by vanishing. The edge is the only
+     * thing on the row that says which service the frequency belongs to, so
+     * dropping it drops the fact. Six greys are not distinguishable on paper
+     * either, so they collapse to one: the edge prints as a rule that says
+     * "this row has a service", and the service itself belongs in a column if
+     * anyone wants it on paper. Stated here because a reader will otherwise
+     * assume the collapse is a bug.
+     */
+    --band-amateur: #000000;
+    --band-gmrs: #000000;
+    --band-murs: #000000;
+    --band-noaa: #000000;
+    --band-air: #000000;
+    --band-landmobile: #9aa3a9;
   }
 
   /*
