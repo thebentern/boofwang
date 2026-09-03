@@ -39,6 +39,17 @@ const DEFAULT_ICON: Record<Risk, string> = {
   neutral: '',
 }
 
+/*
+ * Every button here has a fixed height, which is what makes `whitespace-nowrap`
+ * on the class above load-bearing rather than cosmetic. A label allowed to wrap
+ * puts two lines inside a box that cannot grow, so the text is clipped rather
+ * than reflowed: "Choose your radio first" broke across two lines in a 33px
+ * button on a phone, and "Other port" beside it did the same.
+ *
+ * The row is what should wrap, not the label. `shrink-0` is the other half of
+ * that - without it a flex parent squeezes the button narrower than its text
+ * instead of moving it to the next line.
+ */
 const HEIGHT = { sm: '23px', md: '29px', lg: '32px' } as const
 
 const resolvedIcon = computed(() => props.icon ?? DEFAULT_ICON[props.risk] ?? '')
@@ -76,7 +87,7 @@ const styles = computed(() => {
     :type="type"
     :disabled="disabled || loading"
     :data-risk="risk"
-    class="inline-flex items-center gap-1.5 rounded-[5px] px-3 font-medium transition-colors disabled:cursor-not-allowed"
+    class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] px-3 font-medium transition-colors disabled:cursor-not-allowed"
     :style="{ ...styles, height: HEIGHT[size], fontSize: size === 'sm' ? '11.5px' : '12.5px' }"
     @click="emit('click', $event)"
   >

@@ -410,7 +410,7 @@ function stateOf(r: SlotRow): RowState {
  */
 const GUTTER: Record<Exclude<RowState, 'ok'>, { icon: string; color: string; title: string; mark: string }> = {
   'error': { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', title: 'This channel cannot be programmed as it stands', mark: '!' },
-  'transmit-warning': { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', title: 'Transmit lands in a receive-only allocation - check your licence', mark: '!' },
+  'transmit-warning': { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', title: 'Transmit lands in a receive-only allocation - check your license', mark: '!' },
   'receive-only': { icon: 'i-lucide-lock', color: 'var(--cn)', title: 'Receive-only, transmit disabled', mark: 'RX' },
   'edited': { icon: 'i-lucide-pencil', color: 'var(--in)', title: 'Changed, not yet written', mark: '*' },
   'empty': { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', title: 'Empty slot', mark: '·' },
@@ -1101,9 +1101,9 @@ const exportItems = computed(() => [
 ])
 
 const LEGEND = [
-  { icon: 'i-lucide-lock', color: 'var(--cn)', label: 'receive-only' },
+  { icon: 'i-lucide-lock', color: 'var(--cn)', label: 'RX-Only' },
   { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', label: 'error' },
-  { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', label: 'check your licence' },
+  { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', label: 'check your license' },
   { icon: 'i-lucide-pencil', color: 'var(--in)', label: 'edited' },
   { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', label: 'empty' },
 ] as const
@@ -1191,6 +1191,12 @@ const printedFacts = computed(() => {
         >
       </div>
 
+      <!--
+        A facet is a label and a count, never a sentence, so none of them may
+        wrap. `RX-Only` broke at its own hyphen into `RX-` over `Only` inside a
+        fixed 29px box - introduced by the rename, and the reason every one of
+        these is pinned rather than just that one.
+      -->
       <div class="flex" style="gap: 3px">
         <button
           v-for="f in facets"
@@ -1202,6 +1208,8 @@ const printedFacts = computed(() => {
             height: '29px',
             padding: '0 10px',
             gap: '6px',
+            whiteSpace: 'nowrap',
+            flex: 'none',
             borderRadius: '6px',
             fontSize: '12px',
             fontWeight: facet === f.key ? 600 : 400,
@@ -1221,7 +1229,15 @@ const printedFacts = computed(() => {
       </div>
 
       <div class="ms-auto flex items-center" style="gap: 8px">
-        <span class="font-mono tabular" style="font-size: 13px; color: var(--mu)">
+        <!--
+          `flex: none` because `ms-auto` was handing this whatever the toolbar
+          had left, which at 501px was 39px - enough to stack "4 of 4000 slots"
+          into three lines of a phrase that is meaningless broken up.
+        -->
+        <span
+          class="font-mono tabular"
+          style="font-size: 13px; color: var(--mu); white-space: nowrap; flex: none"
+        >
           {{ rows.length }} of {{ slots.length }} slots
         </span>
 
