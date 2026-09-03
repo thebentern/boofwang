@@ -783,3 +783,34 @@ shipping driver.
 
 The attempt did establish the thing above about page counts, which was worth
 having on its own.
+
+## The slide confirmation, on a thumb
+
+3 September 2026, Pixel 8 Pro, `89eaa6c`, DM-32UV on the FTDI cable.
+
+The mobile write screen asks for a drag rather than a typed word, and the
+reason is in the commit: a keyboard on a phone covers the diff that justifies
+the write. Both halves were exercised on the device, because a drag threshold
+is exactly the kind of thing that is right in a test and wrong under a thumb.
+
+**Released short, it sends nothing.** A swipe from the handle to about 63% of
+the track and up: `aria-valuenow` went back to `0`, the page stayed on
+`/write`, and no transfer started. That is the property that makes this a
+confirmation rather than a button.
+
+**Taken to the end, it writes.** A swipe past the end committed, the transfer
+ran, and the screen reported `VERIFIED. 1 block written, all read back and
+matched`. One channel renamed, one 4 KiB page.
+
+**Restore kept the typed word**, on the same phone at the same width: the
+restore screen rendered a text field and no slider, which is the intended
+split. There is no diff on that screen to keep on screen, and it is the more
+destructive of the two actions.
+
+The radio was put back from the pre-test backup afterwards and re-read: sha256
+`363eecd6dac6f291`, the same image this file has recorded all along.
+
+Not covered: the keyboard route. Arrow keys and End move and commit the handle
+in the component, and that is asserted in
+`test/app/confirmation-survives-the-phone.spec.ts`, but nothing has driven it
+with a physical keyboard on a phone or a tablet.
