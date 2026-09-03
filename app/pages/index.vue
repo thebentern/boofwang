@@ -137,7 +137,17 @@ onBeforeUnmount(() => {
  */
 const confirmed = computed<RadioId | null>(() => device.ident?.radioId ?? codeplug.doc?.radio ?? null)
 
-const chosen = ref<RadioId | null>(null)
+/*
+ * The pick lives in the device store, not here, because the nav gate needs it:
+ * naming a model is enough to know which destinations that radio has, and the
+ * layout cannot see a ref that belongs to one page.
+ */
+const chosen = computed({
+  get: () => device.chosenRadioId,
+  set: (v: RadioId | null) => {
+    device.chosenRadioId = v
+  },
+})
 
 /**
  * The radio a connection will be attempted as.

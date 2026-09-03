@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatBuild } from '#core/version/build.js'
+import { SCHEMAS } from '#core/radio/registry.js'
 
 /**
  * Persistent chrome: a 44px nav, the status bar beneath it, and a footer.
@@ -9,6 +10,25 @@ import { formatBuild } from '#core/version/build.js'
  * under the nav so "what am I working on" never scrolls away.
  */
 const codeplug = useCodeplugStore()
+const device = useDeviceStore()
+
+/**
+ * The schema the nav asks its questions of.
+ *
+ * An open codeplug first, because that is a radio whose handshake answered.
+ * Failing that, whatever the user has named on the connect screen: a schema is
+ * enough to know which destinations a radio has, and making somebody open a
+ * cable before the nav settles would leave the gated half missing at exactly
+ * the moment they are looking for it.
+ *
+ * `device.radioId` is last and is the connected radio, which covers a session
+ * that connected without reading.
+ */
+const navSchema = computed(() => {
+  if (codeplug.schema) return codeplug.schema
+  const id = device.chosenRadioId ?? device.radioId
+  return id ? (SCHEMAS[id] ?? null) : null
+})
 
 /**
  * The lists page is named after what the open radio actually holds.
@@ -17,7 +37,7 @@ const codeplug = useCodeplugStore()
  * the same defect as a Keys page with nothing on it: the label promises a
  * concept the radio has no word for.
  */
-const listsLabel = computed(() => (codeplug.schema?.features.zones ? 'Zones' : 'Scan lists'))
+const listsLabel = computed(() => (navSchema.value?.features.zones ? 'Zones' : 'Scan lists'))
 
 /**
  * Where each destination is allowed to appear.
@@ -38,8 +58,8 @@ const listsLabel = computed(() => (codeplug.schema?.features.zones ? 'Zones' : '
  * not change under one.
  */
 const nav = computed(() => {
-  const f = codeplug.schema?.features
-  const s = codeplug.schema
+  const f = navSchema.value?.features
+  const s = navSchema.value
   const items = [
     { label: 'Connect', to: '/', icon: 'i-lucide-usb', show: true },
     { label: 'Channels', to: '/channels', icon: 'i-lucide-list', show: true },

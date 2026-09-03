@@ -31,6 +31,20 @@ export const useDeviceStore = defineStore('device', () => {
   const lastFailureTrace = ref<string | null>(null)
   const ident = ref<IdentifyResult | null>(null)
   const radioId = ref<RadioId | null>(null)
+  /**
+   * The radio the user has named, which is not the radio we connected to.
+   *
+   * `radioId` is set by `connect` and means "this is what is on the cable".
+   * This one is set by picking a model on the connect screen and means only
+   * "this is what the user says it is". Kept apart because overloading
+   * `radioId` would make a guess indistinguishable from a handshake, and this
+   * screen is careful about that difference everywhere else.
+   *
+   * It lives in the store rather than on the page because the nav gate reads
+   * it: a schema is enough to know which destinations a radio has, and naming
+   * a model is enough to fill them in before a cable is opened.
+   */
+  const chosenRadioId = ref<RadioId | null>(null)
   const portLabel = ref<string>('')
 
   /**
@@ -166,6 +180,7 @@ export const useDeviceStore = defineStore('device', () => {
     error,
     ident,
     radioId,
+    chosenRadioId,
     portLabel,
     lastKind,
     keepLinkUp,

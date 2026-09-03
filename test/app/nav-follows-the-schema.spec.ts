@@ -33,7 +33,20 @@ describe('the nav gate, as the layout writes it', () => {
     // A radio the interface knows by name is a gap in the schema. This is the
     // assertion that keeps the layout from growing a second copy of 'dm32uv'.
     for (const id of RADIO_IDS) expect(nav, `the nav names ${id}`).not.toContain(`'${id}'`)
-    expect(nav).toMatch(/codeplug\.schema/)
+    expect(nav).toMatch(/navSchema/)
+  })
+
+  it('settles on a named model, without waiting for a codeplug', () => {
+    /*
+     * An open codeplug is a handshake that answered; a pick is only what the
+     * user says it is. Both name a schema, and a schema is all the nav needs -
+     * so making somebody open a cable first would leave the gated half missing
+     * at exactly the moment they were looking for it.
+     */
+    const src = /const navSchema = computed\(\(\) => \{([\s\S]*?)\n\}\)/.exec(LAYOUT)?.[1] ?? ''
+    expect(src, 'navSchema is no longer a computed').not.toBe('')
+    expect(src).toMatch(/codeplug\.schema/)
+    expect(src).toMatch(/chosenRadioId/)
   })
 
   it('gates the four destinations that have a feature to gate on', () => {
