@@ -15,6 +15,23 @@
  */
 const codeplug = useCodeplugStore()
 
+/**
+ * `roomy` is the phone's expanded panel: 48px targets, the word always shown,
+ * and Redo omitted entirely rather than sitting disabled.
+ *
+ * A prop rather than a second component, because the rule this control exists
+ * to enforce is that exactly one place calls `codeplug.undo()`. A phone-shaped
+ * copy would be a second place, and the two would disagree the moment one grew
+ * a guard the other did not - which is the failure `undo-affordance.spec.ts`
+ * watches for.
+ *
+ * Disabled-and-present is right in a toolbar, where the gap would otherwise
+ * shift every neighbouring control as history changes. It is wrong in a panel
+ * that is already a tap away: half a row held to be grey is half a row of a
+ * phone.
+ */
+const props = withDefaults(defineProps<{ roomy?: boolean }>(), { roomy: false })
+
 const undoTitle = computed(() =>
   codeplug.canUndo ? `Undo ${codeplug.undoLabel} (${undoHint.value})` : 'Nothing to undo',
 )
@@ -32,11 +49,12 @@ const redoTitle = computed(() =>
     word the title and the accessible name still carry it, which is why both
     are set on every render rather than only when the label is hidden.
   -->
-  <div class="flex items-center" style="gap: 4px">
+  <div class="flex items-center" :style="{ gap: props.roomy ? '8px' : '4px' }">
     <RiskAction
       risk="neutral"
       ghost
-      size="sm"
+      :size="props.roomy ? 'md' : 'sm'"
+      :style="props.roomy ? { height: '48px', borderRadius: '8px', fontSize: '13.5px' } : undefined"
       icon="i-lucide-history"
       :disabled="!codeplug.canUndo"
       :title="undoTitle"
@@ -44,12 +62,16 @@ const redoTitle = computed(() =>
       data-testid="undo"
       @click="codeplug.undo()"
     >
-      <span class="hidden lg:inline">Undo</span>
+      <span :class="props.roomy ? '' : 'hidden lg:inline'">
+        {{ props.roomy && codeplug.canUndo ? `Undo ${codeplug.undoLabel}` : 'Undo' }}
+      </span>
     </RiskAction>
     <RiskAction
+      v-if="!props.roomy || codeplug.canRedo"
       risk="neutral"
       ghost
-      size="sm"
+      :size="props.roomy ? 'md' : 'sm'"
+      :style="props.roomy ? { height: '48px', width: '48px', borderRadius: '8px', padding: '0' } : undefined"
       icon="i-lucide-refresh-cw"
       :disabled="!codeplug.canRedo"
       :title="redoTitle"
@@ -57,7 +79,7 @@ const redoTitle = computed(() =>
       data-testid="redo"
       @click="codeplug.redo()"
     >
-      <span class="hidden lg:inline">Redo</span>
+      <span :class="props.roomy ? 'sr-only' : 'hidden lg:inline'">Redo</span>
     </RiskAction>
   </div>
 </template>

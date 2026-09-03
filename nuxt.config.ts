@@ -20,6 +20,7 @@ const SCHEMA_ICONS = [
   'lucide:cable',
   'lucide:check',
   'lucide:chevron-down',
+  'lucide:chevron-up',
   'lucide:chevron-right',
   'lucide:circle-alert',
   'lucide:circle-check',
