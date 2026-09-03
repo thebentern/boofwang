@@ -304,7 +304,7 @@ the radio's own protocol note; this table points at it.
 | A1 | Android | UV-K5 | USB | read, write, restore | not run |
 | A2 | Android | UV-82 | USB | read, write, restore | not run |
 | A3 | Android | UV-5R Mini | USB | read, write, restore | not run |
-| A4 | Android | DM-32UV | USB | read, write, restore | **read: pass**, 2026-09-02, Pixel 8 Pro, Android 17, FTDI FT232R `0403:6001`, firmware `DM32.01.01.040`. 200-entry block scan, 59 blocks, 262,144 bytes, about 35 s. Two consecutive reads byte-identical, sha256 `363eecd6dac6f291`, `unitHash` `10ff7f1e1ec5`. Write and restore not run. [Below](#a4-the-dm-32uv-on-a-pixel) |
+| A4 | Android | DM-32UV | USB | read, write, restore | **read: pass. write: attested.** 2026-09-02, Pixel 8 Pro, Android 17, FTDI FT232R `0403:6001`, firmware `DM32.01.01.040`. Read: 200-entry block scan, 59 blocks, 262,144 bytes, about 35 s, two consecutive reads byte-identical at sha256 `363eecd6dac6f291`. Write: four channels edited and written by the owner; the before and after images differ in exactly the four intended bytes and nothing else. Restore not run. [Below](#a4-the-dm-32uv-on-a-pixel) |
 | A5-A8 | Android | UV-5R Mini | CH340, PL2303, CP210x, FTDI | read | not run |
 | A9 | Android | DM-32UV | USB | close-as-reset and `REOPEN_SETTLE_MS` | **pass**, 2026-09-02, same session as A4. A second read through the plugin's close and reopen returned the same 262,144 bytes. [Below](#a4-the-dm-32uv-on-a-pixel) |
 | A10 | Android | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
@@ -461,29 +461,47 @@ match. The radio was on the phone all evening. Nothing was written in this sessi
 
 ### Four channels stopped being receive-only, and that was on purpose
 
-A backup taken from the same radio at 19:46, before any of the above, differs
-from the 20:04 read in exactly four bytes: `0x127D8`, `0x12808`, `0x12838`,
-`0x12868`. Those are the `mode` byte at `+0x18` of channel records 42 to 45 in
-block `0x12` - `LR DMR`, `AR DMR`, `USA DMR` and `Test DMR` - and every one of
-them went `0x1C` to `0x14`. Bit 3 is `txForbid`. Four channels that were
-receive-only became transmit-capable.
+This is the write half of A4, and it was not run as a test - the owner did it
+before any of the above, as ordinary use. What follows is therefore attested
+from two images rather than observed: the write session's own block count,
+elapsed time and read-back report were never captured, and nothing here should
+be read as though they were.
 
-The owner had edited them, and the frequencies agree: all four are RX
-443.1250 MHz and TX 448.1250 MHz, one repeater pair at the standard +5 MHz
-70 cm offset carrying four talk groups. That is inside the 400-480 MHz band
-this schema marks `txAllowed`, and a repeater channel you cannot key is not a
-repeater channel. Nothing was wrong.
+What is attested is the part that matters most. The 19:46 backup is the state
+before, the 20:04 and 20:08 reads are the state after, and they differ in
+exactly four bytes of 262,144: `0x127D8`, `0x12808`, `0x12838`, `0x12868`.
+Those are the `mode` byte at `+0x18` of channel records 42 to 45 in block
+`0x12` - `LR DMR`, `AR DMR`, `USA DMR` and `Test DMR` - each `0x1C` to `0x14`,
+which is bit 3, `txForbid`, clearing. Four channels the owner meant to make
+transmit-capable became transmit-capable, and **not one other byte in the image
+moved**.
 
-It is written up anyway, because of what the shape of the diff shows. Those
-four bytes were the *only* difference in 262,144 - no name, no frequency, no
-talk group, nothing else moved. That is what a deliberate receive-only toggle
-looks like, and it is also exactly what an encoder silently clearing
-`txForbid` while writing something else would look like, minus the something
-else. The two are told apart by whether anything else changed, which means the
-diff has to be read before the token is typed rather than after, and it means
-a byte-level diff of two backups is worth taking even when nothing is
+That is the `encode(doc, base)` invariant holding on real hardware across the
+Android plugin: a page-based writer sent whole 4 KiB pages, and everything in
+those pages that this codebase has never decoded came back identical, because
+it was carried through rather than fabricated. It is the first write boofwang
+has made to any radio from a phone that this file records, and it went out on
+`b588ca9` - the app was installed at 19:31:48 and the pre-write backup is
+19:46, so the build is pinned.
+
+The radio is also demonstrably fine afterwards: it re-reads cleanly, 45
+channels of 4,000 slots, no validation errors, and twice in a row to the same
+sha256.
+
+The frequencies agree with the intent. All four are RX 443.1250 MHz and TX
+448.1250 MHz, one repeater pair at the standard +5 MHz 70 cm offset carrying
+four talk groups, inside the 400-480 MHz band this schema marks `txAllowed`. A
+repeater channel you cannot key is not a repeater channel.
+
+One thing is worth keeping in view even though nothing was wrong here. Those
+four bytes were the *only* difference, and that is simultaneously what a
+deliberate receive-only toggle looks like and what an encoder silently
+clearing `txForbid` while writing something else would look like, minus the
+something else. What separates the two is whether anything else changed, which
+is an argument for reading the diff before the token is typed rather than
+after, and for taking a byte-level diff of two backups even when nothing is
 suspected.
 
-The other half of the answer is that the read is not what did it, and the pair
-of byte-identical reads above is the evidence: the same image came back twice,
-four minutes apart, both holding `0x14`.
+What is still not done: no restore back to the original sha256, and no read of
+this radio the same day by the web build in desktop Chrome, which is the
+cross-check that would let the read half say pass without qualification.
