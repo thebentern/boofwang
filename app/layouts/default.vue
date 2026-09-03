@@ -121,6 +121,11 @@ const moreItems = computed(() => {
   return nav.value.filter((n) => !shown.has(n.to))
 })
 
+/** The same overflow set, shaped for the middle band's dropdown. */
+const moreMenu = computed(() =>
+  moreItems.value.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => navigateTo(item.to) })),
+)
+
 const moreOpen = ref(false)
 
 /*
@@ -130,7 +135,7 @@ const moreOpen = ref(false)
 watch(() => route.path, () => (moreOpen.value = false))
 
 /** A phone. Matches the tab bar to the same 640 the rest of this work uses. */
-const { phone } = useFormFactor()
+const { phone, medium } = useFormFactor()
 
 /*
  * `smallNav` used to be here: the same eleven links as a dropdown behind a
@@ -184,9 +189,19 @@ const { state: updateState } = useAppUpdate()
         -->
         <span v-if="phone" style="font-size: 14px; font-weight: 600; color: var(--tx)">{{ currentLabel }}</span>
 
+        <!--
+          The middle band takes the same four the tab bar takes, plus a More
+          menu. Eleven destinations fit a desktop and overflow an iPad: at 834pt
+          the row ran off the right edge, which is the same arithmetic that put
+          the status bar on two lines.
+
+          Four plus More rather than "as many as fit", because a nav whose
+          contents change with the width teaches nobody where anything is. The
+          four are the same four the phone gets, from the same computed.
+        -->
         <nav v-if="!phone" class="flex items-center gap-0.5">
           <NuxtLink
-            v-for="item in nav"
+            v-for="item in (medium ? tabs : nav)"
             :key="item.to"
             :to="item.to"
             class="flex items-center gap-1.5 rounded-[5px] px-2.5 transition-colors"
@@ -198,6 +213,18 @@ const { state: updateState } = useAppUpdate()
             <UIcon :name="item.icon" style="width: 13px; height: 13px" />
             {{ item.label }}
           </NuxtLink>
+
+          <UDropdownMenu v-if="medium" :items="moreMenu" :ui="{ content: 'w-52' }">
+            <button
+              type="button"
+              class="flex items-center gap-1.5 rounded-[5px] px-2.5"
+              style="height: 25px; font-size: 14px; color: var(--mu)"
+              aria-label="More destinations"
+            >
+              <UIcon name="i-lucide-menu" style="width: 13px; height: 13px" />
+              More
+            </button>
+          </UDropdownMenu>
         </nav>
 
         <div class="ms-auto flex items-center gap-2">

@@ -57,14 +57,26 @@ export function useFormFactor(): FormFactor {
      * buttons on a 6-inch screen. `clientWidth` is what every media query in
      * `main.css` is already resolved against, so this now agrees with them.
      *
-     * The height half is used only inside a shell. A phone turned sideways is
-     * still a phone and the shorter edge says so, but in a browser a short
-     * window is still a desktop - a wide-but-short window wants the table.
+     * The shorter edge decides ONE question: is this a phone. A phone turned
+     * sideways is still a phone, and its shorter edge says so where its width
+     * does not. Above that the width decides, because a device wide enough for
+     * the twelve-column grid has room for it however tall it is - an 11-inch
+     * iPad is 834 upright and 1194 on its side, and wants the middle band in
+     * one and the full table in the other.
+     *
+     * Using the shorter edge for both boundaries was wrong and demoted that
+     * iPad to the middle band in landscape, where it has 1194 points of width
+     * doing nothing.
+     *
+     * In a browser the width answers both. A window is resizable, so a narrow
+     * one really is asking for the narrow layout, and a wide-but-short one is
+     * still a desktop.
      */
     const el = document.documentElement
-    const size = inShell ? Math.min(el.clientWidth, el.clientHeight) : el.clientWidth
-    phone.value = size < PHONE_BELOW
-    medium.value = size >= PHONE_BELOW && size < DESKTOP_FROM
+    const width = el.clientWidth
+    const shorter = inShell ? Math.min(width, el.clientHeight) : width
+    phone.value = shorter < PHONE_BELOW
+    medium.value = !phone.value && width < DESKTOP_FROM
   }
 
   onMounted(() => {

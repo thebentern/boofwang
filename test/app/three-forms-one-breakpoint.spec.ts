@@ -53,14 +53,22 @@ describe('one form-factor rule, in one file', () => {
     }
   })
 
-  it('keys on the shorter edge in a shell, and on width in a browser', () => {
-    // The whole point: a phone turned sideways is still a phone, and a narrow
-    // desktop window really is asking for the narrow layout.
-    expect(FORM).toMatch(/Math\.min\(el\.clientWidth, el\.clientHeight\)/)
-    // innerWidth is not the layout width in this WebView: measured on a Pixel it
-    // said 801 where clientWidth and visualViewport both said 448.
-    expect(FORM, 'measuring innerWidth again').not.toMatch(/window\.innerWidth/)
-    expect(FORM).toMatch(/inShell \?/)
+  it('asks the shorter edge whether it is a phone, and the width which band', () => {
+    /*
+     * Two different questions and they need different measurements. A phone
+     * turned sideways is still a phone, which only its shorter edge knows. But
+     * an 11-inch iPad is 834 upright and 1194 on its side and wants the middle
+     * band in one and the full table in the other - so above the phone
+     * boundary, width decides. Using the shorter edge for both demoted that
+     * iPad to the middle band with 1194 points of width doing nothing.
+     */
+    expect(FORM).toMatch(/const shorter = inShell \? Math\.min\(width, el\.clientHeight\) : width/)
+    expect(FORM).toMatch(/phone\.value = shorter < PHONE_BELOW/)
+    expect(FORM).toMatch(/medium\.value = !phone\.value && width < DESKTOP_FROM/)
+    // The window's own width property is not the layout width in this WebView:
+    // measured on a Pixel it said 801 where clientWidth and visualViewport both
+    // said 448.
+    expect(FORM, 'measuring the window property again').not.toMatch(/window\.inner/)
     expect(FORM).toMatch(/shellProvidesTransports/)
   })
 
