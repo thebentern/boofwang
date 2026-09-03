@@ -17,6 +17,28 @@ import type { RadioId } from '#core/model/codeplug.js'
  * it, and the card says which of the two it is showing rather than presenting a
  * guess as a fact.
  */
+/**
+ * On a phone the identity lines split and the actions stack.
+ *
+ * `detail` is one middot-joined string - firmware, adapter, and whether the
+ * model is confirmed - which is right for a desktop line with room for it and
+ * clips mid-word at 375px. The parts are already separate before they are
+ * joined, so the phone takes them apart again rather than truncating.
+ *
+ * The actions stop being a right-aligned row for the same reason: three
+ * buttons side by side on a phone are three buttons nobody can read the labels
+ * of.
+ */
+const phone = ref(false)
+function measure() {
+  phone.value = window.innerWidth < 640
+}
+onMounted(() => {
+  measure()
+  window.addEventListener('resize', measure)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measure))
+
 const props = defineProps<{
   /**
    * The radio the read will use: identified if `confirmed`, otherwise chosen.
@@ -91,11 +113,16 @@ const items = computed(() =>
           </button>
         </UDropdownMenu>
 
-        <div class="font-mono tabular mt-0.5" style="font-size: 13px; color: var(--fn)">{{ detail }}</div>
+        <div v-if="!phone" class="font-mono tabular mt-0.5" style="font-size: 13px; color: var(--fn)">{{ detail }}</div>
+        <div v-else class="font-mono tabular" style="font-size: 12.5px; color: var(--fn)">
+          <span v-for="part in detail.split(' · ')" :key="part" class="block" style="margin-top: 3px">{{ part }}</span>
+        </div>
       </div>
 
-      <div class="ms-auto flex items-center gap-2.5">
+      <div :class="phone ? 'w-full mt-3' : 'ms-auto flex items-center gap-2.5'">
         <RiskAction
+          :class="phone ? 'w-full justify-center' : ''"
+          :style="phone ? { height: '48px', borderRadius: '8px', fontSize: '15px' } : undefined"
           risk="safe"
           size="lg"
           :label="radioId ? 'Read the radio' : 'Choose your radio first'"
@@ -104,7 +131,16 @@ const items = computed(() =>
           :disabled="!radioId"
           @click="emit('read')"
         />
-        <RiskAction risk="neutral" ghost label="Other port" :disabled="busy" @click="emit('otherPort')" />
+        <div :class="phone ? 'flex gap-2 mt-2' : 'contents'">
+        <RiskAction
+          :class="phone ? 'flex-1 justify-center' : ''"
+          :style="phone ? { height: '44px', borderRadius: '8px' } : undefined"
+          risk="neutral"
+          ghost
+          label="Other port"
+          :disabled="busy"
+          @click="emit('otherPort')"
+        />
         <!--
           Ghost and last, for the same reason it is ghost on the fault cards:
           the cable is the route that has been proved, and this card exists
@@ -112,6 +148,8 @@ const items = computed(() =>
         -->
         <RiskAction
           v-if="bluetooth"
+          :class="phone ? 'flex-1 justify-center' : ''"
+          :style="phone ? { height: '44px', borderRadius: '8px' } : undefined"
           risk="neutral"
           ghost
           :label="bluetoothLabel ?? 'Bluetooth'"
@@ -119,6 +157,7 @@ const items = computed(() =>
           :disabled="busy"
           @click="emit('bluetooth')"
         />
+        </div>
       </div>
     </div>
 
