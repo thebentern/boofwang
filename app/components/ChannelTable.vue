@@ -1272,8 +1272,120 @@ const printedFacts = computed(() => {
       </p>
     </div>
 
+    <!--
+      The phone toolbar, stacked.
+
+      The same controls in the same order, given the width to be tapped. The
+      search input is 15px rather than the table's 14: at 16px and above iOS
+      does not zoom the page on focus, 15 is the floor that still does not, and
+      a table that zooms itself every time somebody filters is unusable one
+      handed. Worth re-checking on an iPhone rather than trusting the number.
+
+      The facet strip scrolls sideways so all five survive, rather than the
+      three that fit. Open, Reorder, Print and Export are not here: they are
+      one-shot actions and they live in the header's menu.
+    -->
+    <div v-if="narrow" class="print-hide" style="margin-bottom: 9px">
+      <div
+        class="flex items-center"
+        style="height: 44px; gap: 9px; padding: 0 12px; border: 1px solid var(--ln2); border-radius: 8px; background: var(--pn)"
+      >
+        <UIcon name="i-lucide-search" style="width: 15px; height: 15px; color: var(--fn); flex: none" />
+        <input
+          v-model="query"
+          type="text"
+          aria-label="Filter channels"
+          placeholder="Name, frequency or slot"
+          style="width: 100%; border: 0; background: transparent; outline: none; font-size: 15px; color: var(--tx)"
+        >
+      </div>
+
+      <div
+        class="flex"
+        style="gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 10px 0"
+      >
+        <button
+          v-for="f in facets"
+          :key="f.key"
+          type="button"
+          :aria-pressed="facet === f.key"
+          class="inline-flex items-center whitespace-nowrap"
+          :style="{
+            flex: 'none',
+            height: '40px',
+            padding: '0 12px',
+            gap: '7px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: facet === f.key ? 600 : 400,
+            border: `1px solid var(${facet === f.key ? '--ln2' : '--ln'})`,
+            background: `var(${facet === f.key ? '--pn3' : '--pn'})`,
+            color: `var(${facet === f.key ? '--tx' : '--mu'})`,
+          }"
+          @click="facet = f.key"
+        >
+          <UIcon :name="f.icon" :style="{ width: '14px', height: '14px', color: facet === f.key ? f.tone : 'var(--fn)' }" />
+          {{ f.label }}
+          <span class="font-mono tabular" style="font-size: 13px; color: var(--fn)">{{ f.count }}</span>
+        </button>
+      </div>
+
+      <div class="flex items-center" style="gap: 8px">
+        <span class="font-mono tabular whitespace-nowrap" style="font-size: 12.5px; color: var(--fn)">
+          {{ rows.length }} of {{ slots.length }} slots
+        </span>
+        <div class="ms-auto flex items-center" style="gap: 8px">
+          <UPopover>
+            <button
+              type="button"
+              class="inline-flex items-center"
+              style="height: 32px; padding: 0 9px; gap: 5px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13px"
+              title="What the coloured edge on each row means"
+            >
+              <span class="inline-flex" style="gap: 1.5px">
+                <span
+                  v-for="t in ['--band-amateur', '--band-gmrs', '--band-noaa']"
+                  :key="t"
+                  :style="{ width: '3px', height: '13px', borderRadius: '1px', background: `var(${t})` }"
+                />
+              </span>
+              Bands
+            </button>
+            <template #content>
+              <div style="padding: 13px 15px; background: var(--pn); border: 1px solid var(--ln); border-radius: 7px; max-width: 320px">
+                <h3 style="font-size: 17px; font-weight: 600; color: var(--tx); margin-bottom: 5px">Bands</h3>
+                <p style="font-size: 13px; line-height: 1.5; color: var(--mu); margin-bottom: 10px">
+                  The edge of each row is the service its receive frequency falls in. What you may transmit
+                  there, and on whose license, follows from it.
+                </p>
+                <div
+                  v-for="b in bandLegend()"
+                  :key="b.service"
+                  style="display: grid; grid-template-columns: 3px 1fr; column-gap: 15px; min-height: 52px; align-items: center"
+                >
+                  <span :style="{ alignSelf: 'stretch', borderRadius: '1px', background: `var(${b.token})` }" />
+                  <span>
+                    <span style="display: block; font-size: 14.5px; font-weight: 600; color: var(--tx)">
+                      {{ b.service }}<template v-if="b.receiveOnly"> · receive only</template>
+                    </span>
+                    <span class="font-mono tabular" style="display: block; font-size: 11.5px; color: var(--fn)">
+                      {{ b.range }}
+                    </span>
+                  </span>
+                </div>
+                <p style="font-size: 12px; line-height: 1.5; color: var(--fn); margin-top: 10px">
+                  US allocations. boofwang makes no claim about other administrations. The color says which
+                  service, never whether you are licensed for it.
+                </p>
+              </div>
+            </template>
+          </UPopover>
+        </div>
+      </div>
+    </div>
+
     <!-- Toolbar -->
-    <div class="flex items-center flex-wrap print-hide" style="gap: 9px; margin-bottom: 9px">
+    <div v-else class="flex items-center flex-wrap print-hide" style="gap: 9px; margin-bottom: 9px">
       <div
         class="flex items-center"
         style="height: 33px; gap: 7px; padding: 0 9px; border: 1px solid var(--ln2); border-radius: 6px; background: var(--pn)"
