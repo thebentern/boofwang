@@ -309,6 +309,7 @@ the radio's own protocol note; this table points at it.
 | A9 | Android | DM-32UV | USB | close-as-reset and `REOPEN_SETTLE_MS` | **pass**, 2026-09-02. Four reads, a write and a restore across one app process, each through the plugin's close and reopen, all answered normally. [Below](#a4-the-dm-32uv-on-a-pixel) |
 | A10 | Android | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
 | A11 | Android | UV-5R Mini | BT-A1D dongle | read | not run |
+| A12 | Android | DM-32UV | USB | key slots: mask, reveal, edit, write, restore | **pass**, 2026-09-02. 22 AES-256 slots. Masked by default, one revealed at a time, editor does not prefill. One slot written: exactly 32 bytes changed, all inside that slot's key field. Restored to sha256 `363eecd6dac6f291`, zero bytes different. [Below](#a12-the-key-slots) |
 | I1 | iOS | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
 | I2 | iOS | UV-5R Mini | BT-A1D dongle | read | not run |
 | B1 | Android | UV-K5 | USB | backgrounded at about half of a read | not run |
@@ -569,3 +570,77 @@ the writable scope that it walks - and not necessarily the number it sent. The
 screen says it sends only the blocks that differ, and only one page did. Those
 two are consistent if the skip happens inside the loop, and this run did not
 capture enough to say so. Nobody should read 42 as forty-two writes.
+
+## A12: the key slots
+
+2 September 2026, same radio, cable and phone. No key material appears in this
+note, in the commit that added it, or in the session that produced it: every
+check below was written to report a shape - masked or not, a length, a count, a
+boolean - and never a value.
+
+This radio carries **22 slots, every one an AES-256 key**, named `Encrypt 1`
+through `Encrypt 22`, none blank. That is a second radio agreeing with the
+comment in `layout.ts`: a full AES-256 key occupies the **entire** 32-byte field
+from `+0x0C`, not right-aligned at `+0x24` as the specification says. The spec's
+sample almost certainly had a short key that the vendor software right-aligned.
+
+**Nothing on the radio uses them.** `encryptionKeyId` at `+0x2A` is zero on all
+49 live channels, so no channel references a slot. Sequential names and no
+references together suggest factory defaults rather than anything operational,
+which is what made a write test on slot 22 reasonable.
+
+### What held
+
+- **Masked by default.** All 22 render as bullets with four hex characters at
+  each end. `maskKey` scales that budget with length - `min(4, len/8)` - so a
+  10-character ARC4 key gets no window at all rather than eight of its ten.
+- **One at a time.** Revealing slot 2 re-masked slot 1 without being asked, and
+  the buttons flipped `Reveal`/`Hide` to match.
+- **The editor does not prefill.** Opening slot 22 shows an empty key field
+  reading "leave blank to keep the current key", so editing a slot's name
+  cannot reveal its key as a side effect.
+- **The summary carries nothing.** The `.html` export was written to the device
+  and grepped there: zero hex runs of 32 characters or more, zero of 64, zero
+  occurrences of `Encrypt N`, zero mask bullets, zero mentions of AES - and it
+  does carry its own disclaimer and 44 channel mentions, so it is a real
+  summary rather than an empty file. Not the key, not a masked key, not the
+  name of the slot: `io/summary.ts` says all three and the file agrees.
+- **The write is surgical.** One slot written with a test pattern: exactly 32
+  bytes changed in 262,144, all inside that slot's key field, one page touched.
+  The slot name, the type byte, the other 21 slots and the roughly 3 KB after
+  the key area were untouched.
+- **The restore puts it back.** sha256 returned to `363eecd6dac6f291` with zero
+  bytes different, and the slot no longer holds the test pattern.
+
+Key pages are verified like any other: `writeImage` compares all 4,096 bytes of
+the page it wrote. The comment that key slots "cannot be read back" means not
+by eye, by a person - not that the driver skips them. Worth stating because the
+short form reads the other way.
+
+### The gap: a key change gets no account
+
+The write screen's diff speaks in channels. Editing a key slot therefore
+produces **"no channel changes"**, followed by an honest paragraph saying the
+4,096 bytes are elsewhere and could be "a zone, talk group or scan list name,
+an RX group, a radio ID, a setting or a key slot", and that boofwang has no
+line-by-line account of those yet.
+
+Nothing there is untrue, and stating the uncertainty rather than hiding it is
+the right instinct. But the effect is that the single most sensitive edit this
+program can make - replacing key material - is the one the confirmation screen
+can say least about. Somebody types WRITE having been told a page is going
+somewhere, not that slot 22's key is being replaced. A per-slot line would not
+need to show any key to be useful: "key slot 22 replaced", or "key slot 7
+cleared", is the whole of what is needed.
+
+### Exports land in shared storage
+
+`Filesystem.writeFile` with `Directory.Documents` puts exports in
+`/sdcard/Documents/boofwang/`, which is shared storage a file manager can read,
+and then hands the file to the share sheet. For a summary that is fine - it
+holds no keys by construction. The same menu offers `.bwp`, `.img` and `.bin`,
+which are full codeplugs and carry every key in plaintext by design, to that
+same directory. On a desktop the browser asks where a download goes; here it
+does not. Nothing is wrong with exporting a full codeplug - it is what the
+format is for - but a phone puts it somewhere more readable than a laptop does,
+and that difference is not stated anywhere in the interface.
