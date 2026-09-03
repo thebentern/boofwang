@@ -112,20 +112,28 @@ describe('the dongle offer', () => {
     expect(PAGE).toMatch(/profiles: BL1_DONGLE_PROFILES/)
   })
 
-  it('derives its caveat from THIS radio, not from the dongle profile', () => {
+  it('states what the route does, never how much evidence stands behind it', () => {
     /*
-     * The profile is verified - a BT-A1D carried a UV-5R Mini codeplug - and
-     * keying the label on that would have promoted every cable-only radio to
-     * "connect" on the strength of a different radio's success. A UV-82 on
-     * the same dongle the same day drew nothing, so the claim has to be made
-     * per radio and `dongleProven` is where that fact lives.
+     * This used to assert the opposite: that the label read "(untested)" until
+     * `capabilities.dongleProven` was set on the radio in hand. The label
+     * graded a route by confidence, which is not a thing a person at a connect
+     * screen can act on - so the interface now states the capability boundary
+     * instead, and the evidence stays in docs/protocols/ble-dongle.md.
+     *
+     * `dongleProven` is deliberately still in the schema. What is asserted here
+     * is only that no screen grades a route by it.
      */
     const label = /const bleLabel = computed\(\(\) => \{([\s\S]*?)\n\}\)/.exec(PAGE)?.[1] ?? ''
     expect(label, 'bleLabel is no longer the computed this checks').not.toBe('')
-    expect(label).toMatch(/dongleProven\.value/)
+    expect(label).not.toMatch(/dongleProven/)
     expect(label).not.toMatch(/BL1_DONGLE_PROFILES\.some/)
-    expect(label).toMatch(/untested/)
-    expect(PAGE).toMatch(/const dongleProven = computed\([\s\S]*?capabilities\.dongleProven/)
+    expect(label).toMatch(/Connect through a Bluetooth dongle/)
+  })
+
+  it('says a dongle cannot carry a write, which is the boundary that matters', () => {
+    // The fact worth telling somebody holding one: read, back up, edit, export,
+    // and use a cable to write. That is actionable where "untested" was not.
+    expect(PAGE).toMatch(/Writing needs a cable/)
   })
 
   it('offers the dongle alongside the module for a radio that has both', () => {

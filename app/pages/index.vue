@@ -583,9 +583,9 @@ const bleLabel = computed(() => {
      * cable-only radio to "connect" on the strength of a different radio's
      * success, which is the overclaim this screen exists not to make.
      */
-    return dongleProven.value ? 'Connect through a Bluetooth dongle' : 'Try a Bluetooth dongle (untested)'
+    return 'Connect through a Bluetooth dongle'
   }
-  return bluetoothProfile().verified ? 'Connect over Bluetooth' : 'Try Bluetooth (untested)'
+  return 'Connect over Bluetooth'
 })
 
 /**
@@ -626,10 +626,17 @@ const dongleRoute = computed(
  * report that the dongle was the wrong device. It was the right device; the
  * question was wrong.
  */
-/** Whether a codeplug has actually come off THIS radio through a dongle. */
-const dongleProven = computed(
-  () => radioId.value !== null && SCHEMAS[radioId.value]?.capabilities.dongleProven === true,
-)
+/*
+ * `capabilities.dongleProven` used to be read here, to pick between "Connect
+ * through a Bluetooth dongle" and "Try a Bluetooth dongle (untested)". The
+ * interface no longer grades a route by how much evidence stands behind it, so
+ * nothing on this screen asks the question and the flag has no reader in `app/`.
+ *
+ * It stays in the schema on purpose. `docs/protocols/ble-dongle.md` is keyed to
+ * it and it is the honest record of which radios a dongle has actually carried;
+ * what changed is that a confidence level is not something a person at a
+ * connect screen can act on.
+ */
 
 const dongleAlso = computed(
   () => radioId.value !== null && SCHEMAS[radioId.value]?.capabilities.dongle !== undefined,
@@ -684,18 +691,21 @@ const bleName = computed(() => (dongleRoute.value ? undefined : bluetoothProfile
 const bleNote = computed(() => {
   if (!bluetooth.value.supported) return bluetooth.value.advice
   /*
-   * A dongle radio gets the dongle sentence: the radio itself is cable-only,
-   * the wireless route is a clip-on bridge, and no dongle has yet carried a
-   * radio's words. Two have been tried and neither worked, which is a
-   * stronger and more useful thing to say than "untested" - somebody with a
-   * third dongle should know what they are walking into.
+   * A dongle radio gets the dongle sentence: the radio itself is cable-only
+   * and the wireless route is a clip-on bridge.
+   *
+   * This used to recount which dongles had been tried and which radio one had
+   * never reached. That is the honest record and it belongs in
+   * docs/protocols/ble-dongle.md, not on a connect screen: a confidence level
+   * is not something a reader can act on, whereas a capability boundary is.
+   * So it now says what the route does and what it cannot do, and the boundary
+   * that matters here is that a dongle cannot carry a write.
    */
   if (dongleRoute.value) {
     return (
       `${bleHave}, and the ${radioName.value} is programmed through a port ` +
-      'that clip-on Bluetooth dongles fit. One has carried a whole codeplug off a UV-5R Mini, so the ' +
-      'route works. It has not been shown to reach this radio, and a Baofeng BT-A1D never reached a ' +
-      'UV-82 at all, so treat this as worth an attempt rather than a route that works.'
+      'that clip-on Bluetooth dongles fit. A dongle bridges that port to Bluetooth, so you can read, ' +
+      'back up, edit and export here. Writing needs a cable.'
     )
   }
   /*
