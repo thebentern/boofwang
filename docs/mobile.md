@@ -457,9 +457,9 @@ what the plugin's close does to the control lines.
 Not done, and it is why A4 says read rather than pass: no read of this radio
 was taken the same day by the web build in desktop Chrome, so the Android path
 has been shown to agree with itself and not yet with the path it is meant to
-match. The radio was on the phone all evening. Nothing was written.
+match. The radio was on the phone all evening. Nothing was written in this session.
 
-### Four channels stopped being receive-only, and it was not this read
+### Four channels stopped being receive-only, and that was on purpose
 
 A backup taken from the same radio at 19:46, before any of the above, differs
 from the 20:04 read in exactly four bytes: `0x127D8`, `0x12808`, `0x12838`,
@@ -468,17 +468,22 @@ block `0x12` - `LR DMR`, `AR DMR`, `USA DMR` and `Test DMR` - and every one of
 them went `0x1C` to `0x14`. Bit 3 is `txForbid`. Four channels that were
 receive-only became transmit-capable.
 
-This is recorded here rather than in a bug because the read is not what did it,
-and the evidence for that is the pair of byte-identical reads above: the same
-image came back twice, four minutes apart, both holding `0x14`. The change was
-on the radio before boofwang was ever asked for it, so the radio itself, the
-OEM CPS, or a write somebody ran in that window are the candidates, and this
-file cannot say which.
+The owner had edited them, and the frequencies agree: all four are RX
+443.1250 MHz and TX 448.1250 MHz, one repeater pair at the standard +5 MHz
+70 cm offset carrying four talk groups. That is inside the 400-480 MHz band
+this schema marks `txAllowed`, and a repeater channel you cannot key is not a
+repeater channel. Nothing was wrong.
 
-It is worth the paragraph anyway. `txForbid` is the bit the risk register
-singles out - a channel that quietly gains a transmitter is the failure that
-puts a public-safety or weather frequency in reach of a PTT - and the useful
-finding is that a plain diff of two backups surfaces it in four bytes out of
-262,144. Anyone restoring the 19:46 backup over this radio would put the four
-channels back to receive-only, which is a real change and one the diff will
-name before the token is typed.
+It is written up anyway, because of what the shape of the diff shows. Those
+four bytes were the *only* difference in 262,144 - no name, no frequency, no
+talk group, nothing else moved. That is what a deliberate receive-only toggle
+looks like, and it is also exactly what an encoder silently clearing
+`txForbid` while writing something else would look like, minus the something
+else. The two are told apart by whether anything else changed, which means the
+diff has to be read before the token is typed rather than after, and it means
+a byte-level diff of two backups is worth taking even when nothing is
+suspected.
+
+The other half of the answer is that the read is not what did it, and the pair
+of byte-identical reads above is the evidence: the same image came back twice,
+four minutes apart, both holding `0x14`.
