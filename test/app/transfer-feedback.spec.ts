@@ -68,9 +68,11 @@ describe('which card the connect page draws', () => {
 /**
  * And that the card it draws can actually say how far along the read is.
  *
- * `TransferProgress.vue` still exists and is mounted nowhere - the interface
- * rework moved the progress bar into the connect card - so the assertion has
- * to be about the card, not about a component that is no longer used.
+ * The interface rework moved the progress bar into the connect card and left a
+ * `TransferProgress.vue` modal behind, mounted nowhere, which is why this
+ * asserts on the card and not on a component. That file has since been
+ * deleted, so there is now exactly one place a read can be shown and this is
+ * what holds it wired up.
  */
 describe('what the reading card is handed', () => {
   it('gets the live counts', () => {
