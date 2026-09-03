@@ -29,15 +29,7 @@ import type { RadioId } from '#core/model/codeplug.js'
  * buttons side by side on a phone are three buttons nobody can read the labels
  * of.
  */
-const phone = ref(false)
-function measure() {
-  phone.value = window.innerWidth < 640
-}
-onMounted(() => {
-  measure()
-  window.addEventListener('resize', measure)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', measure))
+const { phone } = useFormFactor()
 
 const props = defineProps<{
   /**

@@ -70,7 +70,10 @@ describe('which confirmation each screen asks for', () => {
      * room for the typed field and a desktop window dragged narrow does not.
      */
     expect(WRITE).toMatch(/ConfirmSlide/)
-    expect(WRITE).toMatch(/window\.innerWidth < 640/)
+    // The size rule moved into useFormFactor, which keys on the shorter edge in
+    // a shell so a phone in landscape is still a phone. See
+    // test/app/three-forms-one-breakpoint.spec.ts.
+    expect(WRITE).toMatch(/useFormFactor\(\)/)
     expect(WRITE).toMatch(/v-if="narrow"/)
   })
 

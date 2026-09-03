@@ -29,15 +29,7 @@ function onCreate(index: number) {
 }
 
 /** Matches the 640 the rest of the mobile work uses. */
-const phone = ref(false)
-function measurePhone() {
-  phone.value = window.innerWidth < 640
-}
-onMounted(() => {
-  measurePhone()
-  window.addEventListener('resize', measurePhone)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', measurePhone))
+const { phone } = useFormFactor()
 </script>
 
 <template>

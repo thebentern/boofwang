@@ -130,15 +130,7 @@ const moreOpen = ref(false)
 watch(() => route.path, () => (moreOpen.value = false))
 
 /** A phone. Matches the tab bar to the same 640 the rest of this work uses. */
-const phone = ref(false)
-function measurePhone() {
-  phone.value = window.innerWidth < 640
-}
-onMounted(() => {
-  measurePhone()
-  window.addEventListener('resize', measurePhone)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', measurePhone))
+const { phone } = useFormFactor()
 
 /*
  * `smallNav` used to be here: the same eleven links as a dropdown behind a
@@ -183,9 +175,16 @@ const { state: updateState } = useAppUpdate()
           reach the top. What stays in the header is the section name, so the
           page still says where it is.
         -->
-        <span class="sm:hidden" style="font-size: 14px; font-weight: 600; color: var(--tx)">{{ currentLabel }}</span>
+        <!--
+          `v-if` on the shared form factor rather than a `sm:` class. A Tailwind
+          width query and this layout disagreed the moment a phone was turned
+          sideways: the query saw 1199 and showed the desktop nav while the tab
+          bar at the foot of the screen was showing too, so the same eleven
+          destinations appeared twice on a six-inch screen.
+        -->
+        <span v-if="phone" style="font-size: 14px; font-weight: 600; color: var(--tx)">{{ currentLabel }}</span>
 
-        <nav class="hidden sm:flex items-center gap-0.5">
+        <nav v-if="!phone" class="flex items-center gap-0.5">
           <NuxtLink
             v-for="item in nav"
             :key="item.to"
@@ -206,7 +205,8 @@ const { state: updateState } = useAppUpdate()
             href="https://github.com/thebentern/boofwang/issues/new"
             target="_blank"
             rel="noopener"
-            class="hidden md:flex items-center gap-1.5"
+            class="items-center gap-1.5"
+            :class="phone ? 'hidden' : 'flex'"
             style="font-size: 13px; color: var(--fn)"
           >
             <UIcon name="i-lucide-bug" style="width: 12px; height: 12px" />

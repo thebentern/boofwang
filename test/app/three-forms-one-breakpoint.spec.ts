@@ -28,36 +28,50 @@ const FILES = {
   'components/DiffList.vue': read('../../app/components/DiffList.vue'),
   'pages/write.vue': read('../../app/pages/write.vue'),
   'pages/channels.vue': read('../../app/pages/channels.vue'),
+  'components/connect/ConnectedCard.vue': read('../../app/components/connect/ConnectedCard.vue'),
 }
 
-describe('one phone breakpoint, written down once per file', () => {
-  it('every component that measures a viewport uses 640 or 1024, and nothing else', () => {
+const FORM = read('../../app/composables/useFormFactor.ts')
+
+describe('one form-factor rule, in one file', () => {
+  it('no component measures the viewport for itself', () => {
     /*
-     * Two legitimate numbers: 640 is where a phone ends and 1024 is where the
-     * middle band does. Everything else is drift, and the failure it produces
-     * is a tab bar over a desktop table.
+     * This used to assert that all six agreed on 640, which they did - and all
+     * six were wrong the same way. A phone reports 448x997 upright and 1199x539
+     * on its side, because the WebView rescales rather than changing device, so
+     * width alone handed a six-inch screen the twelve-column table the moment
+     * somebody rotated it.
+     *
+     * The rule now lives in one composable that keys on the shorter edge inside
+     * a shell. What this asserts is that nobody reintroduces a local copy.
      */
     for (const [name, src] of Object.entries(FILES)) {
-      const widths = [...src.matchAll(/innerWidth\s*[<>]=?\s*(\d+)/g)].map((m) => m[1])
-      expect(widths.length, `${name} no longer measures the viewport`).toBeGreaterThan(0)
-      for (const w of widths) expect(['640', '1024'], `${name} measures against ${w}`).toContain(w)
+      expect(src, `${name} measures the viewport itself instead of using useFormFactor`).not.toMatch(
+        /window\.innerWidth/,
+      )
+      expect(src, `${name} does not use the shared form factor`).toMatch(/useFormFactor\(\)/)
     }
   })
 
-  it('nobody invented a second one', () => {
-    // A stray 768 or 480 anywhere in these files is the drift this guards.
-    for (const [name, src] of Object.entries(FILES)) {
-      expect(src, `${name} has a competing breakpoint`).not.toMatch(/innerWidth\s*[<>]=?\s*(?!640\b|1024\b)\d+/)
-    }
+  it('keys on the shorter edge in a shell, and on width in a browser', () => {
+    // The whole point: a phone turned sideways is still a phone, and a narrow
+    // desktop window really is asking for the narrow layout.
+    expect(FORM).toMatch(/Math\.min\(window\.innerWidth, window\.innerHeight\)/)
+    expect(FORM).toMatch(/inShell \?/)
+    expect(FORM).toMatch(/shellProvidesTransports/)
   })
 
-  it('the middle band is bounded by 640 and 1024, not by a third number', () => {
-    // Only two files know about the middle band: the status bar and the table.
-    for (const name of ['components/AppStatusBar.vue', 'components/ChannelTable.vue']) {
-      const src = FILES[name as keyof typeof FILES]
-      expect(src, `${name} does not define a middle band`).toMatch(/innerWidth\s*>=\s*640/)
-      expect(src, `${name} does not close the middle band at 1024`).toMatch(/innerWidth\s*<\s*1024/)
-    }
+  it('listens for rotation, not only for resize', () => {
+    // Android does not always fire resize before the WebView settles on its new
+    // scale, and iOS is worse about it.
+    expect(FORM).toMatch(/addEventListener\('orientationchange'/)
+  })
+
+  it('has exactly two boundaries, named once', () => {
+    expect(FORM).toMatch(/const PHONE_BELOW = 640/)
+    expect(FORM).toMatch(/const DESKTOP_FROM = 1024/)
+    const numbers = [...FORM.matchAll(/\b(?:640|1024)\b/g)]
+    expect(numbers.length, 'the boundaries are repeated instead of referenced').toBeLessThanOrEqual(4)
   })
 })
 

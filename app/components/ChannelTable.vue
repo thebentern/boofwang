@@ -67,17 +67,7 @@ const PHONE_ROW_HEIGHT = 78
  * become two.
  */
 const MEDIUM_ROW_HEIGHT = 52
-const narrow = ref(false)
-const medium = ref(false)
-function measureWidth() {
-  narrow.value = window.innerWidth < 640
-  medium.value = window.innerWidth >= 640 && window.innerWidth < 1024
-}
-onMounted(() => {
-  measureWidth()
-  window.addEventListener('resize', measureWidth)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', measureWidth))
+const { phone: narrow, medium } = useFormFactor()
 
 /** What the virtualiser is told a row costs. Printing is always the table. */
 const rowHeight = computed(() => {
@@ -97,13 +87,18 @@ const rowHeight = computed(() => {
  */
 const optional = reactive({ tone: true, mode: true, bandwidth: true, step: true, power: true, flag: true })
 /*
- * A phone-width viewport starts with three columns off. The fixed columns
- * alone are about 400px, so on a 390px screen every optional one is a
- * horizontal scroll; the toggles above the table put them back. A viewport
- * rule, not a host rule - a narrow browser window gets the same start.
+ * A small screen starts with three columns off. The fixed columns alone are
+ * about 400px, so every optional one is a horizontal scroll; the toggles above
+ * the table put them back.
+ *
+ * Reads the shared form factor rather than `innerWidth` directly, which is the
+ * whole point of that composable: this measured width, so a phone in landscape
+ * reported 1199 and started with every column on, and then rendered a
+ * twelve-column table on a six-inch screen. `useFormFactor` registers its own
+ * `onMounted` above this one, so `narrow` is settled by the time this runs.
  */
 onMounted(() => {
-  if (window.innerWidth < 640) {
+  if (narrow.value) {
     optional.tone = false
     optional.bandwidth = false
     optional.step = false

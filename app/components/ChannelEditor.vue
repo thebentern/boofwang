@@ -108,15 +108,7 @@ const canSave = computed(() => rxError.value === null && nameError.value === nul
  * can reach without moving. Delete stays at the foot: it is destructive, and a
  * destructive action pinned next to Apply is a mis-tap waiting to happen.
  */
-const phone = ref(false)
-function measure() {
-  phone.value = window.innerWidth < 640
-}
-onMounted(() => {
-  measure()
-  window.addEventListener('resize', measure)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', measure))
+const { phone } = useFormFactor()
 
 /** One column on a phone; the desktop keeps its pairs. */
 const pair = computed(() => (phone.value ? '' : 'grid grid-cols-2 gap-3'))

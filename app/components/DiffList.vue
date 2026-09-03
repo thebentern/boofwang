@@ -28,15 +28,7 @@ const props = defineProps<{ diff: ChannelDiff; blocks?: number; bytes?: number }
  * pages relocate, and a number that pretends to that precision would be wrong
  * more often than "a few seconds" is.
  */
-const phone = ref(false)
-function measure() {
-  phone.value = window.innerWidth < 640
-}
-onMounted(() => {
-  measure()
-  window.addEventListener('resize', measure)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', measure))
+const { phone } = useFormFactor()
 
 const roughly = computed(() => {
   const n = props.blocks ?? 0

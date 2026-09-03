@@ -97,15 +97,7 @@ const blockBytes = computed(() => codeplug.driverRef?.writeBlockBytes ?? 0)
  * SSR is off, so reading `innerWidth` at setup is safe, and the listener is
  * there for a rotation mid-flow rather than for a resize nobody will do.
  */
-const narrow = ref(false)
-function measure() {
-  narrow.value = window.innerWidth < 640
-}
-onMounted(() => {
-  measure()
-  window.addEventListener('resize', measure)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', measure))
+const { phone: narrow } = useFormFactor()
 
 /**
  * Changes, for the phone's confirmation label.
