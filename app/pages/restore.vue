@@ -219,6 +219,12 @@ async function confirmRestore() {
           </p>
         </div>
 
+        <!--
+          The typed word stays on restore at every width, unlike the write
+          screen. There is no diff here to keep on screen - a restore expects
+          the radio to differ, and says so - so a keyboard covers nothing worth
+          reading, and this is the more destructive of the two actions.
+        -->
         <ConfirmTyped
           v-if="canWrite"
           token="RESTORE"
@@ -231,6 +237,25 @@ async function confirmRestore() {
             <RiskAction risk="neutral" ghost label="Cancel" @click="navigateTo('/backups')" />
           </template>
         </ConfirmTyped>
+
+        <!--
+          The same legal line the write page carries, for the same reason: this
+          is the other action that cannot be taken back from inside the app.
+        -->
+        <p
+          v-if="canWrite"
+          style="
+            margin-top: 12px;
+            padding-top: 11px;
+            border-top: 1px solid var(--ln);
+            font-size: 12px;
+            line-height: 1.55;
+            color: var(--fn);
+          "
+        >
+          boofwang comes with no warranty. We are not liable for a radio a restore leaves unusable. Use at your
+          own risk.
+        </p>
 
         <RiskAction
           v-else

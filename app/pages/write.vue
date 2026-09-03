@@ -86,6 +86,38 @@ const diff = computed(() => {
 const blockBytes = computed(() => codeplug.driverRef?.writeBlockBytes ?? 0)
 
 /**
+ * Which confirmation this screen asks for.
+ *
+ * Keyed on the width of the viewport rather than on the host, because the thing
+ * that decides is whether a keyboard would cover the diff: an Android tablet in
+ * landscape has room for the typed field and a desktop window dragged narrow
+ * does not. `sm` in this project's Tailwind config is 640px, which is the same
+ * boundary the rest of the mobile work uses.
+ *
+ * SSR is off, so reading `innerWidth` at setup is safe, and the listener is
+ * there for a rotation mid-flow rather than for a resize nobody will do.
+ */
+const narrow = ref(false)
+function measure() {
+  narrow.value = window.innerWidth < 640
+}
+onMounted(() => {
+  measure()
+  window.addEventListener('resize', measure)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measure))
+
+/**
+ * Changes, for the phone's confirmation label.
+ *
+ * "Send 1 block" is the honest unit on the wire and stays on the desktop page
+ * and in the log. It is the wrong unit under a thumb: a block is an
+ * implementation detail of the radio's memory, and somebody who renamed one
+ * channel wants to agree to one change. Both numbers describe the same write.
+ */
+const changeCount = computed(() => diff.value?.changed ?? 0)
+
+/**
  * Blocks the radio will actually receive, which is not always the diff.
  *
  * Counted by `blocksToSend` rather than here, because the fleet run has to
@@ -505,7 +537,27 @@ async function send() {
         </div>
 
         <div v-else style="border-top: 1px solid var(--ln); padding: 17px 19px">
+          <!--
+            Two forms of the same gate, chosen by whether there is a keyboard
+            worth summoning rather than by device class.
+
+            Typing a word is the better friction and stays wherever it costs
+            nothing. On a phone it puts a keyboard over the diff that justifies
+            the write, which is the one thing that should stay on screen, so the
+            drag takes its place: the hand still has to travel and stay down for
+            the whole trip, and letting go early sends nothing. What is not on
+            offer anywhere is a single tap.
+          -->
+          <ConfirmSlide
+            v-if="narrow"
+            :label="`Slide to send ${changeCount} change${changeCount === 1 ? '' : 's'}`"
+            risk="caution"
+            icon="i-lucide-upload"
+            :disabled="!ready"
+            @confirm="send"
+          />
           <ConfirmTyped
+            v-else
             token="WRITE"
             :label="`Send ${blocks} block${blocks === 1 ? '' : 's'}`"
             risk="caution"
@@ -517,6 +569,30 @@ async function send() {
               <RiskAction risk="neutral" ghost label="Back to channels" @click="navigateTo('/channels')" />
             </template>
           </ConfirmTyped>
+
+          <div v-if="narrow" class="mt-3">
+            <RiskAction risk="neutral" ghost label="Back to channels" @click="navigateTo('/channels')" />
+          </div>
+
+          <!--
+            The legal position, below the buttons and behind a hairline. The
+            amber card above is the warning; nesting one inside the other
+            weakens both, and this is the smallest type in the system because it
+            is not the thing anybody needs to read to act safely.
+          -->
+          <p
+            style="
+              margin-top: 12px;
+              padding-top: 11px;
+              border-top: 1px solid var(--ln);
+              font-size: 12px;
+              line-height: 1.55;
+              color: var(--fn);
+            "
+          >
+            boofwang comes with no warranty. We are not liable for a radio a write leaves unusable. Use at your
+            own risk.
+          </p>
         </div>
       </div>
     </div>
