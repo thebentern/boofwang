@@ -120,9 +120,11 @@ above that seam is unchanged; a test holds the plugins to `app/mobile/`.
 
 Android has USB (an OTG cable to the same CH340, FTDI, CP210x and PL2303
 adapters) and Bluetooth. iOS has Bluetooth only: an iPhone cannot drive a USB
-serial adapter, and the connect page says so once. A write over Bluetooth is
-refused on every platform until one has been verified on hardware, so today an
-iPhone can read, back up, edit and export a UV-5R Mini and write nothing.
+serial adapter, and the connect page says so once. The UV-5R Mini writes over
+Bluetooth as well as over the cable. A radio reachable only through a clip-on
+BLE-to-serial dongle still writes over the cable alone, because no radio has
+survived a write through one, so on an iPhone those four can be read, backed
+up, edited and exported and not written.
 
 Nothing about the apps has yet been run on a phone. [`docs/mobile.md`](docs/mobile.md)
 is the build, signing and verification record, and its table of what has been

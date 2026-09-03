@@ -105,10 +105,15 @@ export function evaluateWriteGate(input: GateInput): GateResult {
 
   /*
    * The carrier. `writeTransports` is the schema's statement of which carriers
-   * the driver will write over; the UV-5R Mini's driver refuses Bluetooth for
-   * itself, and without this the gate said "allowed", the user typed the
-   * token, and the write threw in the driver. Read from the same fact the
-   * driver enforces so the two cannot disagree.
+   * this radio's write path has survived. It exists because the two halves
+   * disagreed once: the UV-5R Mini's driver refused Bluetooth for itself while
+   * the gate said "allowed", so the user typed the token and the write threw.
+   * Reading the one fact both halves read is what stops that recurring.
+   *
+   * The Mini has since taken a wireless write and no longer restricts itself.
+   * What still lands here is the four radios reachable only behind a clip-on
+   * BLE-to-UART dongle: their `transports` is ['serial'], the session's carrier
+   * is 'bluetooth', and no radio behind a dongle has survived a write.
    */
   const writeOver = input.schema.capabilities.writeTransports ?? input.schema.capabilities.transports
   if (input.transport && !writeOver.includes(input.transport)) {

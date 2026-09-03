@@ -165,10 +165,21 @@ tell. Here the transport says so directly: `Transport.kind` is `'serial'` or
 `'bluetooth'`, and `uploadBlockSize()` in `protocol.ts` is the only thing that
 reads it.
 
-**Nothing about the Bluetooth path has been run against a radio.** The service
-UUID cannot be guessed and nobody has captured one, so the browser's device
-chooser has never had a radio to list. See `lib/transport/bluetooth-uuids.ts`,
-which is the single place the numbers live and the single place to change them.
+That paragraph used to end "nothing about the Bluetooth path has been run
+against a radio", which stopped being true on 2026-08-21 when a whole codeplug
+came back over the module — see *Bluetooth, verified 2026-08-21* below — and
+again when a radio took a wireless write. The profile the chooser filters on
+lives in `lib/transport/bluetooth-uuids.ts`, which is the single place those
+numbers live and the single place to change them.
+
+Writing over Bluetooth is offered on the same footing as the cable. There is no
+`writeTransports` entry in the schema, so it falls back to `transports` and both
+carriers write; `writeImage` has no carrier check of its own. What the removed
+refusal was arguing about is still true of the radio and is why the block-by-
+block read-back matters more here than over the cable: the upload rewrites every
+block, because a partial write erases the rest of the flash page, so a link that
+drops halfway leaves a wiped radio rather than a half-written one. Keep a cable
+on the bench for the restore.
 
 ## Verified write session, 2026-08-20
 
@@ -389,18 +400,21 @@ producing a plausible codeplug.
 - **Whether anything distinguishes two units in the chooser.** Two Minis both
   advertise `walkie-talkie`; only their addresses differ, and boofwang cannot
   read an address before connecting. See above.
-- **Writing over Bluetooth.** Reachable, refused, and explained. The session
-  reconnects over whichever carrier it last used, so after a Bluetooth read the
-  write page tries Bluetooth; `writeImage` throws on a GATT transport unless the
-  driver is constructed with `allowBluetoothWrite`, which nothing in the
-  application passes. The write gate reads `capabilities.writeTransports`
-  (`['serial']` here) and shows a blocker with the remedy "connect over the
-  cable" before the token can be typed, so the two halves read one fact. Read
-  first, prove the round trip, then add `bluetooth` to `writeTransports` and
-  pass `allowBluetoothWrite` — both in the same commit, with the wire byte
-  counts recorded here.
-- The `0x80` upload block size and its `0xFF` padding are transcribed from
-  CHIRP and exercised against a fake. No radio has been written to over BLE.
 - Throughput is about a fortieth of the cable's. The transport's timeouts were
   tuned for 115200 baud and survived a full read, but a slower link or a busier
   adapter has not been tried.
+
+### Bluetooth writing, enabled 2026-09-02
+
+The carrier check in `writeImage` and the `writeTransports: ['serial']` entry in
+the schema were both removed, on the maintainer's report that a UV-5R Mini has
+taken a write over Bluetooth. Nothing else about the write path changed: the
+same 262 blocks of 0x80 with 0xFF padding go out, each one read back and
+compared before the next is sent, exactly as the cable's 521 blocks of 0x40 are.
+
+The wire byte counts from that session are not in this file yet. They are what
+every other verified session here records — bytes on the wire, a read taken with
+an independent reader, and a restore back to the original sha256 — and this
+heading is where they belong. `test/hardware/uv5rmini-ble-write.spec.ts` prints
+them: it now builds the same driver the registry does, so a bench run of it is a
+run of what the application does.

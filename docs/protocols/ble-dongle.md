@@ -348,9 +348,12 @@ UUID FFE0 alone does not.
    changes - the `uart:` prefix is what keeps the radio on its cable block
    size while chasing.
 
-Writing through a dongle stays refused by the write gate either way - the
-carrier is Bluetooth, and `writeTransports` means carriers a write has
-survived on. The enabling sequence is the UV-5R Mini's, unchanged: read
-first, prove the round trip, then add the carrier to `writeTransports` and
-pass `allowBluetoothWrite` in the same commit, with the wire byte counts
-recorded.
+Writing through a dongle stays refused by the write gate for the four radios
+that have no BLE module of their own - the carrier is Bluetooth, their
+`writeTransports` falls back to a `transports` of `['serial']`, and no radio
+behind a dongle has taken a write. The enabling sequence is the UV-5R Mini's:
+read first, prove the round trip, then let the radio's schema write over
+Bluetooth, with the wire byte counts recorded. The Mini itself is through that
+sequence and is no longer blocked; a dongle carrying it inherits that, because
+the gate keys on the carrier and the schema, not on which wireless device is in
+the middle.

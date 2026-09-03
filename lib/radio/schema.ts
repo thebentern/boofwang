@@ -134,8 +134,10 @@ export interface RadioSchema {
      *
      * Carrier, deliberately: a write over a BLE-to-UART dongle sends the
      * radio its verified cable bytes, but over a slower link that can drop
-     * halfway, and no radio has survived one - so the Bluetooth carrier stays
-     * blocked for writing until one does, dongle or module alike.
+     * halfway, and no radio has survived one behind a dongle - so a radio
+     * whose only wireless route is a dongle stays blocked for writing until
+     * one does. The UV-5R Mini, which has a module of its own and has taken a
+     * write over it, omits this field and writes over both.
      */
     readonly writeTransports?: readonly TransportKind[]
     /**

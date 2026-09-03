@@ -215,11 +215,22 @@ describe('the carrier the session is on', () => {
     expect(codes(ok({ schema: BLE_SCHEMA }))).not.toContain('transport-write-unverified')
   })
 
-  it('is the same fact the UV-5R Mini driver enforces', async () => {
-    // Not a copy of the driver's rule - the schema the driver is built from.
+  it('makes no claim about the UV-5R Mini, which writes over both', async () => {
+    /*
+     * This radio used to be the one caller of the restriction, with
+     * `writeTransports: ['serial']` against `transports: ['serial',
+     * 'bluetooth']`. The restriction was lifted once a radio had taken a
+     * wireless write; the mechanism stays for the four radios reachable only
+     * behind a dongle, none of which has. Asserted here so a schema edit that
+     * quietly reinstates the block on the Mini fails rather than resurfacing
+     * as a blocked write on somebody's iPad.
+     */
     const { UV5RMINI_SCHEMA } = await import('#core/radios/uv5rmini/schema.js')
     expect(UV5RMINI_SCHEMA.capabilities.transports).toContain('bluetooth')
-    expect(UV5RMINI_SCHEMA.capabilities.writeTransports).toEqual(['serial'])
+    expect(UV5RMINI_SCHEMA.capabilities.writeTransports).toBeUndefined()
+    expect(codes(ok({ schema: UV5RMINI_SCHEMA, transport: 'bluetooth' }))).not.toContain(
+      'transport-write-unverified',
+    )
   })
 
   it('blocks a dongle write the same way, because the carrier is the hazard', () => {

@@ -26,11 +26,12 @@ adapters are `lib/transport/native-serial-port.ts` and
 |---|---|---|
 | USB serial (OTG cable) | yes, an in-repo plugin over `usb-serial-for-android` | no. An iPhone cannot drive a USB serial adapter. |
 | Bluetooth LE | yes, `@capacitor-community/bluetooth-le` | yes, the same plugin |
-| Writes over Bluetooth | refused, as everywhere, until [verified](protocols/uv5rmini.md) | the same |
+| Writes over Bluetooth | the [UV-5R Mini](protocols/uv5rmini.md), which has taken one. Nothing behind a dongle. | the same |
 
-That last row matters for iOS: until a Bluetooth write has survived on
-hardware, the iOS app can read, back up, edit and export a UV-5R Mini and
-write nothing. The connect page says so; so must any store listing.
+That last row matters for iOS, because Bluetooth is the only carrier there: the
+UV-5R Mini is the one radio an iPhone or iPad can write, and the four reachable
+only through a clip-on dongle stay read-only on this platform until one of them
+has survived a write over that link. A store listing must not say more.
 
 Everything in the risk register applies unchanged. A write is never one click
 from idle, a backup precedes every write, and the typed confirmation is the

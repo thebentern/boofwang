@@ -14,6 +14,7 @@ import {
   uploadBlockSize,
   writeBlock,
 } from '#core/radios/uv5rmini/protocol.js'
+import { UV5RMINI_SCHEMA } from '#core/radios/uv5rmini/schema.js'
 import { BluetoothPort } from '#core/transport/bluetooth-port.js'
 import { FakeGattLink } from '#core/transport/fake-gatt.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
@@ -65,7 +66,10 @@ const IDENT: IdentifyResult = {
 }
 const BACKUP = { id: 'b', identHash: 'match', createdAt: '2026-08-20T00:00:00.000Z' }
 
-const driver = createUv5rMiniDriver({ enableWrite: true, allowBluetoothWrite: true })
+// The driver the registry builds, with nothing extra turned on. It used to
+// need `allowBluetoothWrite` here, and the fact that it no longer does is
+// asserted at the bottom of this file rather than left implicit in this line.
+const driver = createUv5rMiniDriver({ enableWrite: true })
 
 /**
  * A radio that answers frames, and remembers what it was told, at whatever
@@ -391,51 +395,55 @@ describe('the whole stack, over a real GATT link', () => {
 })
 
 /**
- * The refusal that makes the rest of this file safe to have.
+ * That the carrier is no longer a reason to refuse.
  *
- * Everything above turns `allowBluetoothWrite` on explicitly, because without
- * it the driver will not write over a GATT link at all. That flag is set in no
- * production code path - the registry passes only `enableWrite` - so what these
- * tests prove is what boofwang *would* send, not something a user can trigger.
- *
- * Before this existed, nothing refused: `uploadBlockSize` already adapted the
- * block size for BLE, so the path assembled itself, while the protocol notes
- * said in as many words that writing over Bluetooth was "not implemented and
- * not offered". Three sources claimed a guard that was not there.
+ * There was a refusal here, on `t.kind === 'bluetooth'`, gated behind an
+ * `allowBluetoothWrite` option nothing in the application passed - so
+ * everything above proved what boofwang *would* send rather than what it
+ * would do. Both are gone, and these are the assertions that keep them gone:
+ * the driver the registry builds writes over a GATT link, and the write gate
+ * agrees with it, which is the pairing the two halves have to keep.
  */
-describe('writing over Bluetooth is off by default', () => {
-  it('refuses a GATT transport', async () => {
-    const driver = createUv5rMiniDriver({ enableWrite: true })
+describe('writing over Bluetooth', () => {
+  it('goes through on the driver the registry builds', async () => {
+    const registryDriver = createUv5rMiniDriver({ enableWrite: true })
     const ble = scriptedRadio('bluetooth')
-    const attempt = driver.writeImage(ble.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() })
-    // The whole sentence, not a keyword. Matching /Bluetooth/ alone passed on
-    // "Writing Bluetooth. Reading over ... is not supported. This area of
-    // memory is not understood well enough to modify safely." - the old
-    // WriteBlockedError appended that last clause to every refusal, so the
-    // user read a false sentence about memory under an ungrammatical one.
-    await expect(attempt).rejects.toThrow(/^This radio cannot be written over Bluetooth yet\./)
-    await expect(attempt).rejects.toThrow(/Use the cable to write\.$/)
-    await expect(attempt).rejects.not.toThrow(/not understood well enough/)
+    const report = await registryDriver.writeImage(ble.transport, image(), {
+      backup: BACKUP,
+      ident: IDENT,
+      baseImage: image(),
+    })
+    expect(report.verified).toBe(true)
+    expect(report.blocksWritten).toBe(262)
   })
 
-  it('refuses a dongle transport for the same reason', async () => {
+  it('goes through over a dongle too, on the same carrier', async () => {
     /*
-     * Deliberately keyed on the carrier: the radio behind a dongle takes the
-     * verified 0x40 blocks, but the hazard the refusal guards - a whole-image
-     * write over a slow radio link that can drop halfway, on a radio that
-     * erases flash as it goes - is exactly as real through a dongle as
-     * through the radio's own module. What lifts it is a radio surviving a
-     * write, whichever wireless path carries it.
+     * A dongle is a 'bluetooth' carrier carrying the cable's 0x40 blocks - the
+     * `radioLink` distinction - so it was refused by the same rule and is
+     * released by the same removal. Asserted separately because the two differ
+     * in block size, and a change that only released one would be silent.
      */
-    const driver = createUv5rMiniDriver({ enableWrite: true })
+    const registryDriver = createUv5rMiniDriver({ enableWrite: true })
     const dongle = scriptedRadio('bluetooth', 'serial')
-    const attempt = driver.writeImage(dongle.transport, image(), { backup: BACKUP, ident: IDENT, baseImage: image() })
-    await expect(attempt).rejects.toThrow(/^This radio cannot be written over Bluetooth yet\./)
+    const report = await registryDriver.writeImage(dongle.transport, image(), {
+      backup: BACKUP,
+      ident: IDENT,
+      baseImage: image(),
+    })
+    expect(report.verified).toBe(true)
+    expect(report.blocksWritten).toBe(521)
   })
 
-  it('still writes over a cable', async () => {
-    // The refusal is about the transport, not about the radio.
-    const driver = createUv5rMiniDriver({ enableWrite: true })
-    expect(driver.schema.capabilities.write).toBe(true)
+  it('is what the write gate says too', () => {
+    /*
+     * The gate explains and the driver enforces, so the two must not disagree
+     * in either direction. This is the direction that used to be checked - the
+     * gate blocking what the driver blocked - read the other way round.
+     */
+    const writeOver =
+      UV5RMINI_SCHEMA.capabilities.writeTransports ?? UV5RMINI_SCHEMA.capabilities.transports
+    expect(writeOver).toContain('bluetooth')
+    expect(writeOver).toContain('serial')
   })
 })

@@ -12,13 +12,13 @@ import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial
 /**
  * The UV-5R Mini write path over Bluetooth, against a real radio.
  *
- * This is the evidence docs/protocols/uv5rmini.md asks for before a Bluetooth
- * write is allowed anywhere: "read first, prove the round trip, then add
- * bluetooth to writeTransports and pass allowBluetoothWrite - both in the
- * same commit, with the wire byte counts recorded". The application never
- * passes `allowBluetoothWrite`; this file does, on the bench, through the
- * BLE bridge, which is the one harness the README documents for Bluetooth on
- * hardware.
+ * This is the harness docs/protocols/uv5rmini.md points at for the round trip
+ * behind a Bluetooth write. It builds the driver the registry builds, with
+ * nothing extra turned on, and runs it through the BLE bridge, which is the
+ * one harness the README documents for Bluetooth on hardware. It used to
+ * pass an `allowBluetoothWrite` flag no application path set, which meant it
+ * exercised a code path a user could not reach; that flag is gone and this
+ * file now runs exactly what the app runs.
  *
  * Why this is the risky one. The Mini erases a whole flash page per block
  * and the upload rewrites every block, so a link that drops halfway leaves a
@@ -41,7 +41,7 @@ const HW = !!process.env.BOOFWANG_HW
 const URL_ = process.env.BOOFWANG_BRIDGE ?? 'ws://127.0.0.1:8766'
 const PORT = process.env.BOOFWANG_HW_PORT ?? ''
 
-const driver = createUv5rMiniDriver({ enableWrite: true, allowBluetoothWrite: true })
+const driver = createUv5rMiniDriver({ enableWrite: true })
 
 describe.skipIf(!HW)('UV-5R Mini over Bluetooth on the bench', () => {
   it('reads, renames one channel, verifies each byte, and restores', { timeout: 1_800_000 }, async () => {

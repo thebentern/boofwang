@@ -76,17 +76,6 @@ export function describeIdent(detail: Uint8Array): string {
 export interface Uv5rMiniOptions {
   /** Whether this build may write. Turned on in the registry. */
   enableWrite?: boolean
-  /**
-   * Whether this build may write over Bluetooth. Off, and not set anywhere.
-   *
-   * The BLE upload path is built and unit-tested - 0x80 blocks with 0xFF
-   * padding, transcribed from CHIRP - and no radio has ever received one. This
-   * is the same shape as `enableWrite`: the capability exists, is provable, and
-   * stays off until hardware says otherwise. Tests that exercise the wire
-   * format turn it on explicitly, which is also what makes the refusal below
-   * testable.
-   */
-  allowBluetoothWrite?: boolean
 }
 
 export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver {
@@ -206,44 +195,22 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
       if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('uv5rmini')
 
       /*
-       * Not over Bluetooth, until a radio has survived one.
+       * Bluetooth writes on the same footing as the cable.
        *
-       * The protocol notes say this in as many words - "not implemented and not
-       * offered ... no radio has been written to over BLE" - and the interface
-       * does not offer it. Neither of those is a guard: `uploadBlockSize`
-       * already adapts the block size for a BLE link, so the path assembled
-       * itself, and anything that reaches this function with a GATT transport
-       * would have written 33 KiB to a radio over a link a fortieth the speed
-       * of the cable the timeouts were tuned for.
+       * There used to be a refusal here, keyed on `t.kind === 'bluetooth'`,
+       * because no radio had received a wireless upload. It went at the
+       * owner's direction once one had. What is unchanged, and is the reason
+       * the block-by-block read-back below matters more over this carrier than
+       * over the cable: the upload rewrites every block, because a partial
+       * write erases the rest of the flash page, so a link that drops halfway
+       * leaves a wiped radio rather than a half-written one. This is the radio
+       * whose write path once erased channels 3-21.
        *
-       * This is the radio whose write path once erased channels 3-21, and its
-       * upload rewrites every block because a partial write erases the rest of
-       * the flash page. A stall halfway is not a failed write, it is a wiped
-       * one. So the refusal lives here rather than in the page that hides the
-       * button, per the rule that the gate explains and the driver enforces.
-       *
-       * The app reaches this. A read disconnects in its `finally` but the
-       * session remembers it was on Bluetooth and reconnects the same way for
-       * the write - so without this guard the upload would have gone out. The
-       * write gate reads `capabilities.writeTransports` and says "Blocked"
-       * before anyone types a token; this is the enforcement behind that.
-       *
-       * Keyed on the carrier deliberately, so a BLE-to-UART dongle inherits
-       * the refusal even though the radio behind one takes the verified 0x40
-       * cable blocks. The hazard argued above is not the block format - it is
-       * a whole-image write over a slow radio link that can drop halfway on a
-       * radio that erases flash as it goes, and a dongle is exactly as slow
-       * and exactly as droppable as the radio's own module. What earns either
-       * path a write is the same evidence: a radio surviving one, with the
-       * byte counts recorded in docs/protocols/uv5rmini.md.
+       * Nothing about the frames changes with the carrier. `uploadBlockSize`
+       * already adapts 0x40 to 0x80 for a GATT link and pads the last block of
+       * each region with 0xFF, both transcribed from CHIRP's `UV5RMini._upload`
+       * and exercised against a fake in test/lib/radios/uv5rmini/ble-write.spec.ts.
        */
-      if (!ctx.dryRun && t.kind === 'bluetooth' && !options.allowBluetoothWrite) {
-        throw new WriteBlockedError(
-          'This radio cannot be written over Bluetooth yet. Reading over Bluetooth is proven; writing ' +
-            'is not, and the UV-5R Mini erases a whole flash page per block, so a link that drops ' +
-            'halfway leaves a wiped radio rather than a half-written one. Use the cable to write.',
-        )
-      }
 
       const timeoutMs = ctx.readTimeoutMs ?? DEFAULT_DRIVER_TIMEOUT_MS
       const opts = { timeoutMs, signal: ctx.signal }
