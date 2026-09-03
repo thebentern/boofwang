@@ -27,6 +27,17 @@ function onCreate(index: number) {
   const created = codeplug.createChannel(index)
   if (created) editing.value = created
 }
+
+/** Matches the 640 the rest of the mobile work uses. */
+const phone = ref(false)
+function measurePhone() {
+  phone.value = window.innerWidth < 640
+}
+onMounted(() => {
+  measurePhone()
+  window.addEventListener('resize', measurePhone)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measurePhone))
 </script>
 
 <template>
@@ -61,9 +72,21 @@ function onCreate(index: number) {
         about a channel - tone, mode, power, the transmit gate - needs the room
         this dialog gives it.
       -->
+      <!--
+        Full height on a phone, centred dialog above it. A channel form is a
+        dozen fields and a phone has no room to float one in the middle of the
+        screen with a scrim either side of it.
+
+        `fullscreen` rather than overriding the content classes. Doing it with
+        `!inset-0` fought the component's own centring transform and produced a
+        sheet anchored off the left edge with half the form cut off - the
+        component positions itself, so it is the one that has to be told.
+      -->
       <UModal
         :open="editing !== null"
-        :title="editing ? `Slot ${editing.index}` : ''"
+        :fullscreen="phone"
+        :title="phone ? undefined : editing ? `Slot ${editing.index}` : ''"
+        :close="!phone"
         :ui="{ content: 'max-w-2xl' }"
         @update:open="(v: boolean) => { if (!v) editing = null }"
       >

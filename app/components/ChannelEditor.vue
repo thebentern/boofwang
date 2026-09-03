@@ -97,6 +97,32 @@ const nameError = computed(() =>
 const canSave = computed(() => rxError.value === null && nameError.value === null && !encryptionBlocked.value)
 
 /**
+ * On a phone this is a full-height sheet, not a centred dialog.
+ *
+ * Two things forced it. The form is `grid-cols-2` and `grid-cols-3`, which puts
+ * a select at about 120px on a 375px screen - narrower than the words inside
+ * it. And Apply sat at the bottom of a scrolling form, so committing an edit
+ * meant scrolling past every field you did not touch to reach it.
+ *
+ * So the columns collapse to one and the two actions pin to a header a thumb
+ * can reach without moving. Delete stays at the foot: it is destructive, and a
+ * destructive action pinned next to Apply is a mis-tap waiting to happen.
+ */
+const phone = ref(false)
+function measure() {
+  phone.value = window.innerWidth < 640
+}
+onMounted(() => {
+  measure()
+  window.addEventListener('resize', measure)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measure))
+
+/** One column on a phone; the desktop keeps its pairs. */
+const pair = computed(() => (phone.value ? '' : 'grid grid-cols-2 gap-3'))
+const triple = computed(() => (phone.value ? '' : 'grid grid-cols-3 gap-3'))
+
+/**
  * Encryption, on radios that have it.
  *
  * Shown per channel because that is where the decision actually lives, and
@@ -197,7 +223,42 @@ function remove() {
 
 <template>
   <div class="space-y-4">
-    <div class="grid grid-cols-2 gap-3">
+    <!--
+      Pinned on a phone so a thumb reaches Apply without scrolling to the end of
+      a form it did not need to read. `-mx-4 -mt-4` pulls it out of the modal's
+      own padding so it spans the sheet, and `sticky` keeps it there while the
+      body scrolls under it.
+    -->
+    <div
+      v-if="phone"
+      class="sticky z-10 -mx-4 -mt-4 mb-4 flex items-center"
+      style="
+        top: 0;
+        height: 52px;
+        padding: env(safe-area-inset-top) 6px 0;
+        box-sizing: content-box;
+        background: var(--pn);
+        border-bottom: 1px solid var(--ln);
+      "
+    >
+      <button
+        type="button"
+        style="height: 44px; padding: 0 12px; font-size: 15px; color: var(--mu)"
+        @click="emit('close')"
+      >Cancel</button>
+      <span class="ms-auto me-auto text-center">
+        <span style="display: block; font-size: 15px; font-weight: 600; color: var(--tx)">Slot {{ channel.index }}</span>
+        <span style="display: block; font-size: 11.5px; color: var(--fn)">{{ name || 'unnamed' }}</span>
+      </span>
+      <button
+        type="button"
+        :disabled="!canSave"
+        style="height: 44px; padding: 0 14px; font-size: 15px; font-weight: 600"
+        :style="{ color: canSave ? 'var(--acTx)' : 'var(--ln2)' }"
+        @click="save"
+      >Apply</button>
+    </div>
+    <div :class="pair" class="space-y-4 sm:space-y-0">
       <UFormField label="Name" :error="nameError ?? undefined">
         <UInput v-model="name" :maxlength="schema.memory.nameLength + 4" class="w-full" />
       </UFormField>
@@ -215,7 +276,7 @@ function remove() {
       </template>
     </UFormField>
 
-    <div v-if="txAllowed" class="grid grid-cols-2 gap-3">
+    <div v-if="txAllowed" :class="pair" class="space-y-4 sm:space-y-0">
       <UFormField label="Shift">
         <USelect
           v-model="duplex"
@@ -232,7 +293,7 @@ function remove() {
       </UFormField>
     </div>
 
-    <div class="grid grid-cols-3 gap-3">
+    <div :class="triple" class="space-y-4 sm:space-y-0">
       <UFormField label="Mode">
         <USelect
           v-model="modulation"
@@ -256,7 +317,7 @@ function remove() {
       </UFormField>
     </div>
 
-    <div class="grid grid-cols-2 gap-3">
+    <div :class="pair" class="space-y-4 sm:space-y-0">
       <UFormField label="Receive tone (opens squelch)">
         <div class="flex gap-2">
           <USelect v-model="rxToneKind" class="w-32" :items="toneKindOptions" />
@@ -349,10 +410,15 @@ function remove() {
     </UFormField>
 
     <div class="flex items-center gap-2 pt-2">
-      <UButton icon="i-lucide-circle-check" label="Apply" :disabled="!canSave" @click="save" />
-      <UButton label="Cancel" color="neutral" variant="ghost" @click="emit('close')" />
+      <!--
+        Apply and Cancel are in the pinned header on a phone. Delete is not:
+        destructive, and sitting it beside Apply under a thumb is a mis-tap
+        that cannot be undone from inside the app.
+      -->
+      <UButton v-if="!phone" icon="i-lucide-circle-check" label="Apply" :disabled="!canSave" @click="save" />
+      <UButton v-if="!phone" label="Cancel" color="neutral" variant="ghost" @click="emit('close')" />
       <UButton
-        class="ms-auto"
+        :class="phone ? 'w-full justify-center' : 'ms-auto'"
         icon="i-lucide-trash-2"
         label="Delete channel"
         color="error"
