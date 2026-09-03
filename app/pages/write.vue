@@ -286,7 +286,39 @@ async function send() {
       Every screen that says the same thing in a different place teaches people
       to skip all of them.
     -->
+    <!--
+      On a phone the long preamble becomes a strip that stays put while the diff
+      scrolls, because the sentence it needs to carry is the one that matters
+      for the next thirty seconds: keep the radio on and boofwang in front. The
+      paragraph about undocumented formats is true and is not what somebody
+      mid-write needs under their thumb - it is on the card above, where they
+      read it before starting.
+
+      The wording is derived rather than written twice. `device.keepLinkUp`
+      knows which carrier is in use and words itself accordingly, which is why
+      this template must never name one itself - a test enforces that, and it
+      caught this comment naming one. The phone-specific half is the clause
+      about staying in front: docs/mobile.md records that both operating
+      systems freeze a WebView seconds after it goes to the background.
+    -->
     <div
+      v-if="narrow"
+      class="flex items-start sticky z-10"
+      style="top: 0; gap: 9px; padding: 9px 14px; margin: 0 -14px 14px; background: var(--cnB); border-bottom: 1px solid var(--cnL)"
+      role="note"
+    >
+      <UIcon
+        name="i-lucide-triangle-alert"
+        class="shrink-0"
+        style="width: 14px; height: 14px; color: var(--cn); margin-top: 1px"
+      />
+      <p style="font-size: 12.5px; line-height: 1.45; color: var(--tx)">
+        {{ device.keepLinkUp }}, and keep boofwang in front.
+      </p>
+    </div>
+
+    <div
+      v-else
       class="flex items-start rounded-[7px]"
       style="gap: 10px; padding: 12px 14px; margin-bottom: 18px; border: 1px solid var(--cnL); background: var(--cnB)"
       role="note"

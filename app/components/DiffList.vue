@@ -14,6 +14,37 @@ import type { ChannelChange, ChannelDiff } from '#core/radio/channel-diff.js'
  */
 const props = defineProps<{ diff: ChannelDiff; blocks?: number; bytes?: number }>()
 
+/**
+ * On a phone, what changes and roughly how long, not blocks and bytes.
+ *
+ * "1 block · 4,096 bytes on the wire" is the honest unit and stays on the
+ * desktop page and in the log, where somebody debugging a write wants it. It
+ * is the wrong thing to put in front of a person on a phone about to commit:
+ * a block is an implementation detail of the radio's memory, and nobody can
+ * consent to a byte count.
+ *
+ * The estimate is deliberately coarse. Timing a write means knowing the
+ * carrier's throughput, the radio's per-block acknowledgement and how many
+ * pages relocate, and a number that pretends to that precision would be wrong
+ * more often than "a few seconds" is.
+ */
+const phone = ref(false)
+function measure() {
+  phone.value = window.innerWidth < 640
+}
+onMounted(() => {
+  measure()
+  window.addEventListener('resize', measure)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measure))
+
+const roughly = computed(() => {
+  const n = props.blocks ?? 0
+  if (n <= 4) return 'a few seconds'
+  if (n <= 60) return 'under a minute'
+  return 'a minute or two'
+})
+
 const KIND = {
   edit: { label: 'edit', icon: 'i-lucide-pencil', tone: 'neutral' },
   add: { label: 'add', icon: 'i-lucide-plus', tone: 'info' },
@@ -109,7 +140,10 @@ const totals = computed(() => {
       style="padding: 7px 14px; background: var(--pn2); font-size: 13px; color: var(--mu)"
     >
       <span>{{ totals }}</span>
-      <span v-if="blocks !== undefined" class="ms-auto font-mono tabular" style="color: var(--fn)">
+      <span v-if="blocks !== undefined && phone" class="ms-auto" style="color: var(--fn)">
+        {{ roughly }}
+      </span>
+      <span v-else-if="blocks !== undefined" class="ms-auto font-mono tabular" style="color: var(--fn)">
         {{ blocks }} block{{ blocks === 1 ? '' : 's' }}<template v-if="bytes !== undefined"> · {{ bytes.toLocaleString() }} bytes on the wire</template>
       </span>
     </div>
