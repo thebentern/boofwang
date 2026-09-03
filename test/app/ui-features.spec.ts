@@ -96,15 +96,32 @@ describe('the connect screen chip', () => {
     'utf8',
   )
 
-  it('says one of three things and never quotes the scope', () => {
-    // It grew to thirteen clauses, pushed the radio's name off the row, and
-    // opened with "Read" on a driver that writes. The scope still exists; the
-    // restore screen and the write gate are where it belongs.
-    const status = LIST.slice(LIST.indexOf('function statusOf'))
-    const labels = [...status.matchAll(/label: '([^']+)'/g)].map((m) => m[1]!)
-    expect(new Set(labels)).toEqual(new Set(['Not supported yet', 'Read and write', 'Read only']))
-    expect(status).not.toContain('writeScope')
-    expect(status).not.toContain('writeExcept')
+  it('states the capability once, above the list, not once per row', () => {
+    /*
+     * This used to pin a per-row chip to one of three labels. The labels were
+     * right and the placement was not: every driver is built with
+     * `enableWrite: true`, so all five chips read "Read and write" and the
+     * column meant to carry a warning became five identical ticks - which is
+     * the failure the file's own header records about the matrix before it.
+     *
+     * So the claim moved above the list, where being true of every row is the
+     * reason to say it rather than the reason it goes unread.
+     */
+    expect(LIST, 'the per-row capability chip is back').not.toContain('function statusOf')
+    expect(LIST).toMatch(/All five can be read and written/)
+  })
+
+  it('still never quotes the write scope on this screen', () => {
+    // The original point, and it outlives the chip: the scope grew to thirteen
+    // clauses and pushed the radio's own name off the row.
+    const ROW = readFileSync(
+      fileURLToPath(new URL('../../app/components/connect/DriverRow.vue', import.meta.url)),
+      'utf8',
+    )
+    for (const [name, src] of [['DriverList', LIST], ['DriverRow', ROW]] as const) {
+      expect(src, `${name} quotes writeScope`).not.toContain('writeScope')
+      expect(src, `${name} quotes writeExcept`).not.toContain('writeExcept')
+    }
   })
 
   it('leaves the precise scope to the screens that ask the question', () => {

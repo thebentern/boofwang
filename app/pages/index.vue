@@ -818,6 +818,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       class="mt-4"
       :active-radio="activeRadio"
       :selected="radioId"
+      :usb-host="usbHost"
       @choose="chosen = $event"
     />
   </div>

@@ -56,7 +56,10 @@ describe('one form-factor rule, in one file', () => {
   it('keys on the shorter edge in a shell, and on width in a browser', () => {
     // The whole point: a phone turned sideways is still a phone, and a narrow
     // desktop window really is asking for the narrow layout.
-    expect(FORM).toMatch(/Math\.min\(window\.innerWidth, window\.innerHeight\)/)
+    expect(FORM).toMatch(/Math\.min\(el\.clientWidth, el\.clientHeight\)/)
+    // innerWidth is not the layout width in this WebView: measured on a Pixel it
+    // said 801 where clientWidth and visualViewport both said 448.
+    expect(FORM, 'measuring innerWidth again').not.toMatch(/window\.innerWidth/)
     expect(FORM).toMatch(/inShell \?/)
     expect(FORM).toMatch(/shellProvidesTransports/)
   })

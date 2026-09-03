@@ -15,6 +15,7 @@ const SCHEMA_ICONS = [
   'lucide:badge-check',
   'lucide:binary',
   'lucide:bluetooth',
+  'lucide:bluetooth-searching',
   'lucide:box',
   'lucide:bug',
   'lucide:cable',

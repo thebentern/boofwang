@@ -43,11 +43,26 @@ export function useFormFactor(): FormFactor {
 
   function measure() {
     /*
-     * `innerHeight` is deliberately part of this only inside a shell. In a
-     * browser a short window is still a desktop, and a phone-shaped layout in
-     * a wide-but-short window would be worse than the table it replaced.
+     * `documentElement.clientWidth`, not the window's own width property.
+     *
+     * They are the same number in a browser and they are not in this WebView:
+     * measured on the Pixel, `clientWidth` said 448 and the window property
+     * said 801 for the same page, with nothing on it wider than the viewport.
+     * `visualViewport.width` agreed with `clientWidth`, so the window one is
+     * the odd out - it reports a value scaled by the WebView rather than the
+     * width the CSS actually laid out against.
+     *
+     * The consequence was a phone rendering the tablet layout: 801 lands in the
+     * middle band, so the connect screen grew a desktop nav and a row of
+     * buttons on a 6-inch screen. `clientWidth` is what every media query in
+     * `main.css` is already resolved against, so this now agrees with them.
+     *
+     * The height half is used only inside a shell. A phone turned sideways is
+     * still a phone and the shorter edge says so, but in a browser a short
+     * window is still a desktop - a wide-but-short window wants the table.
      */
-    const size = inShell ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth
+    const el = document.documentElement
+    const size = inShell ? Math.min(el.clientWidth, el.clientHeight) : el.clientWidth
     phone.value = size < PHONE_BELOW
     medium.value = size >= PHONE_BELOW && size < DESKTOP_FROM
   }
