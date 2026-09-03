@@ -299,7 +299,7 @@ the radio's own protocol note; this table points at it.
 
 | # | Platform | Radio | Carrier | Scope | Result |
 |---|---|---|---|---|---|
-| S1 | Android | none | none | secure context, `sha256Hex`, timer path, cold-load of `/channels`, external links, back button, file open and save, IndexedDB after a force-quit | part, 2026-09-02, Pixel 8 Pro, Android 17, WebView 151.0.7922.199. Secure context, `sha256Hex`, timer path, cold-load and IndexedDB after a force-quit all pass. **The back button does nothing.** External links, file open and save not run. [Below](#s1-on-two-real-devices) |
+| S1 | Android | none | none | secure context, `sha256Hex`, timer path, cold-load of `/channels`, external links, back button, file open and save, IndexedDB after a force-quit | part, 2026-09-02, Pixel 8 Pro, Android 17, WebView 151.0.7922.199. Secure context, `sha256Hex`, timer path, cold-load and IndexedDB after a force-quit all pass. External links, file save and file open now pass too. **The back button does nothing.** Opening a *valid* codeplug file not run. [Below](#s1-android-leftovers) |
 | S1 | iOS | none | none | the same | part, 2026-09-02, iPad Pro 11-inch (M4), iPadOS 26. Secure context, `sha256Hex`, timer path and IndexedDB pass. Cold-load, external links, file open and save, Files app not run. [Below](#s1-on-two-real-devices) |
 | A1 | Android | UV-K5 | USB | read, write, restore | not run |
 | A2 | Android | UV-82 | USB | read, write, restore | not run |
@@ -644,3 +644,68 @@ same directory. On a desktop the browser asks where a download goes; here it
 does not. Nothing is wrong with exporting a full codeplug - it is what the
 format is for - but a phone puts it somewhere more readable than a laptop does,
 and that difference is not stated anywhere in the interface.
+
+## S1 Android leftovers
+
+Three items S1 left as "not run", plus one claim that had never been run on
+hardware. 2 September 2026, Pixel 8 Pro, `b588ca9`, no radio attached for any
+of it.
+
+**External links: pass.** Tapping "Report a bug" launched Chrome as its own
+activity in its own task (t80 against the app's t79) and the WebView stayed on
+`https://localhost/`. The failure this rules out is the ordinary one for a
+WebView - an external link navigating in place, leaving somebody inside an app
+with no address bar, no back affordance and no way to the page they wanted.
+
+**File save: pass.** The `.html` summary export written during A12 landed in
+`/sdcard/Documents/boofwang/` and was readable there with the right size and
+contents. That is `Filesystem.writeFile` with `Directory.Documents`, then the
+share sheet, both working.
+
+**File open: pass, for the half that was reachable.** The button opens
+Android's own DocumentsUI picker, the picker lists files, and a selection comes
+back to the app. The picker is not MIME-filtered, so a file that is not a
+codeplug can be chosen and the app has to say so itself. It does, accurately:
+
+```
+Could not open that file
+This file is 7,988 bytes, which does not match any radio boofwang supports.
+If it is a codeplug, open the .bwp or CHIRP .img instead: a bare .bin cannot
+say which radio it came from.
+```
+
+That names the real byte count rather than a generic "unsupported file", gives
+the remedy, and explains why a bare `.bin` cannot be identified. Opening a
+*valid* codeplug is still not run: the only file to hand would have been a
+`.bwp` of this radio, and exporting one writes 22 AES-256 keys into shared
+storage, which is not a thing to do for a test.
+
+**The back button still does nothing.** Unchanged from S1.
+
+### The native "no adapter" message, finally run
+
+`16bf5b2` swapped the connect page's primary button from `requestPort` to
+`acquirePort` and claimed the native path "throws with its own message when no
+adapter is attached". That had never been exercised on a phone. With the cable
+unplugged it produces:
+
+```
+Could not open a serial port
+No USB serial adapter is attached. Plug the programming cable into the phone
+through an OTG adapter.
+```
+
+Which is the point of that commit: before it, the same tap reached
+`navigator.serial` in a WebView that has none and reported "This browser does
+not support Web Serial" - a true sentence about a program that is not running,
+to somebody holding an app. The card correctly stays on its opening state
+rather than raising a fault, because no adapter attached is not a fault.
+
+### Still blocked
+
+Backgrounding - B1 through B4, and the whole of the Backgrounding section above
+- needs a transfer to interrupt, and the radio was unplugged from the phone
+before it could be tried. Nothing in that section has been run. It is the
+largest untested claim in this file: `markInterrupted`, the keep-awake hold,
+the held back button and the "interrupted rather than cancelled" message are
+all argued from source.
