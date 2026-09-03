@@ -76,6 +76,19 @@ and makes the build that follows ordinary.
 xcodebuild -project App.xcodeproj -scheme App -resolvePackageDependencies
 ```
 
+And if `xcodebuild -exportArchive` says only `error: exportArchive Copy
+failed`, look at your `PATH` before you look at your certificates. Xcode's
+last step shells out to `rsync -E` to build the `.ipa`, Apple's `/usr/bin/rsync`
+accepts that, and Homebrew's does not:
+
+```
+rsync: on remote machine: --extended-attributes: unknown option
+```
+
+That line is in `IDEDistributionPipeline.log` inside the `.xcdistributionlogs`
+bundle the failure names, and nowhere else. Exporting with `PATH=/usr/bin:/bin`
+is enough. CI is unaffected, having no Homebrew rsync ahead of Apple's.
+
 ### What the two projects have compiled as
 
 Both, on a Mac, on 2 September 2026. This is the toolchain check, not a

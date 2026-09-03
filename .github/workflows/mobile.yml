@@ -184,9 +184,17 @@ jobs:
 
           version=$(node -p "require('./package.json').version")
           cd mobile/ios/App
+          # Signed manually, against the profile imported above, because the
+          # project is set to sign automatically and a runner has no Apple ID.
+          # Automatic signing wants an account rather than a certificate, so it
+          # stops at "No Accounts: Add a new account in Accounts settings"
+          # however good the .p12 is - which is what it did on a developer's
+          # Mac with the same empty Xcode.
           xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphoneos \
             -archivePath "${RUNNER_TEMP}/App.xcarchive" \
             MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER=boofwang \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             archive | tail -20
           xcodebuild -exportArchive -archivePath "${RUNNER_TEMP}/App.xcarchive" \
             -exportOptionsPlist ../../ExportOptions.plist -exportPath "${RUNNER_TEMP}/export" | tail -20
