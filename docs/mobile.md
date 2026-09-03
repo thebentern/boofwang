@@ -237,7 +237,43 @@ would land under whichever team the signed-in account offers first.
 
 The device also has to be paired and in Developer Mode - `xcrun devicectl list
 devices` says `available (paired)` when it is, and `unavailable` when the
-cable is out, the phone is locked or Developer Mode is off.
+cable is out, the phone is locked or Developer Mode is off. `xcrun xctrace
+list devices` is not the same question and will call a perfectly reachable
+iPad "Offline"; ask `devicectl`.
+
+Once the profile exists, no account is needed again, and that is worth knowing
+because signing into Xcode is the one step in this file nobody can do on
+somebody else's behalf. A profile already on the machine can be named
+directly, which skips the portal round trip entirely:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+  -project mobile/ios/App/App.xcodeproj -scheme App -configuration Debug \
+  -sdk iphoneos -destination 'generic/platform=iOS' \
+  CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=6YF6QJH524 \
+  PROVISIONING_PROFILE_SPECIFIER="boofwang development" \
+  CODE_SIGN_IDENTITY="Apple Development" build
+```
+
+The profile has to carry the device. `ProvisionedDevices` is the list, and it
+is worth reading before blaming the certificate:
+
+```bash
+security cms -D -i ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/<uuid>.mobileprovision \
+  | plutil -p - | grep -A3 ProvisionedDevices
+```
+
+Then install and launch without opening Xcode at all:
+
+```bash
+xcrun devicectl device install app --device <device-uuid> \
+  <derived-data>/Build/Products/Debug-iphoneos/App.app
+xcrun devicectl device process launch --device <device-uuid> \
+  --terminate-existing ng.boofwa.app
+```
+
+Note that the device UUID `devicectl` wants is its own identifier, not the
+hardware UDID in the profile. Both appear in `devicectl list devices`.
 
 ## The licence question
 
@@ -271,9 +307,9 @@ the radio's own protocol note; this table points at it.
 | A4 | Android | DM-32UV | USB | read, write, restore | not run |
 | A5-A8 | Android | UV-5R Mini | CH340, PL2303, CP210x, FTDI | read | not run |
 | A9 | Android | DM-32UV | USB | close-as-reset and `REOPEN_SETTLE_MS` | not run |
-| A10 | Android | UV-5R Mini | own Bluetooth module | read; write refused at the gate | not run |
+| A10 | Android | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
 | A11 | Android | UV-5R Mini | BT-A1D dongle | read | not run |
-| I1 | iOS | UV-5R Mini | own Bluetooth module | read; write refused at the gate | not run |
+| I1 | iOS | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
 | I2 | iOS | UV-5R Mini | BT-A1D dongle | read | not run |
 | B1 | Android | UV-K5 | USB | backgrounded at about half of a read | not run |
 | B2 | Android | UV-5R Mini | Bluetooth | backgrounded at about half of a read | not run |
