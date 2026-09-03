@@ -312,7 +312,7 @@ the radio's own protocol note; this table points at it.
 | A12 | Android | DM-32UV | USB | key slots: mask, reveal, edit, write, restore | **pass**, 2026-09-02. 22 AES-256 slots. Masked by default, one revealed at a time, editor does not prefill. One slot written: exactly 32 bytes changed, all inside that slot's key field. Restored to sha256 `363eecd6dac6f291`, zero bytes different. [Below](#a12-the-key-slots) |
 | I1 | iOS | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
 | I2 | iOS | UV-5R Mini | BT-A1D dongle | read | not run |
-| B1 | Android | UV-K5 | USB | backgrounded at about half of a read | not run |
+| B1 | Android | DM-32UV | USB | backgrounded at about half of a read | **did not reproduce**, 2026-09-03, Pixel 8 Pro, Android 17. Four reads backgrounded at blocks 3, 4, 29 and 49 of 59, away up to 58 s, one with the screen off and the device dozing. All four completed, all 262,144 bytes at sha `363eecd6dac6f291`. Keep-awake verified held. [Below](#b1-backgrounding-did-not-break-a-usb-read) |
 | B2 | Android | UV-5R Mini | Bluetooth | backgrounded at about half of a read | not run |
 | B3 | iOS | UV-5R Mini | Bluetooth | backgrounded at about half of a read | not run |
 | B4 | either | UV-K5 | USB | backgrounded mid-write, only after B1, with a restorable backup | not run |
@@ -709,3 +709,48 @@ before it could be tried. Nothing in that section has been run. It is the
 largest untested claim in this file: `markInterrupted`, the keep-awake hold,
 the held back button and the "interrupted rather than cancelled" message are
 all argued from source.
+
+## B1: backgrounding did not break a USB read
+
+3 September 2026, Pixel 8 Pro, Android 17, `b588ca9`, DM-32UV on an FTDI
+FT232R. The row is B1's scope run against a DM-32UV rather than the UV-K5 it
+names, because that is the radio that was on the cable.
+
+**Keep-awake works, and this is the first time it has been watched.** While a
+transfer runs the app holds a `SCREEN_BRIGHT_WAKE_LOCK` attributed to
+`ng.boofwa.app` and its window carries `fl=KEEP_SCREEN_ON`; before the read
+there is no boofwang wake lock at all, and within three seconds of
+backgrounding it is released again. That is `bridge.keepAwake` and the
+`transfer.active` watcher doing exactly what they claim.
+
+**The interruption did not happen.** Four reads were backgrounded part way -
+at blocks 3, 4, 29 and 49 of 59 - and left in the background for up to 58
+seconds. The fourth had the screen switched off with the power button, which
+overrides keep-awake, and `mWakefulness` reached `Dozing`. All four finished.
+All four wrote 262,144 bytes at sha256 `363eecd6dac6f291`, the same image the
+foreground reads produce, so they completed correctly rather than merely
+appearing to.
+
+That contradicts the premise this document opens the Backgrounding section
+with: "both operating systems freeze the WebView's JavaScript a few seconds
+after the app leaves the foreground. Timers, streams and the transport freeze
+with it." On this device, on this Android version, over USB, they did not.
+
+What that does and does not license. It does not make the guard wrong: the
+guard costs nothing, `markInterrupted` only changes which sentence a failure
+gets, and one phone is not a platform. It does mean the section's flat claim
+is too strong to leave standing unqualified, and that the more specific
+worries behind it are still open. Nothing here was tested over Bluetooth,
+where a GATT link is far more exposed to radio-level throttling than a USB
+device an app holds open; nothing was tested on iOS, which is stricter about
+background execution than Android and is the platform the section's
+`bluetooth-central` paragraph is about; and nothing was tested under memory
+pressure, which is when Android actually reclaims a backgrounded WebView.
+
+**The interrupted message is therefore still unverified.** No read could be
+made to fail, so `useRadioSession`'s "The read was interrupted" branch and the
+"boofwang went to the background at N%" log line have never been produced by a
+real interruption. They remain argued from source.
+
+B2, B3 and B4 stay "not run": Bluetooth, iOS, and mid-write, none of which
+this session could reach.
