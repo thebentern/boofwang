@@ -95,10 +95,57 @@ const activePath = computed(() => {
   return p
 })
 
-/** The same links, for the small-screen menu. `onSelect` navigates in-app. */
-const smallNav = computed(() =>
-  nav.value.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => navigateTo(item.to) })),
-)
+/**
+ * The phone's four tabs, plus More.
+ *
+ * Connect and Channels are always the first two: one is what a returning user
+ * came to do and the other is where they end up. The next two are the first two
+ * gated destinations the open radio actually has, so a DM-32UV gets Zones and
+ * Backups while a UV-K5 with nothing open gets Presets and Repeaters. That is a
+ * judgement call rather than a rule, and it is one line to change.
+ *
+ * Five columns because four leaves a gap and six makes a 56px target too narrow
+ * to hit; More is always the fifth so its position never moves under a thumb.
+ */
+const TAB_FIRST = ['/', '/channels']
+const tabs = computed(() => {
+  const items = nav.value.filter((n) => n.to !== '/about')
+  const first = TAB_FIRST.map((to) => items.find((n) => n.to === to)).filter((n) => n !== undefined)
+  const rest = items.filter((n) => !TAB_FIRST.includes(n.to)).slice(0, 2)
+  return [...first, ...rest]
+})
+
+/** Everything the tab bar did not take, in the desktop nav's order. */
+const moreItems = computed(() => {
+  const shown = new Set(tabs.value.map((t) => t.to))
+  return nav.value.filter((n) => !shown.has(n.to))
+})
+
+const moreOpen = ref(false)
+
+/*
+ * The sheet closes on navigation. Without this it survives the route change and
+ * sits over the page the user just asked for.
+ */
+watch(() => route.path, () => (moreOpen.value = false))
+
+/** A phone. Matches the tab bar to the same 640 the rest of this work uses. */
+const phone = ref(false)
+function measurePhone() {
+  phone.value = window.innerWidth < 640
+}
+onMounted(() => {
+  measurePhone()
+  window.addEventListener('resize', measurePhone)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measurePhone))
+
+/*
+ * `smallNav` used to be here: the same eleven links as a dropdown behind a
+ * hamburger in the header. It went with the tab bar, which puts the four a
+ * person actually uses under a thumb and the rest one tap away in a sheet. A
+ * dropdown at the top of a phone is the corner a thumb reaches last.
+ */
 const currentLabel = computed(() => nav.value.find((n) => n.to === activePath.value)?.label ?? 'Menu')
 
 const colorMode = useColorMode()
@@ -131,24 +178,12 @@ const { state: updateState } = useAppUpdate()
         </NuxtLink>
 
         <!--
-          Below the sm breakpoint the nav was display:none with nothing in its
-          place, so on a phone - the one place the UV-5R Mini Bluetooth flow is
-          meant to run - Presets, Zones, Keys and Settings had no inbound link
-          anywhere and the user who had just read a radio could not leave the
-          channel table. A menu with the same items, same order.
+          The phone's navigation is the tab bar at the bottom of the screen, not
+          a dropdown up here: a thumb reaches the bottom of a phone and does not
+          reach the top. What stays in the header is the section name, so the
+          page still says where it is.
         -->
-        <UDropdownMenu :items="smallNav" :ui="{ content: 'w-52' }" class="sm:hidden">
-          <button
-            type="button"
-            class="flex items-center gap-1.5 rounded-[5px] px-2"
-            style="height: 28px; font-size: 14px; color: var(--tx); border: 1px solid var(--ln2); background: var(--pn)"
-            aria-label="Open navigation"
-          >
-            <UIcon name="i-lucide-menu" style="width: 15px; height: 15px" />
-            <span style="font-weight: 600">{{ currentLabel }}</span>
-            <UIcon name="i-lucide-chevron-down" style="width: 13px; height: 13px; color: var(--fn)" />
-          </button>
-        </UDropdownMenu>
+        <span class="sm:hidden" style="font-size: 14px; font-weight: 600; color: var(--tx)">{{ currentLabel }}</span>
 
         <nav class="hidden sm:flex items-center gap-0.5">
           <NuxtLink
@@ -206,7 +241,16 @@ const { state: updateState } = useAppUpdate()
     </main>
 
     <!-- Neither the nav above nor the links below can be followed off a sheet of paper. -->
-    <footer class="print-hide" style="border-top: 1px solid var(--ln); padding-bottom: env(safe-area-inset-bottom)">
+    <!--
+      Eight links across the bottom of every page is a lot of chrome to scroll
+      past on a phone, and every one of them is a thing you look for once. The
+      same content lives at the foot of the More sheet below.
+    -->
+    <footer
+      v-if="!phone"
+      class="print-hide"
+      style="border-top: 1px solid var(--ln); padding-bottom: env(safe-area-inset-bottom)"
+    >
       <div
         class="mx-auto max-w-[1400px] px-4 py-5 flex flex-wrap items-center gap-x-4 gap-y-1.5"
         style="font-size: 13px; color: var(--fn)"
@@ -247,5 +291,139 @@ const { state: updateState } = useAppUpdate()
         </a>
       </div>
     </footer>
+
+    <!--
+      The tab bar. At the bottom because that is where a thumb is, and the
+      active indicator is on the TOP edge for the same reason the desktop nav
+      puts it on the bottom: it marks the side the content is on.
+    -->
+    <nav
+      v-if="phone"
+      class="print-hide sticky bottom-0 z-20"
+      style="
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        background: var(--pn);
+        border-top: 1px solid var(--ln);
+        padding-bottom: env(safe-area-inset-bottom);
+      "
+    >
+      <NuxtLink
+        v-for="t in tabs"
+        :key="t.to"
+        :to="t.to"
+        class="flex flex-col items-center justify-center"
+        style="height: 56px; gap: 3px"
+        :style="activePath === t.to
+          ? { color: 'var(--acTx)', background: 'var(--pn3)', boxShadow: 'inset 0 2px 0 var(--ac)' }
+          : { color: 'var(--mu)' }"
+      >
+        <UIcon :name="t.icon" style="width: 19px; height: 19px" />
+        <span :style="{ fontSize: '10.5px', fontWeight: activePath === t.to ? 600 : 400 }">{{ t.label }}</span>
+      </NuxtLink>
+
+      <button
+        type="button"
+        class="flex flex-col items-center justify-center"
+        style="height: 56px; gap: 3px"
+        :style="moreOpen ? { color: 'var(--acTx)', background: 'var(--pn3)' } : { color: 'var(--mu)' }"
+        aria-label="More destinations"
+        @click="moreOpen = !moreOpen"
+      >
+        <UIcon name="i-lucide-menu" style="width: 19px; height: 19px" />
+        <span :style="{ fontSize: '10.5px', fontWeight: moreOpen ? 600 : 400 }">More</span>
+      </button>
+    </nav>
+
+    <!-- The sheet, and the scrim that says the page behind it is not live. -->
+    <div
+      v-if="phone && moreOpen"
+      class="print-hide fixed inset-0 z-30"
+      style="background: rgba(0, 0, 0, 0.5)"
+      @click="moreOpen = false"
+    />
+    <div
+      v-if="phone && moreOpen"
+      class="print-hide fixed inset-x-0 bottom-0 z-40"
+      style="
+        background: var(--pn);
+        border-top: 1px solid var(--ln2);
+        border-radius: 16px 16px 0 0;
+        padding-bottom: env(safe-area-inset-bottom);
+        box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5);
+        max-height: 80vh;
+        overflow-y: auto;
+      "
+    >
+      <div style="padding: 9px 0 3px; display: flex; justify-content: center">
+        <span style="width: 38px; height: 4px; border-radius: 2px; background: var(--ln2)" />
+      </div>
+
+      <!--
+        Which radio decided this list. The set changes per radio - a UV-K5 has
+        four rows here and a DM-32UV six - so it is worth naming the thing that
+        made the difference rather than leaving a shorter list unexplained.
+      -->
+      <div
+        v-if="codeplug.schema"
+        class="flex items-center"
+        style="gap: 7px; padding: 4px 18px 9px"
+      >
+        <UIcon name="i-lucide-radio" style="width: 13px; height: 13px; color: var(--fn)" />
+        <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fn)">
+          {{ codeplug.schema.model }}
+        </span>
+      </div>
+
+      <NuxtLink
+        v-for="item in moreItems"
+        :key="item.to"
+        :to="item.to"
+        class="flex items-center"
+        style="min-height: 52px; padding: 0 18px; gap: 13px; border-top: 1px solid var(--ln)"
+      >
+        <UIcon :name="item.icon" style="width: 18px; height: 18px; color: var(--fn)" />
+        <span style="font-size: 15.5px; font-weight: 500; color: var(--tx)">{{ item.label }}</span>
+        <span v-if="item.to === '/repeaters'" class="ms-auto" style="font-size: 12.5px; color: var(--fn)">
+          needs a network
+        </span>
+        <span
+          v-else-if="item.to === '/keys' && codeplug.schema?.features.encryption"
+          class="ms-auto"
+          style="font-size: 12.5px; color: var(--fn)"
+        >{{ codeplug.schema.features.encryption.slots }} slots</span>
+      </NuxtLink>
+
+      <div class="flex" style="gap: 8px; padding: 12px 18px; border-top: 1px solid var(--ln)">
+        <button
+          type="button"
+          class="flex items-center justify-center"
+          style="flex: 1; height: 44px; gap: 7px; border: 1px solid var(--ln2); border-radius: 7px; font-size: 13.5px; color: var(--mu)"
+          @click="colorMode.preference = isDark ? 'light' : 'dark'"
+        >
+          <UIcon :name="isDark ? 'i-lucide-sun' : 'i-lucide-moon'" style="width: 15px; height: 15px" />
+          {{ isDark ? 'Light' : 'Dark' }}
+        </button>
+        <a
+          href="https://github.com/thebentern/boofwang/issues/new"
+          target="_blank"
+          rel="noopener"
+          class="flex items-center justify-center"
+          style="flex: 1; height: 44px; gap: 7px; border: 1px solid var(--ln2); border-radius: 7px; font-size: 13.5px; color: var(--mu)"
+        >
+          <UIcon name="i-lucide-bug" style="width: 15px; height: 15px" />
+          Report a bug
+        </a>
+      </div>
+
+      <div style="padding: 0 18px 16px">
+        <NuxtLink to="/about" class="font-mono tabular" style="font-size: 12.5px; color: var(--fn)">
+          boofwa.ng {{ formatBuild(build) }}
+        </NuxtLink>
+        <p style="font-size: 12.5px; color: var(--fn); margin-top: 3px">
+          <template v-if="updateState.offlineReady">Offline ready · </template>GNU GPL v3 or later.
+        </p>
+      </div>
+    </div>
   </div>
 </template>
