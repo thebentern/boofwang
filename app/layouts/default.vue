@@ -107,12 +107,20 @@ const activePath = computed(() => {
  * Five columns because four leaves a gap and six makes a 56px target too narrow
  * to hit; More is always the fifth so its position never moves under a thumb.
  */
-const TAB_FIRST = ['/', '/channels']
 const tabs = computed(() => {
-  const items = nav.value.filter((n) => n.to !== '/about')
-  const first = TAB_FIRST.map((to) => items.find((n) => n.to === to)).filter((n) => n !== undefined)
-  const rest = items.filter((n) => !TAB_FIRST.includes(n.to)).slice(0, 2)
-  return [...first, ...rest]
+  const at = new Map(nav.value.map((n) => [n.to, n]))
+  /*
+   * Named rather than "the first four that survive the gate". Nav order put
+   * Presets and Repeaters in the last two slots on every radio, because those
+   * two are never gated - so the lists page, which is the whole point of
+   * opening a DM-32UV, was never a tab on any device.
+   *
+   * Slot three is the lists page where the radio has one and Presets where it
+   * does not; slot four is Backups, which is the way back and belongs under a
+   * thumb on every radio.
+   */
+  const third = at.get('/dmr') ?? at.get('/presets')
+  return [at.get('/'), at.get('/channels'), third, at.get('/backups')].filter((n) => n !== undefined)
 })
 
 /** Everything the tab bar did not take, in the desktop nav's order. */
@@ -204,7 +212,7 @@ const { state: updateState } = useAppUpdate()
             v-for="item in (medium ? tabs : nav)"
             :key="item.to"
             :to="item.to"
-            class="flex items-center gap-1.5 rounded-[5px] px-2.5 transition-colors"
+            class="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] px-2.5 transition-colors"
             style="height: 25px; font-size: 14px"
             :style="activePath === item.to
               ? { background: 'var(--pn3)', color: 'var(--acTx)', fontWeight: 600, boxShadow: 'inset 0 -2px 0 var(--ac)' }
@@ -346,7 +354,10 @@ const { state: updateState } = useAppUpdate()
           : { color: 'var(--mu)' }"
       >
         <UIcon :name="t.icon" style="width: 19px; height: 19px" />
-        <span :style="{ fontSize: '10.5px', fontWeight: activePath === t.to ? 600 : 400 }">{{ t.label }}</span>
+        <span
+          class="whitespace-nowrap"
+          :style="{ fontSize: '10.5px', fontWeight: activePath === t.to ? 600 : 400 }"
+        >{{ t.label }}</span>
       </NuxtLink>
 
       <button
@@ -358,7 +369,7 @@ const { state: updateState } = useAppUpdate()
         @click="moreOpen = !moreOpen"
       >
         <UIcon name="i-lucide-menu" style="width: 19px; height: 19px" />
-        <span :style="{ fontSize: '10.5px', fontWeight: moreOpen ? 600 : 400 }">More</span>
+        <span class="whitespace-nowrap" :style="{ fontSize: '10.5px', fontWeight: moreOpen ? 600 : 400 }">More</span>
       </button>
     </nav>
 
@@ -410,7 +421,9 @@ const { state: updateState } = useAppUpdate()
         style="min-height: 52px; padding: 0 18px; gap: 13px; border-top: 1px solid var(--ln)"
       >
         <UIcon :name="item.icon" style="width: 18px; height: 18px; color: var(--fn)" />
-        <span style="font-size: 15.5px; font-weight: 500; color: var(--tx)">{{ item.label }}</span>
+        <span class="whitespace-nowrap" style="font-size: 15.5px; font-weight: 500; color: var(--tx)">
+          {{ item.label }}
+        </span>
         <span v-if="item.to === '/repeaters'" class="ms-auto" style="font-size: 12.5px; color: var(--fn)">
           needs a network
         </span>
