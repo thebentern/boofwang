@@ -189,12 +189,17 @@ const credits = [
         treated the same way, which also means anyone with access to your browser profile or to an
         exported file can read them.
       </p>
+      <p :style="BODY" style="margin-top: 8px">
+        The long form, including the three repeater directories boofwang can be asked to call and
+        exactly what each one is told, is the
+        <NuxtLink to="/privacy" :style="LINK">privacy policy</NuxtLink>.
+      </p>
     </section>
 
     <section style="margin-bottom: 22px">
       <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 6px">
         <UIcon name="i-lucide-scale" :style="ICON" />
-        Licence
+        License
       </h2>
       <p :style="BODY">
         Free software under the

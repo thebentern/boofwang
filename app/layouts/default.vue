@@ -314,6 +314,7 @@ const { state: updateState } = useAppUpdate()
           style="color: var(--acTx)"
         >Contribute</a>
         <NuxtLink to="/about" style="color: var(--acTx)">Credits &amp; licensing</NuxtLink>
+        <NuxtLink to="/privacy" style="color: var(--acTx)">Privacy</NuxtLink>
         <a
           href="https://buymeacoffee.com/thebentern"
           target="_blank"
@@ -463,6 +464,7 @@ const { state: updateState } = useAppUpdate()
         <p style="font-size: 12.5px; color: var(--fn); margin-top: 3px">
           <template v-if="updateState.offlineReady">Offline ready · </template>GNU GPL v3 or later.
         </p>
+        <NuxtLink to="/privacy" style="font-size: 12.5px; color: var(--acTx)">Privacy</NuxtLink>
       </div>
     </div>
   </div>

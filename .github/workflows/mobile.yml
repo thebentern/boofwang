@@ -120,6 +120,47 @@ jobs:
           fi
           ls -l dist-mobile
 
+      # Whether there is anything to upload, decided in the shell for the
+      # reason the signing step above gives. The action below cannot branch
+      # that way, so this hands it a step output instead: a condition on a
+      # step output is dependable where one on `secrets` is not, and a skipped
+      # step still says out loud why it skipped.
+      - name: Is there a Play key, and a bundle to send
+        id: play
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          bundle=$(find dist-mobile -name '*-android.aab' | head -1)
+          if [ -z "$bundle" ]; then
+            echo "no signed bundle: nothing to upload"
+            echo "go=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "${SERVICE_ACCOUNT:-}" ]; then
+            echo "no PLAY_SERVICE_ACCOUNT_JSON: $bundle stays on this run only"
+            echo "go=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "uploading $bundle"
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
+          echo "go=1" >> "$GITHUB_OUTPUT"
+
+      # Internal track, never further. Promoting a build to open testing or to
+      # production is a decision about who is now trusting it with a radio,
+      # and a decision belongs to a person rather than to a tag. Play also
+      # refuses the API entirely until one build for this package has been
+      # through the Console by hand, which is why docs/play.md puts that first.
+      - name: Send it to the internal track
+        if: steps.play.outputs.go == '1'
+        uses: r0adkll/upload-google-play@v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ng.boofwa.app
+          releaseFiles: ${{ steps.play.outputs.bundle }}
+          track: internal
+          status: completed
+
       - uses: actions/upload-artifact@v4
         with:
           name: mobile-android
