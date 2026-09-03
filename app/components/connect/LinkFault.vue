@@ -120,6 +120,21 @@ const props = defineProps<{
    * Required makes forgetting it a typecheck failure instead.
    */
   usbHost: boolean
+  /**
+   * Whether the shell picked the adapter itself, instead of raising a chooser.
+   *
+   * Only the Android app does, and it changes what two of these cards are
+   * honestly able to say. There is no list there to be unable to see and no
+   * chip name to look for in one: `app/mobile/serial.ts` takes the adapter on
+   * the OTG port and the dialogue that follows is Android's, about that one
+   * device. It is also what the opening card has to name in place of Web
+   * Serial, which does not exist in a WebView. See `IN_APP`.
+   *
+   * Optional where `usbHost` above is required, and the asymmetry is the
+   * point: absent, this one falls back to the browser's wording, which is
+   * merely less specific. Absent, `usbHost` would withdraw a real route.
+   */
+  shellPicksPort?: boolean
   /** What the middle hop is for this session, unless the state overrides it. */
   via?: HopVia
   /** The transport's own record of this failure. Never invented here. */
@@ -390,7 +405,87 @@ function fill(text: string): string {
     .replaceAll('{bleName}', props.bleName ?? (via.value === 'dongle' ? 'the dongle' : 'the radio'))
 }
 
-const copy = computed(() => STATES[props.state])
+/**
+ * `picking` inside the Android app, where nothing is being picked from.
+ *
+ * Not a separate `FaultState`, because it is the same moment in the same flow
+ * with the same trail and the same lack of anything to offer: what differs is
+ * only which dialogue is up. Splitting it would have put the distinction in
+ * `link`, `IN_PROGRESS` and every list of states, to say one thing.
+ *
+ * The browser copy's two claims are both false here. There is a list, and it is
+ * ours - so we can say what is on it - and the chip names underneath are
+ * guidance for finding your cable in a chooser nobody is looking at.
+ */
+const PICKING_IN_APP: FaultCopy = {
+  tone: 'in',
+  adapter: 'in',
+  radio: 'neutral',
+  links: ['work', 'none'],
+  title: 'boofwang is asking Android for the cable',
+  body:
+    'There is no list to choose from. boofwang takes the adapter on the OTG port itself, so what Android ' +
+    'shows is a permission prompt for that one device. With more than one adapter attached it refuses to ' +
+    'guess and says so instead.',
+}
+
+/**
+ * `first` inside the Android app, which names an API that is not running.
+ *
+ * Three of the browser card's claims are false here. Something was installed -
+ * the app itself. The program is not a browser. And Web Serial is the wrong
+ * reason for the button: `app/mobile/serial.ts` can list the adapters on the
+ * OTG port whenever it likes, with no gesture and nobody's permission, so
+ * nothing is withholding the search. What is withheld is the open, and Android
+ * is what withholds it, per device, through a prompt only the person holding
+ * the phone can answer.
+ *
+ * So the closing promise survives - the first step is still theirs - and the
+ * reason underneath it had to be replaced rather than softened.
+ *
+ * Reachable twice on a phone: before any adapter has been granted, and again
+ * after a declined permission prompt, which `pickPort` deliberately leaves
+ * without a fault of its own.
+ */
+const FIRST_IN_APP: FaultCopy = {
+  tone: 'in',
+  adapter: 'neutral',
+  radio: 'neutral',
+  links: ['none', 'none'],
+  title: 'Program your radio from the app',
+  body:
+    'No account, no server. Your codeplug never leaves this device. boofwang can look for an adapter on the ' +
+    'OTG port without asking anyone, but Android will not let it open one until you allow that, so the ' +
+    'first step is always yours.',
+  actions: [{ key: 'pick', label: 'Connect a radio', icon: 'i-lucide-usb' }],
+}
+
+/**
+ * The cards the Android app replaces outright, rather than editing in place.
+ *
+ * Whole cards, not holes in the browser copy. Both of these differ in the title
+ * and in most of the body, so a `{model}`-style substitution would have left a
+ * sentence assembled from fragments - which is exactly what `fill` exists not
+ * to do, because an editor or a translator has to read the string a user reads.
+ *
+ * A table rather than a second condition on `copy`, which is where this
+ * started: one card became two as soon as the app's opening screen was read,
+ * and the states it overrides are a table already.
+ *
+ * Not extra `FaultState`s, for the reason `PICKING_IN_APP` gives - same moment,
+ * same flow, same trail. Keyed on the capability and not on the shell: an
+ * iPhone is in a shell too and takes neither entry, because it has no USB host
+ * and settles on `no-cable` instead.
+ */
+const IN_APP: Partial<Record<FaultState, FaultCopy>> = {
+  first: FIRST_IN_APP,
+  picking: PICKING_IN_APP,
+}
+
+const copy = computed(() => {
+  const inApp = props.shellPicksPort ? IN_APP[props.state] : undefined
+  return inApp ?? STATES[props.state]
+})
 
 /**
  * A state that is only ever about one carrier says so; otherwise the page

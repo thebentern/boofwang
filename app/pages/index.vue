@@ -48,6 +48,18 @@ const bleHave = inShell ? 'This device has Bluetooth' : 'This browser does have 
  * instead" is an offer or a dead end.
  */
 const usbHost = hostSupports(useShell().host, ['usbHost'])
+/*
+ * Whether the shell picks the adapter itself rather than raising a chooser.
+ *
+ * The neighbouring capability, and deliberately not the same question. This one
+ * is about the dialogue, `usbHost` about the hardware, and Android answers yes
+ * to both while an iPhone answers no to both - which is what makes it tempting
+ * to collapse them and wrong to: a plain desktop browser has no native serial
+ * and does want the cable offered. Three things turn on this one - what the
+ * picking card says is happening, what a null from `acquirePort` means, and
+ * what to call the failure when it throws.
+ */
+const shellPicksPort = hostSupports(useShell().host, ['nativeSerial'])
 const device = useDeviceStore()
 const codeplug = useCodeplugStore()
 const transfer = useTransferStore()
@@ -359,14 +371,6 @@ const traceAvailable = computed(() => device.traceJson() !== null)
 // ---------------------------------------------------------------- actions --
 
 /**
- * Ask for a port.
- *
- * `requestPort` needs transient activation, so it is the first thing this does
- * and nothing is awaited before it. The chooser it opens belongs to the browser
- * - we cannot style it, read it, or tell whether it had anything in it, which
- * is why `picking` says so instead of pretending to drive it.
- */
-/**
  * Refuse to open a port until a radio has been named.
  *
  * The guard is here rather than in `connectAndRead`, which takes a `RadioId`
@@ -385,21 +389,53 @@ function withoutARadio(): boolean {
   return true
 }
 
+/**
+ * Ask for a port.
+ *
+ * `requestPort` needs transient activation, so this is the first thing the
+ * click handler does and nothing is awaited before it.
+ *
+ * What that raises depends on the host, and the two dialogues are not the same
+ * shape. In a browser it is `navigator.serial`'s own chooser, which belongs to
+ * the browser - we cannot style it, read it, or tell whether it had anything in
+ * it, which is why `picking` says so instead of pretending to drive it. Inside
+ * the Android app there is no chooser: `app/mobile/serial.ts` takes the adapter
+ * on the OTG port itself and what appears is Android asking about that one
+ * device. `shellPicksPort` is what keeps this function from describing one as
+ * the other.
+ *
+ * This called `requestPort` directly until it was noticed that a WebView has no
+ * `navigator.serial` for it to reach, so the primary button on this page threw
+ * a TypeError that the catch below dressed up as a chooser that would not open.
+ * Every other caller already went through `acquirePort` - `useRadioSession` and
+ * `useBootImage` - and `grantedPorts` already routed natively, so reading a
+ * radio the app had already been granted worked and the explicit pick did not.
+ */
 async function pickPort() {
   if (withoutARadio()) return
   fault.value = null
   via.value = 'adapter'
   picking.value = true
   try {
-    const choice = await requestPort()
+    const choice = await acquirePort()
     await refreshAdapters()
     // A dismissed chooser and an empty one both resolve to null and the browser
     // will not say which. With still nothing granted, the empty list is the case
     // worth explaining - its remedies are physical and they are the same either way.
-    if (!choice && !hasPort.value) fault.value = 'empty'
+    //
+    // The shell has no such ambiguity and must not borrow that card. It lists
+    // the adapters itself and throws when there are none, so a null there means
+    // one thing only: the permission prompt was declined for a cable the app
+    // can plainly see. Telling that person to unplug and replug would be advice
+    // about a fault they do not have.
+    if (!choice && !hasPort.value && !shellPicksPort) fault.value = 'empty'
   } catch (e) {
     toast.add({
-      title: 'Could not open the port chooser',
+      // Nothing opened a chooser on the native path, so the title does not say
+      // one did. `requestNativePort` raises the two cases the browser folds
+      // into a silent null - no adapter attached, and several with no way to
+      // choose - and both messages are already about the cable.
+      title: shellPicksPort ? 'Could not open a serial port' : 'Could not open the port chooser',
       description: e instanceof Error ? e.message : String(e),
       icon: 'i-lucide-cable',
       color: 'error',
@@ -728,6 +764,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       :model="radioName"
       :browser-name="inShell ? 'boofwang' : support.browser"
       :first-hop="firstHop"
+      :shell-picks-port="shellPicksPort"
       :advice="support.advice"
       :ble-note="bleNote"
       :ble-name="bleName"
