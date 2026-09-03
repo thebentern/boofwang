@@ -187,19 +187,34 @@ const hasPort = computed(() => adapters.value.length > 0 || bridged.value)
 /**
  * Which of the ten cards to draw.
  *
- * Ordered by precedence rather than by likelihood: a browser that cannot open a
- * port at all outranks anything about cables, and a transfer in flight outranks
- * a fault left over from the attempt before it.
+ * Ordered by precedence rather than by likelihood: a transfer in flight
+ * outranks everything, then a browser that cannot open a port at all outranks
+ * anything about cables, and both outrank a fault left over from the attempt
+ * before it.
+ *
+ * The live Bluetooth states come first because `support` describes the cable
+ * and only the cable. On an iPad a whole codeplug came down over Bluetooth
+ * behind a card that said "Bluetooth is the way in on this device" for the
+ * entire read: `no-usb-host` was still true, so it won, and the one screen
+ * that draws the progress bar never got to say a single byte had moved. The
+ * carrier that cannot work here must not outrank the carrier that is working.
  */
 const link = computed<FaultState | 'ready'>(() => {
   if (!mounted.value) return 'first'
+  if (transfer.active) return 'reading'
+  if (blePicking.value) return 'ble-picking'
+  /*
+   * And a Bluetooth attempt that just broke, for the same reason. The device
+   * with no USB host is exactly the device that can only fail this way, so
+   * leaving the cable's card in front of it meant a failed wireless read
+   * showed nothing at all - no message, no retry, no protocol log.
+   */
+  if (fault.value && via.value !== 'adapter') return fault.value
   if (support.value.blocker === 'insecure-context') return 'insecure'
   if (support.value.blocker === 'unsupported-browser') return 'unsupported'
   // An iPhone or iPad: no cable will ever work here, and the card says so
   // once, with the wireless route beside it.
   if (support.value.blocker === 'no-usb-host') return 'no-cable'
-  if (transfer.active) return 'reading'
-  if (blePicking.value) return 'ble-picking'
   if (picking.value) return 'picking'
   if (fault.value) return fault.value
   return hasPort.value ? 'ready' : 'first'
