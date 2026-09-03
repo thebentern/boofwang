@@ -52,53 +52,29 @@ function macVariant() {
 </svg>`
 }
 
-/**
- * Substitute exactly once, or say what changed.
- *
- * The maskable variant below is made by editing three specific strings out of
- * the drawing, and `String.replace` on a pattern that no longer matches does
- * nothing at all and reports nothing at all. That failure would ship as a home
- * screen icon with a rounded corner cut out of a rounded corner, which nobody
- * would notice until somebody installed it on a phone.
+/*
+ * `swap` used to be here: a substitute-or-throw, because `String.replace` on a
+ * pattern that no longer matches does nothing and reports nothing, and the
+ * maskable variant was built by editing three exact strings out of the drawing.
+ * Its last caller went with `maskableVariant`. The hazard it guarded went too:
+ * the home-screen drawings are written out in full rather than derived by
+ * editing `build/icon.svg`, so there is no pattern left to silently stop
+ * matching. `icons:check` is what catches drift now, and it covers one more
+ * file than it used to.
  */
-function swap(svg, find, replace) {
-  if (!svg.includes(find)) throw new Error(`build/icon.svg no longer contains:\n  ${find}`)
-  return svg.split(find).join(replace)
-}
 
-/**
- * The maskable silhouette: full-bleed ground, drawing inset into the safe zone.
+/*
+ * `maskableVariant` used to live here: the maskable silhouette derived from
+ * `build/icon.svg` by squaring the tile, dropping the rim and scaling the mark
+ * to the 80% safe circle Android guarantees.
  *
- * Android crops a maskable icon to whatever shape the launcher wants, and
- * guarantees only the centre circle of 80% diameter. Two consequences, and this
- * variant exists because the committed drawing satisfies neither: its squircle
- * corners would be cropped by a *second* rounded corner and read as a notch,
- * and its mark reaches about 452 units from centre where the safe circle stops
- * at 410.
- *
- * So the tile is squared and the drawing is scaled to 80% about the canvas
- * centre - the same factor the macOS variant uses, which takes the mark to 364
- * and leaves it comfortably inside. Scaling about the centre rather than
- * re-centring keeps the mark sitting very slightly high, which is the one thing
- * the drawing's own comment asks for.
+ * Its geometry was right and none of that reasoning changed - `homeMaskable`
+ * above does the same three things. What changed is which drawing it does them
+ * to: a maskable icon is a launcher icon, so it lands at launcher sizes, and
+ * that is exactly the range the four-arc drawing turns to mush in. Deriving it
+ * from the 1024 source was spending the safe zone on detail nobody sees.
  */
-function maskableVariant() {
-  let out = source.replace(/^<\?xml[^>]*\?>\s*/, '')
-  out = swap(
-    out,
-    '<rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#ground)"/>',
-    '<rect x="0" y="0" width="1024" height="1024" fill="url(#ground)"/>',
-  )
-  // The rim hairline traces a squircle that is no longer there.
-  out = swap(
-    out,
-    '<rect x="4" y="4" width="1016" height="1016" rx="226" fill="none" stroke="url(#rim)" stroke-width="8"/>',
-    '',
-  )
-  const scale = 824 / 1024
-  out = swap(out, 'transform="translate(512 496)"', `transform="translate(512 ${512 + (496 - 512) * scale}) scale(${scale})"`)
-  return out
-}
+
 
 /**
  * The drawing again, for sizes where the full one turns to mush.
@@ -128,6 +104,58 @@ function smallVariant(tileRadius) {
       <path d="M-118 346h236"/>
     </g>
     <circle cx="0" cy="-16" r="96" fill="#F29559"/>
+  </g>
+</svg>`
+}
+
+/**
+ * A third drawing, for the sizes a launcher actually renders.
+ *
+ * The repo had two drawings and they are drawn for 32px and 1024px. A home
+ * screen sits between them: a launcher grid renders at roughly 48-60px, and
+ * `icon-192.png` was the 1024 drawing rastered down, so a phone got the
+ * four-arc version at a size much nearer the favicon end. The vertical gradient
+ * and the 8px rim are both gone below about 96px, so those pixels were spent on
+ * nothing while the arcs crowded each other.
+ *
+ * Same rule the repo already applies between 32 and 1024: redraw, do not scale.
+ * One arc pair rather than two, and the OUTER one - a wide arc survives a small
+ * render where a narrow one closes onto its neighbour. Stroke 34 to 64, dot r74
+ * to r104, and a flat ground because a gradient across 48px is a flat colour
+ * with extra file size.
+ */
+function homeMark() {
+  return `  <g transform="translate(512 500)">
+    <g fill="none" stroke="#F29559" stroke-width="64" stroke-linecap="round">
+      <path d="M-286 236a330 330 0 0 1 0-472"/>
+      <path d="M286 -236a330 330 0 0 1 0 472"/>
+      <path d="M0 96v250"/>
+      <path d="M-116 346h232"/>
+    </g>
+    <circle cx="0" cy="-24" r="104" fill="#F29559"/>
+  </g>`
+}
+
+function homeVariant() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="#202C39"/>
+${homeMark()}
+</svg>`
+}
+
+/**
+ * The maskable form of the same drawing.
+ *
+ * The committed maskable geometry was already right - full bleed, no corner
+ * radius, mark inset into the safe zone - because Android crops it to whatever
+ * shape the launcher wants. Only the arc count changes, for the reason above:
+ * a maskable icon is a launcher icon and lands at launcher sizes.
+ */
+function homeMaskable() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect x="0" y="0" width="1024" height="1024" fill="#202C39"/>
+  <g transform="translate(512 512) scale(0.72) translate(-512 -512)">
+${homeMark()}
   </g>
 </svg>`
 }
@@ -216,9 +244,20 @@ outputs.push([
  * placed as it is drawn; the maskable one is a separate silhouette because it
  * is not.
  */
-outputs.push([PUBLIC, 'icon-192.png', await png(bleed, 192)])
+/*
+ * 192 and the maskable take the home-screen drawing; 512 keeps the full one,
+ * because it is the size an install prompt and a splash screen show at, where
+ * the detail is legible and worth having.
+ *
+ * apple-touch-icon is generated here rather than committed by hand. It was the
+ * one icon in the repo that `pnpm icons:check` did not cover, so it could drift
+ * from every other one and nothing would say so. iOS renders it at 60-76pt,
+ * which is the same range as the launcher grid.
+ */
+outputs.push([PUBLIC, 'icon-192.png', await png(homeVariant(), 192)])
 outputs.push([PUBLIC, 'icon-512.png', await png(bleed, 512)])
-outputs.push([PUBLIC, 'icon-maskable-512.png', await png(maskableVariant(), 512)])
+outputs.push([PUBLIC, 'icon-maskable-512.png', await png(homeMaskable(), 512)])
+outputs.push([PUBLIC, 'apple-touch-icon.png', await png(homeVariant(), 180)])
 
 // `iconutil` is macOS only. Elsewhere the committed `.icns` is left as it is,
 // and `--check` says so rather than reporting it stale on a Linux runner.

@@ -109,7 +109,7 @@ const skipOptions = [
 ]
 const transmitOptions = [
   KEEP_OPTION,
-  { value: 'rx-only', label: 'Receive-only' },
+  { value: 'rx-only', label: 'RX-Only' },
   { value: 'allow', label: 'Allow transmit' },
 ]
 
@@ -138,7 +138,7 @@ const changes = computed<string[]>(() => {
   if (modulation.value !== KEEP) out.push(`Mode · ${modulation.value}`)
   if (step.value !== KEEP) out.push(`Step · ${(step.value / 1000).toFixed(2)} kHz`)
   if (skip.value !== KEEP) out.push(`Scan · ${skip.value === 'none' ? 'scan it' : 'skip it'}`)
-  if (transmit.value === 'rx-only') out.push('Transmit · receive-only')
+  if (transmit.value === 'rx-only') out.push('Transmit · RX-Only')
   if (transmit.value === 'allow') out.push('Transmit · allowed')
   if (rxTone.value !== KEEP) {
     out.push(`Receive tone · ${rxTone.value === 'none' ? 'none' : `${formatCtcss(rxTone.value)} Hz`}`)

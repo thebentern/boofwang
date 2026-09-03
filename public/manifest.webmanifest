@@ -2,7 +2,7 @@
   "id": "/",
   "name": "boofwang",
   "short_name": "boofwang",
-  "description": "Codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-82, Baofeng UV-5R Mini and Baofeng DM-32UV. Runs entirely on your device.",
+  "description": "Codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-82, Radioddity UV-5G, Baofeng UV-5R Mini and Baofeng DM-32UV. Runs entirely on your device. Independent project, not affiliated with or endorsed by Baofeng, Quansheng, Radioddity, or the CHIRP project.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

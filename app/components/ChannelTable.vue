@@ -219,7 +219,7 @@ const rows = computed<SlotRow[]>(() => {
 
 const facets = computed(() => [
   { key: 'all' as const, label: 'All', icon: 'i-lucide-list', tone: 'var(--tx)', count: slots.value.length },
-  { key: 'rx' as const, label: 'Receive-only', icon: 'i-lucide-lock', tone: 'var(--cn)', count: codeplug.rxOnlyCount },
+  { key: 'rx' as const, label: 'RX-Only', icon: 'i-lucide-lock', tone: 'var(--cn)', count: codeplug.rxOnlyCount },
   { key: 'err' as const, label: 'Errors', icon: 'i-lucide-circle-alert', tone: 'var(--dg)', count: errorSlots.value.size },
   { key: 'edit' as const, label: 'Edited', icon: 'i-lucide-pencil', tone: 'var(--in)', count: editedSlots.value.size },
   { key: 'empty' as const, label: 'Empty', icon: 'i-lucide-circle-minus', tone: 'var(--tx)', count: emptyCount.value },
@@ -467,7 +467,7 @@ function view(r: SlotRow): RowView {
       : state === 'edited'
         ? 'Edited'
         : state === 'receive-only'
-          ? 'Receive-only'
+          ? 'RX-Only'
           : ''
 
   return {

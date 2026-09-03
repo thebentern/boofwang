@@ -60,7 +60,7 @@ const totals = computed(() => {
   const parts = [`${d.changed} channel${d.changed === 1 ? '' : 's'} change`]
   parts.push(`${d.gainsTransmit} gains transmit`)
   parts.push(`${d.erased} slot${d.erased === 1 ? '' : 's'} erased`)
-  parts.push(`${d.receiveOnlyLost} receive-only lost`)
+  parts.push(`${d.receiveOnlyLost} RX-Only lost`)
   return parts.join(' · ')
 })
 </script>

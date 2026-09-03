@@ -70,3 +70,27 @@ UV-5R-family fixtures, and
 `test/fixtures/images/uvk5-egzumer-synthetic.bin` and the JSON of what CHIRP
 reads back out of it. **That fixture is synthetic, not a hardware capture** —
 see [protocols/uvk5.md](protocols/uvk5.md).
+
+## Assets, and the licences that travel with them
+
+Code provenance is above. These are the non-code things the build ships, which
+had no entry here at all.
+
+| Asset | Licence | What it asks |
+|---|---|---|
+| lucide icons | ISC | Retain the copyright notice. Bundled into the client for the names in `SCHEMA_ICONS`. |
+| IBM Plex Sans, IBM Plex Mono | SIL Open Font License 1.1 | Self-hosted via `@fontsource`, shipped unmodified, name unchanged. |
+| The boofwang icon | GPL-3.0-or-later, with the rest of this repository | Nothing. It is original work in the app's own palette, from no icon set and no vendor mark. |
+
+The icon is worth stating plainly because it is the one asset somebody might
+assume was borrowed. It was not, so no fair-use question arises - that doctrine
+is for using someone else's work, and there is none here.
+
+### Trademarks in the install prompt
+
+`public/manifest.webmanifest` names five radio manufacturers in the description
+a phone shows at install. Naming a radio to say what the software programs is
+nominative use and is the defensible use, but the README's disclaimer was not
+travelling with it: the manifest is often the only text a person reads before
+installing. It now carries the same sentence, and the radio list matches the
+drivers that ship, which it did not - the Radioddity UV-5G was missing.

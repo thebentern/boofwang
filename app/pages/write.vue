@@ -418,7 +418,7 @@ async function send() {
                 style="background: var(--dgB); color: var(--dg)"
               >
                 <UIcon name="i-lucide-lock" class="size-3" />
-                {{ diff.receiveOnlyLost }} receive-only lost
+                {{ diff.receiveOnlyLost }} RX-Only lost
               </span>
             </div>
 
