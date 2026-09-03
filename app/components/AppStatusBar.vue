@@ -84,18 +84,17 @@ const hint = computed(() => {
  * bar is one 48px line that opens, between 640 and 1024 it is one 40px row of
  * chips with no uppercase labels, and above 1024 it is exactly what it was.
  */
-const width = ref(1400)
+const phone = ref(false)
+const medium = ref(false)
 function measure() {
-  width.value = window.innerWidth
+  phone.value = window.innerWidth < 640
+  medium.value = window.innerWidth >= 640 && window.innerWidth < 1024
 }
 onMounted(() => {
   measure()
   window.addEventListener('resize', measure)
 })
 onBeforeUnmount(() => window.removeEventListener('resize', measure))
-
-const phone = computed(() => width.value < 640)
-const medium = computed(() => width.value >= 640 && width.value < 1024)
 
 /** Collapsed by default: the bar is a status line, not a panel. */
 const open = ref(false)

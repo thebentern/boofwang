@@ -57,9 +57,21 @@ const ROW_HEIGHT = 30
  * cannot disagree about what a channel says.
  */
 const PHONE_ROW_HEIGHT = 78
+/**
+ * The middle band, 640 to 1023: the same row, given back what fits.
+ *
+ * A tablet has room for the checkbox and the slot number the card had to drop,
+ * and for the tone on the frequency line, but not for twelve columns - that
+ * still asks for 754px. So it is the card arrangement widened rather than the
+ * table narrowed, and 52px rather than 78 because the three stacked lines
+ * become two.
+ */
+const MEDIUM_ROW_HEIGHT = 52
 const narrow = ref(false)
+const medium = ref(false)
 function measureWidth() {
   narrow.value = window.innerWidth < 640
+  medium.value = window.innerWidth >= 640 && window.innerWidth < 1024
 }
 onMounted(() => {
   measureWidth()
@@ -68,7 +80,12 @@ onMounted(() => {
 onBeforeUnmount(() => window.removeEventListener('resize', measureWidth))
 
 /** What the virtualiser is told a row costs. Printing is always the table. */
-const rowHeight = computed(() => (narrow.value && !printing.value ? PHONE_ROW_HEIGHT : ROW_HEIGHT))
+const rowHeight = computed(() => {
+  if (printing.value) return ROW_HEIGHT
+  if (narrow.value) return PHONE_ROW_HEIGHT
+  if (medium.value) return MEDIUM_ROW_HEIGHT
+  return ROW_HEIGHT
+})
 
 /*
  * The columns that can be put away.
@@ -136,7 +153,7 @@ const minWidth = computed(() => {
    * number and the chevron sat off the right edge - present in the DOM, three
    * quarters of the way through a horizontal scroll nobody would think to make.
    */
-  if (narrow.value) return 0
+  if (narrow.value || medium.value) return 0
   const shown = OPTIONAL_COLUMNS.filter((c) => optional[c.key])
   const px = FIXED_WIDTH + shown.reduce((n, c) => n + c.width, 0)
   return px + 8 * (6 + shown.length) + 20
@@ -669,10 +686,10 @@ const PHONE_CHIP = {
 function phoneRowStyle(r: { start: number; size: number; row: SlotRow; view: RowView }) {
   return {
     display: 'grid',
-    gridTemplateColumns: '3px 18px 1fr auto',
-    columnGap: '10px',
-    alignItems: 'start',
-    padding: '11px 13px 11px 0',
+    gridTemplateColumns: medium.value ? '3px 26px 20px 44px minmax(120px,1fr) auto' : '3px 18px 1fr auto',
+    columnGap: medium.value ? '12px' : '10px',
+    alignItems: medium.value ? 'center' : 'start',
+    padding: medium.value ? '8px 12px 8px 0' : '11px 13px 11px 0',
     height: `${r.size}px`,
     cursor: r.row.channel ? 'pointer' : 'default',
     borderBottom: '1px solid var(--ln)',
@@ -2068,7 +2085,7 @@ const printedFacts = computed(() => {
           hairline inside one bordered container, because four thousand cards
           with gaps between them is four thousand shadows to scroll past.
         -->
-        <div v-if="narrow && !printing" :style="bodyStyle">
+        <div v-if="(narrow || medium) && !printing" :style="bodyStyle">
           <div
             v-for="r in renderedRows"
             :key="r.key"
@@ -2089,6 +2106,40 @@ const printedFacts = computed(() => {
               }"
             />
 
+            <!--
+              The checkbox and the slot number come back in the middle band.
+              The card dropped them for room, not because a tablet does not
+              want them: selecting a run is the whole reason the checkbox
+              exists, and it has nowhere else to live.
+            -->
+            <span v-if="medium" class="flex items-center justify-center" @click.stop>
+              <button
+                v-if="r.row.channel"
+                type="button"
+                :aria-label="`Select slot ${r.row.index}`"
+                :aria-pressed="selected.has(r.row.index)"
+                class="flex items-center justify-center"
+                style="width: 26px; height: 26px"
+                @click="toggleSelected(r.row.index, $event)"
+              >
+                <span
+                  class="flex items-center justify-center rounded-[3px]"
+                  :style="{
+                    width: '13px',
+                    height: '13px',
+                    border: `1px solid var(${selected.has(r.row.index) ? '--ac' : '--ln2'})`,
+                    background: selected.has(r.row.index) ? 'var(--ac)' : 'transparent',
+                  }"
+                >
+                  <UIcon
+                    v-if="selected.has(r.row.index)"
+                    name="i-lucide-check"
+                    style="width: 10px; height: 10px; color: var(--okT)"
+                  />
+                </span>
+              </button>
+            </span>
+
             <!-- Status gutter. Nothing at all for a healthy row, which is what
                  makes the ones that do carry a mark findable. -->
             <span class="flex items-center justify-center" style="height: 20px">
@@ -2099,6 +2150,12 @@ const printedFacts = computed(() => {
                 :style="{ width: '13px', height: '13px', color: r.view.gutter.color }"
               />
             </span>
+
+            <span
+              v-if="medium"
+              class="font-mono tabular"
+              style="font-size: 12px; color: var(--fn); text-align: right"
+            >{{ r.row.index }}</span>
 
             <span style="min-width: 0">
               <span
@@ -2113,6 +2170,7 @@ const printedFacts = computed(() => {
                 <span style="color: var(--mu)">{{ r.view.rx }}</span>
                 <span style="color: var(--fn)">{{ r.view.shift }}</span>
                 <span :style="{ color: r.view.txColor, fontWeight: r.view.txWeight }">{{ r.view.tx }}</span>
+                <span v-if="medium && r.row.channel" style="color: var(--fn)">{{ r.view.tone }}</span>
               </span>
 
               <span v-if="r.row.channel" class="flex flex-wrap" style="margin-top: 6px; gap: 6px">
@@ -2138,6 +2196,7 @@ const printedFacts = computed(() => {
 
             <span class="flex flex-col items-end" style="gap: 6px">
               <span
+                v-if="!medium"
                 class="font-mono tabular"
                 style="font-size: 12px; line-height: 20px; color: var(--fn)"
               >{{ r.row.index }}</span>
