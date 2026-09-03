@@ -304,9 +304,9 @@ the radio's own protocol note; this table points at it.
 | A1 | Android | UV-K5 | USB | read, write, restore | not run |
 | A2 | Android | UV-82 | USB | read, write, restore | not run |
 | A3 | Android | UV-5R Mini | USB | read, write, restore | not run |
-| A4 | Android | DM-32UV | USB | read, write, restore | not run |
+| A4 | Android | DM-32UV | USB | read, write, restore | **read: pass**, 2026-09-02, Pixel 8 Pro, Android 17, FTDI FT232R `0403:6001`, firmware `DM32.01.01.040`. 200-entry block scan, 59 blocks, 262,144 bytes, about 35 s. Two consecutive reads byte-identical, sha256 `363eecd6dac6f291`, `unitHash` `10ff7f1e1ec5`. Write and restore not run. [Below](#a4-the-dm-32uv-on-a-pixel) |
 | A5-A8 | Android | UV-5R Mini | CH340, PL2303, CP210x, FTDI | read | not run |
-| A9 | Android | DM-32UV | USB | close-as-reset and `REOPEN_SETTLE_MS` | not run |
+| A9 | Android | DM-32UV | USB | close-as-reset and `REOPEN_SETTLE_MS` | **pass**, 2026-09-02, same session as A4. A second read through the plugin's close and reopen returned the same 262,144 bytes. [Below](#a4-the-dm-32uv-on-a-pixel) |
 | A10 | Android | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
 | A11 | Android | UV-5R Mini | BT-A1D dongle | read | not run |
 | I1 | iOS | UV-5R Mini | own Bluetooth module | read, write, restore | not run |
@@ -327,12 +327,11 @@ tell:
   library version. The plugin deasserts both immediately after open, but a
   UV-K5 that reboots when the port opens is the sign that the driver asserted
   one first, and the fix is in the plugin, not the radio.
-- **The DM-32UV's exit from programming mode.** On a desktop the port close is
-  what resets it, and it needs a fresh port after 3.2 s. What the plugin's
-  close does to the lines is unverified. If a second `PSEARCH` in the same
-  app session gets silence or `0x90`, try in order a buffer purge, an FTDI
-  reset and a DTR pulse on close, and record which the radio needed in
-  `protocols/dm32uv.md`. Until then: reads, second session unverified.
+- ~~**The DM-32UV's exit from programming mode.**~~ Answered by A9. Two reads
+  in one app process, through the plugin's own close and reopen, returned
+  byte-identical images. The second `PSEARCH` was answered normally: no
+  silence, no `0x90`, and none of the buffer purge, FTDI reset or DTR pulse
+  the fallback list held in reserve was needed.
 - ~~**The blob-URL timer worker under `capacitor://localhost`.**~~ Answered on
   both real devices: it does not fall back, and warm it costs nothing. See
   [S1 on two real devices](#s1-on-two-real-devices).
@@ -434,3 +433,52 @@ been misjudged from it.
 One other thing the emulator showed: the Android app asks for the nearby-devices
 permission as soon as it launches, before anyone has asked to connect to
 anything. The iOS app does not. Worth deciding whether that is wanted.
+
+## A4: the DM-32UV on a Pixel
+
+2 September 2026. Pixel 8 Pro, Android 17, boofwang `b588ca9` installed as the
+debug app. The radio reached the phone through an FTDI FT232R (`0403:6001`) on
+the OTG port, which Android had already granted; the connect card named the
+adapter and waited for a radio to be chosen, which is the intended behaviour
+and not a defect to work around.
+
+The read: a 200-entry block scan, then 59 blocks, 262,144 bytes, about 35
+seconds. That figure comes from a five-second poll, so treat it as 35 s give or
+take five, not as a measurement. 45 channels of 4,000 slots, no validation
+errors. Firmware `DM32.01.01.040`.
+
+Two reads were taken, the second after the first had closed the port inside the
+same app process. They are byte-identical - the same sha256
+`363eecd6dac6f291` over all 262,144 bytes - and carry the same `unitHash`
+`10ff7f1e1ec5`, so on this radio, on this cable, on this phone the read is
+reproducible. That is A9 as well as A4, and it is what retires the worry about
+what the plugin's close does to the control lines.
+
+Not done, and it is why A4 says read rather than pass: no read of this radio
+was taken the same day by the web build in desktop Chrome, so the Android path
+has been shown to agree with itself and not yet with the path it is meant to
+match. The radio was on the phone all evening. Nothing was written.
+
+### Four channels stopped being receive-only, and it was not this read
+
+A backup taken from the same radio at 19:46, before any of the above, differs
+from the 20:04 read in exactly four bytes: `0x127D8`, `0x12808`, `0x12838`,
+`0x12868`. Those are the `mode` byte at `+0x18` of channel records 42 to 45 in
+block `0x12` - `LR DMR`, `AR DMR`, `USA DMR` and `Test DMR` - and every one of
+them went `0x1C` to `0x14`. Bit 3 is `txForbid`. Four channels that were
+receive-only became transmit-capable.
+
+This is recorded here rather than in a bug because the read is not what did it,
+and the evidence for that is the pair of byte-identical reads above: the same
+image came back twice, four minutes apart, both holding `0x14`. The change was
+on the radio before boofwang was ever asked for it, so the radio itself, the
+OEM CPS, or a write somebody ran in that window are the candidates, and this
+file cannot say which.
+
+It is worth the paragraph anyway. `txForbid` is the bit the risk register
+singles out - a channel that quietly gains a transmitter is the failure that
+puts a public-safety or weather frequency in reach of a PTT - and the useful
+finding is that a plain diff of two backups surfaces it in four bytes out of
+262,144. Anyone restoring the 19:46 backup over this radio would put the four
+channels back to receive-only, which is a real change and one the diff will
+name before the token is typed.
