@@ -4,6 +4,7 @@ import { chirpMode, txFrequency, type Channel } from '#core/model/channel.js'
 import type { Diagnostic } from '#core/radio/driver.js'
 import type { Codeplug } from '#core/model/codeplug.js'
 import { describeTone } from '#core/model/tones.js'
+import { bandLegend, serviceFor } from '#core/model/bands.js'
 import { formatFreq, formatPower, parseFreq } from '#core/model/units.js'
 import { diffChannels } from '#core/radio/channel-diff.js'
 import type { ChannelOrder, RenumberPlan } from '#core/radio/renumber.js'
@@ -447,6 +448,20 @@ interface RowView {
   flag: string
   flagIcon: string
   flagColor: string
+  /**
+   * The service this channel's receive frequency falls in, as a CSS token and
+   * a name. Null for an empty slot, which has no frequency to attribute.
+   *
+   * Receive rather than transmit, deliberately: a channel is listening on one
+   * service and may key up on another, and the edge answers "what is this
+   * channel for" rather than "what may you transmit". The legend says so.
+   *
+   * `--band-landmobile` is nearly neutral on purpose. Every non-empty row gets
+   * an edge, so a saturated catch-all would read as decoration competing with
+   * the row tint - and land mobile means "nothing more specific matched"
+   * rather than a claim about the channel.
+   */
+  band: { token: string; service: string } | null
 }
 
 function view(r: SlotRow): RowView {
@@ -470,11 +485,14 @@ function view(r: SlotRow): RowView {
           ? 'RX-Only'
           : ''
 
+  const band = c ? (({ token, service }) => ({ token, service }))(serviceFor(c.rxFreq)) : null
+
   return {
     state,
     dim,
     background: state === 'error' ? 'var(--dgB)' : state === 'receive-only' ? 'var(--cnB)' : 'transparent',
     gutter,
+    band,
     name: c ? c.name || '—' : '—',
     rx: c ? formatFreq(c.rxFreq) : '—',
     shift: c ? shiftLabel(c) : '—',
@@ -570,6 +588,15 @@ const bodyStyle = computed(() =>
     : { height: `${totalHeight.value}px`, minWidth: `${minWidth.value}px`, position: 'relative' as const },
 )
 
+/**
+ * The band edge is an inset shadow, not a grid column and not a left border.
+ *
+ * A column would shift every cell and put the sticky header out of step with
+ * the body. A border would move content 3px on banded rows and not on empty
+ * ones, so the frequencies would no longer line up down the table. An inset
+ * shadow paints inside the box and costs no layout, which is the same trick
+ * the driver list already uses for its selected row.
+ */
 function rowStyle(r: { start: number; size: number; row: SlotRow; view: RowView }) {
   const base = {
     gridTemplateColumns: gridColumns.value,
@@ -579,6 +606,7 @@ function rowStyle(r: { start: number; size: number; row: SlotRow; view: RowView 
     cursor: r.row.channel ? 'pointer' : 'default',
     borderBottom: '1px solid var(--ln)',
     background: r.view.background,
+    ...(r.view.band === null ? {} : { boxShadow: `inset 3px 0 0 var(${r.view.band.token})` }),
   }
   if (printing.value) return base
   return {
@@ -1255,6 +1283,59 @@ const printedFacts = computed(() => {
           <UIcon name="i-lucide-rows-3" style="width: 12px; height: 12px; color: var(--fn)" />
           Print
         </button>
+
+        <!--
+          The legend, as a popover rather than a key printed above the table.
+          It answers a question once; a six-row key standing over four thousand
+          rows is furniture the rest of the time. In place of an icon it shows
+          three of the swatches, which is the only affordance that says what the
+          button is about before it is opened.
+        -->
+        <UPopover>
+          <button
+            type="button"
+            class="inline-flex items-center"
+            style="height: 31px; padding: 0 9px; gap: 5px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13.5px"
+            title="What the coloured edge on each row means"
+          >
+            <span class="inline-flex" style="gap: 1.5px">
+              <span
+                v-for="t in ['--band-amateur', '--band-gmrs', '--band-noaa']"
+                :key="t"
+                :style="{ width: '3px', height: '13px', borderRadius: '1px', background: `var(${t})` }"
+              />
+            </span>
+            Bands
+          </button>
+          <template #content>
+            <div style="padding: 13px 15px; background: var(--pn); border: 1px solid var(--ln); border-radius: 7px; max-width: 340px">
+              <h3 style="font-size: 17px; font-weight: 600; color: var(--tx); margin-bottom: 5px">Bands</h3>
+              <p style="font-size: 13px; line-height: 1.5; color: var(--mu); margin-bottom: 10px">
+                The edge of each row is the service its receive frequency falls in. What you may transmit
+                there, and on whose license, follows from it.
+              </p>
+              <div
+                v-for="b in bandLegend()"
+                :key="b.service"
+                style="display: grid; grid-template-columns: 3px 1fr; column-gap: 15px; min-height: 56px; align-items: center"
+              >
+                <span :style="{ alignSelf: 'stretch', borderRadius: '1px', background: `var(${b.token})` }" />
+                <span>
+                  <span style="display: block; font-size: 14.5px; font-weight: 600; color: var(--tx)">
+                    {{ b.service }}<template v-if="b.receiveOnly"> · receive only</template>
+                  </span>
+                  <span class="font-mono tabular" style="display: block; font-size: 11.5px; color: var(--fn)">
+                    {{ b.range }}
+                  </span>
+                </span>
+              </div>
+              <p style="font-size: 12px; line-height: 1.5; color: var(--fn); margin-top: 10px">
+                US allocations. boofwang makes no claim about other administrations. The color says which
+                service, never whether you are licensed for it.
+              </p>
+            </div>
+          </template>
+        </UPopover>
 
         <UPopover>
           <button
