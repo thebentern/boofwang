@@ -11,6 +11,7 @@ import {
   SCANLIST_MAX_MEMBERS,
 } from './layout.js'
 import { BAUD_RATE, OPEN_SETTLE_MS } from './protocol.js'
+import { BOOT_IMAGE_HEIGHT, BOOT_IMAGE_WIDTH } from '../../io/boot-image.js'
 
 const COLOUR_OPTIONS = DM32_COLOURS.map((label, value) => ({ value, label }))
 const KEY_OPTIONS = DM32_KEY_FUNCTIONS.map((label, value) => ({ value, label }))
@@ -849,6 +850,10 @@ export const DM32UV_SCHEMA: RadioSchema = {
     radioIds: { max: 250, nameLength: 12, maxId: 0xff_ffff },
     messages: { max: MESSAGE_SLOTS, maxChars: MESSAGE_MAX_CHARS },
     encryption: { slots: KEY_SLOTS, types: ['none', 'custom', 'arc4', 'aes128', 'aes256'], nameLength: 10 },
+    // 240x320, from `lib/io/boot-image.ts`. The only radio here with a
+    // power-on picture, and the reason the flag exists rather than a
+    // driver-id comparison in the layout.
+    bootPicture: { width: BOOT_IMAGE_WIDTH, height: BOOT_IMAGE_HEIGHT },
   },
 
   extraFields: [

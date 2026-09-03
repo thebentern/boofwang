@@ -8,19 +8,59 @@ import { formatBuild } from '#core/version/build.js'
  * what a returning user came to do, About last. The status bar sits directly
  * under the nav so "what am I working on" never scrolls away.
  */
-const nav = [
-  { label: 'Connect', to: '/', icon: 'i-lucide-usb' },
-  { label: 'Channels', to: '/channels', icon: 'i-lucide-list' },
-  { label: 'Presets', to: '/presets', icon: 'i-lucide-layers' },
-  { label: 'Repeaters', to: '/repeaters', icon: 'i-lucide-radio-tower' },
-  { label: 'Zones', to: '/dmr', icon: 'i-lucide-folder-tree' },
-  { label: 'Settings', to: '/settings', icon: 'i-lucide-sliders-horizontal' },
-  { label: 'Keys', to: '/keys', icon: 'i-lucide-key-round' },
-  { label: 'Splash', to: '/startup-image', icon: 'i-lucide-image' },
-  { label: 'Fleet', to: '/fleet', icon: 'i-lucide-users' },
-  { label: 'Backups', to: '/backups', icon: 'i-lucide-history' },
-  { label: 'About', to: '/about', icon: 'i-lucide-info' },
-]
+const codeplug = useCodeplugStore()
+
+/**
+ * The lists page is named after what the open radio actually holds.
+ *
+ * A tab reading "Zones" on a UV-K5, which has two scan lists and no zones, is
+ * the same defect as a Keys page with nothing on it: the label promises a
+ * concept the radio has no word for.
+ */
+const listsLabel = computed(() => (codeplug.schema?.features.zones ? 'Zones' : 'Scan lists'))
+
+/**
+ * Where each destination is allowed to appear.
+ *
+ * `undefined` means always. Everything else is a question asked of the open
+ * schema, and it is the same question the page itself already asks: `keys.vue`
+ * reads `features.encryption`, `fleet.vue` reads `features.radioIds`, `dmr.vue`
+ * reads six of them. The nav asking it too is what stops the trip being offered
+ * at all, rather than offered and then answered with "this radio has none".
+ *
+ * Before this, a UV-K5 could reach Keys, Fleet and Splash, and all three were
+ * empty when it got there.
+ *
+ * With nothing read the schema is unknown and the gated destinations are
+ * withheld, which is honest rather than cautious: picking a model in the driver
+ * list fills the schema in before a cable is ever opened. And a destination
+ * cannot appear and then vanish under an open codeplug, because the schema does
+ * not change under one.
+ */
+const nav = computed(() => {
+  const f = codeplug.schema?.features
+  const s = codeplug.schema
+  const items = [
+    { label: 'Connect', to: '/', icon: 'i-lucide-usb', show: true },
+    { label: 'Channels', to: '/channels', icon: 'i-lucide-list', show: true },
+    { label: 'Presets', to: '/presets', icon: 'i-lucide-layers', show: true },
+    { label: 'Repeaters', to: '/repeaters', icon: 'i-lucide-radio-tower', show: true },
+    {
+      label: listsLabel.value,
+      to: '/dmr',
+      icon: 'i-lucide-folder-tree',
+      // Any one of the six the page can draw is enough to justify the trip.
+      show: !!f && !!(f.zones || f.talkGroups || f.scanLists || f.rxGroups || f.radioIds || f.contacts || f.messages),
+    },
+    { label: 'Settings', to: '/settings', icon: 'i-lucide-sliders-horizontal', show: (s?.settings.length ?? 0) > 0 },
+    { label: 'Keys', to: '/keys', icon: 'i-lucide-key-round', show: !!f?.encryption },
+    { label: 'Splash', to: '/startup-image', icon: 'i-lucide-image', show: !!f?.bootPicture },
+    { label: 'Fleet', to: '/fleet', icon: 'i-lucide-users', show: !!f?.radioIds },
+    { label: 'Backups', to: '/backups', icon: 'i-lucide-history', show: true },
+    { label: 'About', to: '/about', icon: 'i-lucide-info', show: true },
+  ]
+  return items.filter((i) => i.show).map(({ label, to, icon }) => ({ label, to, icon }))
+})
 
 const route = useRoute()
 
@@ -37,9 +77,9 @@ const activePath = computed(() => {
 
 /** The same links, for the small-screen menu. `onSelect` navigates in-app. */
 const smallNav = computed(() =>
-  nav.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => navigateTo(item.to) })),
+  nav.value.map((item) => ({ label: item.label, icon: item.icon, onSelect: () => navigateTo(item.to) })),
 )
-const currentLabel = computed(() => nav.find((n) => n.to === activePath.value)?.label ?? 'Menu')
+const currentLabel = computed(() => nav.value.find((n) => n.to === activePath.value)?.label ?? 'Menu')
 
 const colorMode = useColorMode()
 const isDark = computed(() => colorMode.value === 'dark')

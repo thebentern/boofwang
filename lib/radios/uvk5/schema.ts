@@ -608,6 +608,7 @@ export const UVK5_SCHEMA: RadioSchema = {
     radioIds: false,
     messages: false,
     encryption: false,
+    bootPicture: false,
   },
 
   extraFields: [

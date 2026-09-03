@@ -99,6 +99,7 @@ export const UV5G_SCHEMA: RadioSchema = {
     radioIds: false,
     messages: false,
     encryption: false,
+    bootPicture: false,
   },
 
   extraFields: [

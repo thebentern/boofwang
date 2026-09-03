@@ -200,6 +200,7 @@ export const UV82_SCHEMA: RadioSchema = {
     radioIds: false,
     messages: false,
     encryption: false,
+    bootPicture: false,
   },
 
   extraFields: [

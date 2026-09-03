@@ -223,6 +223,7 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
     radioIds: false,
     messages: false,
     encryption: false,
+    bootPicture: false,
   },
 
   extraFields: [

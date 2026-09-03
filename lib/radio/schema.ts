@@ -261,6 +261,22 @@ export interface RadioSchema {
     readonly encryption:
       | false
       | { readonly slots: number; readonly types: readonly string[]; readonly nameLength: number }
+    /**
+     * The power-on picture, when the radio has memory for one.
+     *
+     * Carries its dimensions rather than a bare `true` for the same reason its
+     * neighbours carry limits: a screen that offers a crop needs to know the
+     * aspect it is cropping to, and asking a radio module for it means naming
+     * that radio under `app/`.
+     *
+     * That is what this exists to stop. `useBootImage` imports the DM-32UV's
+     * own module and compares `driver.id` to the string 'dm32uv', so the Splash
+     * destination could only be hidden by putting a second copy of that name in
+     * the layout - and the rule is that a radio the interface has to know by
+     * name is a gap in the schema. This is the gap closed; the import is a
+     * separate job.
+     */
+    readonly bootPicture: false | { readonly width: number; readonly height: number }
   }
 
   /** Per-radio channel fields with no cross-radio meaning; rendered generically. */
