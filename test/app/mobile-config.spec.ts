@@ -28,6 +28,8 @@ const capacitor = read('capacitor.config.ts')
 const gitignore = read('.gitignore')
 const pkg = JSON.parse(read('package.json'))
 const bluetooth = read('app/mobile/bluetooth.ts')
+const pbxproj = read('mobile/ios/App/App.xcodeproj/project.pbxproj')
+const nuxtConfig = read('nuxt.config.ts')
 
 describe('the Android USB device filter', () => {
   it('lists exactly the vendors the drivers recognise', () => {
@@ -230,6 +232,25 @@ describe('the shell code in app/', () => {
     // gated by the bridge; a second copy would not be.
     const anchors = appFiles('app/').filter((f) => /a\.download\s*=/.test(read(f)))
     expect(anchors).toEqual(['app/composables/useFileSave.ts'])
+  })
+})
+
+/**
+ * The iOS floor, in the two places that disagree silently.
+ *
+ * The Xcode project decides which devices may install the app. The bundler
+ * target decides what the JavaScript may assume. When the first is lower than
+ * the second the app installs onto a phone it cannot run on and throws before
+ * it paints, which reads as a crash on launch and which no simulator on a
+ * current iOS reproduces. That is what shipped in 0.1.4: `Object.hasOwn`,
+ * `structuredClone`, `findLast` and `at` in the bundle, 15.0 in the project.
+ */
+describe('the iOS floor', () => {
+  it('is the same in the Xcode project and the bundler target', () => {
+    const declared = [...pbxproj.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);/g)].map((m) => m[1]!)
+    expect(declared.length).toBeGreaterThan(0)
+    expect([...new Set(declared)]).toEqual(['15.4'])
+    expect(nuxtConfig).toMatch(/target: 'safari15\.4'/)
   })
 })
 

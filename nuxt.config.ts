@@ -207,5 +207,28 @@ export default defineNuxtConfig({
 
   experimental: { payloadExtraction: false },
 
+  /*
+   * The JavaScript baseline, stated rather than inherited.
+   *
+   * Vite picks a default target that moves with its own releases, and what it
+   * picked here wanted Safari 15.4: `Object.hasOwn`, `structuredClone`,
+   * `findLast` and `Array.prototype.at` all reached the shipped bundle, while
+   * the iOS project still declared a 15.0 floor. An app that installs on 15.0
+   * and throws before it paints reads as a crash on launch, and no simulator
+   * running a current iOS would ever show it.
+   *
+   * 15.4 is stated in both places now and test/app/mobile-config.spec.ts holds
+   * them together. What the app itself needs is `Object.hasOwn` in
+   * lib/codec/struct.ts, `structuredClone` in the fleet store and `at(-1)` in
+   * the DMR page, all of which arrived in 15.4.
+   *
+   * Note the limit of this line: esbuild lowers *syntax* to the target and
+   * leaves *APIs* alone. `toSorted` and `toReversed` are 16.4 and are already
+   * in the bundle - Vue defines them on its reactive-array handler - but
+   * nothing calls them, so they sit there inert. The day something does, this
+   * target will not catch it and only a device on 15.4 would.
+   */
+  vite: { build: { target: 'safari15.4' } },
+
   devtools: { enabled: true },
 })
