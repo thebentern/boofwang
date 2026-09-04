@@ -18,9 +18,10 @@ only covers the store.
 | `versionCode` | The workflow run number, which is monotonic. Play requires nothing else of it. |
 | `applicationId` | `ng.boofwa.app`, matching the iOS bundle id and the App ID already registered. |
 | Privacy policy | `/privacy`, so <https://boofwa.ng/privacy>. Play requires a URL for every listing whether or not anything is collected. |
+| Permissions | Four, and none of them location. The Bluetooth plugin's uncapped coarse-location grant is capped in the app manifest; see below. |
 | Icon, feature graphic | `node scripts/make-store-art.mjs` writes both to `build/play/`. |
-| Screenshots | **Not captured.** Play needs at least two phone screenshots. See below. |
-| Play developer account | **Not created.** Only the owner can. |
+| Screenshots | Five, 1080x2400, in `build/play/screenshots/`. Captured on an emulator; see below. |
+| Play developer account | Created, 2026-09-04. |
 | Upload key | **Not created.** Only the owner should. |
 
 ## What only a person can do
@@ -28,10 +29,10 @@ only covers the store.
 None of these can be done from a checkout, and two of them cost money or
 create liabilities, so they are listed rather than automated.
 
-1. **A Play Console developer account.** One-off 25 USD, and identity
-   verification that now takes days rather than minutes. Google also requires
-   a verified physical address and a public contact email, and the address
-   goes on the listing for individual accounts.
+1. ~~**A Play Console developer account.**~~ Done, 2026-09-04. For an
+   individual account the verified physical address goes on the public
+   listing, which is worth knowing before the listing is published rather
+   than after.
 2. **The upload key.** `docs/mobile.md` has the command. It has to be made on
    a machine the owner trusts and kept: Play will not take an update signed
    with a different key, though Play App Signing does allow an upload key to
@@ -56,16 +57,37 @@ create liabilities, so they are listed rather than automated.
    the first `.aab` is downloaded from the workflow run and dragged into the
    Console; every one after that can be automated, which is what the
    `PLAY_SERVICE_ACCOUNT_JSON` step in `mobile.yml` is for.
-5. **Submitting for review**, and answering anything the reviewer asks.
+5. **Closed testing, for fourteen days, with twelve testers.** This is the
+   part that decides when boofwang can actually be public, and it is worth
+   knowing before anything else is scheduled.
+
+   A personal Play developer account registered after November 2023 cannot
+   publish to production straight away. It has to run a closed test with at
+   least twelve testers who stay opted in continuously for fourteen days, and
+   only then does the production track open. Twelve real Google accounts, not
+   twelve devices, and the clock restarts if the tester count drops.
+
+   So the realistic order is: sign the build, upload by hand, put it on
+   closed testing, find twelve people, wait a fortnight. Internal testing has
+   no such requirement and takes effect immediately, which is why the
+   automated step targets that track: it is the one that is useful on the day
+   a tag is cut.
+6. **Submitting for review**, and answering anything the reviewer asks.
 
 ## The listing
 
 Sentence case, lowercase boofwang, and no claim that is not true on Android.
 That last one is not pedantry: `docs/mobile.md`'s table records that of the
-four radios, only the DM-32UV has been read and written on an Android phone.
-The drivers themselves are verified against hardware captures and, for three
-of the four, against real radios elsewhere, but the honest Android claim
-today is narrower than the honest claim for the project.
+five radios, only the DM-32UV has been read and written on an Android phone.
+The drivers themselves are verified against hardware captures and, for most
+of them, against real radios elsewhere, but the honest Android claim today is
+narrower than the honest claim for the project.
+
+The radio list below was got wrong once, here. It said four radios, because
+CLAUDE.md's opening line says four and that was believed over
+`lib/radio/registry.ts`, which registers five - the Radioddity UV-5G was the
+one dropped. The names, channel counts and transports are now read off the
+running app on a phone, which is the one source that cannot be stale.
 
 **App name** (30 characters): `boofwang`
 
@@ -86,10 +108,11 @@ changed, and write it back.
 
 Supported radios
 
-  Quansheng UV-K5
-  Baofeng UV-82
-  Baofeng UV-5R Mini
-  Baofeng DM-32UV
+  Quansheng UV-K5      200 channels, analog. Reads egzumer firmware too.
+  Baofeng UV-82        128 channels, analog
+  Radioddity UV-5G     128 channels, GMRS/FRS
+  Baofeng UV-5R Mini   1,000 channels, analog. Has its own Bluetooth.
+  Baofeng DM-32UV      4,000 channels, DMR, with zones and AES key slots
 
 Connect over a USB programming cable (CH340, PL2303, CP210x and FTDI adapters
 are recognised) or, on radios that have a module of their own, over Bluetooth.
@@ -103,10 +126,12 @@ hard to reach by accident:
 
   A backup is taken before anything is written, and a write is refused if
   there is no backup, or if the backup belongs to a different radio.
-  You are shown a field-by-field difference of what will change before you
-  confirm it, and confirming takes a deliberate action rather than a tap.
-  Every block written is read back off the radio and compared before the next
-  one is sent.
+  You are shown what will change before you confirm it, one line per
+  channel, with a channel gaining transmit and a slot being erased called out
+  by name. Confirming takes a deliberate action rather than a tap.
+  Every block written is read back off the radio and compared, because an
+  acknowledgement says a frame arrived and not that it landed where it was
+  meant to.
   Bytes boofwang does not understand are carried through untouched rather
   than regenerated, and a change landing outside the region a driver claims
   to understand stops the write instead of warning about it.
@@ -117,16 +142,19 @@ hard to reach by accident:
 Also here
 
   Import and export CHIRP CSV, and read CHIRP .img files.
-  Repeater and talkgroup lookup from hearham, RadioID and BrandMeister.
-  Presets for the FRS, GMRS, MURS and NOAA weather channels.
+  Repeater lookup from hearham and RadioID, and talkgroups from BrandMeister.
+  Presets for GMRS, MURS and NOAA weather, the 2 m and 70 cm band plans, and
+  UK PMR446.
   Backups kept on the device, with a restore that puts a radio back exactly
   as it was.
-  Works with no network. Nothing is uploaded anywhere and there is no account.
+  Works with no network, and there is no account. Your codeplugs, backups and
+  keys never leave the device. The repeater and talkgroup lookups are the only
+  thing that reaches the internet, and only when you search.
 
 What has actually been tested on a phone
 
 The DM-32UV has been read, written and restored over a USB cable on an
-Android phone, byte-for-byte verified. The other three radios are verified
+Android phone, byte-for-byte verified. The other four radios are verified
 against hardware elsewhere but have not yet been exercised over a cable on
 Android, and neither has the Bluetooth path. If you try one, an issue on
 GitHub saying what happened is genuinely useful.
@@ -145,6 +173,38 @@ radio manufacturer.
 
 **Contact email**: the account's verified address. **Website**:
 <https://boofwa.ng>. **Privacy policy**: <https://boofwa.ng/privacy>.
+
+## The permission the listing would have shown
+
+Worth its own section because nothing in this repository was wrong, and the
+built app still asked for something it does not use.
+
+`AndroidManifest.xml` caps every legacy Bluetooth permission at API 30 and
+flags the scan `neverForLocation`, which is accurate: `app/mobile/bluetooth.ts`
+initialises the plugin with `androidNeverForLocation: true`, and on that path
+`BluetoothLe.kt` requests only BLUETOOTH_SCAN and BLUETOOTH_CONNECT from
+Android 12 onwards. So boofwang never asks where you are.
+
+`@capacitor-community/bluetooth-le` declares ACCESS_COARSE_LOCATION with no
+`maxSdkVersion`, and a permission that only a library declares reaches the
+built app exactly as the library wrote it. The manifest merger had nothing to
+merge it with. The result was a release APK requesting approximate location on
+every Android version, and a Play listing that would have shown "approximate
+location" under a radio programmer that never asks for it.
+
+It was invisible in the source. It showed up in
+
+```bash
+aapt2 dump badging app-release.apk | grep uses-permission
+```
+
+which is now worth running before any submission, because this class of defect
+can arrive with a dependency bump and change nothing a test can see. The app
+now declares the permission itself purely to cap it at 30, and
+`test/app/mobile-config.spec.ts` holds that line.
+
+The four permissions a reviewer will see: INTERNET, BLUETOOTH_SCAN
+(neverForLocation), BLUETOOTH_CONNECT, and the legacy set capped at API 30.
 
 ## Data safety
 
@@ -178,8 +238,10 @@ that is not optional.
 If a reviewer disagrees, the fix is small: declare it under Personal info,
 "collected, not shared, not required, for app functionality".
 
-**Encryption in transit**: yes, all three endpoints are https and
-`lib/data/` refuses anything else. **Deletion**: nothing is held to delete.
+**Encryption in transit**: yes. All three endpoints are hard-coded https
+constants in `lib/data/`, so nothing can be redirected to a scheme by
+configuration; there is no runtime scheme check, because there is no runtime
+URL to check. **Deletion**: nothing is held to delete.
 
 ## Content rating and audience
 
@@ -217,18 +279,85 @@ over it and a transparent icon lands on white) and
 `build/play/feature-graphic.png` (1024x500, no alpha). Both are git-ignored:
 they are regenerated in a second and no build consumes them.
 
-**Screenshots are still to do.** Play wants at least two phone screenshots,
-between 320 and 3840 px on a side. They should be captured from a real device
-with a real codeplug open, which needs a radio and an unlocked phone:
+**Screenshots**: five, in `build/play/screenshots/`, 1080x2400, which is
+inside Play's 320-3840 range. Dark, because the icon and the feature graphic
+are dark and a listing that changes theme halfway down looks like two apps.
+
+They were taken on the `Medium_Phone_API_36.0` emulator rather than a handset,
+for the ordinary reason that the phone was locked, and the emulator turns out
+to be the better tool anyway: 1080x2400 at density 420 is 411 CSS pixels, so
+it renders the same phone layout `useFormFactor` picks on the Pixel, and the
+WebView can be driven over CDP instead of by tapping at coordinates.
+
+The content is real. A UV-5R Mini codeplug was opened from
+`test/fixtures/images/uv5rmini-5RMINI.bin`, and the bundled GMRS preset staged
+into free slots, which is why the channel list shows named GMRS channels with
+a band edge and the write screen shows a 23-channel difference. Nothing is
+mocked up and no screen was edited afterwards.
+
+To retake them, with the app installed and a codeplug open:
 
 ```bash
-adb exec-out screencap -p > screenshot-1.png
+adb -s emulator-5554 exec-out screencap -p > 01-channels.png
 ```
 
-The screens worth showing are the channel list with its band colours, the
-channel editor, the difference view before a write, and the connect screen.
-Do not screenshot the key slots: a revealed key in a store listing is a key
-published.
+The five are the channel list, the channel editor, the connect screen with the
+radio chooser, the presets library, and the write screen - that last one is
+the one worth leading with, because it shows the backup gate refusing and the
+per-channel difference in the same view.
+
+**Do not screenshot the key slots.** A revealed key in a store listing is a
+key published.
+
+## What the pre-submission audit found
+
+Everything above was checked by an adversarial review before submission: six
+readers over the manifest, the data-safety answer, the listing copy, the
+privacy page, policy risk and the release pipeline, and every finding then
+handed to a separate reader told to refute it. Twenty-six survived, ten did
+not. The ones that changed something:
+
+- **`allowBackup` was on**, so Android Auto Backup copied the IndexedDB - the
+  backups store, key slots and all - to the user's Google account, where it
+  outlives an uninstall. That falsified two sentences on `/privacy` and the
+  sentence the whole data-safety answer rests on. Now `false`, with a test.
+- **Two hardware features were required by implication**, Bluetooth and
+  location, both derived by `aapt2` from permissions rather than written
+  anywhere. Play would have hidden the app from devices lacking either. Both
+  now declared optional, with a test.
+- **`versionCode` came from `github.run_number`**, which is the CALLER's
+  number under `workflow_call` - so tags reaching Mobile directly and tags
+  reaching it through Release were counting on two separate meters. Play
+  accepts a code once, permanently. It now comes from the version.
+- **The Play upload ran before `upload-artifact`**, so a rejected bundle took
+  the only copy of a signed build down with it. Reordered.
+- **"Use my location" could not work in the shell** and is no longer offered
+  there. Measured, not assumed: with the OS location mode on and a fix set,
+  `getCurrentPosition` timed out and `dumpsys package` showed the permission
+  ungranted, because nothing ever requests it.
+- **Four claims in the listing copy were wrong.** There is no FRS preset;
+  talkgroups come only from BrandMeister; the write screen shows one line per
+  channel rather than a field-by-field difference; and three of the five
+  drivers send every block and then verify, rather than verifying before the
+  next block goes - the code says so itself, in as many words.
+- **Two claims on the privacy page were wrong.** The Bluetooth permission is
+  asked for as the app opens, not when you connect, and the scan is
+  unfiltered, so the phone receives every nearby advertiser.
+
+Known and not fixed, because neither blocks a submission:
+
+- The Android back button does nothing. `docs/mobile.md` records it twice.
+- The footer tells the reader "Everything runs in your browser", which is
+  literally true of a WebView and misleading in an installed app. It is
+  behind `v-if="!phone"`, so a phone never sees it.
+
+One thing that is worth saying plainly: **CLAUDE.md's rule "Every block
+written is read back and compared before the next is sent" is not what three
+of the five drivers do.** They write everything and then verify everything,
+which `uv82/driver.ts` and `uv5rmini/driver.ts` both state in a comment. Every
+block is still read back and compared, so the guarantee holds; the ordering in
+the sentence does not. The listing copy was corrected to the guarantee. The
+rule itself is not this file's to rewrite.
 
 ## Automated upload
 

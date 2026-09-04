@@ -21,7 +21,17 @@
  *   - `app/pages/repeaters.vue` asks the operating system for a position only
  *     when the button is pressed, and puts it in the two coordinate boxes.
  *     Nothing sends it: radioid refuses a positional query outright and the
- *     other two are filtered on the device.
+ *     other two are filtered on the device. In the mobile shells that button
+ *     is not rendered at all - see `geolocation` in `lib/platform/host.ts`,
+ *     which records the measurement behind that.
+ *   - the Bluetooth permission is asked for by `nativeBluetoothProbe`, which
+ *     the connect screen's support card calls on load. So it arrives as the
+ *     app opens, and this page used to say it arrived on connect.
+ *   - the scan is `requestLEScan({ allowDuplicates: true })` with no service
+ *     filter, so the OS hands over every advertiser nearby and boofwang picks
+ *     the radio out. Saying it "looks for one radio" described the intent and
+ *     not the radio traffic, which on a privacy page is the wrong one to
+ *     describe.
  *
  * If any of that changes, this page is wrong, and a privacy policy that is
  * wrong is worse than none.
@@ -89,8 +99,10 @@ const DIRECTORIES = [
       <p :style="BODY">
         Codeplugs you read, the backups boofwang keeps of them, your presets, your scan lists and your
         settings are held in the app's own storage on the device, and in whatever files you choose to
-        export. None of it is transmitted. Deleting a backup in boofwang deletes it; uninstalling the
-        app removes everything it kept, and files you exported yourself stay wherever you saved them.
+        export. None of it is transmitted, and the Android app switches off the system backup that would
+        otherwise copy it to your Google account. Deleting a backup in boofwang deletes it;
+        uninstalling the app removes everything it kept, and files you exported yourself stay
+        wherever you saved them.
       </p>
     </section>
 
@@ -147,12 +159,16 @@ const DIRECTORIES = [
         Your location
       </h2>
       <p :style="BODY">
-        The repeater search can fill in your latitude and longitude for you, and does that only if you
-        press the button that asks for it. The coordinates go into the two boxes on that screen and are
-        used on the device to work out how far away each repeater is. They are not sent to any of the
-        directories above: one of them refuses a search by position outright, and the other two are
-        filtered here, after their whole list has been fetched. You can type coordinates in by hand
-        instead and boofwang will never ask the operating system for a position at all.
+        The app on your phone never asks where you are. It holds no location permission, and the
+        button that would fill in your coordinates is not offered there at all: you type a latitude
+        and longitude into the repeater search yourself, or you leave them empty.
+      </p>
+      <p :style="BODY" style="margin-top: 8px">
+        In a web browser that button does appear, and pressing it is the only thing that asks your
+        browser for a position. Either way the coordinates go into the two boxes on that screen and
+        are used here, on the device, to work out how far away each repeater is. They are sent to
+        none of the directories above: one refuses a search by position outright, and the other two
+        are filtered here after their whole list has been fetched.
       </p>
     </section>
 
@@ -162,11 +178,18 @@ const DIRECTORIES = [
         The radio itself
       </h2>
       <p :style="BODY">
-        Reaching a radio over a cable or over Bluetooth needs permission from your operating system,
-        and boofwang asks for it at the moment you connect rather than up front. Bluetooth is declared
-        as not being used to derive your location, which is true: the scan looks for one radio and
-        nothing else. Neither permission is used for anything other than talking to the radio you
-        chose.
+        Reaching a radio over a cable or over Bluetooth needs permission from your operating system.
+        On a phone the Bluetooth one is asked for when the connect screen first checks whether there
+        is an adapter, which is as the app opens rather than at the moment you connect. Permission
+        for a cable is asked for when you plug one in.
+      </p>
+      <p :style="BODY" style="margin-top: 8px">
+        Bluetooth is declared as not being used to derive your location, and that is true: boofwang
+        never turns a scan into a position. The scan itself is not filtered by the operating system,
+        so while it runs your phone receives the advertisements of every nearby Bluetooth device, the
+        same as any scanning app. boofwang shows you the ones that look like a radio, discards the
+        rest, and keeps and transmits none of it. Neither permission is used for anything other than
+        talking to the radio you chose.
       </p>
     </section>
 

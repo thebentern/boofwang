@@ -11,7 +11,7 @@ import { KNOWN_BRIDGE_VENDORS } from '#core/transport/usb-bridges.js'
  * and nothing in the TypeScript can tell when a manifest has drifted. The
  * failures are all silent ones: a vendor id missing from the USB filter means
  * a cable that works only after a permission prompt; a `neverForLocation` flag
- * that disagrees with the plugin's initialisation means a scan that returns
+ * that disagrees with the plugin's initialization means a scan that returns
  * nothing on Android 12; a missing Bluetooth usage string means an iOS build
  * that is rejected at upload. So the manifests are read as text and held to
  * the tables the rest of the app is built from.
@@ -49,12 +49,42 @@ describe('the Android manifest', () => {
   it('asks for the Bluetooth permissions the plugin needs, and no location', () => {
     expect(manifest).toMatch(/BLUETOOTH_SCAN"\s+android:usesPermissionFlags="neverForLocation"/)
     expect(manifest).toContain('android.permission.BLUETOOTH_CONNECT')
-    // The legacy trio is capped, so a modern device is not asked for a
+    // The legacy set is capped, so a modern device is not asked for a
     // location grant it does not need.
-    for (const legacy of ['BLUETOOTH"', 'BLUETOOTH_ADMIN"', 'ACCESS_FINE_LOCATION"']) {
+    for (const legacy of [
+      'BLUETOOTH"',
+      'BLUETOOTH_ADMIN"',
+      'ACCESS_FINE_LOCATION"',
+      'ACCESS_COARSE_LOCATION"',
+    ]) {
       expect(manifest).toMatch(new RegExp(`${legacy}\\s+android:maxSdkVersion="30"`))
     }
     expect(manifest).toMatch(/bluetooth_le"\s+android:required="false"/)
+  })
+
+  it('caps the coarse grant the Bluetooth plugin asks for uncapped', () => {
+    /*
+     * This one is not about what the app asks for. It is about what a library
+     * asks for on the app's behalf.
+     *
+     * `@capacitor-community/bluetooth-le` declares ACCESS_COARSE_LOCATION with
+     * no ceiling, and a permission only the library declares reaches the built
+     * app exactly as the library wrote it. So the release APK requested
+     * approximate location on every Android version, next to a FINE_LOCATION
+     * line that carefully stopped at 11 and a `neverForLocation` flag saying
+     * the scan was not about position. Found by reading `aapt2 dump badging`
+     * on a signed release build, which is the only place it was visible: every
+     * file in this repository looked right.
+     *
+     * The app therefore declares it too, purely to put the ceiling on. The
+     * ceiling is safe because BluetoothLe.kt asks for the location aliases
+     * only on its pre-Android-12 branch.
+     *
+     * What this test cannot see is the merged manifest, so it holds the source
+     * line that fixes it. If the plugin ever needs coarse location above 30,
+     * this is the assertion that should be argued with.
+     */
+    expect(manifest).toContain('android.permission.ACCESS_COARSE_LOCATION')
   })
 
   it('agrees with the plugin about location: both say never', () => {
@@ -64,6 +94,52 @@ describe('the Android manifest', () => {
 
   it('refuses cleartext traffic', () => {
     expect(manifest).toContain('android:usesCleartextTraffic="false"')
+  })
+
+  it('refuses the system backup, because the privacy policy says these bytes stay put', () => {
+    /*
+     * Android Auto Backup's default set is shared preferences plus the app's
+     * files and databases, and that sweeps up the WebView profile directory
+     * where this app's IndexedDB lives - the backups store, so a DM-32UV
+     * image with its AES key slots in it. Google's copy is encrypted with the
+     * device lock-screen secret, so it was never a plaintext disclosure. It
+     * was still a copy off the device that outlives an uninstall, and
+     * app/pages/privacy.vue tells people in as many words that neither
+     * happens.
+     *
+     * The page is the promise. If backup is ever wanted, it needs
+     * `dataExtractionRules` excluding `app_webview` and a restore onto a
+     * second device proving the backups store comes back empty - not an edit
+     * to the copy.
+     */
+    expect(manifest).toContain('android:allowBackup="false"')
+  })
+
+  it('marks every piece of hardware optional, so Play offers the app to everyone', () => {
+    /*
+     * Two of these four are here because of what a permission implies rather
+     * than what this file asked for. `aapt2` derives `android.hardware.
+     * bluetooth` from BLUETOOTH/BLUETOOTH_ADMIN and `android.hardware.
+     * location` from the two location aliases, and an implied feature is
+     * REQUIRED unless it is contradicted - so the built app told Play it
+     * needed Bluetooth and location hardware, and Play would have hidden it
+     * from anything lacking either.
+     *
+     * Neither was visible in this file or in any test. They were visible in
+     * `aapt2 dump badging` on a signed release build, as `uses-implied-
+     * feature`, which is worth running before a submission for exactly this
+     * reason.
+     */
+    for (const feature of [
+      'android.hardware.usb.host',
+      'android.hardware.bluetooth_le',
+      'android.hardware.bluetooth',
+      'android.hardware.location',
+    ]) {
+      expect(manifest, `${feature} is not declared optional`).toMatch(
+        new RegExp(`${feature.replace(/\./g, '\\.')}"\\s+android:required="false"`),
+      )
+    }
   })
 
   it('keeps one activity, so a cable plugged in does not open a second copy', () => {

@@ -2,6 +2,7 @@
 import type { Modulation } from '#core/model/channel.js'
 import type { RepeaterRecord } from '#core/data/source.js'
 import { distanceKm } from '#core/data/geo.js'
+import { hostSupports } from '#core/platform/host.js'
 
 /**
  * Finding repeaters near somewhere.
@@ -80,6 +81,9 @@ function distanceOf(r: RepeaterRecord): string {
   if (!from || !r.location) return '—'
   return `${Math.round(distanceKm(from, r.location))} km`
 }
+
+/** See `geolocation` in lib/platform/host.ts for why this is not everywhere. */
+const canLocate = hostSupports(useShell().host, ['geolocation'])
 
 function useMyLocation() {
   if (!navigator.geolocation) {
@@ -207,7 +211,14 @@ async function keep() {
             style="height: 30px; width: 110px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 13.5px"
           >
         </label>
+        <!--
+          Not offered where it cannot answer. In the mobile shells the app
+          holds no location permission and nothing requests one, so this used
+          to be a button whose only outcome was a toast a few seconds later.
+          `lib/platform/host.ts` records how that was measured.
+        -->
         <RiskAction
+          v-if="canLocate"
           risk="neutral" ghost size="sm" icon="i-lucide-crosshair"
           :label="locating ? 'Locating' : 'Use my location'" :disabled="locating"
           @click="useMyLocation"

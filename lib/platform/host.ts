@@ -83,6 +83,29 @@ export interface HostCapabilities {
    * on is the share sheet, which is what the mobile shell's `saveFile` opens.
    */
   readonly shareSheet: boolean
+  /**
+   * Whether `navigator.geolocation` can actually answer.
+   *
+   * False in both mobile shells, and measured rather than assumed: on a
+   * Pixel-class emulator running the built app, with the OS location mode on
+   * and a fix set, `getCurrentPosition` returned TIMEOUT and
+   * `dumpsys package` showed ACCESS_COARSE_LOCATION `granted=false`. Nothing
+   * ever requests it - the Bluetooth plugin asks for the location aliases
+   * only on its pre-Android-12 branch, and boofwang passes
+   * `androidNeverForLocation`, so the grant never happens and the WebView's
+   * prompt is never answered.
+   *
+   * Declaring the permission to fix that would put "approximate location" on
+   * the Play listing of a radio programmer, which is a worse trade than
+   * losing one convenience button. So the button is not offered, for the same
+   * reason `print` is not: a control that does nothing is worse than no
+   * control, and the latitude and longitude boxes beside it still work.
+   *
+   * True on desktop, which is unverified. Electron wants a Google API key for
+   * geolocation and may well fail too, but nobody has watched it, and this
+   * only decides whether a button appears.
+   */
+  readonly geolocation: boolean
 }
 
 export type HostCapability = keyof HostCapabilities
@@ -96,6 +119,7 @@ const BROWSER: HostCapabilities = {
   usbHost: true,
   print: true,
   shareSheet: false,
+  geolocation: true,
 }
 
 const DESKTOP: HostCapabilities = {
@@ -107,6 +131,7 @@ const DESKTOP: HostCapabilities = {
   usbHost: true,
   print: true,
   shareSheet: false,
+  geolocation: true,
 }
 
 const ANDROID: HostCapabilities = {
@@ -118,6 +143,7 @@ const ANDROID: HostCapabilities = {
   usbHost: true,
   print: false,
   shareSheet: true,
+  geolocation: false,
 }
 
 const IOS: HostCapabilities = {
@@ -129,6 +155,7 @@ const IOS: HostCapabilities = {
   usbHost: false,
   print: false,
   shareSheet: true,
+  geolocation: false,
 }
 
 export function capabilitiesFor(host: HostKind): HostCapabilities {

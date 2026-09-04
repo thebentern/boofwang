@@ -62,9 +62,32 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          echo "name=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-          # Monotonic across runs, which is all Play asks of it.
-          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          version=$(node -p "require('./package.json').version")
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+
+          # Derived from the version, not from the run counter.
+          #
+          # `github.run_number` looked monotonic and is not: a workflow called
+          # through `workflow_call` reports the CALLER's number, so a tag that
+          # starts Mobile directly and a tag that reaches it through Release
+          # are counting on two separate meters. Play accepts a versionCode
+          # exactly once and never forgets it, so the first collision is
+          # permanent for that number.
+          #
+          # The version is the thing that actually increases per release, and
+          # release.yml already refuses to reuse a tag. Minor and patch get
+          # three digits each, which is more than this project will need and
+          # stays far below Play's 2100000000 ceiling.
+          code=$(node -e '
+            const [maj, min, pat] = process.argv[1].split(".").map(Number)
+            if ([maj, min, pat].some(n => !Number.isInteger(n)) || min > 999 || pat > 999) {
+              console.error("version will not fit a versionCode: " + process.argv[1])
+              process.exit(1)
+            }
+            console.log(maj * 1000000 + min * 1000 + pat)
+          ' "$version")
+          echo "$version -> versionCode $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - name: Build a debug APK
         working-directory: mobile/android
@@ -151,6 +174,17 @@ jobs:
       # and a decision belongs to a person rather than to a tag. Play also
       # refuses the API entirely until one build for this package has been
       # through the Console by hand, which is why docs/play.md puts that first.
+      # Before the Play upload, not after. This is the only copy of a signed
+      # bundle that took the whole gate to produce, and a step that fails
+      # ends the job - so uploading to Play first meant a rejected bundle
+      # took the artifact down with it and the tag had to be rebuilt to get
+      # it back.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobile-android
+          path: dist-mobile/*
+          if-no-files-found: error
+
       - name: Send it to the internal track
         if: steps.play.outputs.go == '1'
         uses: r0adkll/upload-google-play@v1.1.5
@@ -160,12 +194,6 @@ jobs:
           releaseFiles: ${{ steps.play.outputs.bundle }}
           track: internal
           status: completed
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mobile-android
-          path: dist-mobile/*
-          if-no-files-found: error
 
   ios:
     name: iOS

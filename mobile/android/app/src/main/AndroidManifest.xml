@@ -8,9 +8,45 @@
     -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <!--
+        Classic Bluetooth, declared only to say it is not required either.
 
+        Asking for BLUETOOTH and BLUETOOTH_ADMIN below makes Android imply
+        `android.hardware.bluetooth`, and an implied feature is required
+        unless something says otherwise - so the built app told Play it needed
+        Bluetooth hardware, and Play would have hidden it from anything
+        without a radio. The line above covers BLE and is a different feature
+        name, so it did not help. Seen in `aapt2 dump badging` on a release
+        build as `uses-implied-feature`, not in this file.
+    -->
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <!--
+        And location hardware, for the same reason and from the same cause.
+        The two legacy location permissions below are capped at API 30, but
+        `aapt2` implies `android.hardware.location` from their presence at
+        all, and an implied feature is required unless it is contradicted -
+        so a device with no location hardware would have been told this radio
+        programmer was not for it. boofwang never asks where you are.
+    -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+
+    <!--
+        `allowBackup` is off, because the privacy policy says these bytes do
+        not leave the device and Android Auto Backup would make that untrue.
+
+        With no extraction rules the default backup set is shared prefs plus
+        the app's files and databases, and that includes the WebView profile
+        directory where this app's IndexedDB lives - which is the backups
+        store, so a DM-32UV image with its 22 AES key slots in it. Google's
+        copy is encrypted with the device lock-screen secret, so this was
+        never a plaintext disclosure. It was still a copy off the device that
+        survives an uninstall, which is exactly what app/pages/privacy.vue
+        tells people does not happen.
+
+        The copy is the promise, so the flag moved rather than the words.
+    -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -76,4 +112,23 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <!--
+        Declared here only to put a ceiling on it. The Bluetooth plugin's own
+        manifest asks for coarse location with no `maxSdkVersion`, and a
+        library permission the app does not also declare comes through the
+        merger exactly as the library wrote it - so the built app asked for
+        approximate location on every Android version, while the line above
+        carefully stopped at 11 and `neverForLocation` said the scan was not
+        about position. Checked in the built bundle, not inferred: `aapt2 dump
+        badging` on the release APK listed ACCESS_COARSE_LOCATION with no
+        ceiling, and a Play listing would have shown "approximate location"
+        for a radio programmer that never asks where you are.
+
+        30 is the right ceiling and not a guess. BluetoothLe.kt's `initialize`
+        requests the two location aliases only on the pre-S branch; from
+        Android 12 with `androidNeverForLocation` it asks for BLUETOOTH_SCAN
+        and BLUETOOTH_CONNECT and nothing else, which is what
+        app/mobile/bluetooth.ts turns on.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
 </manifest>
