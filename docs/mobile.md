@@ -40,8 +40,8 @@ same token on a phone keyboard.
 ## Building and running
 
 Prerequisites: the repository's usual Node and pnpm, plus Android Studio (or
-the command-line SDK with a JDK 21) for Android and Xcode for iOS. CocoaPods
-is not needed: the iOS project uses Swift Package Manager.
+the command-line SDK with a JDK 21) for Android and Xcode 16 or newer for
+iOS. CocoaPods is not needed: the iOS project uses Swift Package Manager.
 
 ```bash
 pnpm mobile:site           # nuxt generate at base URL /, no service worker
@@ -60,6 +60,25 @@ setting:
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer pnpm mobile:ios
 ```
+
+Xcode 16 is a floor rather than a preference. Capacitor 8 ships iOS as a
+prebuilt `Capacitor.xcframework` with no binary swiftmodule inside it, so
+every build compiles the framework's `.swiftinterface`, and that interface
+guards `UIColor.capacitor.color(fromHex:)` with
+`#if compiler(>=5.3) && $NonescapableTypes`. A compiler that does not know
+that feature - Swift 5.10, which is what Xcode 15.4 ships - does not see the
+method at all, and `@capacitor/status-bar`, which calls it, stops compiling:
+
+```
+error: incorrect argument label in call (have 'fromHex:', expected 'argb:')
+```
+
+That names a plugin, so it reads as a plugin out of step with core. It is
+not. Every `@capacitor/status-bar` 8.x calls `fromHex`, and every
+capacitor-swift-pm 8.x carries the guard, so no combination of versions in
+`package.json` avoids it. Only the compiler moves. Mobile ran on macos-14,
+whose default Xcode is 15.4, and the iOS job failed on main for this while
+the same commit built here on Xcode 26.6; it runs on macos-26 now.
 
 Xcode 26 ships the iOS SDK but not the platform runtime the build needs, and
 `xcodebuild` then reports every destination as ineligible with "iOS 26.5 is
