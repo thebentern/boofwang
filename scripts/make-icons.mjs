@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 
@@ -27,7 +27,24 @@ import sharp from 'sharp'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const BUILD = join(HERE, '..', 'build')
 const PUBLIC = join(HERE, '..', 'public')
+const IOS = join(HERE, '..', 'mobile', 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset')
+const ANDROID = join(HERE, '..', 'mobile', 'android', 'app', 'src', 'main', 'res')
 const SVG = join(BUILD, 'icon.svg')
+
+/** The tile the mark sits on, shared by every silhouette that draws one. */
+const TILE = '#202C39'
+
+/**
+ * Android's launcher densities: the legacy icon edge, then the adaptive
+ * foreground edge, which is the 108dp canvas rather than the 48dp one.
+ */
+const ANDROID_DENSITIES = [
+  ['mdpi', 48, 108],
+  ['hdpi', 72, 162],
+  ['xhdpi', 96, 216],
+  ['xxhdpi', 144, 324],
+  ['xxxhdpi', 192, 432],
+]
 
 /** The sizes an `.icns` carries, and the names `iconutil` insists on. */
 const ICNS_SIZES = [16, 32, 64, 128, 256, 512, 1024]
@@ -160,10 +177,62 @@ ${homeMark()}
 </svg>`
 }
 
+/**
+ * The iOS silhouette: the home drawing with the corners left square.
+ *
+ * iOS rounds an app icon itself. Handing it the squircle rounds corners that
+ * are about to be rounded again, and what shows through the mask is a pale
+ * fringe where the tile has already stopped. Square here, masked there.
+ */
+function iosVariant() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect x="0" y="0" width="1024" height="1024" fill="${TILE}"/>
+${homeMark()}
+</svg>`
+}
+
+/** The circular launcher icon Android asks for alongside the square one. */
+function roundVariant() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <circle cx="512" cy="512" r="512" fill="${TILE}"/>
+${homeMark()}
+</svg>`
+}
+
+/**
+ * The adaptive foreground: the mark alone, on nothing.
+ *
+ * An adaptive icon composites this over `@color/ic_launcher_background`, so
+ * drawing the tile here would paint it twice and defeat the parallax the
+ * launcher applies to the two layers separately. The 0.72 is the same safe
+ * zone `homeMaskable` uses: a launcher may mask this to a circle.
+ */
+function adaptiveForeground() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <g transform="translate(512 512) scale(0.72) translate(-512 -512)">
+${homeMark()}
+  </g>
+</svg>`
+}
+
 /** Below this, the simplified drawing. */
 const SMALL_BELOW = 48
 
 const png = (svg, size) => sharp(Buffer.from(svg)).resize(size, size).png({ compressionLevel: 9 }).toBuffer()
+
+/**
+ * The same, with the alpha channel gone.
+ *
+ * App Store Connect rejects an icon that carries one, even where every pixel
+ * is opaque, and it rejects it on upload rather than in review - so the first
+ * sign is a failed delivery of a build that took the whole gate to produce.
+ */
+const opaquePng = (svg, size) =>
+  sharp(Buffer.from(svg))
+    .resize(size, size)
+    .flatten({ background: TILE })
+    .png({ compressionLevel: 9 })
+    .toBuffer()
 
 /** Pick the drawing that survives the size being asked for. */
 const pngFor = (large, small, size) => png(size < SMALL_BELOW ? small : large, size)
@@ -259,6 +328,25 @@ outputs.push([PUBLIC, 'icon-512.png', await png(bleed, 512)])
 outputs.push([PUBLIC, 'icon-maskable-512.png', await png(homeMaskable(), 512)])
 outputs.push([PUBLIC, 'apple-touch-icon.png', await png(homeVariant(), 180)])
 
+/*
+ * The two native projects. `cap sync` does not touch these, so what Capacitor
+ * scaffolded stayed: both stores were being handed Capacitor's own logo, and
+ * a build carrying it reached App Store Connect before anybody looked. They
+ * are generated here for the reason everything else here is - a derived icon
+ * nobody regenerates drifts until it is the source.
+ *
+ * iOS takes one 1024 square and masks it. Android takes three drawings at five
+ * densities: the legacy icon, the round one, and the adaptive foreground whose
+ * tile comes from `values/ic_launcher_background.xml` instead.
+ */
+outputs.push([IOS, 'AppIcon-512@2x.png', await opaquePng(iosVariant(), 1024)])
+for (const [density, legacy, foreground] of ANDROID_DENSITIES) {
+  const dir = join(ANDROID, `mipmap-${density}`)
+  outputs.push([dir, 'ic_launcher.png', await png(homeVariant(), legacy)])
+  outputs.push([dir, 'ic_launcher_round.png', await png(roundVariant(), legacy)])
+  outputs.push([dir, 'ic_launcher_foreground.png', await png(adaptiveForeground(), foreground)])
+}
+
 // `iconutil` is macOS only. Elsewhere the committed `.icns` is left as it is,
 // and `--check` says so rather than reporting it stale on a Linux runner.
 if (process.platform === 'darwin') outputs.push([BUILD, 'icon.icns', await icns(mac, smallMac)])
@@ -267,7 +355,7 @@ else console.log('icon.icns: skipped, iconutil is macOS only')
 let stale = 0
 for (const [dir, name, data] of outputs) {
   const path = join(dir, name)
-  const label = `${dir === PUBLIC ? 'public' : 'build'}/${name}`
+  const label = `${relative(join(HERE, '..'), dir)}/${name}`
   let current = null
   try {
     current = readFileSync(path)
