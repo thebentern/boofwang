@@ -227,14 +227,32 @@ run and sends it to App Store Connect with `altool`, reusing the `APPLE_API_*`
 key the desktop build notarises with. Without them the run builds the project
 for the simulator, which is the check a pull request gets.
 
-That upload has never run. Whether the key's role is sufficient for it is the
-unconfirmed part: the key was made for notarisation, with the Developer role.
-The step says so and stops rather than failing the job, it runs after the
-artifact upload so a rejection cannot take the `.ipa` down with it, and the
-build number is derived from the version rather than from `github.run_number`
-for the reason the Android job records about `versionCode`. The first tag is
-what finds out. It delivers a build and stops: submitting for review is done
-by a person in the Console.
+The step runs after the artifact upload so a rejection cannot take the `.ipa`
+down with it, and the build number is derived from the version rather than
+from `github.run_number`, for the reason the Android job records about
+`versionCode`. It delivers a build and stops there: submitting for review is
+done by a person in the Console.
+
+Run for the first time on 4 September 2026 against `v0.1.3`, where it got
+further than expected and then stopped in one place. The archive signed as
+`Apple Distribution: Benjamin Meadors (6YF6QJH524)` and exported a 2,492,661
+byte `.ipa` as build 1003, which is the first `.ipa` this project has
+produced. The `APPLE_API_*` key authenticated and reached Apple, so the key
+itself is not the obstacle; whether its Developer role can carry an upload to
+completion is still unknown, because the upload never got that far. It
+stopped here:
+
+```
+ERROR: [altool] Cannot determine the Apple ID from Bundle ID
+'ng.boofwa.app' and platform 'IOS'. (19)
+```
+
+An App ID in the developer portal is not an app in App Store Connect. The
+second is a separate record, made by hand once, and no upload of this bundle
+ID can land until it exists - the same shape as the rule docs/play.md records
+for Play, where the API stays shut until one build has been through the
+Console by hand. Until then this step fails every time and the `.ipa` stays
+on the run, which is what the artifact ordering above is for.
 
 #### Putting a build on your own iPhone or iPad
 
