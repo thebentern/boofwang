@@ -14,6 +14,7 @@ only covers the store.
 | Piece | State |
 |---|---|
 | Play listing | Created 2026-09-04 under the personal account `thebentern`. App id 4974818952627673396, package `ng.boofwa.app`. |
+| Review | **Submitted 2026-09-04.** Eight changes sent: the store listing, content rating, target audience, privacy policy, ads, data safety, health apps and app category. Play's pre-review checks passed and it reports "Your changes are now in review". Google says reviews usually finish within seven days. |
 | Store listing | Filled and saved: name, both descriptions, icon, feature graphic, five phone screenshots, category Tools, contact email and website. |
 | App content | All declarations complete. Play reports "You're all caught up". |
 | Privacy policy | <https://boofwa.ng/privacy/> - live since main was deployed on 2026-09-04, and set in the console. |
@@ -48,12 +49,13 @@ it needs people rather than a checkout.
    which is why the automated upload step targets that track.
 2. **Apply for production access**, answering Google's questions about how the
    closed test went.
-3. **Send the store listing for review** and answer anything the reviewer asks.
-   Until that review passes, testers see the package name rather than
-   "boofwang".
+3. ~~**Send the store listing for review.**~~ Sent 2026-09-04. What is left of
+   this one is answering the reviewer if they come back with anything. Until
+   the review passes, testers see `ng.boofwa.app (unreviewed)` rather than
+   "boofwang", which is normal and not a packaging fault.
 
 The account's verified physical address appears on the public listing, because
-it is an individual account. Worth knowing before step 3 rather than after.
+it is an individual account. Worth knowing now that the listing is in review.
 
 ## The listing
 
