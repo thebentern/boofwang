@@ -197,7 +197,20 @@ jobs:
 
   ios:
     name: iOS
-    runs-on: macos-14
+    # The image is a toolchain decision. Capacitor 8 ships iOS as a prebuilt
+    # xcframework carrying no binary swiftmodule, so every build compiles its
+    # .swiftinterface - and that interface guards
+    # `UIColor.capacitor.color(fromHex:)` behind
+    # `#if compiler(>=5.3) && $NonescapableTypes`. A compiler that does not
+    # know that feature does not see the method, and @capacitor/status-bar,
+    # which calls it, fails with "incorrect argument label in call (have
+    # 'fromHex:', expected 'argb:')". macos-14 defaulted to Xcode 15.4, which
+    # is Swift 5.10; the feature arrived in Swift 6. It reads like a plugin
+    # out of step with core and it is not: every status-bar 8.x calls
+    # `fromHex` and every capacitor-swift-pm 8.x carries the guard, so no
+    # combination of versions in package.json avoids it. macos-26 defaults to
+    # Xcode 26.6, which is what docs/mobile.md records this building with.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
         with:
@@ -219,6 +232,9 @@ jobs:
         working-directory: mobile/ios/App
         run: |
           set -euo pipefail
+          # In the log because the Swift version is what decides whether this
+          # step passes, and the error when it does not names a plugin.
+          xcodebuild -version
           xcodebuild -project App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug \
             -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -20
 
