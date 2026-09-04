@@ -150,6 +150,16 @@ jobs:
     uses: ./.github/workflows/desktop.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
+    # A called workflow inherits nothing by default, secrets included, and
+    # every signing step in both of these is written to say so and carry on
+    # rather than fail. Without this line they read exactly like a repository
+    # that was never given a certificate. v0.1.2 shipped an unsigned macOS
+    # build - "building macOS unsigned: no CSC_LINK" in its own log - with
+    # MAC_CERT_P12 sitting in the repository the whole time. v0.1.3 produced
+    # no signed APK, no .ipa and no upload to Apple. Every job in both runs
+    # reported success. Inherited rather than listed one at a time: a secret
+    # left off the list would fail just as quietly.
+    secrets: inherit
 
   mobile:
     name: Mobile
@@ -157,6 +167,9 @@ jobs:
     uses: ./.github/workflows/mobile.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
+    # Not inherited by default either. The note on `build` above says what
+    # that cost v0.1.2 and v0.1.3.
+    secrets: inherit
 
   summary:
     name: Summary
