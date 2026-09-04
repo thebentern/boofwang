@@ -13,66 +13,49 @@ only covers the store.
 
 | Piece | State |
 |---|---|
-| Signed `.aab` | Built by `mobile.yml` on a tag, once the keystore secrets exist. Verified locally: `bundleRelease` produced a 4.4 MB `app-release.aab` on 2026-09-03. |
+| Play listing | Created 2026-09-04 under the personal account `thebentern`. App id 4974818952627673396, package `ng.boofwa.app`. |
+| Store listing | Filled and saved: name, both descriptions, icon, feature graphic, five phone screenshots, category Tools, contact email and website. |
+| App content | All declarations complete. Play reports "You're all caught up". |
+| Privacy policy | <https://boofwa.ng/privacy/> - live since main was deployed on 2026-09-04, and set in the console. |
+| Data safety | Submitted: no data collected, no data shared. |
+| Content rating | Submitted. Lowest rating in every region: ESRB Everyone, PEGI 3, USK 0, ClassInd L. |
+| Upload key | Generated 2026-09-04, RSA 4096, valid to 2054. SHA-256 `04:92:1F:AC:...:D9:B1`. Kept at `~/boofwang-release.keystore` with its password in `~/.boofwang-upload-key.pw`, both 0600. |
+| CI secrets | All four `ANDROID_*` secrets set, so a tag now signs. |
+| Internal testing release | `1002 (0.1.2)` uploaded and saved as a **draft**. Not rolled out. |
 | `targetSdk` | 36. Play's floor for new submissions is 35, so this is current. |
-| `versionCode` | The workflow run number, which is monotonic. Play requires nothing else of it. |
+| `versionCode` | Derived from the version: 0.1.2 is 1002. Play accepted it. |
 | `applicationId` | `ng.boofwa.app`, matching the iOS bundle id and the App ID already registered. |
-| Privacy policy | `/privacy`, so <https://boofwa.ng/privacy>. Play requires a URL for every listing whether or not anything is collected. |
 | Permissions | Four, and none of them location. The Bluetooth plugin's uncapped coarse-location grant is capped in the app manifest; see below. |
 | Icon, feature graphic | `node scripts/make-store-art.mjs` writes both to `build/play/`. |
-| Screenshots | Five, 1080x2400, in `build/play/screenshots/`. Captured on an emulator; see below. |
-| Play developer account | Created, 2026-09-04. |
-| Upload key | **Not created.** Only the owner should. |
+| Screenshots | Five, 1080x2400, in `build/play/screenshots/`, uploaded. Captured on an emulator; see below. |
 
-## What only a person can do
+## What is left
 
-None of these can be done from a checkout, and two of them cost money or
-create liabilities, so they are listed rather than automated.
+Everything a checkout can do is done. What remains needs a person, either
+because it names other people or because it is a decision.
 
-1. ~~**A Play Console developer account.**~~ Done, 2026-09-04. For an
-   individual account the verified physical address goes on the public
-   listing, which is worth knowing before the listing is published rather
-   than after.
-2. **The upload key.** `docs/mobile.md` has the command. It has to be made on
-   a machine the owner trusts and kept: Play will not take an update signed
-   with a different key, though Play App Signing does allow an upload key to
-   be reset through support if it is lost.
+1. **Select internal testers.** Up to 100 Google accounts. Nobody can install
+   the build until at least one is named.
+2. **Confirm the internal testing release.** Release `1002 (0.1.2)` is
+   uploaded and sitting as a draft. Confirming rolls it out to whoever is on
+   that tester list, which is the first time the app reaches anyone.
+3. **Closed testing, twelve testers, fourteen continuous days.** This is the
+   long pole and it decides when boofwang can be public.
 
-   ```bash
-   keytool -genkeypair -v -keystore boofwang-release.keystore -alias boofwang \
-     -keyalg RSA -keysize 4096 -validity 10000
-   ```
+   A personal Play account registered after November 2023 cannot publish to
+   production until it has run a closed test with at least twelve testers who
+   stay opted in for fourteen days. Twelve real Google accounts, not twelve
+   devices, and the clock restarts if the count drops below twelve. The
+   console says so plainly on the dashboard: "0 testers currently opted-in".
 
-3. **Four repository secrets**, so the tagged build can sign:
+   Internal testing has no such requirement and takes effect immediately,
+   which is why the automated upload step targets that track.
+4. **Apply for production access**, answering Google's questions about how the
+   closed test went.
+5. **Send the store listing for review** and answer anything the reviewer asks.
 
-   ```bash
-   base64 -i boofwang-release.keystore | gh secret set ANDROID_KEYSTORE_BASE64
-   gh secret set ANDROID_KEYSTORE_PASSWORD
-   gh secret set ANDROID_KEY_ALIAS      # boofwang
-   gh secret set ANDROID_KEY_PASSWORD
-   ```
-
-4. **The first upload, by hand.** Play will not accept an upload over its API
-   until a build for that package name has been through the Console once. So
-   the first `.aab` is downloaded from the workflow run and dragged into the
-   Console; every one after that can be automated, which is what the
-   `PLAY_SERVICE_ACCOUNT_JSON` step in `mobile.yml` is for.
-5. **Closed testing, for fourteen days, with twelve testers.** This is the
-   part that decides when boofwang can actually be public, and it is worth
-   knowing before anything else is scheduled.
-
-   A personal Play developer account registered after November 2023 cannot
-   publish to production straight away. It has to run a closed test with at
-   least twelve testers who stay opted in continuously for fourteen days, and
-   only then does the production track open. Twelve real Google accounts, not
-   twelve devices, and the clock restarts if the tester count drops.
-
-   So the realistic order is: sign the build, upload by hand, put it on
-   closed testing, find twelve people, wait a fortnight. Internal testing has
-   no such requirement and takes effect immediately, which is why the
-   automated step targets that track: it is the one that is useful on the day
-   a tag is cut.
-6. **Submitting for review**, and answering anything the reviewer asks.
+The account's verified physical address appears on the public listing, because
+it is an individual account. Worth knowing before step 5 rather than after.
 
 ## The listing
 
@@ -115,7 +98,7 @@ Supported radios
   Baofeng DM-32UV      4,000 channels, DMR, with zones and AES key slots
 
 Connect over a USB programming cable (CH340, PL2303, CP210x and FTDI adapters
-are recognised) or, on radios that have a module of their own, over Bluetooth.
+are recognized) or, on radios that have a module of their own, over Bluetooth.
 
 Writing to a radio is treated as the risk it is
 
