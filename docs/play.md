@@ -21,7 +21,8 @@ only covers the store.
 | Content rating | Submitted. Lowest rating in every region: ESRB Everyone, PEGI 3, USK 0, ClassInd L. |
 | Upload key | Generated 2026-09-04, RSA 4096, valid to 2054. SHA-256 `04:92:1F:AC:...:D9:B1`. Kept at `~/boofwang-release.keystore` with its password in `~/.boofwang-upload-key.pw`, both 0600. |
 | CI secrets | All four `ANDROID_*` secrets set, so a tag now signs. |
-| Internal testing release | `1002 (0.1.2)` uploaded and saved as a **draft**. Not rolled out. |
+| Internal testing release | `1002 (0.1.2)` **live** on the internal track since 2026-09-04 07:36. Track active, 4.17 MB install, 19,276 supported devices. Not yet reviewed, so testers see the temporary name `ng.boofwa.app (unreviewed)`. |
+| Internal testers | One list, `boofwang internal`, with ben@meshtastic.com. Opt-in at <https://play.google.com/apps/internaltest/4700406117493732747>, then the Play listing appears for that account. |
 | `targetSdk` | 36. Play's floor for new submissions is 35, so this is current. |
 | `versionCode` | Derived from the version: 0.1.2 is 1002. Play accepted it. |
 | `applicationId` | `ng.boofwa.app`, matching the iOS bundle id and the App ID already registered. |
@@ -31,15 +32,10 @@ only covers the store.
 
 ## What is left
 
-Everything a checkout can do is done. What remains needs a person, either
-because it names other people or because it is a decision.
+The app is installable. What remains is the path to being public, and all of
+it needs people rather than a checkout.
 
-1. **Select internal testers.** Up to 100 Google accounts. Nobody can install
-   the build until at least one is named.
-2. **Confirm the internal testing release.** Release `1002 (0.1.2)` is
-   uploaded and sitting as a draft. Confirming rolls it out to whoever is on
-   that tester list, which is the first time the app reaches anyone.
-3. **Closed testing, twelve testers, fourteen continuous days.** This is the
+1. **Closed testing, twelve testers, fourteen continuous days.** This is the
    long pole and it decides when boofwang can be public.
 
    A personal Play account registered after November 2023 cannot publish to
@@ -50,12 +46,14 @@ because it names other people or because it is a decision.
 
    Internal testing has no such requirement and takes effect immediately,
    which is why the automated upload step targets that track.
-4. **Apply for production access**, answering Google's questions about how the
+2. **Apply for production access**, answering Google's questions about how the
    closed test went.
-5. **Send the store listing for review** and answer anything the reviewer asks.
+3. **Send the store listing for review** and answer anything the reviewer asks.
+   Until that review passes, testers see the package name rather than
+   "boofwang".
 
 The account's verified physical address appears on the public listing, because
-it is an individual account. Worth knowing before step 5 rather than after.
+it is an individual account. Worth knowing before step 3 rather than after.
 
 ## The listing
 
