@@ -249,10 +249,30 @@ ERROR: [altool] Cannot determine the Apple ID from Bundle ID
 
 An App ID in the developer portal is not an app in App Store Connect. The
 second is a separate record, made by hand once, and no upload of this bundle
-ID can land until it exists - the same shape as the rule docs/play.md records
-for Play, where the API stays shut until one build has been through the
-Console by hand. Until then this step fails every time and the `.ipa` stays
-on the run, which is what the artifact ordering above is for.
+ID could land until it existed - the same shape as the rule docs/play.md
+records for Play, where the API stays shut until one build has been through
+the Console by hand. While it did not exist the step failed every time and
+the `.ipa` stayed on the run, which is what the artifact ordering is for.
+
+The record was made the same day: `boofwang`, iOS, bundle `ng.boofwa.app`,
+SKU `boofwang-ios`, Apple ID 6808673699. The step was then run again,
+unchanged, and answered the rest:
+
+```
+UPLOAD SUCCEEDED with no errors
+Delivery UUID: c62a5ae7-b1d9-4c95-a6cb-69c2b68070c8
+```
+
+App Store Connect lists it under TestFlight as 0.1.3 (1003), processing. So
+the Developer role the key was made with for notarisation does carry an
+upload through to the end, which was the open question, and the build number
+derived from the version arrives as Apple's build number unchanged.
+
+What that build is not is submitted. Everything under Prepare for Submission
+- export compliance, privacy, age rating, screenshots, the listing text - is
+a person's to fill in, as is the EU trader status App Store Connect asks for
+before a new app can be distributed there. The iOS rows in the table below
+are all still `not run`, and a listing must not say otherwise.
 
 #### Putting a build on your own iPhone or iPad
 
