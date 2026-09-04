@@ -268,10 +268,12 @@ the Developer role the key was made with for notarisation does carry an
 upload through to the end, which was the open question, and the build number
 derived from the version arrives as Apple's build number unchanged.
 
-What that build is not is submitted. Everything under Prepare for Submission
-- export compliance, privacy, age rating, screenshots, the listing text - is
-a person's to fill in, as is the EU trader status App Store Connect asks for
-before a new app can be distributed there. The iOS rows in the table below
+What that build is not is submitted. Export compliance is answered in the
+app's Info.plist, where `ITSAppUsesNonExemptEncryption` is false and a
+comment records on what basis, so App Store Connect does not ask per upload.
+The rest of Prepare for Submission - privacy, age rating, screenshots, the
+listing text - is a person's to fill in, as is the EU trader status App Store
+Connect asks for before a new app can be distributed there. The iOS rows in the table below
 are all still `not run`, and a listing must not say otherwise.
 
 #### Putting a build on your own iPhone or iPad

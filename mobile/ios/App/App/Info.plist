@@ -22,6 +22,22 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!--
+		Declared here rather than answered per build in App Store Connect, so
+		that one answer covers every upload and its basis is in version
+		control. No cryptographic algorithm is implemented in this app.
+
+		What it does do, none of which is encryption: SHA-256 over an image
+		for integrity, in lib/codec/checksum.ts; a fixed four-byte XOR
+		against the public constant "CO 7" on the UV-5R Mini's wire
+		protocol, which lib/radios/uv5rmini/protocol.ts calls not encryption
+		in as many words; and storing AES-256 key material as opaque bytes
+		in a DM-32UV codeplug, which the radio encrypts with and this app
+		never does. HTTPS to the repeater directories is the exemption every
+		app relies on.
+	-->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
