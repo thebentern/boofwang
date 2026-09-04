@@ -15,7 +15,7 @@ import { UV5G_SCHEMA } from './schema.js'
 const UV5G_MODEL: Uv5rFamilyModel = {
   id: 'uv5g',
   label: 'UV-5G',
-  magic: MAGIC_UV5G,
+  magics: [MAGIC_UV5G],
   schema: UV5G_SCHEMA,
   classify: classifyBasetype,
 }

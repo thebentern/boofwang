@@ -348,8 +348,8 @@ UUID FFE0 alone does not.
    changes - the `uart:` prefix is what keeps the radio on its cable block
    size while chasing.
 
-Writing through a dongle stays refused by the write gate for the four radios
-that have no BLE module of their own - the carrier is Bluetooth, their
+Writing through a dongle stays refused by the write gate for every radio
+that has no BLE module of its own - the carrier is Bluetooth, their
 `writeTransports` falls back to a `transports` of `['serial']`, and no radio
 behind a dongle has taken a write. The enabling sequence is the UV-5R Mini's:
 read first, prove the round trip, then let the radio's schema write over

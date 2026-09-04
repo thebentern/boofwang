@@ -61,16 +61,24 @@ it is an individual account. Worth knowing now that the listing is in review.
 
 Sentence case, lowercase boofwang, and no claim that is not true on Android.
 That last one is not pedantry: `docs/mobile.md`'s table records that of the
-five radios, only the DM-32UV has been read and written on an Android phone.
-The drivers themselves are verified against hardware captures and, for most
-of them, against real radios elsewhere, but the honest Android claim today is
-narrower than the honest claim for the project.
+radios boofwang supports, only the DM-32UV has been read and written on an
+Android phone. Most of the drivers are verified against hardware captures and
+against real radios elsewhere - the UV-5R is not verified against anything and
+is read-only for it - but the honest Android claim today is narrower than the
+honest claim for the project.
 
 The radio list below was got wrong once, here. It said four radios, because
 CLAUDE.md's opening line says four and that was believed over
-`lib/radio/registry.ts`, which registers five - the Radioddity UV-5G was the
+`lib/radio/registry.ts`, which registered five - the Radioddity UV-5G was the
 one dropped. The names, channel counts and transports are now read off the
 running app on a phone, which is the one source that cannot be stale.
+
+It is out of date again, deliberately. The registry has since grown a sixth
+radio, the read-only Baofeng UV-5R, and the "Supported radios" list below does
+not mention it - because that list is the text that was actually submitted for
+review, and editing it here would make this document disagree with what Google
+is looking at. Add the UV-5R to it in the next submission, with the read-only
+state said plainly; do not quietly correct it in place.
 
 **App name** (30 characters): `boofwang`
 
@@ -137,10 +145,11 @@ Also here
 What has actually been tested on a phone
 
 The DM-32UV has been read, written and restored over a USB cable on an
-Android phone, byte-for-byte verified. The other four radios are verified
-against hardware elsewhere but have not yet been exercised over a cable on
-Android, and neither has the Bluetooth path. If you try one, an issue on
-GitHub saying what happened is genuinely useful.
+Android phone, byte-for-byte verified. The rest have not been exercised over a
+cable on Android, and neither has the Bluetooth path: the UV-K5, UV-82, UV-5G
+and UV-5R Mini are verified against real radios elsewhere, and the UV-5R
+against no radio at all, which is why it is read-only. If you try one, an
+issue on GitHub saying what happened is genuinely useful.
 
 boofwang is free software under the GNU General Public License v3 or later.
 The source is at github.com/thebentern/boofwang. It comes with no warranty:

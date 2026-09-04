@@ -43,12 +43,13 @@ describe('every raw layout is distinguishable by size', () => {
     expect(new Set(totals).size).toBe(totals.length)
   })
 
-  it('covers every radio that can be read, less the two deliberate absences', () => {
+  it('covers every radio that can be read, less the deliberate absences', () => {
     // The DM-32UV describes itself page by page and needs no size guess. The
-    // UV-5G is missing because it CANNOT be here: its image is the same 6,472
-    // bytes as the UV-82's, and a second entry of that length would turn the
-    // size guess into a coin toss. A bare UV-5G .bin opens as a UV-82; the
-    // identity survives in .bwp and CHIRP .img instead.
+    // UV-5G and the UV-5R are missing because they CANNOT be here: their
+    // images are the same 6,472 bytes as the UV-82's, and a second entry of
+    // that length would turn the size guess into a coin toss. A bare .bin of
+    // either opens as a UV-82; the identity survives in .bwp and CHIRP .img
+    // instead.
     const ids = new Set(RAW_LAYOUTS.map((l) => l.radioId))
     expect([...ids].sort()).toEqual(['uv5rmini', 'uv82', 'uvk5'])
   })
@@ -79,6 +80,73 @@ describe('a UV-5G, which shares its length with the UV-82', () => {
   it('opens as a UV-82 from a bare .bin, which carries nothing', async () => {
     const opened = await openImageFile(UV5G.slice())
     expect(opened.note).toEqual({ kind: 'raw', guessedFrom: 'size' })
+    expect(opened.image.radioId).toBe('uv82')
+  })
+})
+
+describe('a UV-5R, which shares its length with the UV-82 and the UV-5G', () => {
+  const FAMILY = new Uint8Array(
+    readFileSync(fileURLToPath(new URL('../../fixtures/images/uv5g-HN5RV011.bin', import.meta.url))),
+  )
+  /*
+   * Not a UV-5R capture - there is none. These are the UV-5G's bytes with a
+   * UV-5R's identity stamped on them, which is all this check needs: what it
+   * is about is whether the metadata survives the trip and resolves back to
+   * the radio it names, not what the memory holds.
+   */
+  const uv5rImage = (): RadioImage => ({
+    radioId: 'uv5r',
+    variant: 'BFB297',
+    layout: 'uv5r',
+    createdAt: '2026-09-04T00:00:00.000Z',
+    regions: [{ start: 0, data: FAMILY.slice(), label: 'image' }],
+    meta: {},
+    sha256: '',
+  })
+
+  it('keeps its identity through a CHIRP .img, which carries the driver class', async () => {
+    const img = await encodeChirpImg(uv5rImage())
+    const opened = await openImageFile(img)
+    expect(opened.image.radioId).toBe('uv5r')
+    expect(opened.image.layout).toBe('uv5r')
+  })
+
+  it('is stamped with the class CHIRP actually registers, not the base class', async () => {
+    // `BaofengUV5R` is the unregistered base class of the whole family;
+    // `BaofengUV5RGeneric` is the plain radio CHIRP will open. A file carrying
+    // the former would round-trip here and be refused by CHIRP.
+    const { metadata } = splitChirpImg(await encodeChirpImg(uv5rImage()))
+    expect(metadata.rclass).toBe('BaofengUV5RGeneric')
+    expect(metadata.vendor).toBe('Baofeng')
+    expect(metadata.model).toBe('UV-5R')
+  })
+
+  /** A CHIRP trailer written by hand, so metadata boofwang never emits can be read. */
+  const withMetadata = (memory: Uint8Array, meta: Record<string, unknown>): Uint8Array => {
+    const b64 = Buffer.from(JSON.stringify(meta), 'utf8').toString('base64')
+    return Uint8Array.from([...memory, ...CHIRP_MAGIC, ...new TextEncoder().encode(b64)])
+  }
+
+  it('still opens a file that names the base class, which boofwang never writes', async () => {
+    // `BaofengUV5R` is not a registered CHIRP driver, but the name turns up in
+    // files and in every subclass's `__bases__`. Accepted on the way in and
+    // never emitted on the way out.
+    const opened = await openImageFile(withMetadata(FAMILY.slice(), { rclass: 'BaofengUV5R' }))
+    expect(opened.image.radioId).toBe('uv5r')
+  })
+
+  it('falls back to the model name when the class is one it has never heard of', async () => {
+    const opened = await openImageFile(withMetadata(FAMILY.slice(), { rclass: 'SomeFutureUV5R', model: 'UV-5R' }))
+    expect(opened.image.radioId).toBe('uv5r')
+  })
+
+  it('leaves an unrecognised classic-family file as a UV-82, rather than guessing', async () => {
+    const opened = await openImageFile(withMetadata(FAMILY.slice(), { rclass: 'Nonsense', model: 'Nonsense' }))
+    expect(opened.image.radioId).toBe('uv82')
+  })
+
+  it('opens as a UV-82 from a bare .bin, which carries nothing', async () => {
+    const opened = await openImageFile(FAMILY.slice())
     expect(opened.image.radioId).toBe('uv82')
   })
 })

@@ -29,7 +29,7 @@ adapters are `lib/transport/native-serial-port.ts` and
 | Writes over Bluetooth | the [UV-5R Mini](protocols/uv5rmini.md), which has taken one. Nothing behind a dongle. | the same |
 
 That last row matters for iOS, because Bluetooth is the only carrier there: the
-UV-5R Mini is the one radio an iPhone or iPad can write, and the four reachable
+UV-5R Mini is the one radio an iPhone or iPad can write, and the radios reachable
 only through a clip-on dongle stay read-only on this platform until one of them
 has survived a write over that link. A store listing must not say more.
 

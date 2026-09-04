@@ -3,6 +3,7 @@ import type { RadioId } from '../model/codeplug.js'
 import { createDm32uvDriver } from '../radios/dm32uv/driver.js'
 import { createUv82Driver } from '../radios/uv82/driver.js'
 import { createUv5gDriver } from '../radios/uv5g/driver.js'
+import { createUv5rDriver } from '../radios/uv5r/driver.js'
 import { createUv5rMiniDriver } from '../radios/uv5rmini/driver.js'
 import { createUvk5Driver } from '../radios/uvk5/driver.js'
 import type { RadioDriver } from './driver.js'
@@ -40,6 +41,14 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // documented meaning, so every other byte is read, preserved and never sent
   // back. See docs/protocols/dm32uv.md.
   dm32uv: () => createDm32uvDriver({ enableWrite: true }),
+  // Read-only, because nobody has had one of these on a cable. The protocol
+  // and the memory map are the ones the UV-82 and UV-5G drivers have already
+  // been verified on - CHIRP's `BaofengUV5R` is the class both of those
+  // subclass - but this radio's own ident magics, its firmware classifier and
+  // its band plan have been read out of uv5r.py and never off a wire. Reading
+  // is still worth offering: a backup is exactly what an unverified radio
+  // needs. See docs/protocols/uv5r.md for what a bench session would settle.
+  uv5r: () => createUv5rDriver(),
   // A UV-17 Pro family radio despite the name: 115200 baud, obfuscated 64-byte
   // blocks. Writing sends the WHOLE image every time - this radio erases a
   // flash page before programming and writes back only the block it was handed,
@@ -53,11 +62,12 @@ export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
   uvk5: createUvk5Driver({ enableWrite: true }).schema,
   uv82: createUv82Driver({ enableWrite: true }).schema,
   uv5g: createUv5gDriver({ enableWrite: true }).schema,
+  uv5r: createUv5rDriver().schema,
   dm32uv: createDm32uvDriver({ enableWrite: true }).schema,
   uv5rmini: createUv5rMiniDriver({ enableWrite: true }).schema,
 }
 
-export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5rmini', 'dm32uv']
+export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv']
 
 export function createDriver(id: RadioId): RadioDriver {
   const factory = DRIVER_FACTORIES[id]

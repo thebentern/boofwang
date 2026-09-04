@@ -221,6 +221,24 @@ export const BASETYPE_UV82: readonly string[] = ['US2S2', 'B82S', 'BF82', 'N82-2
 /** The tri-power variants, which have a different power table. */
 export const BASETYPE_UV82HP: readonly string[] = ['N82-3', 'N823', 'N5R2']
 
+/*
+ * The rest of `BASETYPE_*` from uv5r.py, kept here because more than one
+ * member of the family needs them and a second copy of a safety table is a
+ * table that can drift. `BASETYPE_UV5R` is the plain UV-5R's list and also
+ * the UV-5G's, because CHIRP's `RadioddityUV5GRadio` sets `_basetype` to it.
+ *
+ * These are matched by containment rather than by prefix, which is CHIRP's own
+ * test (`any(type in rid ...)` in `model_match`). The UV-5G bench unit is why:
+ * it reports `HN5RV011`, which contains `N5RV` but starts with none of them.
+ */
+
+/** `BASETYPE_UV5R`: the firmware families of the plain UV-5R. */
+export const BASETYPE_UV5R: readonly string[] = ['BFS', 'BFB', 'N5R-2', 'N5R2', 'N5RV', 'BTS', 'D5R2', 'B5R2']
+/** `BASETYPE_F8HP`: the tri-power BF-F8HP, which answers the UV-5R's magic. */
+export const BASETYPE_F8HP: readonly string[] = ['BFP3V3 F', 'N5R-3', 'N5R3', 'F5R3', 'BFT', 'N5RV']
+/** `BASETYPE_KT980HP`: the Intek KT-980HP, tri-power, same magic again. */
+export const BASETYPE_KT980HP: readonly string[] = ['BFP3V3 B']
+
 export const VHF_RANGE: readonly [number, number] = [130_000_000, 176_000_000]
 export const UHF_RANGE: readonly [number, number] = [400_000_000, 521_000_000]
 

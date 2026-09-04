@@ -98,6 +98,24 @@ const IMAGES: Record<string, () => RadioImage> = {
     meta: {},
     sha256: '',
   }),
+  /*
+   * No UV-5R has been read, so these are a real UV-82's bytes.
+   *
+   * Legitimate for this check and for nothing else: the settings block is
+   * byte-identical across the classic family - one `MEM_FORMAT` in uv5r.py
+   * covers every member - so it exercises exactly what this file is about,
+   * which is whether each control the UI renders names a field the decoder
+   * produces. It says nothing about whether a UV-5R holds these values.
+   */
+  uv5r: () => ({
+    radioId: 'uv5r',
+    variant: 'BFB297',
+    layout: 'uv5r',
+    createdAt: '2026-09-04T00:00:00.000Z',
+    regions: flat(file('uv82-N822413.bin'), UV82_REGIONS),
+    meta: {},
+    sha256: '',
+  }),
   uv5rmini: () => {
     const blob = file('uv5rmini-5RMINI.bin')
     let off = 0
@@ -146,6 +164,7 @@ const CASES: readonly Case[] = [
   { id: 'uvk5', layout: 'egzumer', image: IMAGES['uvk5-egzumer']! },
   { id: 'uv82', layout: 'uv82', image: IMAGES.uv82! },
   { id: 'uv5g', layout: 'uv5g', image: IMAGES.uv5g! },
+  { id: 'uv5r', layout: 'uv5r', image: IMAGES.uv5r! },
   { id: 'uv5rmini', layout: 'uv5rmini', image: IMAGES.uv5rmini! },
   { id: 'dm32uv', layout: 'DP570UV', image: IMAGES.dm32uv! },
 ]

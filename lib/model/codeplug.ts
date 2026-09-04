@@ -2,7 +2,7 @@
 import type { Channel } from './channel.js'
 import type { Hz } from './units.js'
 
-export type RadioId = 'uvk5' | 'uv82' | 'uv5g' | 'uv5rmini' | 'dm32uv'
+export type RadioId = 'uvk5' | 'uv82' | 'uv5g' | 'uv5r' | 'uv5rmini' | 'dm32uv'
 
 export type EncryptionType = 'none' | 'custom' | 'arc4' | 'aes128' | 'aes256'
 

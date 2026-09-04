@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { BASETYPE_UV5R } from '../uv82/layout.js'
 
 /**
  * The Radioddity UV-5G, a GMRS radio in the classic UV-5R family.
@@ -21,15 +22,14 @@
 export const MAGIC_UV5G = Uint8Array.from([0x50, 0xbb, 0xff, 0x20, 0x12, 0x06, 0x25])
 
 /**
- * `BASETYPE_UV5R` in uv5r.py: the firmware families of the plain UV-5R, which
- * is the basetype CHIRP assigns this radio.
+ * The basetype list CHIRP assigns this radio is the plain UV-5R's own, so it
+ * lives with the family's other shared tables rather than being copied here.
  *
- * Matched by containment, not prefix, because that is CHIRP's own test
- * (`any(type in rid ...)` in `model_match`) and the radio this was verified
- * against needs it: the bench unit reports `HN5RV011`, which contains `N5RV`
- * but starts with none of these.
+ * Kept under this name because that is what this module calls it, and because
+ * the indirection is the point: if the table ever changes, both radios change
+ * with it.
  */
-export const BASETYPE_UV5G: readonly string[] = ['BFS', 'BFB', 'N5R-2', 'N5R2', 'N5RV', 'BTS', 'D5R2', 'B5R2']
+export const BASETYPE_UV5G: readonly string[] = BASETYPE_UV5R
 
 /**
  * Sort a firmware version string into a recognised model, or null.

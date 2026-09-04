@@ -125,8 +125,14 @@ export interface Uv5rFamilyModel {
   readonly id: RadioId
   /** How the radio is named in errors and logs: 'UV-82', 'UV-5G'. */
   readonly label: string
-  /** The seven-byte ident magic this member answers. */
-  readonly magic: Uint8Array
+  /**
+   * The seven-byte ident magics this member answers, in the order to try them.
+   *
+   * A list rather than one magic because CHIRP's `_idents` is a list: most
+   * members have exactly one, and the plain UV-5R has two because its
+   * pre-BFB291 firmware answers a different one.
+   */
+  readonly magics: readonly Uint8Array[]
   readonly schema: RadioSchema
   /**
    * Sort a firmware version string into a recognised model, or null.
@@ -141,7 +147,7 @@ export interface Uv5rFamilyModel {
 const UV82_MODEL: Uv5rFamilyModel = {
   id: 'uv82',
   label: 'UV-82',
-  magic: MAGIC_UV82,
+  magics: [MAGIC_UV82],
   schema: UV82_SCHEMA,
   classify: classifyBasetype,
 }
@@ -184,7 +190,7 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       const opts = { timeoutMs, signal: ctx.signal }
 
       ctx.progress?.({ phase: 'handshake', done: 0, total: 1, label: 'Saying hello' })
-      const { ident, raw } = await doIdentify(t, model.magic, opts)
+      const { ident, raw } = await doIdentify(t, model.magics, opts)
       const fw = await readFirmware(t, opts)
       const basetype = model.classify(fw.version)
 
@@ -219,7 +225,7 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
           ...(basetype === null
             ? {
                 reason:
-                  `Firmware ${JSON.stringify(fw.version)} is not one this build recognises, so its memory ` +
+                  `Firmware ${JSON.stringify(fw.version)} is not one this build recognizes, so its memory ` +
                   'layout cannot be assumed. The radio can still be read and backed up.',
               }
             : basetype.triPower

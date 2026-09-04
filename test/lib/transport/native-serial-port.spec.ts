@@ -11,6 +11,7 @@ import { UV82_SERIAL } from '#core/radios/uv82/schema.js'
 import { UV5RMINI_SERIAL } from '#core/radios/uv5rmini/schema.js'
 import { DM32UV_SERIAL } from '#core/radios/dm32uv/schema.js'
 import { createUv5gDriver } from '#core/radios/uv5g/driver.js'
+import { createUv5rDriver } from '#core/radios/uv5r/driver.js'
 
 const b = (...xs: number[]) => Uint8Array.from(xs)
 const OPEN = { baudRate: 115_200 }
@@ -89,9 +90,11 @@ describe('what each driver asks for lands on the device', () => {
     ['uv82', UV82_SERIAL],
     ['uv5rmini', UV5RMINI_SERIAL],
     ['dm32uv', DM32UV_SERIAL],
-    // The UV-5G is the UV-82's driver behind a different ident magic and has
-    // no serial constant of its own, so its driver is asked directly.
+    // The UV-5G and the UV-5R are the UV-82's driver behind different ident
+    // magics and have no serial constant of their own, so their drivers are
+    // asked directly.
     ['uv5g', createUv5gDriver().serial],
+    ['uv5r', createUv5rDriver().serial],
   ]
 
   for (const [id, serial] of radios) {
