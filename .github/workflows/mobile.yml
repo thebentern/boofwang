@@ -268,6 +268,23 @@ jobs:
           printf '%s' "$PROFILE_B64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/boofwang.mobileprovision
 
           version=$(node -p "require('./package.json').version")
+
+          # Derived from the version, not from github.run_number, for the
+          # reason the Android job's versionCode comment gives in full: a run
+          # reached through workflow_call reports the CALLER's number, so the
+          # two routes to a tag count on separate meters. App Store Connect
+          # takes a build number once per marketing version and never forgets
+          # it, so the first collision is permanent for that number.
+          build=$(node -e '
+            const v = process.argv[1].split(".").map(Number)
+            if (v.length !== 3 || v.some(n => !Number.isInteger(n)) || v[1] > 999 || v[2] > 999) {
+              console.error("version will not fit a build number: " + process.argv[1])
+              process.exit(1)
+            }
+            console.log(v[0] * 1000000 + v[1] * 1000 + v[2])
+          ' "$version")
+          echo "$version -> build $build"
+
           cd mobile/ios/App
           # Signed manually, against the profile imported above, because the
           # project is set to sign automatically and a runner has no Apple ID.
@@ -277,7 +294,7 @@ jobs:
           # Mac with the same empty Xcode.
           xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphoneos \
             -archivePath "${RUNNER_TEMP}/App.xcarchive" \
-            MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build" \
             CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER=boofwang \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             archive | tail -20
@@ -291,6 +308,46 @@ jobs:
           name: mobile-ios
           path: dist-mobile/*.ipa
           if-no-files-found: ignore
+
+      # After the artifact, for the reason the Android job records: this is
+      # the only copy of a signed build the whole gate produced, and a step
+      # that fails ends the job, so an upload Apple rejects would take the
+      # artifact down with it.
+      #
+      # This delivers a build to App Store Connect and stops. It does not
+      # submit for review: who is trusting this with a radio is a decision
+      # for a person, and it is made in the Console. Until this step there
+      # was no way to get a build to Apple at all - docs/mobile.md called
+      # that a manual step - so a rejection here is new ground and the .ipa
+      # on the run is what to retry with.
+      - name: Send it to App Store Connect, when there is a key
+        env:
+          API_KEY_B64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          ipa=$(find dist-mobile -name '*-ios.ipa' 2>/dev/null | head -1 || true)
+          if [ -z "$ipa" ]; then
+            echo "no .ipa on this run: nothing to send"
+            exit 0
+          fi
+          if [ -z "${API_KEY_B64:-}" ] || [ -z "${API_KEY_ID:-}" ] || [ -z "${API_ISSUER:-}" ]; then
+            echo "no APPLE_API_* key: $ipa stays on this run only"
+            exit 0
+          fi
+          # Outside the workspace so no artifact glob can pick it up, the way
+          # the Android keystore is. Named AuthKey_<id>.p8 as well as passed
+          # by path: altool searches four directories for that exact name,
+          # and --api-key-subject only applies to files not named that way.
+          keydir="${RUNNER_TEMP}/asc-key"
+          mkdir -p "$keydir"
+          key="${keydir}/AuthKey_${API_KEY_ID}.p8"
+          printf '%s' "$API_KEY_B64" | base64 --decode > "$key"
+          chmod 600 "$key"
+          echo "uploading $ipa"
+          xcrun altool --upload-app -f "$ipa" -t ios \
+            --api-key "$API_KEY_ID" --api-issuer "$API_ISSUER" --p8-file-path "$key"
 
   release:
     name: Release

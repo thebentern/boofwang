@@ -223,10 +223,18 @@ time the wrong certificate type cost once already. You need:
 
 Secrets: `IOS_DIST_CERT_P12` (base64), `IOS_DIST_CERT_PASSWORD`,
 `IOS_PROVISIONING_PROFILE_BASE64`. With them a tag produces an `.ipa` on the
-run, exported for App Store Connect; uploading it to TestFlight is a manual
-step until the App Store Connect key's role has been confirmed sufficient
-for `altool`, which has not been tried. Without them the run builds the
-project for the simulator, which is the check a pull request gets.
+run and sends it to App Store Connect with `altool`, reusing the `APPLE_API_*`
+key the desktop build notarises with. Without them the run builds the project
+for the simulator, which is the check a pull request gets.
+
+That upload has never run. Whether the key's role is sufficient for it is the
+unconfirmed part: the key was made for notarisation, with the Developer role.
+The step says so and stops rather than failing the job, it runs after the
+artifact upload so a rejection cannot take the `.ipa` down with it, and the
+build number is derived from the version rather than from `github.run_number`
+for the reason the Android job records about `versionCode`. The first tag is
+what finds out. It delivers a build and stops: submitting for review is done
+by a person in the Console.
 
 #### Putting a build on your own iPhone or iPad
 
@@ -300,11 +308,16 @@ boofwang is GPL-3.0-or-later and its drivers transcribe offsets from CHIRP,
 whose authors have not agreed to Apple's App Store terms. Those terms have
 been read as incompatible with the GPL since VLC was removed from the store
 in 2011. A sole copyright holder can grant an exception for their own code;
-the CHIRP-derived parts are the contested case. This is not resolved here.
-The options are TestFlight and ad-hoc distribution only for iOS, asking the
-relevant CHIRP authors for an exception, and Google Play and F-Droid on
-Android, where there is no equivalent problem. Nothing in the build is gated
-on it; the App Store upload is where it stops being theoretical.
+the CHIRP-derived parts are the contested case. The options weighed were
+TestFlight and ad-hoc distribution only for iOS, asking the relevant CHIRP
+authors for an exception, and Google Play and F-Droid on Android, where there
+is no equivalent problem.
+
+Taken on 4 September 2026: publish to the App Store, on the precedent of
+GPL-licensed apps already in the store, Meshtastic's iOS client among them.
+The CHIRP authors have not been asked for an exception. This paragraph records
+that decision rather than resolving the question, and the pipeline uploads now
+instead of stopping at an artifact.
 
 ## What has been verified
 
