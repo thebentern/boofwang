@@ -1,0 +1,304 @@
+{
+ "10": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 461925000,
+  "rxtone": {
+   "code": 274,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "skip": "none",
+  "tx": 461925000,
+  "txtone": {
+   "code": 274,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "11": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 462225000,
+  "rxtone": {
+   "code": 346,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "skip": "none",
+  "tx": 462225000,
+  "txtone": {
+   "code": 346,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "12": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 463325000,
+  "rxtone": {
+   "code": 503,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "skip": "none",
+  "tx": 463325000,
+  "txtone": {
+   "code": 503,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "13": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 464425000,
+  "rxtone": {
+   "code": 73,
+   "kind": "dtcs",
+   "polarity": "R"
+  },
+  "skip": "none",
+  "tx": 464425000,
+  "txtone": {
+   "code": 73,
+   "kind": "dtcs",
+   "polarity": "R"
+  }
+ },
+ "14": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 465525000,
+  "rxtone": {
+   "code": 703,
+   "kind": "dtcs",
+   "polarity": "R"
+  },
+  "skip": "none",
+  "tx": 465525000,
+  "txtone": {
+   "code": 703,
+   "kind": "dtcs",
+   "polarity": "R"
+  }
+ },
+ "15": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 402225000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 402225000,
+  "txtone": null
+ },
+ "16": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 437425000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 437425000,
+  "txtone": null
+ },
+ "17": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 479975000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 479975000,
+  "txtone": null
+ },
+ "18": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 138550000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 138550000,
+  "txtone": null
+ },
+ "19": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 157650000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 157650000,
+  "txtone": null
+ },
+ "2": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 452125000,
+  "rxtone": {
+   "deciHz": 693,
+   "kind": "ctcss"
+  },
+  "skip": "none",
+  "tx": 452125000,
+  "txtone": {
+   "deciHz": 693,
+   "kind": "ctcss"
+  }
+ },
+ "20": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 172750000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 172750000,
+  "txtone": null
+ },
+ "21": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 438500000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 438500000,
+  "txtone": null
+ },
+ "22": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 155700000,
+  "rxtone": null,
+  "skip": "none",
+  "tx": 155700000,
+  "txtone": null
+ },
+ "3": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 453225000,
+  "rxtone": {
+   "deciHz": 915,
+   "kind": "ctcss"
+  },
+  "skip": "none",
+  "tx": 453225000,
+  "txtone": {
+   "deciHz": 915,
+   "kind": "ctcss"
+  }
+ },
+ "4": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 454325000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "skip": "none",
+  "tx": 454325000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "5": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 455425000,
+  "rxtone": {
+   "deciHz": 1514,
+   "kind": "ctcss"
+  },
+  "skip": "none",
+  "tx": 455425000,
+  "txtone": {
+   "deciHz": 1514,
+   "kind": "ctcss"
+  }
+ },
+ "6": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 456525000,
+  "rxtone": {
+   "deciHz": 1928,
+   "kind": "ctcss"
+  },
+  "skip": "none",
+  "tx": 456525000,
+  "txtone": {
+   "deciHz": 1928,
+   "kind": "ctcss"
+  }
+ },
+ "7": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 457625000,
+  "rxtone": {
+   "deciHz": 2418,
+   "kind": "ctcss"
+  },
+  "skip": "none",
+  "tx": 457625000,
+  "txtone": {
+   "deciHz": 2418,
+   "kind": "ctcss"
+  }
+ },
+ "8": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 458725000,
+  "rxtone": {
+   "code": 25,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "skip": "none",
+  "tx": 458725000,
+  "txtone": {
+   "code": 25,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "9": {
+  "bw": 25000,
+  "name": "",
+  "power": "High",
+  "rx": 459825000,
+  "rxtone": {
+   "code": 134,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "skip": "none",
+  "tx": 459825000,
+  "txtone": {
+   "code": 134,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ }
+}

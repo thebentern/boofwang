@@ -14,15 +14,18 @@ import { decodeChannel } from '#core/radios/uv82/driver.js'
 import { IMAGE_SIZE } from '#core/radios/uv82/protocol.js'
 
 /**
- * There is no UV-5R capture, and this file does not pretend otherwise.
+ * The UV-5R driver over a *Radioddity UV-5G's* bytes, on purpose.
  *
- * Nobody working on boofwang has had one of these on a cable, so what follows
- * runs the UV-5R driver over bytes read from a *Radioddity UV-5G* - a real
- * radio, read over an FTDI cable, firmware HN5RV011. That is a fair test of
- * this driver and a fair test of nothing else, and the reason it is worth
- * anything at all is upstream's own structure: CHIRP's `RadioddityUV5GRadio`
- * is a bare subclass of `BaofengUV5R` with no memory map of its own, so these
- * really are UV-5R bytes in a UV-5G's shell.
+ * This file was written when there was no UV-5R capture. There is one now -
+ * `uv5r-HN5RV011.bin`, cross-checked in `hardware-fixture.spec.ts` - and this
+ * still runs over the UV-5G image, because that capture covers what the real
+ * one cannot: 41 channels against 21, and eleven receive-only NOAA markers
+ * against none. A radio nobody has programmed cannot exercise the decode path
+ * that matters most, so the two captures are kept for different jobs.
+ *
+ * It is a fair test of this driver because of upstream's own structure: CHIRP's
+ * `RadioddityUV5GRadio` is a bare subclass of `BaofengUV5R` with no memory map
+ * of its own, so these really are UV-5R bytes in a UV-5G's shell.
  *
  * The expectations are not hand-written either. `uv5g-chirp-decode.json` comes
  * from `scripts/dump-uv5r-channels.py`, which parses this exact image with
@@ -31,9 +34,9 @@ import { IMAGE_SIZE } from '#core/radios/uv82/protocol.js'
  * decoder against CHIRP's UV-5R decoder over real hardware data, with neither
  * side written by the other.
  *
- * What none of this can do is prove a UV-5R ever answered a magic, that the
- * band plan matches the radio, or that a write lands where it is aimed. Only a
- * radio can do that. See docs/protocols/uv5r.md.
+ * What none of this can do is prove the band plan matches the radio. A bench
+ * session settled the magic, the read and the write; the band edges are still
+ * uv5r.py's numbers. See docs/protocols/uv5r.md.
  */
 const RAW = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../../../fixtures/images/uv5g-HN5RV011.bin', import.meta.url))),
@@ -180,12 +183,28 @@ describe('the round-trip invariant, on real classic-family bytes', () => {
 })
 
 describe('what the schema claims about this radio', () => {
-  it('is a Baofeng UV-5R, read-only until a radio says otherwise', () => {
+  it('is a Baofeng UV-5R that writes only when a build says it may', () => {
     expect(UV5R_SCHEMA.vendor).toBe('Baofeng')
     expect(UV5R_SCHEMA.model).toBe('UV-5R')
+
+    /*
+     * The static schema is read-only and the registry turns writing on, which
+     * is the seam that keeps a driver built for a test or a file import from
+     * reaching a radio at all. A radio said otherwise on 2026-09-05 - rename,
+     * sweep, verify, restore to the original sha256 - so the registry now
+     * passes `enableWrite`, and that is the only thing that changed.
+     */
     expect(UV5R_SCHEMA.status).toBe('read-only')
     expect(UV5R_SCHEMA.capabilities.write).toBe(false)
     expect(driver.schema.capabilities.write).toBe(false)
+    expect(createUv5rDriver({ enableWrite: true }).schema.capabilities.write).toBe(true)
+  })
+
+  it('sweeps rather than diffs, because a byte here programs once', () => {
+    // Not a preference: writing 0xFF back over a name this radio had just
+    // accepted was acknowledged and ignored, so a diff-driven write cannot
+    // shorten a name and leaves the tail of the old one behind.
+    expect(UV5R_SCHEMA.capabilities.writesWholeImage).toBe(true)
   })
 
   it('carries the badges the same radio is resold under', () => {

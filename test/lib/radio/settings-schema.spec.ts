@@ -98,21 +98,14 @@ const IMAGES: Record<string, () => RadioImage> = {
     meta: {},
     sha256: '',
   }),
-  /*
-   * No UV-5R capture is committed, so these are a real UV-82's bytes.
-   *
-   * Legitimate for this check and for nothing else: the settings block is
-   * byte-identical across the classic family - one `MEM_FORMAT` in uv5r.py
-   * covers every member - so it exercises exactly what this file is about,
-   * which is whether each control the UI renders names a field the decoder
-   * produces. It says nothing about whether a UV-5R holds these values.
-   */
+  // A real UV-5R, read over an FTDI cable on 2026-09-05, firmware HN5RV011.
+  // The region table is the family's, shared with the UV-82 and UV-5G.
   uv5r: () => ({
     radioId: 'uv5r',
-    variant: 'BFB297',
+    variant: 'HN5RV011',
     layout: 'uv5r',
-    createdAt: '2026-09-04T00:00:00.000Z',
-    regions: flat(file('uv82-N822413.bin'), UV82_REGIONS),
+    createdAt: '2026-09-05T00:00:00.000Z',
+    regions: flat(file('uv5r-HN5RV011.bin'), UV82_REGIONS),
     meta: {},
     sha256: '',
   }),
