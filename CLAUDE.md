@@ -31,12 +31,16 @@ fabricated. On the DM-32UV that is 22 of 59 allocated blocks. The invariant is
 captures. If you add a field, that test is what proves you did not disturb its
 neighbours.
 
-**`ownedRanges()` is a claim, and it is checked in both directions.** It returns the
-byte ranges a driver says it understands. A change landing outside them is a
-*blocker*, not a warning — `diffImages` collects them into `ImageDiff.unowned` and
-the gate raises `unowned-bytes-changed`, whose message says "That is a defect in
-boofwang, not in your codeplug." Never widen `ownedRanges` to silence that. It is
-telling you the encoder is wrong.
+**`ownedRanges()` is a claim, and the gate checks it.** It returns the byte ranges
+a driver says it understands. A change landing outside them is a *blocker*, not a
+warning — `diffImages` collects them into `ImageDiff.unowned` and the gate raises
+`unowned-bytes-changed`, whose message says "That is a defect in boofwang, not in
+your codeplug." Never widen `ownedRanges` to silence that. It is telling you the
+encoder is wrong.
+
+The other direction - a range claimed and not actually understood - is the silent
+one, because nothing fails. Only the DM-32UV audits it
+(`test/lib/radios/dm32uv/write-audit.spec.ts`). A new radio should.
 
 **A write is never one click from idle.** Backup, then diff, then a typed
 confirmation. `writeImage` throws `BackupRequiredError` when there is no backup or
@@ -44,8 +48,14 @@ it belongs to another radio. Where a driver can fingerprint the physical unit it
 must — the DM-32UV compares the calibration block, because `identHash` covers only
 model, firmware and build date and two identical radios are indistinguishable by it.
 
-**Every block written is read back and compared before the next is sent.** An
-acknowledgement says a frame arrived, not that it landed where it was meant to.
+**Every block written is read back and compared before the write is called done,
+and the read-back uses the block size the *read* path uses.** An acknowledgement
+says a frame arrived, not that it landed where it was meant to. Not all of these
+drivers verify between blocks - the UV-5R family and the UV-5R Mini send
+everything and then verify, so the guarantee is the read-back and not the
+ordering. And a read-back can lie: a UV-5R asked for sixteen bytes returns
+another block's while echoing the address it was given, which the header check
+for a slipped block cannot see.
 
 **Read-only regions are claimed by nobody.** That is what makes them unwritable.
 Calibration is captured in every backup so a restore can put it back, and never sent.
@@ -126,49 +136,122 @@ Every file under `lib/`, `test/` and `scripts/` carries
 
 ## How a radio gets added
 
-1. **Transcribe** the offsets from the vendored reference, crediting the source in a
-   comment. Never guess a field name for a byte nobody has explained.
-2. **Cross-check against the reference implementation's own parser**, not against a
-   second reading of the same document. `reference/chirp_pkg` is importable, so the
-   same bytes can go through CHIRP's `bitwise` engine and be compared field by field.
-   This is what caught the UV-K5's 10 Hz scaling, the UV-82's inverted `wide` bit,
-   the UV-5R Mini's 105-code DTCS table and the DM-32UV's BCD tones — every one of
+The order matters, and it is radio-first rather than reference-first. Two of
+these steps were once written in the wrong order, and both mistakes cost a
+session.
+
+1. **Probe before you transcribe.** The name on the box does not pick the
+   reference class: four radios answer to "UV-5G" across two incompatible
+   protocols, and that radio's first artefact was a probe rather than a driver -
+   the bench unit ignored every UV-17 Pro ident and acknowledged the classic
+   magic, which is what chose the driver. Transcribing from the wrong class
+   yields something internally consistent that passes its own tests. Settle two
+   more things here, because each shapes everything after it: how the radio
+   leaves programming mode - the DM-32UV has no exit command and leaves only
+   when the port closes - and whether its addresses are physical at all, since
+   the DM-32UV's are logical page ids behind a translation layer that moves
+   between sessions.
+2. **Transcribe** the offsets, crediting the source in a comment, and add the
+   radio to `docs/provenance.md` in the same change: the layout is someone
+   else's licensed work and naming it is an obligation, not a courtesy. Never
+   guess a field name for a byte nobody has explained; carry it through
+   undecoded instead. A reference calling a block "allocated, never touched" is
+   not evidence that it is empty. CHIRP `#seekto` values are image offsets, not
+   radio addresses.
+3. **Cross-check against the reference implementation's own parser**, not
+   against a second reading of the same document, and **commit the result as a
+   fixture**. `reference/` is git-ignored and CI has no CHIRP checkout, so a
+   cross-check that is run and not committed dies with the session. Compare the
+   reference's *predicates*, not only its tables - CHIRP matches basetypes by
+   containment rather than prefix, and reading that as a prefix makes a real
+   radio unrecognised. Where there is no parser to import, say so in the
+   protocol note and lean harder on hardware: CHIRP has no DM-32UV driver. This
+   step caught the UV-K5's 10 Hz scaling, the UV-82's inverted `wide` bit, the
+   UV-5R Mini's 105-code DTCS table and the DM-32UV's BCD tones - every one of
    which looked correct until it was checked.
-3. **Verify reading on hardware**, and record it in `docs/protocols/<radio>.md`:
-   the exact byte counts on the wire, two reads that agree byte for byte, and a
-   read taken with an independent reader outside the app.
-4. **Verify writing on hardware, end to end**, in one session: edit one field,
-   write, read back in a *fresh* session, confirm only the intended bytes moved,
-   then restore and confirm the original sha256. Save the pre-write image to a
-   file first. A write that was acknowledged is not a write that landed, and a
-   read-back inside the writing session is not a fresh read - the UV-5R proved
-   both halves of that in one afternoon.
-5. **Settle the write shape before enabling anything.** A diff-driven write is
-   this codebase's default and it is not universal. The UV-5R Mini erases a
-   flash page and writes back only the block it was handed, so a sparse write
-   wipes its neighbours. The UV-5R is the opposite: a byte programs once and
-   will not reprogram, so a sparse write cannot shorten a name and leaves the
-   tail of the old one behind. Both need `writesWholeImage`. The question to ask
-   of every new radio is what its reference implementation actually sends -
-   CHIRP writes contiguous ranges, never a diff - and the way to find out is to
-   shorten a name on real hardware and read it back.
-6. **Check it in the UI, not just in tests.** The radio has to appear in the
-   connect chooser with the right capability markers, be selectable, and reach
-   the channel table and settings form. That should cost no change under `app/`;
-   if it does, the `RadioSchema` is missing something. Read the connect screen in
-   both themes before calling it done.
-7. **Only then enable writing.** Reading is offered for unknown firmware — a
-   backup is exactly what an unsupported radio needs — but writing waits for
-   evidence, and "the driver is shared with a radio that works" is not evidence.
-   Two radios in this family share every byte of their memory map and disagree
-   about whether a byte can be rewritten.
+4. **Read it on hardware**, and record the session in
+   `docs/protocols/<radio>.md`: exact byte counts on the wire, two reads that
+   agree byte for byte, and the reads that *failed* as well as the ones that
+   agreed. Rule out the plug and the driver picker before concluding anything
+   about firmware - a connector not fully seated has presented as a protocol
+   fault more than once. Name the carrier and the shell: a cable read in desktop
+   Chrome verifies a cable in desktop Chrome. An independent reader outside the
+   app is the strongest form of this, and is not always available.
+5. **Give the UI its verbs before the write session.** A session can only
+   exercise the paths the interface can reach, and the UV-5R Mini's
+   erased-flash clearing path stayed unverified on hardware until a create verb
+   existed to reach it. Editing an existing channel is the safest path and the
+   least informative; create and delete run the code that damages radios. The
+   radio should appear in the connect chooser with the right capability markers,
+   be selectable, and reach the channel table and settings form, at no cost
+   under `app/`. If it does cost one the `RadioSchema` is usually missing
+   something, but not always - check rather than assume. Read the connect screen
+   in both themes.
+6. **Write it on hardware, and expect the session to discover the write shape.**
+   A diff-driven write is this codebase's default and it is not universal. The
+   UV-5R Mini erases a flash page and writes back only the block it was handed,
+   so a sparse write wipes its neighbours. The UV-5R is the opposite: a byte
+   programs once and will not reprogram, so a sparse write cannot shorten a name
+   and leaves the tail of the old one behind. Both need `writesWholeImage`, and
+   both were found by writing, which is why this cannot be settled beforehand.
+   What the reference sends is the best prior: CHIRP writes contiguous ranges,
+   never a diff.
 
-Run an adversarial review before the first write to any new radio. Two of the four
-drivers had a real defect found that way, before hardware.
+   Save the pre-write image to a file first. Then edit one field - a real
+   change, not a rename to the name the slot already holds - write, read back in
+   a *fresh session*, confirm only the intended bytes moved, restore **with no
+   base image** so the recovery path is the one exercised, and confirm the
+   original sha256. A write that was acknowledged is not a write that landed, a
+   read-back inside the writing session is not a fresh read, and a read-back at
+   the wrong block size is not a read-back at all.
+7. **Commit that session as a runnable spec**, gated behind its own flag so a
+   habitual read run never turns into a write, and forcing nothing: build the
+   driver the registry builds and assert it is already willing. A spec that
+   forces `caps.write` proves the wire works and says nothing about whether the
+   product ever gets there.
+8. **Enable writing in the registry, not in the schema.** Every schema ships
+   read-only and the registry line is what turns writing on, which is the seam
+   that stops a driver built for a test or a file import from reaching a radio.
+   Writing is not one switch: it is per carrier - `writeTransports`, and
+   omitting it means *every* carrier in `transports` - and per firmware variant.
+   Reading is still offered for firmware nobody recognises, because a backup is
+   exactly what an unsupported radio needs, but "the driver is shared with a
+   radio that works" is not evidence, and neither is "the cable works" for
+   Bluetooth. Two radios in this family share every byte of their memory map and
+   disagree about whether a byte can be rewritten. Where a firmware string is
+   ambiguous, settle it against the radio's own bytes rather than the string:
+   `writeImage` refuses when `encode(decode(live), live)` moves a byte, which
+   catches a tri-power radio reporting a two-power name.
+9. **Commit the capture, scanned.** Scan for identity, not only for keys:
+   channel names, the power-on message, DTMF and ANI codes. Diffing a suspicious
+   region against a capture already public is the cheapest way to tell a factory
+   default from somebody's identity. Then say which decode paths the capture
+   does *not* reach - a factory-fresh radio cannot exercise receive-only
+   markers, which is why the UV-5R keeps the UV-5G's capture beside its own.
+10. **Sweep for the claims the new radio falsifies**, because enabling a write
+    turns sentences false all over the tree. `RADIO_IDS` is the roster and
+    everything else is a copy of it: the README radio table, the install prompt
+    in `public/manifest.webmanifest`, `docs/provenance.md`, and the lists no
+    schema derives - `BLUETOOTH_RADIOS` and `DONGLE_RADIOS` in
+    `transports.spec.ts`, the images and cases in `settings-schema.spec.ts`, the
+    read-only expectation in `ui-features.spec.ts`, `RadioId`, `CHIRP_IDENTITY`
+    and the raw-layout tables. A Play Store listing shipped with the UV-5G
+    missing because a count in this file was believed over the registry, and the
+    install prompt lost the UV-5R the same way one radio later.
 
-A radio is not "added" until steps 3, 4 and 6 are all recorded. Half of it -
-reading verified, writing assumed, the UI never opened - is how a driver list
-comes to say "verified" about something nobody has written to.
+Run an adversarial review before hardware, not only before the first write. Its
+best catches have been read defects and fail-open classifiers, which a write
+session is too late to find. Every driver reviewed that way has had a real
+defect found in it.
+
+A radio is not "added" until these exist: a driver and one registry line, a
+committed capture with its cross-check fixture, a hardware spec that can be
+re-run, a `docs/protocols/<radio>.md` carrying both a dated verified session and
+an explicit list of what was *not* established, and the sweep in step 10. The
+gate stays green for a radio missing every one of those, so nothing but this
+list will tell you. Half of it - reading verified, writing assumed, the UI never
+opened - is how a driver list comes to say "verified" about something nobody has
+written to.
 
 ## Interface
 
