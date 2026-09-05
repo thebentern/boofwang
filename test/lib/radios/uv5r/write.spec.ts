@@ -195,8 +195,9 @@ describe('the write gate', () => {
   const transport = {} as never
 
   it('refuses because this build does not write this radio, and says which radio', async () => {
-    // The state the UV-5R actually ships in. Not a placeholder: no UV-5R has
-    // been on a cable, so there is no evidence a write would land correctly.
+    // The state the UV-5R actually ships in. Not a placeholder: one has been
+    // read on a cable now, and nothing has ever been sent to one, so there is
+    // still no evidence a write would land correctly.
     await expect(driver.writeImage(transport, image(), { backup })).rejects.toThrow(/UV-5R/)
   })
 

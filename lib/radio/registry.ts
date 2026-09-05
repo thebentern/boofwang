@@ -41,13 +41,15 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // documented meaning, so every other byte is read, preserved and never sent
   // back. See docs/protocols/dm32uv.md.
   dm32uv: () => createDm32uvDriver({ enableWrite: true }),
-  // Read-only, because nobody has had one of these on a cable. The protocol
-  // and the memory map are the ones the UV-82 and UV-5G drivers have already
-  // been verified on - CHIRP's `BaofengUV5R` is the class both of those
-  // subclass - but this radio's own ident magics, its firmware classifier and
-  // its band plan have been read out of uv5r.py and never off a wire. Reading
-  // is still worth offering: a backup is exactly what an unverified radio
-  // needs. See docs/protocols/uv5r.md for what a bench session would settle.
+  // Read-only. One has now been on a cable - read twice, byte-identical, on
+  // 2026-09-05 - so this is no longer a driver nothing has answered, and the
+  // protocol and memory map were already the ones the UV-82 and UV-5G drivers
+  // are verified on. What that session did not do is everything writing rests
+  // on: nothing was sent to the radio, no reader outside this app has read the
+  // same bytes, the band plan is still uv5r.py's numbers, and the one real
+  // firmware string turned out to be the ambiguous `N5RV` case this build
+  // refuses to act on. Reading is worth offering meanwhile: a backup is
+  // exactly what an unverified radio needs. See docs/protocols/uv5r.md.
   uv5r: () => createUv5rDriver(),
   // A UV-17 Pro family radio despite the name: 115200 baud, obfuscated 64-byte
   // blocks. Writing sends the WHOLE image every time - this radio erases a

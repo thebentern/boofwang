@@ -99,7 +99,7 @@ const IMAGES: Record<string, () => RadioImage> = {
     sha256: '',
   }),
   /*
-   * No UV-5R has been read, so these are a real UV-82's bytes.
+   * No UV-5R capture is committed, so these are a real UV-82's bytes.
    *
    * Legitimate for this check and for nothing else: the settings block is
    * byte-identical across the classic family - one `MEM_FORMAT` in uv5r.py

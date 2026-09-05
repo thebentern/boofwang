@@ -157,18 +157,61 @@ Against nothing at all: everything in the two sections above about magics and
 firmware strings. Those are transcribed from `uv5r.py` and tested only against
 themselves.
 
+## First bench session, 2026-09-05: read only
+
+A **Baofeng UV-5R**, labelled as such on the case - which matters, because the
+firmware string cannot say so. Read over an FTDI cable through the development
+bridge by `test/hardware/uv5r.spec.ts`. Nothing was written.
+
+| | |
+|---|---|
+| Firmware | `HN5RV011!!!` |
+| Ident bytes | `aa 30 76 04 00 05 20 dd` |
+| Magic | `50 bb ff 20 12 07 25` (`UV5R_MODEL_291`) - implied, not observed |
+| Image | 6,472 bytes |
+| sha256 | `d783efb5c2b81c938e5b42483282aeff8bc791a8e8a58944865cebfe5dbc05ce` |
+| Dropped byte | yes |
+| Classified | refused as ambiguous, so read-only |
+
+What it settles:
+
+- **A UV-5R answers this driver.** The first one to. Two complete sessions,
+  identify and read, and the ident block prefixes the image as it should.
+- **Two reads agree byte for byte**, same sha256. That is what a read path has
+  to do before a write is worth discussing.
+- **`encode(decode(image), image)` is byte-identical on this radio's own
+  bytes.** The invariant had only ever been checked against UV-82 and UV-5G
+  captures, which are the same memory map in a different shell.
+- **Not a 220 MHz unit.** Ident byte `0x03` is `0x04`, where CHIRP reads `0x02`
+  for the 220 MHz radio. So the band question above stays open in general and
+  is answered for this unit.
+- **The ambiguity is not theoretical.** The section above wondered what
+  proportion of real UV-5Rs report the ambiguous `N5RV`. The first one seen
+  does: `HN5RV011!!!` contains it, and the radio was refused a write by a rule
+  written before any UV-5R had been plugged in. A sample of one, and it landed
+  on the expensive case.
+
+What it does not settle: which magic actually drew the acknowledgement - that
+is derived from the firmware not being pre-BFB291, because `identify` returns
+the ident block and not the magic that fetched it. No independent reader
+outside the app has read the same bytes. The capture is not committed. And
+nothing has been written, so the band plan and the
+GT-5R/UV-5RX3/UV-5G Pro question are exactly where they were.
+
 ## Not verified
 
 Everything that needs a radio:
 
-- **No UV-5R has ever answered.** Neither magic has been sent to one. The
-  fallback from `UV5R_MODEL_291` to `UV5R_MODEL_ORIG` is exercised only by a
-  scripted fake port.
-- **No firmware string has been read off one.** Every classifier case is a
-  transcription of `BASETYPE_*` from `uv5r.py`. In particular nobody has seen
-  what proportion of real UV-5Rs report the ambiguous `N5RV` - if it is most of
-  them, the read-only-on-ambiguity rule is more expensive than it looks and
-  deserves a better answer than "decline".
+- **Only one UV-5R has answered, and only one magic.** The session above drew
+  an acknowledgement without ever needing `UV5R_MODEL_ORIG`, so the fallback to
+  it is still exercised only by a scripted fake port - as is every path for a
+  pre-BFB291 radio.
+- **One firmware string has been read off one radio.** Every other classifier
+  case is still a transcription of `BASETYPE_*` from `uv5r.py`. The one real
+  string reports the ambiguous `N5RV`, which is the answer nobody wanted to the
+  question of how often that happens: if it is typical rather than unlucky, the
+  read-only-on-ambiguity rule is more expensive than it looks and deserves a
+  better answer than "decline".
 - **The band edges are CHIRP's numbers**, not measured ones.
 - **Nothing has been written.** No block, no read-back, no restore. The write
   path is the UV-82's and is verified on that radio and on the UV-5G, but not
@@ -179,16 +222,17 @@ Everything that needs a radio:
 ## What a bench session would settle, in order
 
 `test/hardware/uv5r.spec.ts` does steps 1-3 and prints the numbers for this
-document. It reads and never writes.
+document. It reads and never writes. The session above did 1, 2 and half of 3.
 
-1. **Which magic.** Send `UV5R_MODEL_291`; if unanswered, `UV5R_MODEL_ORIG`.
-   Record which drew the `0x06`, and the eight ident bytes - including byte
-   `0x03`, which says whether this is a 220 MHz unit.
-2. **The firmware string**, and what `classifyBasetype` makes of it. If it is
-   `N5RV`, the ambiguity above is not theoretical and has to be dealt with
-   before writing.
-3. **Two reads, compared**, plus a third with an independent reader outside the
-   app, matching sha256. Then commit the capture as
+1. ~~**Which magic.**~~ Done, with a caveat: `UV5R_MODEL_291` is implied by the
+   firmware rather than observed, because `identify` does not report which of
+   its magics drew the `0x06`. Ident byte `0x03` was `0x04`, so not 220 MHz.
+2. ~~**The firmware string**, and what `classifyBasetype` makes of it.~~ Done,
+   and it is the bad case: `HN5RV011!!!` contains `N5RV`, so the ambiguity is
+   real and has to be dealt with before writing.
+3. **Two reads, compared** - done, byte-identical - plus a third with an
+   independent reader outside the app, matching sha256, which has not been
+   done. Then commit the capture as
    `test/fixtures/images/uv5r-<firmware>.bin`, scan it for names and DTMF
    identities first, and regenerate the cross-check fixtures with
    `scripts/dump-uv5r-channels.py` and `scripts/dump-uv5r-settings.py`.

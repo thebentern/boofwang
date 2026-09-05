@@ -17,12 +17,13 @@ import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial
  *
  *   BOOFWANG_HW=1 BOOFWANG_HW_PORT=/dev/cu.usbserial-XXXX pnpm vitest run test/hardware
  *
- * It reads and never writes, which is the whole point: no UV-5R has been on a
- * cable, so this driver is read-only and there is no evidence a write would
- * land where it is aimed. What this session is for is producing that evidence
- * in the right order - identify, read, read again and compare, and record the
- * firmware string. Only then is the write half of this file worth writing, and
- * `docs/protocols/uv5r.md` lists what else has to happen first.
+ * It reads and never writes, which is the whole point. It has now been run
+ * once, on 2026-09-05, and the numbers are in `docs/protocols/uv5r.md`: a real
+ * UV-5R identified and read twice, byte-identical. That is evidence about the
+ * read path and none at all about a write landing where it is aimed, so this
+ * driver stays read-only and the write half of this file stays unwritten.
+ * `docs/protocols/uv5r.md` lists what else has to happen first - an
+ * independent reader outside the app is the next step, not a write.
  *
  * Run it and paste the printed numbers into that document. The two reads have
  * to agree byte for byte: a radio that hands back a different image on the
