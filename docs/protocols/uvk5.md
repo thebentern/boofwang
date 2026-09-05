@@ -5,9 +5,10 @@ Protocol and layout are transcribed from CHIRP's `chirp/drivers/uvk5.py`
 (GPL-3.0); see [../provenance.md](../provenance.md). This file records what has
 actually been confirmed against a radio, as opposed to what the source says.
 
-The connect screen also offers this radio through a clip-on BLE-to-serial
-dongle, untested and doubtful at this radio's 38,400-baud clone rate - see
-[ble-dongle.md](ble-dongle.md).
+The connect screen does not offer this radio through a clip-on BLE-to-serial
+dongle. It did, untested, until the evidence was read together: no enumerated
+dongle names the UV-K5, and the one held behind a fob stayed silent on the
+pair shaped like a serial link - see [ble-dongle.md](ble-dongle.md).
 
 ## Verified sessions
 

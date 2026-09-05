@@ -538,11 +538,17 @@ export const UVK5_SCHEMA: RadioSchema = {
   aliases: ['UV-K5(8)', 'UV-K6', 'Retevis RA79', 'Quansheng UV-5R Plus'],
   status: 'read-only',
 
-  // The K-port dongle route is offered untested, with one caveat beyond the
-  // usual: this radio clones at 38400 baud, and the BL-1 family's far-side
-  // UART rate is unknown. A rate mismatch looks exactly like a radio that is
-  // switched off. See docs/protocols/ble-dongle.md.
-  capabilities: { read: true, write: false, transports: ['serial'], dongle: 'k2' },
+  // No dongle route. The jack fits, but this radio is named on neither
+  // enumerated dongle's supported list, and the one time a UV-K5 was held
+  // behind one - the TIDRADIO PTT fob, sending its own 16-byte hello - the
+  // transparent FF02/FF01 pair stayed silent and only FF22's per-byte status
+  // channel answered, which is not the radio talking. That is weaker evidence
+  // than the UV-82's: no UV-K5 has been tried behind the BT-A1D, the one
+  // adapter that has carried a radio here. It points the same way, and 38,400
+  // baud is outside the 9,600-baud family these are sold for. Reading it out
+  // of the schema is how the offer stops; the offer is not evidence.
+  // See docs/protocols/ble-dongle.md.
+  capabilities: { read: true, write: false, transports: ['serial'] },
 
   memory: {
     channelCount: 200,

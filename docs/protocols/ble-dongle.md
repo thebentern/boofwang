@@ -273,15 +273,19 @@ unknown. The radios do not all clone at the same rate:
 
 | Radio | Clone baud | Dongle route offered |
 |---|---|---|
-| Baofeng UV-82 | 9,600 | yes, untested |
+| Baofeng UV-82 | 9,600 | no - tried twice on a BT-A1D, silent both times |
 | Radioddity UV-5G | 9,600 | yes, untested |
-| Quansheng UV-K5 | 38,400 | yes, untested, doubtful |
-| Baofeng UV-5R Mini | 115,200 | yes, untested, doubtful |
+| Baofeng UV-5R | 9,600 | yes, untested |
+| Quansheng UV-K5 | 38,400 | no - silent behind the fob, on no supported list |
+| Baofeng UV-5R Mini | 115,200 | yes, proven 2026-09-01 |
 | Baofeng DM-32UV | 115,200 | no - see below |
 
 These dongles are sold for the classic 9,600-baud Baofeng family, so the
-UV-82 and UV-5G are the plausible wins. A rate mismatch produces silence or
-garbage, which looks exactly like a radio that is switched off.
+UV-5G and UV-5R are what remain plausible - the same memory map and the same
+rate as the UV-82, and no bench answer for either. A rate mismatch produces
+silence or garbage, which looks exactly like a radio that is switched off,
+which is why the two radios removed from this table were removed on the
+vendor lists and the silence together rather than on the rate.
 
 The rate was tested both ways on the PTT fob - a UV-K5 at 38,400 and a UV-82
 at 9,600 - and FF02 was silent behind both. A mismatch cannot explain silence
