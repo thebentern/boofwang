@@ -315,12 +315,14 @@ onto a radio's two-pin programming port and bridges BLE to the radio's own
 UART: the host is on Bluetooth while the radio behind it behaves exactly as on
 a cable, and takes the cable block size. `Transport` carries the two facts
 separately - `kind` for the carrier, `radioLink` for what the radio believes -
-and the connect screen offers the dongle route for the K-port radios. A
+and the connect screen offers the dongle route per radio, not per port. A
 Baofeng BT-A1D has carried a whole UV-5R Mini codeplug this way - 1,000 slots
 over BLE, with the radio believing it was on a cable throughout - so the route
-is real. It is not universal: a UV-82 behind the same dongle stayed silent,
-and the difference looks like frame shape rather than baud. Which radios are
-proven, what the two enumerated dongles do, and how to capture a third are in
+is real. It is not universal: a UV-82 behind the same dongle stayed silent on
+two attempts, so the UV-82 is not offered the route at all. Frame shape and
+baud were both chased and both cleared; the plain answer is that the dongle's
+vendor never claimed that radio. Which radios are proven, what the two
+enumerated dongles do, and how to capture a third are in
 [`docs/protocols/ble-dongle.md`](docs/protocols/ble-dongle.md).
 
 macOS refuses Bluetooth to an application that has not been granted it, and

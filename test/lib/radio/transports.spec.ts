@@ -24,12 +24,17 @@ const BLUETOOTH_RADIOS: readonly RadioId[] = ['uv5rmini']
  * dongle is the Bluetooth device and the radio behind it is not, so this list
  * is about programming ports, not radio modules. The DM-32UV is absent
  * despite having the same two-pin jack - its protocol needs the port-close
- * resets a dongle cannot deliver (the schema comment argues it in full).
- * Editing this list is the moment to ask whether the radio's clone baud is
- * one a real dongle has been shown to bridge; today none has, and every
- * offer is labelled untested.
+ * resets a dongle cannot deliver (the schema comment argues it in full). The
+ * UV-82 is absent despite its jack fitting: a BT-A1D drew nothing from one on
+ * two separate attempts, and the dongle's vendor does not name that radio. A
+ * port that fits is not a route, which is the whole reason this list is
+ * written out rather than derived from the plug.
+ *
+ * Editing it is the moment to ask what a dongle has actually carried. One
+ * radio has: the UV-5R Mini, which is why `dongleProven` is a separate
+ * question from this one.
  */
-const DONGLE_RADIOS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini']
+const DONGLE_RADIOS: readonly RadioId[] = ['uvk5', 'uv5g', 'uv5r', 'uv5rmini']
 
 describe('transport declarations', () => {
   it.each(RADIO_IDS)('%s can be reached over a cable', (id) => {

@@ -147,10 +147,16 @@ export const UV82_SCHEMA: RadioSchema = {
   aliases: ['UV-82X3', 'UV-82HP', 'Radioddity UV-82X3'],
   status: 'read-only',
 
-  // The dongle is the K-port kind, and this radio's 9600-baud clone rate is
-  // the classic-Baofeng family those dongles are sold for. Untested: no BL-1
-  // has been enumerated, and the connect screen says so.
-  capabilities: { read: true, write: false, transports: ['serial'], dongle: 'k2' },
+  // No dongle route, and the jack is why that needs saying. A BL-1's two-pin
+  // plug fits this radio's K-port and 9600 baud is the classic-Baofeng family
+  // those dongles are sold for, which is the reasoning that offered the route
+  // here for a while. It was wrong. A Baofeng BT-A1D was held against a UV-82
+  // twice - once with the identify magic dribbled a byte at a time, once sent
+  // whole after a trace confirmed the single write - and the radio was silent
+  // both times. Frame shape and baud were each chased and each cleared; what
+  // was left is that the dongle's vendor never claimed this radio. A port
+  // that fits is not a route. See docs/protocols/ble-dongle.md.
+  capabilities: { read: true, write: false, transports: ['serial'] },
 
   memory: {
     channelCount: CHANNEL_COUNT,
