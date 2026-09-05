@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { BASETYPE_F8HP, BASETYPE_KT980HP, BASETYPE_UV5R } from '../uv82/layout.js'
+import { BASETYPE_F8HP, BASETYPE_KT980HP, BASETYPE_UV5R, type Basetype } from '../uv82/layout.js'
 
 /**
  * The Baofeng UV-5R itself, the radio the whole classic family is named for.
@@ -65,19 +65,37 @@ export const MAGICS_UV5R: readonly Uint8Array[] = [MAGIC_UV5R_291, MAGIC_UV5R_OR
  *
  * Null means read-only, never a refusal to connect.
  */
-export function classifyBasetype(version: string): { model: string; triPower: boolean } | null {
+export function classifyBasetype(version: string): Basetype {
   const matches = (list: readonly string[]) => list.some((p) => version.includes(p))
 
   const twoPower = matches(BASETYPE_UV5R)
   const f8hp = matches(BASETYPE_F8HP)
   const kt980 = matches(BASETYPE_KT980HP)
 
-  // Ambiguous between two and three power levels: fail closed.
-  if (twoPower && (f8hp || kt980)) return null
+  // Ambiguous between two and three power levels: fail closed. The reason
+  // names both radios, because "unrecognised" would be a lie about a string
+  // this build reads perfectly well and would send its owner looking for a
+  // missing table entry instead of at the label on their radio.
+  if (twoPower && (f8hp || kt980)) {
+    return {
+      model: null,
+      reason:
+        `Firmware ${JSON.stringify(version)} names both the two-power UV-5R and the tri-power ` +
+        `${f8hp ? 'BF-F8HP' : 'KT-980HP'}, and nothing on the wire says which one is on the cable. ` +
+        'Writing to the wrong one would change the power on channels you did not touch.',
+    }
+  }
 
   if (f8hp) return { model: 'BF-F8HP', triPower: true }
   if (kt980) return { model: 'KT-980HP', triPower: true }
-  if (!twoPower) return null
+  if (!twoPower) {
+    return {
+      model: null,
+      reason:
+        `Firmware ${JSON.stringify(version)} carries no UV-5R firmware family this build knows, ` +
+        'so its memory layout cannot be assumed.',
+    }
+  }
 
   if (version.includes('BFB')) {
     /*
@@ -91,7 +109,14 @@ export function classifyBasetype(version: string): { model: string; triPower: bo
      * not waved through - CHIRP raises on it too.
      */
     const bfb = /BFB(\d{3})/.exec(version)
-    if (!bfb || Number(bfb[1]) < 291) return null
+    if (!bfb || Number(bfb[1]) < 291) {
+      return {
+        model: null,
+        reason:
+          `Firmware ${JSON.stringify(version)} is a pre-BFB291 radio, whose auxiliary memory this ` +
+          'build has never written.',
+      }
+    }
   }
 
   return { model: 'UV-5R', triPower: false }

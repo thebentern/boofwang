@@ -94,14 +94,14 @@ describe('which radio answers to "UV-5G"', () => {
   })
 
   it('refuses what it cannot vouch for', () => {
-    expect(classifyBasetype('GARBAGE')).toBeNull()
+    expect(classifyBasetype('GARBAGE')).toMatchObject({ model: null })
     // CHIRP calls BFB firmware below 291 "original" and handles its aux area
     // differently on upload. No UV-5G has been seen with one; read-only.
-    expect(classifyBasetype('BFB290')).toBeNull()
+    expect(classifyBasetype('BFB290')).toMatchObject({ model: null })
     expect(classifyBasetype('BFB291')).toEqual({ model: 'UV-5G', triPower: false })
     // A BFB string whose number cannot be read fails closed, not open. Found
     // by the adversarial review before the first write.
-    expect(classifyBasetype('BFB29')).toBeNull()
+    expect(classifyBasetype('BFB29')).toMatchObject({ model: null })
   })
 })
 

@@ -78,30 +78,45 @@ describe('the firmware classifier', () => {
      */
     expect(BASETYPE_UV5R).toContain('N5RV')
     expect(BASETYPE_F8HP).toContain('N5RV')
-    expect(classifyBasetype('N5RV')).toBeNull()
-    expect(classifyBasetype('HN5RV011')).toBeNull()
+    expect(classifyBasetype('N5RV')).toMatchObject({ model: null })
+    expect(classifyBasetype('HN5RV011')).toMatchObject({ model: null })
+  })
+
+  it('says which two radios it is stuck between, rather than calling the string unknown', () => {
+    /*
+     * The refusal above used to reach the user as "not one this build
+     * recognizes", which is false: the string is read perfectly well and means
+     * two radios. A real UV-5R reported `HN5RV011!!!` on a cable and its owner
+     * was told to go looking for a missing table entry. The reason now names
+     * both candidates, so the next person looks at the label on the radio.
+     */
+    const got = classifyBasetype('HN5RV011!!!')
+    if (got.model !== null) throw new Error('expected an ambiguous string to be refused')
+    expect(got.reason).toContain('UV-5R')
+    expect(got.reason).toContain('BF-F8HP')
+    expect(got.reason).not.toContain('not one this build')
   })
 
   it('refuses the original pre-BFB291 radios rather than guessing their aux handling', () => {
     // CHIRP uploads a different set of auxiliary ranges to these and refuses
     // an image whose era does not match the radio's. None of that has been
     // exercised here, so they are read and backed up and never written.
-    expect(classifyBasetype('BFB290')).toBeNull()
+    expect(classifyBasetype('BFB290')).toMatchObject({ model: null })
     expect(classifyBasetype('BFB291')).toEqual({ model: 'UV-5R', triPower: false })
   })
 
   it('refuses a BFB string whose number cannot be read, rather than waving it through', () => {
     // The UV-5G's adversarial review found this failing open. Same shape here.
-    expect(classifyBasetype('BFB29')).toBeNull()
-    expect(classifyBasetype('BFB')).toBeNull()
+    expect(classifyBasetype('BFB29')).toMatchObject({ model: null })
+    expect(classifyBasetype('BFB')).toMatchObject({ model: null })
   })
 
   it('refuses what it does not recognize at all', () => {
-    expect(classifyBasetype('GARBAGE')).toBeNull()
-    expect(classifyBasetype('')).toBeNull()
+    expect(classifyBasetype('GARBAGE')).toMatchObject({ model: null })
+    expect(classifyBasetype('')).toMatchObject({ model: null })
     // A UV-82 basetype behind this magic is not a thing that happens - the
     // UV-82HP answers UV5R_MODEL_UV82 - so it is not recognized here either.
-    expect(classifyBasetype('US2S2')).toBeNull()
+    expect(classifyBasetype('US2S2')).toMatchObject({ model: null })
   })
 
   it('keeps every tri-power string it knows about accounted for', () => {
@@ -111,7 +126,7 @@ describe('the firmware classifier', () => {
     // tri-power radio would end up being written two-power.
     for (const s of [...BASETYPE_F8HP, ...BASETYPE_KT980HP]) {
       const got = classifyBasetype(s)
-      expect(got?.triPower ?? true, `${s} must not classify as two-power`).toBe(true)
+      expect(got.model === null || got.triPower, `${s} must not classify as two-power`).toBe(true)
     }
   })
 })

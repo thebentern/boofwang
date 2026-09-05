@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { BASETYPE_UV5R } from '../uv82/layout.js'
+import { BASETYPE_UV5R, type Basetype } from '../uv82/layout.js'
 
 /**
  * The Radioddity UV-5G, a GMRS radio in the classic UV-5R family.
@@ -44,13 +44,27 @@ export const BASETYPE_UV5G: readonly string[] = BASETYPE_UV5R
  * UV-5G has ever been seen with one, so rather than carrying untestable code
  * for it, such a radio is offered read-only.
  */
-export function classifyBasetype(version: string): { model: string; triPower: boolean } | null {
-  if (!BASETYPE_UV5G.some((p) => version.includes(p))) return null
+export function classifyBasetype(version: string): Basetype {
+  if (!BASETYPE_UV5G.some((p) => version.includes(p))) {
+    return {
+      model: null,
+      reason:
+        `Firmware ${JSON.stringify(version)} carries no UV-5G firmware family this build knows, ` +
+        'so its memory layout cannot be assumed.',
+    }
+  }
   if (version.includes('BFB')) {
     // Fail closed: a BFB string whose number cannot be read is refused along
     // with the pre-291 ones, not waved through. CHIRP would raise on it.
     const bfb = /BFB(\d{3})/.exec(version)
-    if (!bfb || Number(bfb[1]) < 291) return null
+    if (!bfb || Number(bfb[1]) < 291) {
+      return {
+        model: null,
+        reason:
+          `Firmware ${JSON.stringify(version)} is a pre-BFB291 radio, whose auxiliary memory this ` +
+          'build has never written.',
+      }
+    }
   }
   return { model: 'UV-5G', triPower: false }
 }

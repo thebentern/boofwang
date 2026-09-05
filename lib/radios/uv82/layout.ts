@@ -232,6 +232,26 @@ export const BASETYPE_UV82HP: readonly string[] = ['N82-3', 'N823', 'N5R2']
  * it reports `HN5RV011`, which contains `N5RV` but starts with none of them.
  */
 
+/**
+ * What a firmware string turned out to mean, or why it could not be settled.
+ *
+ * A bare `null` used to be the whole answer, and the driver turned every one
+ * of them into the same sentence: "not one this build recognizes". That is
+ * true of a string matching no family at all, and false of the case that
+ * actually reaches people - the UV-5R's `N5RV`, which this build recognises
+ * perfectly well and which names both a 4 W UV-5R and an 8 W BF-F8HP. Sending
+ * someone to look for a missing table entry when the real answer is "your
+ * radio is one of two radios" costs them the afternoon.
+ *
+ * Only the classifier knows which of its refusals happened, so the refusal
+ * carries the reason. It is a cause clause and nothing more: the driver
+ * appends what follows from it, so every radio says the same thing about what
+ * is still possible.
+ */
+export type Basetype =
+  | { readonly model: string; readonly triPower: boolean }
+  | { readonly model: null; readonly reason: string }
+
 /** `BASETYPE_UV5R`: the firmware families of the plain UV-5R. */
 export const BASETYPE_UV5R: readonly string[] = ['BFS', 'BFB', 'N5R-2', 'N5R2', 'N5RV', 'BTS', 'D5R2', 'B5R2']
 /** `BASETYPE_F8HP`: the tri-power BF-F8HP, which answers the UV-5R's magic. */

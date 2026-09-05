@@ -46,6 +46,7 @@ import {
   SETTINGS_BASE,
   UV82_POWERON_MSG,
   UV82_SETTINGS,
+  type Basetype,
 } from './layout.js'
 import {
   AUX_END,
@@ -96,10 +97,15 @@ export function encodeToneWord(t: ToneSpec | null, where: string): number {
 }
 
 /** Whether a firmware version string belongs to a plain or tri-power UV-82. */
-export function classifyBasetype(version: string): { model: string; triPower: boolean } | null {
+export function classifyBasetype(version: string): Basetype {
   if (BASETYPE_UV82HP.some((p) => version.startsWith(p))) return { model: 'UV-82HP', triPower: true }
   if (BASETYPE_UV82.some((p) => version.startsWith(p))) return { model: 'UV-82', triPower: false }
-  return null
+  return {
+    model: null,
+    reason:
+      `Firmware ${JSON.stringify(version)} starts with no UV-82 firmware family this build knows, ` +
+      'so its memory layout cannot be assumed.',
+  }
 }
 
 export interface Uv5rFamilyOptions {
@@ -141,7 +147,7 @@ export interface Uv5rFamilyModel {
    * read-only. `triPower` refuses writing on members whose third power level
    * this build cannot express.
    */
-  readonly classify: (version: string) => { model: string; triPower: boolean } | null
+  readonly classify: (version: string) => Basetype
 }
 
 const UV82_MODEL: Uv5rFamilyModel = {
@@ -205,7 +211,7 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
         variant: fw.version,
         // 'uv82hp' for the tri-power UV-82, and the member's own id otherwise.
         // The string is stored in backups, so it must never change spelling.
-        layout: basetype?.triPower ? `${model.id}hp` : model.id,
+        layout: basetype.model !== null && basetype.triPower ? `${model.id}hp` : model.id,
         raw,
         caps: {
           read: true,
@@ -221,12 +227,12 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
            * channel the user never touched. Reading and backing one up is
            * unaffected.
            */
-          write: schema.capabilities.write && basetype !== null && !basetype.triPower,
-          ...(basetype === null
+          write: schema.capabilities.write && basetype.model !== null && !basetype.triPower,
+          ...(basetype.model === null
             ? {
-                reason:
-                  `Firmware ${JSON.stringify(fw.version)} is not one this build recognizes, so its memory ` +
-                  'layout cannot be assumed. The radio can still be read and backed up.',
+                // The cause is the classifier's; this is what follows from it,
+                // said the same way for every radio in the family.
+                reason: `${basetype.reason} The radio can still be read and backed up.`,
               }
             : basetype.triPower
             ? {
@@ -237,7 +243,7 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
             : {}),
         },
         identHash: await sha256Hex(Uint8Array.from([...ident, ...new TextEncoder().encode(fw.version)])),
-        meta: { droppedByte: fw.droppedByte, basetype: basetype?.model ?? null },
+        meta: { droppedByte: fw.droppedByte, basetype: basetype.model },
       }
     },
 
