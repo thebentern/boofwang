@@ -61,40 +61,31 @@ describe('the firmware classifier', () => {
     expect(classifyBasetype('BFP3V3 B')).toEqual({ model: 'KT-980HP', triPower: true })
   })
 
-  it('fails closed on the one string that means either', () => {
+  it('reads the one ambiguous string as the two-power radio, and leaves the check to the write', () => {
     /*
      * `N5RV` is in BASETYPE_UV5R and in BASETYPE_F8HP both, and both radios
      * answer the same magic. So a radio reporting it is a 4 W UV-5R or an 8 W
      * BF-F8HP and nothing on the wire says which.
      *
-     * CHIRP has the same ambiguity and settles it by making the user pick a
-     * model from a list. There is no list here, so this returns null: read the
-     * radio, back it up, write nothing. Guessing "plain" would put a Low
-     * channel back at 8 W on a radio whose owner never touched it.
+     * This used to return null, so every radio reporting it was read-only. The
+     * first UV-5R anyone plugged in reported exactly that, which made the rule
+     * expensive rather than theoretical: a radio whose case says UV-5R could
+     * not be written at all.
      *
-     * This is exactly where the UV-5G's classifier can safely do the opposite
-     * and call N5RV a plain radio - its magic admits no tri-power model at
-     * all, so the string has already been narrowed before it is read.
+     * Declining was a proxy for the safety property, not the property itself.
+     * What matters is whether this build's power table fits the radio's bytes,
+     * and `writeImage` asks the radio that directly - it decodes and re-encodes
+     * what the radio just sent and refuses if a byte moves. `lowPower` is two
+     * bits, so a tri-power Mid channel holds a value this table has no entry
+     * for and cannot survive the round trip. The guess is made here and checked
+     * there, against bytes rather than a string.
      */
     expect(BASETYPE_UV5R).toContain('N5RV')
     expect(BASETYPE_F8HP).toContain('N5RV')
-    expect(classifyBasetype('N5RV')).toMatchObject({ model: null })
-    expect(classifyBasetype('HN5RV011')).toMatchObject({ model: null })
-  })
-
-  it('says which two radios it is stuck between, rather than calling the string unknown', () => {
-    /*
-     * The refusal above used to reach the user as "not one this build
-     * recognizes", which is false: the string is read perfectly well and means
-     * two radios. A real UV-5R reported `HN5RV011!!!` on a cable and its owner
-     * was told to go looking for a missing table entry. The reason now names
-     * both candidates, so the next person looks at the label on the radio.
-     */
-    const got = classifyBasetype('HN5RV011!!!')
-    if (got.model !== null) throw new Error('expected an ambiguous string to be refused')
-    expect(got.reason).toContain('UV-5R')
-    expect(got.reason).toContain('BF-F8HP')
-    expect(got.reason).not.toContain('not one this build')
+    expect(classifyBasetype('N5RV')).toEqual({ model: 'UV-5R', triPower: false })
+    expect(classifyBasetype('HN5RV011')).toEqual({ model: 'UV-5R', triPower: false })
+    // The string a real radio reported, which is why any of this matters.
+    expect(classifyBasetype('HN5RV011!!!')).toEqual({ model: 'UV-5R', triPower: false })
   })
 
   it('refuses the original pre-BFB291 radios rather than guessing their aux handling', () => {
@@ -125,6 +116,12 @@ describe('the firmware classifier', () => {
     // entry transcribed into the table without a thought is exactly how a
     // tri-power radio would end up being written two-power.
     for (const s of [...BASETYPE_F8HP, ...BASETYPE_KT980HP]) {
+      // N5RV is the exception and the only one: it is in the two-power table
+      // as well, so it cannot be settled from the string at all. It is claimed
+      // as two-power here and checked against the radio's own bytes before any
+      // write - see the ambiguity test above. Every string that appears ONLY in
+      // a tri-power table must still come back tri-power.
+      if (BASETYPE_UV5R.includes(s)) continue
       const got = classifyBasetype(s)
       expect(got.model === null || got.triPower, `${s} must not classify as two-power`).toBe(true)
     }

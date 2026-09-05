@@ -72,19 +72,28 @@ export function classifyBasetype(version: string): Basetype {
   const f8hp = matches(BASETYPE_F8HP)
   const kt980 = matches(BASETYPE_KT980HP)
 
-  // Ambiguous between two and three power levels: fail closed. The reason
-  // names both radios, because "unrecognised" would be a lie about a string
-  // this build reads perfectly well and would send its owner looking for a
-  // missing table entry instead of at the label on their radio.
-  if (twoPower && (f8hp || kt980)) {
-    return {
-      model: null,
-      reason:
-        `Firmware ${JSON.stringify(version)} names both the two-power UV-5R and the tri-power ` +
-        `${f8hp ? 'BF-F8HP' : 'KT-980HP'}, and nothing on the wire says which one is on the cable. ` +
-        'Writing to the wrong one would change the power on channels you did not touch.',
-    }
-  }
+  /*
+   * Ambiguous between two and three power levels, and no longer fatal.
+   *
+   * `N5RV` is in `BASETYPE_UV5R` and `BASETYPE_F8HP` both, so the string names
+   * a 4 W UV-5R and an 8 W BF-F8HP alike. This used to return null, which made
+   * every radio reporting it read-only - and the first UV-5R anyone plugged in
+   * reported exactly that, so the rule cost a real user the whole write path
+   * on a radio whose case says UV-5R.
+   *
+   * Declining was never the safety property anyway; it was a proxy for one.
+   * What actually matters is whether this build's power table fits the radio's
+   * bytes, and `writeImage` now asks the radio that directly: it decodes and
+   * re-encodes the image the radio just handed over and refuses if a single
+   * byte moves. A tri-power radio with a Mid channel fails that, because
+   * `lowPower` is two bits and Mid is a value this table has no entry for. One
+   * whose channels are all High and Low round-trips, and writing it as
+   * two-power is then correct rather than lucky.
+   *
+   * So the guess is made here and checked there, against bytes instead of a
+   * string. Reading was never in question either way.
+   */
+  if (twoPower && (f8hp || kt980)) return { model: 'UV-5R', triPower: false }
 
   if (f8hp) return { model: 'BF-F8HP', triPower: true }
   if (kt980) return { model: 'KT-980HP', triPower: true }

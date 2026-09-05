@@ -41,16 +41,19 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // documented meaning, so every other byte is read, preserved and never sent
   // back. See docs/protocols/dm32uv.md.
   dm32uv: () => createDm32uvDriver({ enableWrite: true }),
-  // Read-only. One has now been on a cable - read twice, byte-identical, on
-  // 2026-09-05 - so this is no longer a driver nothing has answered, and the
-  // protocol and memory map were already the ones the UV-82 and UV-5G drivers
-  // are verified on. What that session did not do is everything writing rests
-  // on: nothing was sent to the radio, no reader outside this app has read the
-  // same bytes, the band plan is still uv5r.py's numbers, and the one real
-  // firmware string turned out to be the ambiguous `N5RV` case this build
-  // refuses to act on. Reading is worth offering meanwhile: a backup is
-  // exactly what an unverified radio needs. See docs/protocols/uv5r.md.
-  uv5r: () => createUv5rDriver(),
+  // Writing is enabled after a bench session on 2026-09-05 that had to settle
+  // three things first. This radio cannot reprogram a byte, so the family's
+  // diff-driven write could not shorten a name and left the tail of the old one
+  // behind - it takes `writesWholeImage` and CHIRP's contiguous sweep. Its
+  // read-back verification was reading the wrong memory, because a 0x10 read
+  // here returns another block's bytes while echoing the address asked for;
+  // verification reads 0x40 windows now, which is what the read path always
+  // used. And its firmware reports the ambiguous `N5RV`, which names this radio
+  // and a tri-power BF-F8HP alike, so `writeImage` decodes and re-encodes what
+  // the radio sent and refuses if a byte moves rather than trusting the string.
+  // Rename, sweep, verify, fresh read and restore to the original sha256 all
+  // pass on the bench unit. See docs/protocols/uv5r.md.
+  uv5r: () => createUv5rDriver({ enableWrite: true }),
   // A UV-17 Pro family radio despite the name: 115200 baud, obfuscated 64-byte
   // blocks. Writing sends the WHOLE image every time - this radio erases a
   // flash page before programming and writes back only the block it was handed,
@@ -64,7 +67,7 @@ export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
   uvk5: createUvk5Driver({ enableWrite: true }).schema,
   uv82: createUv82Driver({ enableWrite: true }).schema,
   uv5g: createUv5gDriver({ enableWrite: true }).schema,
-  uv5r: createUv5rDriver().schema,
+  uv5r: createUv5rDriver({ enableWrite: true }).schema,
   dm32uv: createDm32uvDriver({ enableWrite: true }).schema,
   uv5rmini: createUv5rMiniDriver({ enableWrite: true }).schema,
 }

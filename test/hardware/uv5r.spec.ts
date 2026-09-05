@@ -146,12 +146,11 @@ describe.skipIf(!HW)('UV-5R on the bench', () => {
  * more and asserts the bytes came back - so a failure leaves evidence rather
  * than a radio in an unknown state.
  *
- * `ident.caps.write` is forced on for the duration. That is not a claim that
- * the radio is writable: `HN5RV011!!!` is the ambiguous `N5RV` case and the
- * driver is right to refuse it in the product. What this test asks is the
- * narrower question underneath - whether the block write, the acknowledgement
- * and the read-back work on this radio at all - because that has to be
- * answered before the policy question is worth arguing about.
+ * Nothing is forced. This is the driver the registry builds, refusing or
+ * allowing the write on its own terms, which is the only version of this test
+ * worth trusting: it passed once with `ident.caps.write` forced on, and that
+ * proved the wire worked while saying nothing about whether the product would
+ * ever get there.
  */
 const HW_WRITE = HW && !!process.env.BOOFWANG_HW_WRITE
 const writable = createUv5rDriver({ enableWrite: true })
@@ -171,8 +170,8 @@ describe.skipIf(!HW_WRITE)('UV-5R write cycle on the bench', () => {
       await t.open(writable.serial)
       try {
         const ident = await writable.identify(t, {})
-        // The forced flag, in one place. Everything else is the real driver.
-        return await fn(t, { ...ident, caps: { ...ident.caps, write: true } })
+        expect(ident.caps.write, ident.caps.reason ?? '').toBe(true)
+        return await fn(t, ident)
       } finally {
         await t.close().catch(() => {})
         lastClosed = Date.now()
@@ -192,15 +191,19 @@ describe.skipIf(!HW_WRITE)('UV-5R write cycle on the bench', () => {
     const doc = writable.decode(baseline)
     const slot = [...doc.channels.keys()].sort((a, b) => a - b)[0]!
     const ch = doc.channels.get(slot)!
-    expect(ch.name).not.toBe('BOOF')
-    doc.channels.set(slot, { ...ch, name: 'BOOF' })
+    // Not a fixed string: an interrupted run leaves its own name behind, and a
+    // rename to the name already there would prove nothing.
+    const renamed = ch.name === 'BOOF' ? 'BOOF2' : 'BOOF'
+    doc.channels.set(slot, { ...ch, name: renamed })
     const edited = writable.encode(doc, baseline)
 
     const report = await session((t, ident) =>
       writable.writeImage(t, edited, { backup, baseImage: baseline, ident }),
     )
     expect(report.verified).toBe(true)
-    expect(report.blocksWritten).toBe(1)
+    // A sweep, not a diff: this radio cannot reprogram a byte, so every owned
+    // block goes every time. One block would mean `writesWholeImage` was lost.
+    expect(report.blocksWritten).toBeGreaterThan(1)
 
     // A fresh session's read must show the rename and nothing else.
     const after = await session((t, ident) => writable.readImage(t, ident, {}))
@@ -216,14 +219,14 @@ describe.skipIf(!HW_WRITE)('UV-5R write cycle on the bench', () => {
       for (const at of changed) {
         expect(at >= lo && at < hi, `byte 0x${at.toString(16)} moved outside the name field`).toBe(true)
       }
-      expect(writable.decode(after).channels.get(slot)!.name).toBe('BOOF')
+      expect(writable.decode(after).channels.get(slot)!.name).toBe(renamed)
     }
 
     // Restore with no base image: the recovery path reads the radio first and
     // diffs against that, which is what a real restore does.
     const restore = await session((t, ident) => writable.writeImage(t, baseline, { backup, ident }))
     expect(restore.verified).toBe(true)
-    expect(restore.blocksWritten).toBe(1)
+    expect(restore.blocksWritten).toBe(report.blocksWritten)
 
     const final = await session((t, ident) => writable.readImage(t, ident, {}))
     expect(equalBytes(memOf(final), memOf(baseline))).toBe(true)

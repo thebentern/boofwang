@@ -198,12 +198,13 @@ outside the app has read the same bytes. The capture is not committed. And
 nothing has been written, so the band plan and the
 GT-5R/UV-5RX3/UV-5G Pro question are exactly where they were.
 
-## First write session, 2026-09-05: three findings, writing still off
+## First write session, 2026-09-05: three findings, and writing enabled
 
-Same radio, same cable, immediately after the read session. Nothing about this
-session made the radio writable in the product - it ended with the radio back at
-`d783efb5c2b81c938e5b42483282aeff8bc791a8e8a58944865cebfe5dbc05ce`, its exact
-pre-write image - but it answered the question the read session could not.
+Same radio, same cable, immediately after the read session. It ended with the
+radio back at `d783efb5c2b81c938e5b42483282aeff8bc791a8e8a58944865cebfe5dbc05ce`,
+its exact pre-write image, and with writing enabled - but only after three
+separate things had to be fixed, two of which looked like the radio refusing to
+store what it was sent.
 
 **1. A byte here programs once, and a sparse write cannot undo itself.** Slot 2
 had no name: seven bytes of 0xFF. Renaming it to `BOOF` landed and verified. The
@@ -230,26 +231,51 @@ whatever erase this memory needs comes with the sweep.
 baseline put the name field back to 0xFF and the whole image back to its original
 sha256, confirmed by a fresh read in a new session. That is the fix, verified.
 
-**3. The read-back verify desyncs after about 129 blocks, and that is what still
-blocks writing.** Every sweep failed its verification at image `0x0e20` with the
-same pair:
+**3. The verification was reading the wrong memory, and that is what looked like
+a settings failure.** Every sweep failed its verification at radio `0x0e20` with
+the same pair:
 
 | | |
 |---|---|
 | sent | `03 00 00 03 00 00 05 00` |
 | read back | `00 00 00 01 05 00 01 00` |
 
-It is not a failed write. The last run wrote the baseline *over itself* - the
-radio already held the sent bytes, and a fresh read afterwards showed it still
-did. The blocks are correct on the radio and the read-back is reading something
-else, 129 blocks into the verify loop. This unit reports `dropped byte: true`,
-which is CHIRP's own name for a known UV-5R quirk, and that is the first place to
-look. Until it is explained, a sweep write cannot be verified end to end, and an
-unverifiable write is not one this project ships.
+It was never a failed write. The last run wrote the baseline *over itself* - the
+radio already held the sent bytes - and it still "failed". A read-only probe
+settled it:
 
-Reproduce it with `BOOFWANG_HW=1 BOOFWANG_HW_WRITE=1` against
-`test/hardware/uv5r.spec.ts`. That test is expected to fail at exactly this
-point, and it fails the same way every time.
+| Read | Returned |
+|---|---|
+| `0x0e00` size `0x40` | matches the image exactly |
+| `0x0e10` size `0x10` | the bytes that belong at `0x0e40` |
+| `0x0e20` size `0x10` | the same bytes again |
+| `0x0e40` size `0x10` | the same bytes, correct this time |
+
+**A `0x10` read here returns another block's contents while echoing the address
+it was asked for**, so the header check that exists to catch a slipped block saw
+nothing wrong. Writing is a `0x10` conversation and reading is a `0x40` one, and
+verifying a `0x10` write with a `0x10` read was the mistake. Verification now
+reads the `0x40` window each written block falls in - the size the read path has
+always used, and the reason every read session was clean while only verification
+lied. Fewer round trips than before, too.
+
+With that fixed the whole cycle passes on the bench unit through the driver the
+registry builds, nothing forced: identify, read, rename a channel, sweep, verify
+259 blocks, read again in a fresh session showing exactly the four name bytes
+moved, restore, and back to `d783efb5`. Run it with `BOOFWANG_HW=1
+BOOFWANG_HW_WRITE=1` against `test/hardware/uv5r.spec.ts`.
+
+**The ambiguity is settled against the radio, not the string.** `HN5RV011!!!`
+still names a 4 W UV-5R and an 8 W BF-F8HP alike and nothing on the wire says
+which. Refusing every such radio was a proxy for the real property, and an
+expensive one - it made the first UV-5R anyone plugged in read-only. So
+`classifyBasetype` claims the two-power radio and `writeImage` checks it: it
+decodes and re-encodes the image the radio just handed over and refuses if a
+single byte moves. `lowPower` is a two-bit field, so a tri-power Mid channel
+holds a value this build's power table has no entry for and cannot survive that
+round trip. A BF-F8HP with a Mid channel is refused on its own bytes; one whose
+channels are all High and Low round-trips, and writing it as two-power is then
+correct rather than lucky.
 
 ## Not verified
 
@@ -266,13 +292,13 @@ Everything that needs a radio:
   read-only-on-ambiguity rule is more expensive than it looks and deserves a
   better answer than "decline".
 - **The band edges are CHIRP's numbers**, not measured ones.
-- **Writing is not verifiable yet**, which is a different thing from untried.
-  Blocks have been written, read back in a fresh session and restored to the
-  original sha256, so the path reaches the radio and the sweep is correct. What
-  has never happened is a write whose own read-back verification passed: it
-  desyncs at image `0x0e20` every time. Until that is explained the driver stays
-  read-only, because a write this build cannot check is a write it cannot
-  promise.
+- **Only one radio, and only one firmware string.** Everything above is one
+  bench UV-5R reporting `HN5RV011!!!`. The pre-BFB291 path, `UV5R_MODEL_ORIG`
+  and every other `BASETYPE_*` case are still transcriptions exercised only by a
+  scripted fake port.
+- **No reader outside the app has read these bytes.** The two reads that agree
+  are both boofwang's, and the capture is not committed - it has not been
+  scanned for names and DTMF identities.
 - **The dongle route is offered and untested**, as it is for every radio that
   offers it.
 

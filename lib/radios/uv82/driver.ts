@@ -369,6 +369,44 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
         throw new DriverError('The edited image is a different size to the one that was read')
       }
 
+      /*
+       * Prove this build understands THIS radio's bytes before sending any.
+       *
+       * `encode(decode(img), img) === img` is the invariant the whole encoder
+       * rests on, and it is asserted in tests against captured images. Here it
+       * is asserted against the radio actually on the cable, which is a
+       * different and stronger question - because the firmware string cannot
+       * always say which radio that is.
+       *
+       * The UV-5R is why. `N5RV` is in `BASETYPE_UV5R` and `BASETYPE_F8HP`
+       * both, so it names a two-power UV-5R and a tri-power BF-F8HP alike, and
+       * `lowPower` is a two-bit field: on the tri-power radio a Mid channel
+       * holds 2, which this build's power table has no entry for. Decoding and
+       * re-encoding such a channel does not return the byte it started from,
+       * and a sweep write would then rewrite the power of channels nobody
+       * touched. That is exactly the failure the UV-82HP comment describes.
+       *
+       * So the radio is asked rather than the string. A tri-power radio with
+       * any Mid channel fails this and is refused; one whose channels are all
+       * High and Low round-trips and is safe to write as what it is. This is
+       * cheap, it runs on bytes already in hand, and it is the check that
+       * makes writing an ambiguous firmware string defensible at all.
+       */
+      const asImage: RadioImage = {
+        ...image,
+        regions: [{ start: 0, data: base, readOnly: false, label: 'image' }],
+      }
+      const roundTrip = locate(driver.encode(driver.decode(asImage), asImage), 0)?.region.data
+      if (!roundTrip || !equalBytes(roundTrip, base)) {
+        const at = roundTrip ? roundTrip.findIndex((x, i) => x !== base[i]) : -1
+        throw new WriteBlockedError(
+          `This build does not round-trip what is on this radio: byte 0x${at.toString(16)} changes when ` +
+            'its own contents are decoded and re-encoded. That usually means the radio is not the model ' +
+            'its firmware string suggests - a tri-power BF-F8HP reports the same string as a UV-5R and ' +
+            'stores a power level this build has no entry for. It can still be read and backed up.',
+        )
+      }
+
       const owned = uv82OwnedRanges()
       const inOwned = (from: number, to: number) =>
         owned.some(([s2, e2]: readonly [number, number]) => from >= s2 && to <= e2)
@@ -496,10 +534,43 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
        * written to flash. Reading back is the only thing that distinguishes
        * those, and it is cheap next to the cost of being wrong.
        */
+      /*
+       * Read back at BLOCK_SIZE, never at WRITE_BLOCK_SIZE.
+       *
+       * Writing is a 0x10 conversation and reading is a 0x40 one, and it is
+       * tempting to verify a 0x10 write with a 0x10 read. On the bench UV-5R
+       * that reads the wrong memory. Asked for 0x10 at 0x0e10, 0x0e20 and
+       * 0x0e40 it returned the same sixteen bytes every time - the ones that
+       * belong at 0x0e40 - while echoing the address it was asked for, so the
+       * header check that exists to catch a slipped block saw nothing wrong.
+       * A 0x40 read at 0x0e00 matched the image exactly.
+       *
+       * That cost an afternoon and read as a radio refusing to store settings:
+       * three sweeps "failed" at 0x0e20, and the last of them was writing the
+       * radio's own bytes back to it. Reads in the whole-image path were
+       * always 0x40, which is why every read session was clean and only
+       * verification lied.
+       *
+       * So verification reads the 0x40 window each written block falls in,
+       * once, and compares the slice. Fewer round trips than the old loop, and
+       * the block size the read path has always used against real radios.
+       */
+      const windows = new Map<number, Uint8Array>()
+      const readWindow = async (addr: number): Promise<Uint8Array> => {
+        const at = addr - (addr % BLOCK_SIZE)
+        const cached = windows.get(at)
+        if (cached) return cached
+        const got = await readBlock(t, at, BLOCK_SIZE, false, opts)
+        windows.set(at, got)
+        return got
+      }
+
       try {
         for (const [i, b] of blocks.entries()) {
           ctx.signal?.throwIfAborted()
-          const got = await readBlock(t, b.radioAddr, WRITE_BLOCK_SIZE, false, opts)
+          const window = await readWindow(b.radioAddr)
+          const from = b.radioAddr % BLOCK_SIZE
+          const got = window.subarray(from, from + WRITE_BLOCK_SIZE)
           if (!equalBytes(got, b.data)) {
             const at = got.findIndex((x, j) => x !== b.data[j])
             throw new WriteVerifyError(

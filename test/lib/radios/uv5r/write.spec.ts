@@ -163,15 +163,19 @@ describe('what identify will let a write reach, if writing is ever enabled', () 
     expect(ident.caps).toEqual({ read: true, write: true })
   })
 
-  it('refuses the string that means either a UV-5R or a BF-F8HP', async () => {
-    // The capture's own firmware is HN5RV011, which contains N5RV - in
-    // BASETYPE_UV5R and BASETYPE_F8HP both. The most common real-world case
-    // for this radio is the ambiguous one, which is worth knowing.
+  it('lets the ambiguous string through to the write, which checks the radio itself', async () => {
+    /*
+     * The capture's own firmware is HN5RV011, which contains N5RV - in
+     * BASETYPE_UV5R and BASETYPE_F8HP both, and the string a real radio turned
+     * out to report. It is claimed as the two-power radio here; the guard that
+     * makes that safe is in `writeImage`, which refuses any radio whose bytes
+     * do not survive being decoded and re-encoded.
+     */
     const ident = await writable.identify(radio(RAW.slice()), {})
     expect(ident.variant).toBe('HN5RV011')
-    expect(ident.caps.write).toBe(false)
-    expect(ident.caps.reason).toContain('HN5RV011')
+    expect(ident.caps.write).toBe(true)
     expect(ident.caps.read).toBe(true)
+    expect(ident.layout).toBe('uv5r')
   })
 
   it('refuses a tri-power radio by name, and says why', async () => {

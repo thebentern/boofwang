@@ -141,13 +141,20 @@ describe('the connect screen chip', () => {
   })
 
   it('agrees with the registry about which radios are read-only', () => {
-    // The claim on screen and the claim `writeImage` enforces are the same
-    // field. Today that is the UV-5R and nothing else; when a bench session
-    // clears it, this list is what has to be updated with it.
+    /*
+     * The claim on screen and the claim `writeImage` enforces are the same
+     * field, so this pins the list rather than the count.
+     *
+     * It is empty today. It held the UV-5R until the bench session of
+     * 2026-09-05 cleared it, which is the case this test was written for - and
+     * the marker it drives is still worth keeping, because the sibling test
+     * above proves the screen says nothing at all when the list is empty. A
+     * new radio arriving read-only puts a name back here.
+     */
     const readOnly = RADIO_IDS.filter(
       (id) => SCHEMAS[id]?.capabilities.read === true && SCHEMAS[id]?.capabilities.write !== true,
     )
-    expect(readOnly).toEqual(['uv5r'])
+    expect(readOnly).toEqual([])
   })
 
   it('still never quotes the write scope on this screen', () => {

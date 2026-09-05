@@ -138,23 +138,26 @@ iOS for a radio only once that radio's protocol note carries the entry.
 | Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write, restore |
 | Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | Yes | Read, write, restore |
 | Radioddity UV-5G | 128 channels, analog GMRS, 6 KB image | Yes | Yes | Read, write, restore |
-| Baofeng UV-5R | 128 channels, analog, 6 KB image | Yes | No | Read, twice, byte-identical. Never written |
+| Baofeng UV-5R | 128 channels, analog, 6 KB image | Yes | Yes | Read, write, restore |
 | Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | Yes | Read, write, restore; read also over Bluetooth |
 | Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Yes | Read, write, restore; startup picture |
 
 CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
 
-The UV-5R is read-only, and the last cell of its row is the whole reason. Its
-memory map is the one the UV-82 and UV-5G drivers are verified on - CHIRP's
-`BaofengUV5R` is the class both of those subclass - and on 2026-09-05 a real
-one was finally read, twice, byte for byte identical. That is a read path and
-nothing more. The radio reported `HN5RV011!!!`, the one firmware string this
-build refuses to act on because it names a 4 W UV-5R and an 8 W BF-F8HP alike;
-the band plan is still CHIRP's numbers rather than measured ones; and no block
-has ever been sent to this driver. Reading is offered because a backup is
-exactly what an unverified radio needs.
-[docs/protocols/uv5r.md](docs/protocols/uv5r.md) lists what a bench session
-would settle, and in what order.
+The UV-5R took three findings to write, and they are worth knowing because two
+of them looked like the radio refusing. A byte here programs once and will not
+reprogram, so the diff-driven write every other Baofeng here uses could not
+shorten a name - it left the tail of the old one behind. This radio therefore
+writes the way CHIRP always has, sweeping contiguous ranges rather than sending
+a diff. Its read-back verification was also reading the wrong memory: asked for
+sixteen bytes it returns another block's, while echoing the address it was
+given, so verification is done with the sixty-four-byte reads the read path has
+always used. And its firmware string, `HN5RV011!!!`, names a 4 W UV-5R and an
+8 W BF-F8HP alike, which nothing on the wire can settle - so before writing,
+the driver decodes and re-encodes what the radio just sent and refuses if a
+single byte moves. A tri-power radio fails that on its own bytes. The band plan
+is still CHIRP's numbers rather than measured ones.
+[docs/protocols/uv5r.md](docs/protocols/uv5r.md) has the session.
 
 The UV-5R Mini can also be read over Bluetooth, with no cable at all — the
 radio's wireless CPS mode speaks the same protocol over a GATT characteristic.
