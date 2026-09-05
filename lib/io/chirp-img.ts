@@ -96,6 +96,12 @@ export const CHIRP_IDENTITY: Partial<Record<RadioId, { vendor: string; model: st
   uvk5: { vendor: 'Quansheng', model: 'UV-K5', rclass: 'UVK5Radio' },
   uv82: { vendor: 'Baofeng', model: 'UV-82', rclass: 'BaofengUV82Radio' },
   uv5g: { vendor: 'Radioddity', model: 'UV-5G', rclass: 'RadioddityUV5GRadio' },
+  // `BaofengUV5R` itself is not a registered CHIRP driver - it is the base
+  // class the whole family subclasses. The plain radio is registered as
+  // `BaofengUV5RGeneric`, which is that class with the badges of the seven
+  // vendors who resell it, so that is the name a file has to carry for
+  // CHIRP to open it.
+  uv5r: { vendor: 'Baofeng', model: 'UV-5R', rclass: 'BaofengUV5RGeneric' },
   uv5rmini: { vendor: 'Baofeng', model: '5RM', rclass: 'BF5RM' },
 }
 

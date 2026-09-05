@@ -16,6 +16,7 @@ CHIRP_RAW="https://raw.githubusercontent.com/kk7ds/chirp/master"
 echo "Fetching CHIRP sources (GPL-3.0) ..."
 for f in \
   chirp/drivers/uvk5.py \
+  chirp/drivers/uv5r.py \
   chirp/drivers/uvk5_egzumer.py \
   chirp/drivers/baofeng_uv17Pro.py \
   chirp/drivers/baofeng_common.py \
@@ -44,14 +45,14 @@ curl -sSLf "https://raw.githubusercontent.com/infamy/DM32-Protocol-Spec/main/LIC
 #                                     chirp.drivers package are pulled in too.
 echo "Assembling an importable chirp package ..."
 mkdir -p chirp_pkg/chirp/drivers
-for f in bitwise.py bitwise_grammar.py pyPEG.py chirp_common.py generic_csv.py uvk5.py; do
+for f in bitwise.py bitwise_grammar.py pyPEG.py chirp_common.py generic_csv.py uvk5.py uv5r.py; do
   [ -f "$f" ] && cp "$f" chirp_pkg/chirp/
 done
 for f in memmap.py util.py errors.py directory.py platform.py settings.py checksum.py \
          bitwise_grammar.py pyPEG.py; do
   curl -sSLf "$CHIRP_RAW/chirp/$f" -o "chirp_pkg/chirp/$f" 2>/dev/null || true
 done
-for f in uvk5.py uvk5_egzumer.py; do
+for f in uvk5.py uvk5_egzumer.py uv5r.py; do
   [ -f "$f" ] && cp "$f" chirp_pkg/chirp/drivers/
 done
 : > chirp_pkg/chirp/drivers/__init__.py

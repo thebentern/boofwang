@@ -31,10 +31,10 @@ export interface RawLayout {
  */
 export const RAW_LAYOUTS: readonly RawLayout[] = [
   { radioId: 'uvk5', layout: 'stock', regions: UVK5_REGIONS },
-  // The UV-5G is deliberately absent: its image is the same 6,472 bytes as the
-  // UV-82's, so a bare .bin cannot say which of the two it came from. A file
-  // that size opens as the UV-82, and a UV-5G codeplug keeps its identity by
-  // travelling as .bwp or CHIRP .img, both of which carry it.
+  // The UV-5G and the UV-5R are deliberately absent: their images are the same
+  // 6,472 bytes as the UV-82's, so a bare .bin cannot say which of the three it
+  // came from. A file that size opens as the UV-82, and those codeplugs keep
+  // their identity by travelling as .bwp or CHIRP .img, both of which carry it.
   { radioId: 'uv82', layout: 'uv82', regions: UV82_REGIONS },
   ...UV5R_VARIANTS.map((v) => ({
     radioId: 'uv5rmini' as const,
@@ -72,19 +72,40 @@ function uvk5LayoutFor(metadata: ChirpMetadata): RawLayout | null {
 }
 
 /**
+ * The classic-family members a CHIRP `.img` can name.
+ *
+ * Every one of these is the same 6,472 bytes in the same single region, so
+ * only the metadata separates them. `rclass` is the driver class that saved
+ * the file and is the reliable half; `model` is the fallback for a file whose
+ * class name has changed upstream. The UV-82 is absent on purpose - it is what
+ * the size lookup already returns, so it is the fall-through rather than an
+ * entry.
+ */
+const CLASSIC_FAMILY: readonly { radioId: RadioId; rclass: readonly string[]; model: string }[] = [
+  { radioId: 'uv5g', rclass: ['RadioddityUV5GRadio'], model: 'UV-5G' },
+  // `BaofengUV5R` is the unregistered base class and `BaofengUV5RGeneric` the
+  // registered plain radio. Both are accepted: a file in the wild can carry
+  // either, and the two names mean the same memory.
+  { radioId: 'uv5r', rclass: ['BaofengUV5RGeneric', 'BaofengUV5R'], model: 'UV-5R' },
+]
+
+/**
  * The classic-family layout a CHIRP `.img` names, when its metadata says.
  *
- * A UV-5G image is byte-compatible with a UV-82 one - same size, same single
- * region - so the size lookup alone would open every classic-family image as a
- * UV-82. CHIRP records which driver class saved the file, and that is the same
- * fact the ident magic establishes over a cable. The size still has to match;
- * a claim on the wrong number of bytes is treated as no information, and the
- * file falls through to the ordinary size lookup - the same fallback an
- * unrecognised UV-K5 firmware string takes.
+ * A UV-5G or UV-5R image is byte-compatible with a UV-82 one - same size, same
+ * single region - so the size lookup alone would open every classic-family
+ * image as a UV-82. CHIRP records which driver class saved the file, and that
+ * is the same fact the ident magic establishes over a cable. The size still
+ * has to match; a claim on the wrong number of bytes is treated as no
+ * information, and the file falls through to the ordinary size lookup - the
+ * same fallback an unrecognised UV-K5 firmware string takes.
  */
-function uv5gLayoutFor(metadata: ChirpMetadata, memoryLength: number): RawLayout | null {
-  if (metadata.rclass !== 'RadioddityUV5GRadio' && metadata.model !== 'UV-5G') return null
-  const layout: RawLayout = { radioId: 'uv5g', layout: 'uv5g', regions: UV82_REGIONS }
+function classicLayoutFor(metadata: ChirpMetadata, memoryLength: number): RawLayout | null {
+  const member = CLASSIC_FAMILY.find(
+    (m) => (metadata.rclass !== undefined && m.rclass.includes(metadata.rclass)) || metadata.model === m.model,
+  )
+  if (!member) return null
+  const layout: RawLayout = { radioId: member.radioId, layout: member.radioId, regions: UV82_REGIONS }
   return totalOf(layout) === memoryLength ? layout : null
 }
 
@@ -169,7 +190,7 @@ export async function openImageFile(bytes: Uint8Array): Promise<OpenedImage> {
     const { memory, metadata } = splitChirpImg(bytes)
     const layout =
       uvk5LayoutFor(metadata) ??
-      uv5gLayoutFor(metadata, memory.length) ??
+      classicLayoutFor(metadata, memory.length) ??
       RAW_LAYOUTS.find((l) => totalOf(l) === memory.length)
     if (!layout) {
       const model = [metadata.vendor, metadata.model].filter(Boolean).join(' ')

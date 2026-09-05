@@ -9,11 +9,16 @@ import type { RadioId } from '#core/model/codeplug.js'
  * not. Two copies of this markup would drift, and the half that drifts is the
  * one nobody has a device to look at.
  *
- * It carries the three things that separate one radio from another - what it
- * is, how you reach it, and the one odd thing about it if there is one - and
- * deliberately no capability chip. All five read and write, so a per-row chip
- * said the same thing five times and stopped being read, which is the exact
- * failure `DriverList`'s header comment records about the matrix before it.
+ * It carries the things that separate one radio from another: what it is, how
+ * you reach it, whether boofwang may write to it, and the one odd thing about
+ * it if there is one.
+ *
+ * The capability chip was deliberately absent for a while, and the reason is
+ * worth keeping. When every driver wrote, a per-row chip said the same thing
+ * five times and stopped being read - the exact failure `DriverList`'s header
+ * comment records about the matrix before it. It is back now that a row can
+ * differ, and it renders only on the rows that do, so it marks something
+ * instead of decorating everything.
  */
 const props = withDefaults(
   defineProps<{
@@ -25,6 +30,8 @@ const props = withDefaults(
       dongle: boolean
       caveat: string
       usable: boolean
+      /** Readable, and not writable by this build. Derived in `DriverList`. */
+      readOnly: boolean
     }
     selected?: RadioId | null
     activeRadio?: RadioId | null
@@ -109,6 +116,22 @@ const isSelected = computed(() => props.row.id === props.selected)
         >
           <UIcon name="i-lucide-bluetooth" style="width: 11px; height: 11px; color: var(--fn)" />
           dongle
+        </span>
+        <!--
+          The one chip here that is a limitation rather than a route.
+
+          Not colored as a risk: nothing is about to happen to the radio, and
+          the risk register is for actions. The icon and the words carry it, as
+          they do everywhere else - reading is all this row offers.
+        -->
+        <span
+          v-if="row.readOnly"
+          class="inline-flex items-center"
+          style="gap: 4px; font-size: 11.5px; padding: 2px 7px; border-radius: 4px; background: var(--pn3); color: var(--mu)"
+          title="boofwang can read this radio and back it up, but not write to it."
+        >
+          <UIcon name="i-lucide-eye" style="width: 11px; height: 11px; color: var(--fn)" />
+          read only
         </span>
       </span>
 

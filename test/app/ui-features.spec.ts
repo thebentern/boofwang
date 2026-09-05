@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { SCHEMAS } from '#core/radio/registry.js'
+import { RADIO_IDS, SCHEMAS } from '#core/radio/registry.js'
 
 /**
  * A panel the interface renders must correspond to something the radio has.
@@ -96,19 +96,58 @@ describe('the connect screen chip', () => {
     'utf8',
   )
 
-  it('states the capability once, above the list, not once per row', () => {
+  it('never claims a capability above the list, because that claim went false once', () => {
     /*
-     * This used to pin a per-row chip to one of three labels. The labels were
-     * right and the placement was not: every driver is built with
-     * `enableWrite: true`, so all five chips read "Read and write" and the
-     * column meant to carry a warning became five identical ticks - which is
-     * the failure the file's own header records about the matrix before it.
+     * The history, because it is the reason for the shape.
      *
-     * So the claim moved above the list, where being true of every row is the
-     * reason to say it rather than the reason it goes unread.
+     * First a per-row chip on one of three labels. Every driver was built with
+     * `enableWrite: true`, so all five read "Read and write" - a column meant
+     * to carry a warning turned into five identical ticks, which is the
+     * failure the file's own header records about the matrix before it. So the
+     * claim moved above the list, as a sentence reading "All five can be read
+     * and written".
+     *
+     * Then the UV-5R landed read-only, and that sentence was false in two ways
+     * at once. A capability stated above a list is a claim about every row, and
+     * a claim about every row is exactly what stops being true when a row is
+     * added.
+     *
+     * So: nothing above the list may assert what the radios can do, and the
+     * per-row marker is derived rather than typed out per radio.
      */
-    expect(LIST, 'the per-row capability chip is back').not.toContain('function statusOf')
-    expect(LIST).toMatch(/All five can be read and written/)
+    // The rendered text only. The comment above it quotes the old sentence on
+    // purpose, as the record of why it is gone.
+    const template = LIST.slice(LIST.indexOf('<template>'))
+    const prose = template.replace(/<!--[\s\S]*?-->/g, '')
+    expect(prose, 'a capability is being counted above the list again').not.toMatch(
+      /All (five|six|seven|of them)|[Ee]very radio can be/,
+    )
+    expect(LIST, 'the read-only marker is not derived from the schema').toContain(
+      'schema.capabilities.write !== true',
+    )
+  })
+
+  it('marks read-only radios, and marks nothing when there are none', () => {
+    // The marker exists only while a row needs it, and the sentence explaining
+    // it is gated on the same fact - otherwise the explanation outlives the
+    // thing it explains.
+    const ROW = readFileSync(
+      fileURLToPath(new URL('../../app/components/connect/DriverRow.vue', import.meta.url)),
+      'utf8',
+    )
+    expect(ROW).toContain('v-if="row.readOnly"')
+    expect(LIST).toContain('anyReadOnly')
+    expect(LIST).toMatch(/v-if="anyReadOnly"/)
+  })
+
+  it('agrees with the registry about which radios are read-only', () => {
+    // The claim on screen and the claim `writeImage` enforces are the same
+    // field. Today that is the UV-5R and nothing else; when a bench session
+    // clears it, this list is what has to be updated with it.
+    const readOnly = RADIO_IDS.filter(
+      (id) => SCHEMAS[id]?.capabilities.read === true && SCHEMAS[id]?.capabilities.write !== true,
+    )
+    expect(readOnly).toEqual(['uv5r'])
   })
 
   it('still never quotes the write scope on this screen', () => {
@@ -210,7 +249,7 @@ describe('the connect screen does not guess the radio', () => {
 
   it('falls back to nothing rather than to a radio', () => {
     // Any bare radio id on the end of that chain is a guess.
-    for (const id of ['uvk5', 'uv82', 'uv5g', 'uv5rmini', 'dm32uv']) {
+    for (const id of ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv']) {
       expect(radioId, `radioId falls back to '${id}'`).not.toContain(`'${id}'`)
     }
     expect(radioId).toContain('null')

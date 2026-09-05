@@ -99,7 +99,7 @@ describe('how a magic is paced is a carrier question', () => {
           return new Uint8Array(0)
         },
       } as unknown as Parameters<typeof identify>[0]
-      await identify(t, MAGIC_UV82, { timeoutMs: 50 }).catch(() => {})
+      await identify(t, [MAGIC_UV82], { timeoutMs: 50 }).catch(() => {})
       return writes
     }
 

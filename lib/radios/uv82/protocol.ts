@@ -33,8 +33,13 @@ const ACK = 0x06
 /**
  * Model magics, from `UV5R_MODEL_*` in uv5r.py.
  *
- * The radio answers exactly one of these, which is how the family is told
+ * A given unit answers exactly one of these, which is how the family is told
  * apart. Trying the wrong one gets silence rather than a wrong answer.
+ *
+ * One magic does not always mean one model, though, and the plain UV-5R is
+ * where that bites: `UV5R_MODEL_291` is `_idents` for the two-power UV-5R, the
+ * tri-power BF-F8HP and the tri-power Intek KT-980HP alike. See
+ * `lib/radios/uv5r/protocol.ts` for what has to be done about it.
  */
 export const MAGIC_UV82 = Uint8Array.from([0x50, 0xbb, 0xff, 0x20, 0x13, 0x01, 0x05])
 
@@ -86,8 +91,15 @@ export interface IdentResult {
  * bytes on most of the family, 12 on some UV-6 units. A 12-byte reply is
  * squeezed back to 8 by keeping bytes 0, 3, 5 and 7.. so that every offset in
  * the memory map stays where CHIRP put it.
+ *
+ * `magics` is a list because some members of the family answer more than one.
+ * The plain UV-5R is the reason: CHIRP's `_idents` for it is
+ * `[UV5R_MODEL_291, UV5R_MODEL_ORIG]`, the second being what the pre-BFB291
+ * radios of 2012 answer. They are tried in order and the first acknowledgement
+ * wins, which is `_ident_radio`'s own structure. Members with one magic pass a
+ * one-element list and behave exactly as before.
  */
-export async function identify(t: Transport, magic: Uint8Array, opts?: ReadOpts): Promise<IdentResult> {
+export async function identify(t: Transport, magics: readonly Uint8Array[], opts?: ReadOpts): Promise<IdentResult> {
   /*
    * The magic is tried three times, with the line drained before each try.
    *
@@ -98,7 +110,7 @@ export async function identify(t: Transport, magic: Uint8Array, opts?: ReadOpts)
    * time, by a radio that then acknowledged the very next attempt - the
    * first exchange evidently wakes it rather than reaching it. CHIRP has the
    * same structure in `_ident_radio`, which sleeps and moves on to the next
-   * magic; with one magic per radio here, moving on means trying it again.
+   * magic; where a member has only one, moving on means trying it again.
    *
    * An echo of our own magic still fails immediately: a shorted adapter
    * answers every attempt identically, and three tries against it is just a
@@ -106,13 +118,20 @@ export async function identify(t: Transport, magic: Uint8Array, opts?: ReadOpts)
    */
   let ack: Uint8Array | null = null
   const ATTEMPTS = 3
-  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-    await t.resync(120, { timeoutMs: 2000, ...(opts?.signal ? { signal: opts.signal } : {}) }).catch(() => {})
-    await sendMagic(t, magic, opts)
-    ack = await t.readExactly(1, opts).catch(() => null)
-    if (ack !== null && ack[0] === ACK) break
-    if (ack !== null && ack[0] === magic[0]) throw new LoopbackDetectedError('while identifying the radio')
-    if (attempt < ATTEMPTS) await delay(1000, opts?.signal)
+  identified: for (let m = 0; m < magics.length; m++) {
+    const magic = magics[m]!
+    // A pause before moving on to the next magic, as CHIRP does between its
+    // own idents. The radio has just been sent something it did not recognise
+    // and the next thing it hears should not arrive in the same breath.
+    if (m > 0) await delay(1000, opts?.signal)
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+      await t.resync(120, { timeoutMs: 2000, ...(opts?.signal ? { signal: opts.signal } : {}) }).catch(() => {})
+      await sendMagic(t, magic, opts)
+      ack = await t.readExactly(1, opts).catch(() => null)
+      if (ack !== null && ack[0] === ACK) break identified
+      if (ack !== null && ack[0] === magic[0]) throw new LoopbackDetectedError('while identifying the radio')
+      if (attempt < ATTEMPTS) await delay(1000, opts?.signal)
+    }
   }
   if (ack === null) {
     throw new NoRadioResponseError('the radio did not answer the identification sequence')

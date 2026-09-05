@@ -61,7 +61,7 @@ describe('the programmable range', () => {
   it('derives the last slot rather than assuming it equals the channel count', () => {
     // True only while firstIndex is 1, which is every radio here today and is
     // not a thing to build on.
-    for (const id of ['uvk5', 'uv82', 'uv5rmini', 'dm32uv'] as const) {
+    for (const id of ['uvk5', 'uv82', 'uv5r', 'uv5rmini', 'dm32uv'] as const) {
       const s = SCHEMAS[id]!
       expect(slotRange(s).last, id).toBe(s.memory.firstIndex + s.memory.channelCount - 1)
     }

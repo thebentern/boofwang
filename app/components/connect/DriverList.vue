@@ -50,15 +50,22 @@ const emit = defineEmits<{ choose: [RadioId] }>()
  * and nothing else.
  *
  * The computation was right and the placement was wrong. Every driver in the
- * registry is built with `enableWrite: true`, so all five chips read "Read and
+ * registry was built with `enableWrite: true`, so all five chips read "Read and
  * write" - five identical ticks, which is the column meant to carry a warning
  * turning into furniture. That is the same failure this file's header records
  * about the read/write/hardware matrix it replaced, recurring one shape later,
  * and it recurred because the fact was still per row.
  *
- * It is said once above the list instead. The day a driver stops writing, that
- * sentence stops being true and has to change, which is a louder failure than
- * one chip in five going quiet.
+ * So it moved above the list, and that comment ended: "the day a driver stops
+ * writing, that sentence stops being true and has to change, which is a louder
+ * failure than one chip in five going quiet."
+ *
+ * That day was the UV-5R, which ships read-only because nobody has had one on
+ * a cable. A read-only marker is therefore back on the row - but only on the
+ * rows it is true of, which is the difference that made the old chip furniture
+ * and makes this one worth reading. Nothing above the list claims a capability
+ * any more; the sentence there explains the marker and appears only while some
+ * row carries one.
  */
 
 /**
@@ -83,7 +90,7 @@ function serviceOf(schema: RadioSchema | null): string | null {
   if (services.size !== 1) return null
   const only = [...services][0]!
   // "land mobile" is the catch-all rather than a claim, and "amateur" is what
-  // four of these are - neither distinguishes one row from another here.
+  // most of these are - neither distinguishes one row from another here.
   return only === 'land mobile' || only === 'amateur' ? null : only
 }
 
@@ -171,11 +178,23 @@ const rows = computed(() =>
       caveat: CAVEATS[id] ?? '',
       /** A row you can pick. A driver with no implementation has no handshake to send. */
       usable: isImplemented(id) && schema?.capabilities.read === true,
+      /**
+       * Derived, never editorial: a radio boofwang can read and cannot write.
+       *
+       * Read off `capabilities.write`, which is what `writeImage` itself
+       * enforces, so the marker cannot say one thing while the driver does
+       * another. A radio with no driver at all is not marked - it is not
+       * read-only, it is absent, and `usable` already says so.
+       */
+      readOnly: isImplemented(id) && schema?.capabilities.read === true && schema.capabilities.write !== true,
     }
   }),
 )
 
 type Row = (typeof rows.value)[number]
+
+/** Whether the sentence above the list has a marker to explain. */
+const anyReadOnly = computed(() => rows.value.some((r) => r.readOnly))
 
 /**
  * On a device with no cable, order the list by what it can actually reach.
@@ -233,21 +252,24 @@ const groups = computed<{ key: string; icon: string; tone: string; title: string
 <template>
   <div>
     <!--
-      Said once, above the list, instead of five times inside it.
+      What is said here is what is true of every row; what differs sits on the
+      row it differs on.
 
-      Every driver is built with `enableWrite: true`, so a per-row capability
-      chip read "Read and write" on all five - and the column meant to carry a
-      warning became furniture for the second time. This file's own header
-      records that failure about the matrix it replaced; it recurred because the
-      chip was still per-row. A fact true of every row belongs above the list.
+      This used to read "All five can be read and written", which was a
+      capability claim above a list, and it went false the day the UV-5R landed
+      read-only. Now the capability is a derived marker per row and this only
+      explains what the marker means - and only while there is one.
     -->
     <h2 style="font-size: 16px; font-weight: 600; letter-spacing: -0.015em; color: var(--tx)">
       {{ usbHost ? 'Which radio is on the cable?' : 'Which radio are you connecting?' }}
     </h2>
     <p style="font-size: 13px; line-height: 1.55; color: var(--fn); margin-top: 4px">
       {{ usbHost
-        ? 'All five can be read and written. Pick the one on the cable so boofwang sends the right handshake.'
+        ? 'Pick the one on the cable so boofwang sends the right handshake.'
         : 'Ordered by what this device can reach, not by what boofwang supports.' }}
+      <template v-if="anyReadOnly">
+        A radio marked read only can be read and backed up, but not written.
+      </template>
     </p>
 
     <!-- Flat, in registry order, wherever a cable is a route. -->
@@ -302,8 +324,8 @@ const groups = computed<{ key: string; icon: string; tone: string; title: string
       draft of this copy collapsed them and was wrong.
     -->
     <p v-if="usbHost" style="font-size: 12px; line-height: 1.5; color: var(--fn); margin: 9px 2px 0">
-      A clip-on Bluetooth dongle fits the programming port on four of these and reads them over
-      Bluetooth. The UV-5R Mini has a Bluetooth module of its own and needs no dongle.
+      A clip-on Bluetooth dongle fits the programming port on the radios marked dongle, and reads
+      them over Bluetooth. The UV-5R Mini has a Bluetooth module of its own and needs no dongle.
     </p>
 
     <!--

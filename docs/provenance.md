@@ -20,7 +20,7 @@ redistributing this code to be able to trace that.
 | [NOAA/NWS](https://www.weather.gov/nwr/) | Public domain (US Government) | Weather radio channel frequencies. |
 
 Because CHIRP is GPL-3.0, files in `lib/radios/uvk5/`, `lib/radios/uv82/`,
-`lib/radios/uv5g/` and `lib/radios/uv5rmini/` that transcribe its layout tables
+`lib/radios/uv5g/`, `lib/radios/uv5r/` and `lib/radios/uv5rmini/` that transcribe its layout tables
 are derivative works of CHIRP. That is compatible with boofwang's own licence,
 and this table is the attribution.
 

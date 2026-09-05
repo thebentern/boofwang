@@ -29,7 +29,7 @@ const BLUETOOTH_RADIOS: readonly RadioId[] = ['uv5rmini']
  * one a real dongle has been shown to bridge; today none has, and every
  * offer is labelled untested.
  */
-const DONGLE_RADIOS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5rmini']
+const DONGLE_RADIOS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini']
 
 describe('transport declarations', () => {
   it.each(RADIO_IDS)('%s can be reached over a cable', (id) => {
