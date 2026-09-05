@@ -6,8 +6,8 @@ import { BackupRequiredError, DriverError, type BackupRef } from '#core/radio/dr
 import type { RadioImage } from '#core/radio/image.js'
 import { createUv5rDriver } from '#core/radios/uv5r/driver.js'
 import { MAGIC_UV5R_291, MAGIC_UV5R_ORIG } from '#core/radios/uv5r/protocol.js'
-import { REGIONS } from '#core/radios/uv82/layout.js'
-import { AUX_START, IDENT_SIZE, MAIN_SIZE } from '#core/radios/uv82/protocol.js'
+import { REGIONS, ownedRanges } from '#core/radios/uv82/layout.js'
+import { AUX_START, IDENT_SIZE, MAIN_SIZE, NEVER_WRITE } from '#core/radios/uv82/protocol.js'
 
 /**
  * The handshake and the gate, for a radio nobody has plugged in.
@@ -225,7 +225,17 @@ describe('the write gate', () => {
     ).rejects.toThrow(BackupRequiredError)
   })
 
-  it('writes nothing when the radio already holds the image', async () => {
+  it('sweeps the owned ranges even when the radio already holds the image', async () => {
+    /*
+     * The opposite of every other radio here, and deliberately.
+     *
+     * On the rest of the family an unchanged image writes nothing, which is
+     * the property that keeps a one-channel edit to one block. This radio
+     * programs a byte once and will not reprogram it, so a sparse write cannot
+     * shorten a name - only a contiguous sweep can, which is what CHIRP has
+     * always done. `writesWholeImage` is what asks for that, and the cost is
+     * exactly this: no write is ever a no-op.
+     */
     const ident = {
       radioId: 'uv5r' as const,
       variant: 'BFB297',
@@ -238,6 +248,18 @@ describe('the write gate', () => {
       backup: { ...backup, identHash: 'match' },
       ident,
     })
-    expect(report.blocksWritten).toBe(0)
+    expect(writable.schema.capabilities.writesWholeImage).toBe(true)
+    expect(report.blocksWritten).toBeGreaterThan(0)
+
+    // Every block sent is inside the owned ranges and outside the two windows
+    // CHIRP skips - the sweep decides what goes on the wire, never what the
+    // driver is allowed to touch.
+    const owned = ownedRanges()
+    for (const op of report.operations) {
+      const from = op.addr + IDENT_SIZE
+      const to = from + op.length
+      expect(owned.some(([s, e]) => from >= s && to <= e), `0x${op.addr.toString(16)} is unowned`).toBe(true)
+      expect(NEVER_WRITE.some(([s, e]) => from < e && to > s), `0x${op.addr.toString(16)} is skipped`).toBe(false)
+    }
   })
 })

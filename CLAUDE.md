@@ -134,14 +134,41 @@ Every file under `lib/`, `test/` and `scripts/` carries
    This is what caught the UV-K5's 10 Hz scaling, the UV-82's inverted `wide` bit,
    the UV-5R Mini's 105-code DTCS table and the DM-32UV's BCD tones — every one of
    which looked correct until it was checked.
-3. **Verify on hardware**, and record it in `docs/protocols/<radio>.md`: the exact
-   byte counts on the wire, a read taken with an independent reader outside the app,
-   and a write followed by a restore back to the original sha256.
-4. **Only then enable writing.** Reading is offered for unknown firmware — a backup
-   is exactly what an unsupported radio needs — but writing waits for evidence.
+3. **Verify reading on hardware**, and record it in `docs/protocols/<radio>.md`:
+   the exact byte counts on the wire, two reads that agree byte for byte, and a
+   read taken with an independent reader outside the app.
+4. **Verify writing on hardware, end to end**, in one session: edit one field,
+   write, read back in a *fresh* session, confirm only the intended bytes moved,
+   then restore and confirm the original sha256. Save the pre-write image to a
+   file first. A write that was acknowledged is not a write that landed, and a
+   read-back inside the writing session is not a fresh read - the UV-5R proved
+   both halves of that in one afternoon.
+5. **Settle the write shape before enabling anything.** A diff-driven write is
+   this codebase's default and it is not universal. The UV-5R Mini erases a
+   flash page and writes back only the block it was handed, so a sparse write
+   wipes its neighbours. The UV-5R is the opposite: a byte programs once and
+   will not reprogram, so a sparse write cannot shorten a name and leaves the
+   tail of the old one behind. Both need `writesWholeImage`. The question to ask
+   of every new radio is what its reference implementation actually sends -
+   CHIRP writes contiguous ranges, never a diff - and the way to find out is to
+   shorten a name on real hardware and read it back.
+6. **Check it in the UI, not just in tests.** The radio has to appear in the
+   connect chooser with the right capability markers, be selectable, and reach
+   the channel table and settings form. That should cost no change under `app/`;
+   if it does, the `RadioSchema` is missing something. Read the connect screen in
+   both themes before calling it done.
+7. **Only then enable writing.** Reading is offered for unknown firmware — a
+   backup is exactly what an unsupported radio needs — but writing waits for
+   evidence, and "the driver is shared with a radio that works" is not evidence.
+   Two radios in this family share every byte of their memory map and disagree
+   about whether a byte can be rewritten.
 
 Run an adversarial review before the first write to any new radio. Two of the four
 drivers had a real defect found that way, before hardware.
+
+A radio is not "added" until steps 3, 4 and 6 are all recorded. Half of it -
+reading verified, writing assumed, the UI never opened - is how a driver list
+comes to say "verified" about something nobody has written to.
 
 ## Interface
 

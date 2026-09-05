@@ -198,6 +198,59 @@ outside the app has read the same bytes. The capture is not committed. And
 nothing has been written, so the band plan and the
 GT-5R/UV-5RX3/UV-5G Pro question are exactly where they were.
 
+## First write session, 2026-09-05: three findings, writing still off
+
+Same radio, same cable, immediately after the read session. Nothing about this
+session made the radio writable in the product - it ended with the radio back at
+`d783efb5c2b81c938e5b42483282aeff8bc791a8e8a58944865cebfe5dbc05ce`, its exact
+pre-write image - but it answered the question the read session could not.
+
+**1. A byte here programs once, and a sparse write cannot undo itself.** Slot 2
+had no name: seven bytes of 0xFF. Renaming it to `BOOF` landed and verified. The
+restore, writing 0xFF back, was acknowledged and silently ignored - twice, at the
+same address. Then 0x00 was tried, and the answer arrived in one frame:
+
+| | |
+|---|---|
+| sent | `00 00 00 00 00 00 00` |
+| read back | `42 4f 4f 46 00 00 00` |
+
+The three bytes still holding 0xFF took the 0x00. The four already holding `BOOF`
+did not, though 0x42 to 0x00 only clears bits. So this is not "cleared bits only"
+- it is one program per erase, and an acknowledgement says nothing about it.
+
+The consequence is not a failed restore, it is silent corruption: shorten a name
+on a diff-driven write and the tail of the old one stays. Rename `GMRS1` to
+`BOOF` and the radio reads `BOOF1`. **This is why the UV-5R carries
+`writesWholeImage`.** CHIRP never had the problem because it never writes
+sparsely - `_ranges_main` is three contiguous spans swept end to end, and
+whatever erase this memory needs comes with the sweep.
+
+**2. The sweep works.** With `writesWholeImage` set, writing the reconstructed
+baseline put the name field back to 0xFF and the whole image back to its original
+sha256, confirmed by a fresh read in a new session. That is the fix, verified.
+
+**3. The read-back verify desyncs after about 129 blocks, and that is what still
+blocks writing.** Every sweep failed its verification at image `0x0e20` with the
+same pair:
+
+| | |
+|---|---|
+| sent | `03 00 00 03 00 00 05 00` |
+| read back | `00 00 00 01 05 00 01 00` |
+
+It is not a failed write. The last run wrote the baseline *over itself* - the
+radio already held the sent bytes, and a fresh read afterwards showed it still
+did. The blocks are correct on the radio and the read-back is reading something
+else, 129 blocks into the verify loop. This unit reports `dropped byte: true`,
+which is CHIRP's own name for a known UV-5R quirk, and that is the first place to
+look. Until it is explained, a sweep write cannot be verified end to end, and an
+unverifiable write is not one this project ships.
+
+Reproduce it with `BOOFWANG_HW=1 BOOFWANG_HW_WRITE=1` against
+`test/hardware/uv5r.spec.ts`. That test is expected to fail at exactly this
+point, and it fails the same way every time.
+
 ## Not verified
 
 Everything that needs a radio:
@@ -213,9 +266,13 @@ Everything that needs a radio:
   read-only-on-ambiguity rule is more expensive than it looks and deserves a
   better answer than "decline".
 - **The band edges are CHIRP's numbers**, not measured ones.
-- **Nothing has been written.** No block, no read-back, no restore. The write
-  path is the UV-82's and is verified on that radio and on the UV-5G, but not
-  from behind this driver's ident.
+- **Writing is not verifiable yet**, which is a different thing from untried.
+  Blocks have been written, read back in a fresh session and restored to the
+  original sha256, so the path reaches the radio and the sweep is correct. What
+  has never happened is a write whose own read-back verification passed: it
+  desyncs at image `0x0e20` every time. Until that is explained the driver stays
+  read-only, because a write this build cannot check is a write it cannot
+  promise.
 - **The dongle route is offered and untested**, as it is for every radio that
   offers it.
 

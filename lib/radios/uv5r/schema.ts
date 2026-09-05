@@ -51,9 +51,25 @@ export const UV5R_SCHEMA: RadioSchema = {
   aliases: ['Baofeng UV-5X', 'Retevis RT5R', 'Retevis RT5RV', 'Retevis RT5', 'Rugged RH5R', 'Radioddity UV-5R EX', 'Ansoko A-5R'],
   status: 'read-only',
 
-  // Same K-port and same 9600-baud clone rate as the rest of the family, so
-  // the same untested dongle route. See docs/protocols/ble-dongle.md.
-  capabilities: { read: true, write: false, transports: ['serial'], dongle: 'k2' },
+  /*
+   * Same K-port and same 9600-baud clone rate as the rest of the family, so
+   * the same untested dongle route. See docs/protocols/ble-dongle.md.
+   *
+   * `writesWholeImage` is this radio's own, and it is not a preference. The
+   * bench unit programs a byte once and will not reprogram it: writing a name
+   * over 0xFF lands, writing 0xFF back over that name is acknowledged and
+   * ignored. Only a contiguous sweep of the owned ranges - which is what CHIRP
+   * has always done here, and evidently what brings the erase with it - puts a
+   * shortened name back. A diff-driven write would leave `GMRS1` renamed to
+   * `BOOF` reading `BOOF1`. See docs/protocols/uv5r.md for the session.
+   */
+  capabilities: {
+    read: true,
+    write: false,
+    transports: ['serial'],
+    dongle: 'k2',
+    writesWholeImage: true,
+  },
 
   memory: {
     channelCount: CHANNEL_COUNT,

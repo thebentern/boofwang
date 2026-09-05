@@ -5,6 +5,7 @@ import type { IdentifyResult } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createUv5rDriver } from '#core/radios/uv5r/driver.js'
 import { classifyBasetype, MAGIC_UV5R_291, MAGIC_UV5R_ORIG } from '#core/radios/uv5r/protocol.js'
+import { NAME_LENGTH, nameAddr } from '#core/radios/uv82/layout.js'
 import { IMAGE_SIZE } from '#core/radios/uv82/protocol.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial-port.js'
@@ -127,5 +128,106 @@ describe.skipIf(!HW)('UV-5R on the bench', () => {
         sha256: '',
       }, { backup: { id: 'x', identHash: 'x', createdAt: new Date().toISOString() } }),
     ).rejects.toThrow(/UV-5R/)
+  })
+})
+
+/**
+ * The write path, against the same radio. Gated twice, deliberately.
+ *
+ * `BOOFWANG_HW` is not enough: this is the only spec in the tree that sends
+ * bytes to a radio nobody had ever written, so it also wants
+ * `BOOFWANG_HW_WRITE=1`. Running the read session by habit must never turn
+ * into a write.
+ *
+ *   BOOFWANG_HW=1 BOOFWANG_HW_WRITE=1 BOOFWANG_HW_PORT=/dev/cu.usbserial-XXXX \
+ *     pnpm vitest run test/hardware/uv5r.spec.ts
+ *
+ * It takes its own baseline first and restores it at the end, then reads once
+ * more and asserts the bytes came back - so a failure leaves evidence rather
+ * than a radio in an unknown state.
+ *
+ * `ident.caps.write` is forced on for the duration. That is not a claim that
+ * the radio is writable: `HN5RV011!!!` is the ambiguous `N5RV` case and the
+ * driver is right to refuse it in the product. What this test asks is the
+ * narrower question underneath - whether the block write, the acknowledgement
+ * and the read-back work on this radio at all - because that has to be
+ * answered before the policy question is worth arguing about.
+ */
+const HW_WRITE = HW && !!process.env.BOOFWANG_HW_WRITE
+const writable = createUv5rDriver({ enableWrite: true })
+
+describe.skipIf(!HW_WRITE)('UV-5R write cycle on the bench', () => {
+  it('reads, renames one channel, verifies each byte, and restores', { timeout: 600_000 }, async () => {
+    expect(PORT, 'set BOOFWANG_HW_PORT to the adapter path').not.toBe('')
+    const ports = await listBridgePorts(URL_)
+    const info = ports.find((p) => p.path === PORT)
+    expect(info, `the bridge does not see ${PORT}. It offers: ${ports.map((p) => p.path).join(', ')}`).toBeTruthy()
+
+    let lastClosed = 0
+    async function session<T>(fn: (t: SerialTransport, ident: IdentifyResult) => Promise<T>): Promise<T> {
+      const since = Date.now() - lastClosed
+      if (since < 1_500) await new Promise((r) => setTimeout(r, 1_500 - since))
+      const t = new SerialTransport(new BridgeSerialPort(URL_, info!))
+      await t.open(writable.serial)
+      try {
+        const ident = await writable.identify(t, {})
+        // The forced flag, in one place. Everything else is the real driver.
+        return await fn(t, { ...ident, caps: { ...ident.caps, write: true } })
+      } finally {
+        await t.close().catch(() => {})
+        lastClosed = Date.now()
+      }
+    }
+
+    const memOf = (img: RadioImage) => img.regions[0]!.data
+
+    const { baseline, ident0 } = await session(async (t, ident) => {
+      expect(ident.radioId).toBe('uv5r')
+      return { baseline: await writable.readImage(t, ident, {}), ident0: ident }
+    })
+    const backup = { id: 'bench', identHash: ident0.identHash, createdAt: new Date().toISOString() }
+
+    // A rename is the smallest edit that exercises the whole path: diff, block
+    // write, acknowledgement, read-back.
+    const doc = writable.decode(baseline)
+    const slot = [...doc.channels.keys()].sort((a, b) => a - b)[0]!
+    const ch = doc.channels.get(slot)!
+    expect(ch.name).not.toBe('BOOF')
+    doc.channels.set(slot, { ...ch, name: 'BOOF' })
+    const edited = writable.encode(doc, baseline)
+
+    const report = await session((t, ident) =>
+      writable.writeImage(t, edited, { backup, baseImage: baseline, ident }),
+    )
+    expect(report.verified).toBe(true)
+    expect(report.blocksWritten).toBe(1)
+
+    // A fresh session's read must show the rename and nothing else.
+    const after = await session((t, ident) => writable.readImage(t, ident, {}))
+    {
+      const a = memOf(after)
+      const b = memOf(baseline)
+      const changed: number[] = []
+      for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) changed.push(i)
+      const lo = nameAddr(slot - 1)
+      const hi = lo + NAME_LENGTH
+      console.log(`\nwrite cycle: ${changed.length} bytes moved, name field 0x${lo.toString(16)}-0x${hi.toString(16)}\n`)
+      expect(changed.length).toBeGreaterThan(0)
+      for (const at of changed) {
+        expect(at >= lo && at < hi, `byte 0x${at.toString(16)} moved outside the name field`).toBe(true)
+      }
+      expect(writable.decode(after).channels.get(slot)!.name).toBe('BOOF')
+    }
+
+    // Restore with no base image: the recovery path reads the radio first and
+    // diffs against that, which is what a real restore does.
+    const restore = await session((t, ident) => writable.writeImage(t, baseline, { backup, ident }))
+    expect(restore.verified).toBe(true)
+    expect(restore.blocksWritten).toBe(1)
+
+    const final = await session((t, ident) => writable.readImage(t, ident, {}))
+    expect(equalBytes(memOf(final), memOf(baseline))).toBe(true)
+    expect(final.sha256).toBe(baseline.sha256)
+    console.log(`\nrestored to ${final.sha256}\n`)
   })
 })

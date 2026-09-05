@@ -375,6 +375,32 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       const forbidden = (from: number, to: number) =>
         NEVER_WRITE.some(([s2, e2]: readonly [number, number]) => from < e2 && to > s2)
 
+      /*
+       * Send every owned block, or only the ones that changed.
+       *
+       * A diff-driven write is the better shape and it is what this family has
+       * always used: a one-channel edit costs one block instead of six
+       * kilobytes, and a block with no change in it is never a candidate, so
+       * memory nobody has modelled is never touched.
+       *
+       * The bench UV-5R will not have it. Writing `BOOF` over a name field that
+       * held 0xFF landed and verified; writing 0xFF back over `BOOF` was
+       * acknowledged and silently ignored, twice, and so was 0x00 - but only in
+       * the bytes that already held a character. The three bytes still at 0xFF
+       * took 0x00 in the same frame. So a byte in this region programs once and
+       * will not reprogram, and an acknowledgement says nothing about it. A
+       * sparse write on such a radio leaves the tail of a shortened name in
+       * place - rename `GMRS1` to `BOOF` and the radio reads `BOOF1` - which is
+       * silent corruption of a field the user was editing.
+       *
+       * CHIRP never had the problem because it never writes sparsely: its
+       * `_ranges_main` are three contiguous spans swept end to end, and
+       * whatever erase this memory needs evidently comes with that sweep. So a
+       * radio that needs it says so with `writesWholeImage` and gets CHIRP's
+       * shape, at the cost of writing four kilobytes to change one name.
+       */
+      const sweep = schema.capabilities.writesWholeImage === true
+
       // Collect the blocks to send before sending any of them, so a refusal
       // happens with nothing on the wire.
       const blocks: { imageOffset: number; radioAddr: number; data: Uint8Array }[] = []
@@ -384,20 +410,33 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
         for (let i = off; i < to; i++) {
           if (base[i] !== next[i]) { differs = true; break }
         }
-        if (!differs) continue
 
-        if (forbidden(off, to)) {
-          throw new DriverError(
-            `Refusing to write: 0x${off.toString(16)} is one of the windows CHIRP has always skipped, ` +
-              'and boofwang does not model anything there. That is a defect in the encoder.',
-          )
+        /*
+         * The ownership check is about the encoder, not about what is sent.
+         * A changed byte outside the owned ranges is a defect wherever it is
+         * found, so it is still a refusal in sweep mode - the sweep decides
+         * what goes on the wire, never what is allowed to have moved.
+         */
+        if (differs) {
+          if (forbidden(off, to)) {
+            throw new DriverError(
+              `Refusing to write: 0x${off.toString(16)} is one of the windows CHIRP has always skipped, ` +
+                'and boofwang does not model anything there. That is a defect in the encoder.',
+            )
+          }
+          if (!inOwned(off, to)) {
+            throw new DriverError(
+              `Refusing to write: byte 0x${off.toString(16)} changed but sits outside the ranges this ` +
+                'driver claims to understand. That is a defect in boofwang, not in your codeplug.',
+            )
+          }
         }
-        if (!inOwned(off, to)) {
-          throw new DriverError(
-            `Refusing to write: byte 0x${off.toString(16)} changed but sits outside the ranges this ` +
-              'driver claims to understand. That is a defect in boofwang, not in your codeplug.',
-          )
-        }
+
+        // A sweep covers the owned ranges and nothing else: the skipped windows
+        // stay skipped, which is what CHIRP does with the same two gaps.
+        if (forbidden(off, to) || !inOwned(off, to)) continue
+        if (!sweep && !differs) continue
+
         blocks.push({ imageOffset: off, radioAddr: off - IDENT_SIZE, data: next.slice(off, to) })
       }
 
