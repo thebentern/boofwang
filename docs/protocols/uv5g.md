@@ -72,9 +72,12 @@ before suspecting the radio.
   warning, never an error - the licence is the operator's, and the refusal to
   transmit there is the firmware's. That refusal is the vendor's Part 95E
   claim; boofwang has no way to test it from the bench and does not try.
-- **No single-PTT switch.** The byte is decoded and carried through like every
-  other, but the control is not offered: `f2b.singleptt` selects between the
-  UV-82's two PTT buttons, and this radio has one.
+- **No single-PTT switch and no VFO/MR lock.** Both bytes are decoded and
+  carried through like every other, but neither control is offered: CHIRP's
+  `_get_settings` exposes `singleptt` and `vfomrlock` only to the UV-82 family,
+  the UV-82HP and the F-11, and `RadioddityUV5GRadio` is none of those. This
+  radio has one PTT button; the VFO/MR bit has never been shown to do anything
+  here, which matters because this radio is one boofwang writes to.
 
 ## The factory codeplug is the GMRS story in bytes
 

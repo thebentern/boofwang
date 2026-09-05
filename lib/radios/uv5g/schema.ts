@@ -9,16 +9,25 @@ import { UV82_SETTINGS_GROUPS } from '../uv82/schema.js'
 const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !@#$%^&*()+-=[]:";\'<>?,./'
 
 /**
- * The UV-82's settings, less the single-PTT switch.
+ * The UV-82's settings, less the two controls that are UV-82 hardware.
  *
  * The settings block is byte-identical across the family - one `MEM_FORMAT` in
- * uv5r.py covers both radios - but `f2b.singleptt` selects between the UV-82's
- * two PTT buttons, and this radio has one. Offering it would be a control for
- * hardware that is not there.
+ * uv5r.py covers every member - so both bits are here to read. CHIRP still
+ * withholds the controls: in `_get_settings` it offers `singleptt` only under
+ * `isinstance(self, BaofengUV82Radio)` or `MODEL == "UV-82HP"`, and `vfomrlock`
+ * only under those two or `MODEL == "F-11"`. `RadioddityUV5GRadio` is a bare
+ * subclass of `BaofengUV5R`, so it fails every one and CHIRP offers neither.
+ *
+ * `singleptt` selects between the UV-82's two PTT buttons and this radio has
+ * one. `vfomrlock` stayed offered here for longer, because the PTT switch was
+ * the obviously wrong one and the two guards were never read side by side; they
+ * are the same shape, and nothing has shown that bit doing anything on this
+ * radio. Both bytes are still decoded and carried through - it is the control
+ * that is withheld, not the data.
  */
 export const UV5G_SETTINGS_GROUPS: RadioSchema['settings'] = UV82_SETTINGS_GROUPS.map((g) => ({
   ...g,
-  fields: g.fields.filter((f) => f.key !== 'f2b.singleptt'),
+  fields: g.fields.filter((f) => f.key !== 'f2b.singleptt' && f.key !== 'f2b.vfomrlock'),
 }))
 
 export const UV5G_SCHEMA: RadioSchema = {

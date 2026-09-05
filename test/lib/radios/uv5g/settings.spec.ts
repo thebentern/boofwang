@@ -75,12 +75,16 @@ describe('the controls offered for this radio', () => {
     expect(SETTINGS_BASE + SETTINGS_CLAIM).toBeLessThanOrEqual(0x1808)
   })
 
-  it('does not offer the single-PTT switch, which selects between buttons this radio does not have', () => {
+  // CHIRP's `_get_settings` guards both of these by model: `singleptt` under
+  // `isinstance(self, BaofengUV82Radio)` or `MODEL == "UV-82HP"`, `vfomrlock`
+  // under either of those or `MODEL == "F-11"`. `RadioddityUV5GRadio` is a
+  // bare subclass of `BaofengUV5R` and matches none of them.
+  it.each(['f2b.singleptt', 'f2b.vfomrlock'])('does not offer %s, which CHIRP withholds from this model', (key) => {
     const keys = UV5G_SETTINGS_GROUPS.flatMap((g) => g.fields.map((f) => f.key))
-    expect(keys).not.toContain('f2b.singleptt')
+    expect(keys).not.toContain(key)
     // The byte itself is still decoded and carried through - it is the control
     // that is withheld, not the data.
-    expect(Object.keys(decodeSettings(RAW))).toContain('f2b.singleptt')
+    expect(Object.keys(decodeSettings(RAW))).toContain(key)
   })
 })
 
