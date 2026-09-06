@@ -151,6 +151,6 @@ describe('the selection strip', () => {
   })
 
   it('spends the empty state on saying that shift-click exists', () => {
-    expect(TABLE).toMatch(/Shift-click a second tick/)
+    expect(TABLE).toMatch(/Shift-click a second one/)
   })
 })

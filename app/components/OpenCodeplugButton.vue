@@ -271,18 +271,22 @@ async function openInstead({ image, note }: OpenedImage, driver: RadioDriver) {
   codeplug.load(image, driver)
 
   if (note.kind === 'bwp') {
+    const n = codeplug.channelCount
     toast.add({
       title: 'Codeplug opened',
-      description: `${codeplug.channelCount} channel(s) from ${image.variant || image.radioId}.`,
+      description:
+        `${n} channel${n === 1 ? '' : 's'} from a ${driver.schema.model}` +
+        (image.variant ? `, firmware ${image.variant}.` : '.'),
       icon: 'i-lucide-circle-check',
       color: 'success',
     })
   } else if (note.kind === 'chirp-img') {
     const named = [note.metadata.vendor, note.metadata.model].filter(Boolean).join(' ')
+    const n = codeplug.channelCount
     toast.add({
       title: 'CHIRP image opened',
       description:
-        `${codeplug.channelCount} channel(s)` +
+        `${n} channel${n === 1 ? '' : 's'}` +
         (named ? ` from a ${named}` : '') +
         (note.metadata.chirp_version ? `, saved by CHIRP ${note.metadata.chirp_version}.` : '.'),
       icon: 'i-lucide-circle-check',
@@ -295,10 +299,10 @@ async function openInstead({ image, note }: OpenedImage, driver: RadioDriver) {
       title: 'Raw image opened',
       description:
         note.guessedFrom === 'page-ids'
-          ? `Read as a ${image.radioId} image from the block ids its pages carry. ` +
-            'Check the channels look right before writing it anywhere.'
-          : `Assumed to be a ${image.radioId} image from its size. A bare .bin carries no identity. ` +
-            'Check the channels look right before writing it anywhere.',
+          ? `Read as a ${driver.schema.model} image from the block ids its pages carry. ` +
+            'Check that the channels look right before writing it anywhere.'
+          : `Assumed to be a ${driver.schema.model} image from its size. A bare .bin carries no identity. ` +
+            'Check that the channels look right before writing it anywhere.',
       icon: 'i-lucide-triangle-alert',
       color: 'warning',
       duration: 10_000,
@@ -335,15 +339,15 @@ async function copyForeignChannels() {
     for (const p of plan.placed) codeplug.setChannelRecord(p.slot, p.channel)
   })
 
-  const from = foreign.value?.from
+  const from = foreign.value?.schema.model ?? 'other radio'
   foreign.value = null
   if (input.value) input.value.value = ''
 
   toast.add({
-    title: `Copied ${placed} channel(s) from the ${from}`,
-    description:
-      (placed < taken.length ? `${taken.length - placed} did not fit and were left out. ` : '') +
-      'Nothing has been sent to the radio yet.',
+    title: `Copied ${placed} channel${placed === 1 ? '' : 's'} from the ${from}`,
+    ...(placed < taken.length
+      ? { description: `${taken.length - placed} did not fit and were left out.` }
+      : {}),
     icon: 'i-lucide-copy',
     color: 'success',
     duration: 12_000,
@@ -364,10 +368,7 @@ async function applyToOpen() {
 
   toast.add({
     title: 'Applied to the open codeplug',
-    description:
-      `Copied ${moved}.` +
-      (kept ? ` Your own ${kept} were kept.` : '') +
-      ' Nothing has been sent to the radio yet.',
+    description: `Copied ${moved}.` + (kept ? ` Your own ${kept} were kept.` : ''),
     icon: 'i-lucide-layers',
     color: 'success',
     duration: 12_000,
@@ -411,7 +412,7 @@ async function applyToOpen() {
     -->
     <UModal
       :open="foreign !== null"
-      :title="`Copy channels from a ${foreign?.from ?? 'radio'} onto your ${model}`"
+      :title="`Copy channels from a ${foreign?.schema.model ?? 'radio'} onto your ${model}`"
       :ui="{ content: 'max-w-3xl' }"
       @update:open="(v: boolean) => { if (!v) foreign = null }"
     >
@@ -454,14 +455,14 @@ async function applyToOpen() {
           style="border: 1px solid var(--dg); background: var(--dgB); padding: 11px 13px"
         >
           <div class="label-xs" style="color: var(--dg); letter-spacing: 0.08em; margin-bottom: 6px">
-            Cannot come across at all
+            Cannot be copied
           </div>
           <p
             v-for="r in crossModel!.refusals.slice(0, 6)"
             :key="`${r.index}-${r.rule}`"
             style="font-size: 13px; line-height: 1.5; color: var(--tx)"
           >
-            <span class="font-mono tabular">{{ r.index }}</span> — {{ r.why }}
+            Slot <span class="font-mono tabular">{{ r.index }}</span>: {{ r.why }}
           </p>
           <p
             v-if="crossModel!.refusals.length > 6"
@@ -477,7 +478,7 @@ async function applyToOpen() {
             class="label-xs"
             style="color: var(--fn); letter-spacing: 0.08em; padding: 11px 13px 7px; background: var(--pn2)"
           >
-            What would change — untick a rule to refuse it, and the rows that needed it stay behind
+            What would change. Uncheck a rule to refuse it; rows that need it are left out.
           </div>
           <div style="max-height: 300px; overflow-y: auto">
             <div
@@ -522,8 +523,7 @@ async function applyToOpen() {
         </div>
 
         <p class="mt-3" style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
-          Copying sends nothing. It becomes an unsaved edit and goes to the radio through the same write page
-          as any other, and it takes back in one step with undo.
+          It becomes an unsaved edit, and undo takes it back in one step.
         </p>
       </template>
 
@@ -534,7 +534,7 @@ async function applyToOpen() {
             icon="i-lucide-copy"
             :label="firstFreeSlot === null
               ? 'No room on this radio'
-              : `Copy ${crossModelTaken.length} channel(s) across`"
+              : `Copy ${crossModelTaken.length} channel${crossModelTaken.length === 1 ? '' : 's'} across`"
             :disabled="crossModelTaken.length === 0 || firstFreeSlot === null"
             @click="copyForeignChannels"
           />
@@ -557,15 +557,15 @@ async function applyToOpen() {
     >
       <template #body>
         <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 70ch">
-          It came off a different radio, so its image cannot be written to yours. The calibration in it belongs
-          to the unit it was read from. Its <em>contents</em> can: the lists below are lifted onto the codeplug
-          you have open, and everything that belongs to your unit stays where it is.
+          It came off a different radio, so its image cannot be written to yours: the calibration in it belongs
+          to that radio. Its <em>contents</em> can be applied. The lists below are copied onto the codeplug you
+          have open, and everything specific to your radio stays.
         </p>
 
         <div class="mt-4 rounded-[7px]" style="border: 1px solid var(--ln); background: var(--pn2)">
           <div style="padding: 13px 15px">
             <div class="label-xs" style="color: var(--fn); letter-spacing: 0.08em; margin-bottom: 8px">
-              What comes across
+              What is copied
             </div>
             <div class="flex flex-wrap" style="gap: 6px">
               <span
@@ -600,7 +600,7 @@ async function applyToOpen() {
                 >
                 <span class="min-w-0">
                   <span style="font-size: 14px; color: var(--tx)">
-                    Copy the {{ donorRadioIds.count }} DMR radio ID(s) from the file as well
+                    Copy the {{ donorRadioIds.count }} DMR ID{{ donorRadioIds.count === 1 ? '' : 's' }} from the file as well
                   </span>
                   <span style="display: block; font-size: 13px; line-height: 1.5; color: var(--fn)">
                     {{ donorRadioIds.reason }}
@@ -616,7 +616,7 @@ async function applyToOpen() {
                 >
                 <span class="min-w-0">
                   <span style="font-size: 14px; color: var(--tx)">
-                    Copy the {{ donorKeys.count }} encryption key(s) from the file as well
+                    Copy the {{ donorKeys.count }} encryption key{{ donorKeys.count === 1 ? '' : 's' }} from the file as well
                   </span>
                   <span style="display: block; font-size: 13px; line-height: 1.5; color: var(--fn)">
                     {{ donorKeys.reason }}
@@ -649,10 +649,9 @@ async function applyToOpen() {
         </div>
 
         <p class="mt-3" style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
-          Applying this sends nothing. It becomes an unsaved edit, and goes to the radio through the same write
-          page as any other, with the backup check, the line-by-line diff and the typed confirmation.
-          <span style="color: var(--tx)">Undo will not take it back</span>, because it replaces the whole
-          codeplug rather than editing part of one. Your radio keeps what it has until you write.
+          Applying this replaces the whole codeplug. It becomes an unsaved edit, and
+          <span style="color: var(--tx)">undo will not take it back</span>. Your radio keeps what it has until
+          you write.
         </p>
       </template>
 
@@ -662,7 +661,7 @@ async function applyToOpen() {
             v-if="!cannotWrite"
             risk="caution"
             icon="i-lucide-layers"
-            label="Apply to the radio I have open"
+            label="Apply to the open codeplug"
             @click="applyToOpen"
           />
           <RiskAction

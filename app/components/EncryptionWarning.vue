@@ -61,7 +61,7 @@ const showBody = computed(() => isGate.value || expanded.value)
           Licensed business and commercial use only
         </div>
         <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.01em; color: var(--tx)">
-          Encryption is unlawful on the services most of these radios are used on
+          Encryption is unlawful on amateur, GMRS, FRS and MURS
         </h1>
       </div>
     </div>

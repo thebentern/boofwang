@@ -100,7 +100,6 @@ const resolution = computed(() =>
   resolveKeyEdit({ type: draftType.value, hex: draftHex.value }, editingExisting.value),
 )
 
-const keepsExistingKey = computed(() => resolution.value.ok && resolution.value.keptExisting)
 const canSave = computed(() => resolution.value.ok)
 
 /** The message under the key field: a bad key first, then why a blank one will not do. */
@@ -178,7 +177,7 @@ function toggleReveal(slot: number) {
  * every menu on the radio and will not decrypt anything.
  */
 function keyText(row: { key: { keyHex: string } | undefined; blank: boolean; slot: number }) {
-  if (!row.key || row.blank) return 'no key material'
+  if (!row.key || row.blank) return 'no key'
   return revealed.value === row.slot ? row.key.keyHex : maskKey(row.key.keyHex)
 }
 
@@ -237,9 +236,7 @@ const INPUT_STYLE =
           <span
             v-if="row.key"
             class="chip shrink-0"
-            :style="row.key.type === 'aes256'
-              ? { border: '1px solid var(--ln)', background: 'var(--pn2)', color: 'var(--mu)' }
-              : { border: '1px solid var(--cnL)', background: 'var(--cnB)', color: 'var(--cn)' }"
+            style="border: 1px solid var(--ln); background: var(--pn2); color: var(--mu)"
           >{{ KEY_TYPE_LABELS[row.key.type] }}</span>
 
           <!--
@@ -334,13 +331,7 @@ const INPUT_STYLE =
           </div>
 
           <label class="grid gap-1.5" style="margin-bottom: 11px">
-            <span class="flex items-baseline gap-2 flex-wrap">
-              <span class="label-xs">Key, {{ KEY_BYTES[draftType] * 2 }} hex characters</span>
-              <!-- Not part of the label: shouting the escape hatch makes it read as the instruction. -->
-              <span v-if="keepsExistingKey" style="font-size: 13px; color: var(--fn)">
-                leave blank to keep the current key
-              </span>
-            </span>
+            <span class="label-xs">Key, {{ KEY_BYTES[draftType] * 2 }} hex characters</span>
             <input
               v-model="draftHex"
               type="text"

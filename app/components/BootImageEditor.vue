@@ -186,8 +186,8 @@ defineExpose({ render })
           @pointercancel="onPointerUp"
         />
         <p style="font-size: 12.5px; color: var(--fn); margin-top: 6px; max-width: 240px; line-height: 1.5">
-          Drag to move the crop. This is drawn from the encoded bytes, not from your file, so the colors here
-          are the colors the radio gets.
+          Drag to move the crop. The preview shows exactly what the radio will display, including its reduced
+          colors.
         </p>
       </div>
 
@@ -208,8 +208,7 @@ defineExpose({ render })
         </label>
 
         <p style="font-size: 13px; line-height: 1.6; color: var(--fn); margin-top: 12px; max-width: 46ch">
-          The picture is cropped to the radio's 240 x 320 rather than stretched, so a landscape photo loses its
-          sides instead of everyone in it becoming narrow. Zoom in and drag to choose which part survives.
+          The picture is cropped to 240 x 320, not stretched. Zoom and drag to choose the part that fits.
         </p>
 
         <div class="mt-3 flex flex-wrap" style="gap: 8px">
@@ -230,8 +229,7 @@ defineExpose({ render })
       style="font-size: 13.5px; line-height: 1.6; color: var(--fn); max-width: 66ch"
     >
       A JPEG, PNG or anything else this browser can open. It is cropped to 240 x 320 and converted to the
-      65-thousand-color format the radio's screen uses, and you see the result of that rather than the file
-      you picked.
+      65-thousand-color format the radio's screen uses.
     </p>
 
     <!-- Off-screen, at the radio's exact size: the source of the encoded bytes. -->

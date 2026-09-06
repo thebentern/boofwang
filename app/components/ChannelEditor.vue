@@ -316,6 +316,11 @@ function remove() {
           <USelect v-if="rxToneKind === 'ctcss'" v-model="rxCtcss" class="flex-1" :items="ctcssOptions" />
           <USelect v-else-if="rxToneKind === 'dtcs'" v-model="rxDtcs" class="flex-1" :items="dtcsOptions" />
         </div>
+        <template #help>
+          <span class="text-muted">
+            Also called a privacy code or PL tone. Leave as None unless the repeater lists one.
+          </span>
+        </template>
       </UFormField>
       <UFormField label="Transmit tone (sent)">
         <div class="flex gap-2">
@@ -351,7 +356,7 @@ function remove() {
         />
         <template #help>
           <span class="text-muted">
-            Where this channel transmits. Analog channels do not have one.
+            The talk group this channel calls. Analog channels have none.
           </span>
         </template>
       </UFormField>
@@ -364,13 +369,13 @@ function remove() {
           v-model="encKeyId"
           class="w-full"
           :items="[
-            { value: 0, label: 'None (clear)' },
+            { value: 0, label: 'None (unencrypted)' },
             ...availableKeys.map((k) => ({ value: k.slot, label: `Slot ${k.slot} · ${k.name || 'unnamed'}` })),
           ]"
         />
         <template #help>
           <span v-if="availableKeys.length === 0" class="text-muted">
-            No keys are defined yet. Add one on the Keys page first.
+            No keys are defined yet. Add one on the Encryption keys page first.
           </span>
         </template>
       </UFormField>

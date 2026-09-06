@@ -177,7 +177,7 @@ function apply() {
         style="padding: 10px 12px; border-top: 1px solid var(--ln)"
       >
         <RiskAction
-          risk="neutral" ghost size="sm" icon="i-lucide-check" label="Select these"
+          risk="neutral" ghost size="sm" icon="i-lucide-check" label="Select all shown"
           :disabled="shown.length === 0" @click="pickShown"
         />
         <RiskAction

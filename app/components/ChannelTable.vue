@@ -195,7 +195,7 @@ const errorSlots = computed<ReadonlySet<number>>(() => {
  *
  * `regulatory.band.tx-not-permitted` used to be an error, and the gutter mark
  * came free with that - `GUTTER.error`'s title is still, literally, "Transmit
- * lands in a receive-only allocation". Making it a warning was deliberate, but
+ * frequency is in a receive-only band". Making it a warning was deliberate, but
  * it took the mark with it, so a channel that can key up in the air band showed
  * nothing at all in the table. The warning is the whole point; it has to be
  * visible on the row it is about.
@@ -266,7 +266,7 @@ const rows = computed<SlotRow[]>(() => {
 
 const facets = computed(() => [
   { key: 'all' as const, label: 'All', icon: 'i-lucide-list', tone: 'var(--tx)', count: slots.value.length },
-  { key: 'rx' as const, label: 'RX-Only', icon: 'i-lucide-lock', tone: 'var(--cn)', count: codeplug.rxOnlyCount },
+  { key: 'rx' as const, label: 'RX only', icon: 'i-lucide-lock', tone: 'var(--cn)', count: codeplug.rxOnlyCount },
   { key: 'err' as const, label: 'Errors', icon: 'i-lucide-circle-alert', tone: 'var(--dg)', count: errorSlots.value.size },
   { key: 'edit' as const, label: 'Edited', icon: 'i-lucide-pencil', tone: 'var(--in)', count: editedSlots.value.size },
   { key: 'empty' as const, label: 'Empty', icon: 'i-lucide-circle-minus', tone: 'var(--tx)', count: emptyCount.value },
@@ -456,7 +456,7 @@ function stateOf(r: SlotRow): RowState {
  */
 const GUTTER: Record<Exclude<RowState, 'ok'>, { icon: string; color: string; title: string; mark: string }> = {
   'error': { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', title: 'This channel cannot be programmed as it stands', mark: '!' },
-  'transmit-warning': { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', title: 'Transmit lands in a receive-only allocation - check your license', mark: '!' },
+  'transmit-warning': { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', title: 'Transmit frequency is in a receive-only band. Check your license', mark: '!' },
   'receive-only': { icon: 'i-lucide-lock', color: 'var(--cn)', title: 'Receive-only, transmit disabled', mark: 'RX' },
   'edited': { icon: 'i-lucide-pencil', color: 'var(--in)', title: 'Changed, not yet written', mark: '*' },
   'empty': { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', title: 'Empty slot', mark: '·' },
@@ -536,7 +536,7 @@ function view(r: SlotRow): RowView {
       : state === 'edited'
         ? 'Edited'
         : state === 'receive-only'
-          ? 'RX-Only'
+          ? 'RX only'
           : ''
 
   const band = c ? (({ token, service }) => ({ token, service }))(serviceFor(c.rxFreq)) : null
@@ -550,7 +550,7 @@ function view(r: SlotRow): RowView {
     name: c ? c.name || '—' : '—',
     rx: c ? formatFreq(c.rxFreq) : '—',
     shift: c ? shiftLabel(c) : '—',
-    tx: c === null ? '—' : tx === null ? 'TX off' : formatFreq(tx),
+    tx: c === null ? '—' : tx === null ? 'RX only' : formatFreq(tx),
     txColor: dim
       ? 'var(--ln2)'
       : state === 'error'
@@ -1182,7 +1182,7 @@ async function exportCsv() {
   const rxOnly = wanted.filter((s) => bySlot.value.get(s)?.txAllowed === false).length
   const header = [
     `Exported by boofwang from ${doc.radio ?? 'an unknown radio'}`,
-    `${wanted.length} selected channel(s) of ${doc.channels.size}`,
+    `${wanted.length} selected channel${wanted.length === 1 ? '' : 's'} of ${doc.channels.size}`,
     ...(rxOnly > 0 ? [`${rxOnly} of them are receive-only and are exported with Duplex=off`] : []),
   ]
   const stamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-')
@@ -1210,9 +1210,9 @@ const exportItems = computed(() => [
 ])
 
 const LEGEND = [
-  { icon: 'i-lucide-lock', color: 'var(--cn)', label: 'RX-Only' },
+  { icon: 'i-lucide-lock', color: 'var(--cn)', label: 'RX only' },
   { icon: 'i-lucide-triangle-alert', color: 'var(--dg)', label: 'error' },
-  { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', label: 'check your license' },
+  { icon: 'i-lucide-triangle-alert', color: 'var(--cn)', label: 'transmit warning' },
   { icon: 'i-lucide-pencil', color: 'var(--in)', label: 'edited' },
   { icon: 'i-lucide-circle-minus', color: 'var(--ln2)', label: 'empty' },
 ] as const
@@ -1261,7 +1261,7 @@ const printedFacts = computed(() => {
   const parts: string[] = []
   const firmware = codeplug.image?.variant
   if (firmware) parts.push(firmware)
-  parts.push(`${codeplug.channelCount} channel(s)`)
+  parts.push(`${codeplug.channelCount} channel${codeplug.channelCount === 1 ? '' : 's'}`)
   if (codeplug.rxOnlyCount > 0) parts.push(`${codeplug.rxOnlyCount} receive-only`)
   if (printRows.value.length !== codeplug.channelCount) parts.push(`filtered to ${printRows.value.length}`)
   parts.push(`printed ${new Date().toLocaleString()}`)
@@ -1367,8 +1367,8 @@ const printedFacts = computed(() => {
               <div style="padding: 13px 15px; background: var(--pn); border: 1px solid var(--ln); border-radius: 7px; max-width: 320px">
                 <h3 style="font-size: 17px; font-weight: 600; color: var(--tx); margin-bottom: 5px">Bands</h3>
                 <p style="font-size: 13px; line-height: 1.5; color: var(--mu); margin-bottom: 10px">
-                  The edge of each row is the service its receive frequency falls in. What you may transmit
-                  there, and on whose license, follows from it.
+                  The edge of each row is the service its receive frequency falls in. Which license you need
+                  to transmit there follows from it.
                 </p>
                 <div
                   v-for="b in bandLegend()"
@@ -1378,7 +1378,7 @@ const printedFacts = computed(() => {
                   <span :style="{ alignSelf: 'stretch', borderRadius: '1px', background: `var(${b.token})` }" />
                   <span>
                     <span style="display: block; font-size: 14.5px; font-weight: 600; color: var(--tx)">
-                      {{ b.service }}<template v-if="b.receiveOnly"> · receive only</template>
+                      {{ b.service }}<template v-if="b.receiveOnly"> · receive-only</template>
                     </span>
                     <span class="font-mono tabular" style="display: block; font-size: 11.5px; color: var(--fn)">
                       {{ b.range }}
@@ -1386,8 +1386,8 @@ const printedFacts = computed(() => {
                   </span>
                 </div>
                 <p style="font-size: 12px; line-height: 1.5; color: var(--fn); margin-top: 10px">
-                  US allocations. boofwang makes no claim about other administrations. The color says which
-                  service, never whether you are licensed for it.
+                  US allocations; outside the US they differ. The color says which service, never whether you
+                  are licensed for it.
                 </p>
               </div>
             </template>
@@ -1548,8 +1548,8 @@ const printedFacts = computed(() => {
             <div style="padding: 13px 15px; background: var(--pn); border: 1px solid var(--ln); border-radius: 7px; max-width: 340px">
               <h3 style="font-size: 17px; font-weight: 600; color: var(--tx); margin-bottom: 5px">Bands</h3>
               <p style="font-size: 13px; line-height: 1.5; color: var(--mu); margin-bottom: 10px">
-                The edge of each row is the service its receive frequency falls in. What you may transmit
-                there, and on whose license, follows from it.
+                The edge of each row is the service its receive frequency falls in. Which license you need
+                to transmit there follows from it.
               </p>
               <div
                 v-for="b in bandLegend()"
@@ -1559,7 +1559,7 @@ const printedFacts = computed(() => {
                 <span :style="{ alignSelf: 'stretch', borderRadius: '1px', background: `var(${b.token})` }" />
                 <span>
                   <span style="display: block; font-size: 14.5px; font-weight: 600; color: var(--tx)">
-                    {{ b.service }}<template v-if="b.receiveOnly"> · receive only</template>
+                    {{ b.service }}<template v-if="b.receiveOnly"> · receive-only</template>
                   </span>
                   <span class="font-mono tabular" style="display: block; font-size: 11.5px; color: var(--fn)">
                     {{ b.range }}
@@ -1567,8 +1567,8 @@ const printedFacts = computed(() => {
                 </span>
               </div>
               <p style="font-size: 12px; line-height: 1.5; color: var(--fn); margin-top: 10px">
-                US allocations. boofwang makes no claim about other administrations. The color says which
-                service, never whether you are licensed for it.
+                US allocations; outside the US they differ. The color says which service, never whether you
+                are licensed for it.
               </p>
             </div>
           </template>
@@ -1627,7 +1627,7 @@ const printedFacts = computed(() => {
                 {{ x.label }}
               </button>
               <p style="padding: 4px 8px 2px; font-size: 12.5px; color: var(--fn); max-width: 30ch; white-space: normal">
-                Exports change nothing on the radio. A summary never includes encryption keys.
+                A summary never includes encryption keys.
               </p>
             </div>
           </template>
@@ -1658,7 +1658,7 @@ const printedFacts = computed(() => {
       class="flex items-center print-hide"
       :style="`${STRIP_BOX}; border: 1px solid transparent; font-size: 12.5px; color: var(--fn)`"
     >
-      Tick a channel to work on several at once. Shift-click a second tick to take everything between them.
+      Select a channel to work on several at once. Shift-click a second one to select everything between them.
     </div>
     <div
       v-else
@@ -1680,7 +1680,7 @@ const printedFacts = computed(() => {
           ghost
           size="sm"
           icon="i-lucide-sliders-horizontal"
-          label="Edit together"
+          label="Edit selected"
           @click="bulkEditing = true"
         />
         <RiskAction
@@ -1724,7 +1724,7 @@ const printedFacts = computed(() => {
     >
       <template #body>
         <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 68ch">
-          The slots are emptied in the codeplug you have open. Nothing is sent to the radio, and
+          The slots are emptied in the codeplug you have open, and
           <span style="color: var(--tx)">{{ undoHint }}</span> puts every one of them back in a single step.
           Other channels keep their slot numbers.
         </p>
@@ -1758,9 +1758,9 @@ const printedFacts = computed(() => {
             {{ deletePlan.rxOnly.length === 1 ? 'Slot' : 'Slots' }}
             <span class="font-mono tabular">{{ deletePlan.rxOnly.slice(0, 12).join(', ') }}</span><template
               v-if="deletePlan.rxOnly.length > 12"
-            > and {{ deletePlan.rxOnly.length - 12 }} more</template>. Reprogramming
-            {{ deletePlan.rxOnly.length === 1 ? 'this one' : 'these' }} by hand is where a weather or
-            public-safety frequency comes back transmit-capable.
+            > and {{ deletePlan.rxOnly.length - 12 }} more</template>. If you add
+            {{ deletePlan.rxOnly.length === 1 ? 'this one' : 'these' }} back by hand, mark
+            {{ deletePlan.rxOnly.length === 1 ? 'it' : 'them' }} receive-only again.
           </p>
         </div>
 
@@ -1779,8 +1779,7 @@ const printedFacts = computed(() => {
             Scan lists: {{ deletePlan.scanLists.join(', ') }}
           </p>
           <p style="font-size: 12.5px; line-height: 1.5; color: var(--fn); margin-top: 5px">
-            A list still pointing at an emptied slot is the one thing these bytes could not settle, so the
-            entries go with the channels rather than being left to the radio.
+            Zone and scan list entries for these channels are removed with them.
           </p>
         </div>
       </template>
@@ -1835,7 +1834,7 @@ const printedFacts = computed(() => {
           <template v-else>
             <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 68ch">
               <span style="color: var(--tx)">{{ pending.moves.length }}</span> of
-              {{ codeplug.channelCount }} channels take a new slot number. Nothing is sent to the radio, and
+              {{ codeplug.channelCount }} channels take a new slot number, and
               <span style="color: var(--tx)">{{ undoHint }}</span> puts every number back in a single step.
             </p>
 
@@ -2028,7 +2027,7 @@ const printedFacts = computed(() => {
             background: toneOf(g).quiet ? 'transparent' : `var(${toneOf(g).bg})`,
             color: `var(${toneOf(g).fg})`,
           }"
-          :title="g.aboutTransmit ? `Mark ${g.count} channel(s) receive-only` : 'Filter the table to these slots'"
+          :title="g.aboutTransmit ? `Mark ${g.count} channel${g.count === 1 ? '' : 's'} receive-only` : 'Filter the table to these slots'"
           @click="runFix(g)"
         >
           <UIcon :name="fixFor(g).icon" style="width: 11px; height: 11px" />
@@ -2087,7 +2086,7 @@ const printedFacts = computed(() => {
             class="ch-row"
             :style="phoneRowStyle(r)"
             :tabindex="0"
-            :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty. Tap to program it`"
+            :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty. Tap to add a channel`"
             @click="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
             @keydown.enter.self="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
           >
@@ -2207,7 +2206,7 @@ const printedFacts = computed(() => {
             class="grid items-center ch-row"
             :style="rowStyle(r)"
             :tabindex="0"
-            :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty. Click to program it`"
+            :title="r.row.channel ? undefined : `Slot ${r.row.index} is empty. Click to add a channel`"
             @click="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
             @keydown.enter.self="r.row.channel ? emit('edit', r.row.channel) : emit('create', r.row.index)"
           >
@@ -2400,7 +2399,7 @@ const printedFacts = computed(() => {
       >
         <span class="flex items-center" style="gap: 6px; font-size: 13px; color: var(--fn)">
           <UIcon name="i-lucide-pencil" style="width: 11px; height: 11px" />
-          Click a name or frequency to edit in place. Return commits, Escape reverts.
+          Click a name or frequency to edit it. Enter saves, Escape cancels.
         </span>
         <div class="ms-auto flex items-center" style="gap: 13px">
           <span

@@ -27,7 +27,9 @@ const toast = useToast()
 const sourceId = ref(sources.available.value[0]?.id ?? '')
 const lat = ref('')
 const lon = ref('')
-const radiusKm = ref(50)
+/** The audience is Part 90/95/97, so the radius is asked and shown in miles; the sources take kilometers. */
+const KM_PER_MILE = 1.609344
+const radiusMi = ref(30)
 const callsign = ref('')
 const mode = ref<'all' | Modulation>('all')
 const includeSimplex = ref(false)
@@ -79,7 +81,7 @@ const MHZ = (n: number) => (n / 1_000_000).toFixed(4)
 function distanceOf(r: RepeaterRecord): string {
   const from = near.value
   if (!from || !r.location) return '—'
-  return `${Math.round(distanceKm(from, r.location))} km`
+  return `${Math.round(distanceKm(from, r.location) / KM_PER_MILE)} mi`
 }
 
 /** See `geolocation` in lib/platform/host.ts for why this is not everywhere. */
@@ -123,7 +125,7 @@ async function search() {
   searched.value = true
   try {
     const out = await sources.fetchRepeaters(selectedSource.value.id, {
-      ...(near.value === null ? {} : { near: near.value, withinKm: radiusKm.value }),
+      ...(near.value === null ? {} : { near: near.value, withinKm: radiusMi.value * KM_PER_MILE }),
       ...(callsign.value.trim() === '' ? {} : { callsign: callsign.value.trim() }),
       ...(mode.value === 'all' ? {} : { modes: [mode.value] }),
     })
@@ -143,7 +145,7 @@ async function search() {
   }
 }
 
-async function keep() {
+async function saveSet() {
   const src = selectedSource.value
   if (!src || filtered.value.length === 0) return
   const where = near.value ? `near ${lat.value}, ${lon.value}` : 'search'
@@ -151,7 +153,7 @@ async function keep() {
     await saveFetched(`${src.name} ${where}`, filtered.value, src)
     toast.add({
       title: `Saved ${filtered.value.length} repeaters as a set`,
-      description: 'Place it into slots on the presets screen. Nothing reaches the radio until you write.',
+      description: 'Place it into slots on the Presets page.',
       icon: 'i-lucide-circle-check',
       color: 'success',
       duration: 10_000,
@@ -159,7 +161,7 @@ async function keep() {
     await navigateTo('/presets')
   } catch (e) {
     toast.add({
-      title: 'Could not keep that set',
+      title: 'Could not save that set',
       description: isQuotaError(e)
         ? 'The browser is out of storage for this site. Delete a backup or a saved set and try again.'
         : e instanceof Error ? e.message : String(e),
@@ -177,7 +179,7 @@ async function keep() {
       <UIcon name="i-lucide-radio-tower" style="width: 16px; height: 16px; color: var(--fn)" />
       <h1 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--tx)">Repeaters</h1>
       <span style="font-size: 13px; color: var(--mu)">
-        Search a directory and keep the results as a channel set.
+        Search a directory and save the results as a channel set.
       </span>
     </div>
 
@@ -198,7 +200,7 @@ async function keep() {
         <label style="display: flex; flex-direction: column; gap: 4px">
           <span class="label-xs" style="color: var(--fn)">Latitude</span>
           <input
-            v-model="lat" inputmode="decimal" placeholder="51.5072"
+            v-model="lat" inputmode="decimal" placeholder="39.7392"
             class="rounded-[6px] px-2 outline-none font-mono"
             style="height: 30px; width: 110px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 13.5px"
           >
@@ -206,7 +208,7 @@ async function keep() {
         <label style="display: flex; flex-direction: column; gap: 4px">
           <span class="label-xs" style="color: var(--fn)">Longitude</span>
           <input
-            v-model="lon" inputmode="decimal" placeholder="-0.1276"
+            v-model="lon" inputmode="decimal" placeholder="-104.9903"
             class="rounded-[6px] px-2 outline-none font-mono"
             style="height: 30px; width: 110px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 13.5px"
           >
@@ -227,14 +229,14 @@ async function keep() {
         <label style="display: flex; flex-direction: column; gap: 4px">
           <span class="label-xs" style="color: var(--fn)">Within</span>
           <select
-            v-model.number="radiusKm"
+            v-model.number="radiusMi"
             class="rounded-[6px] px-2 outline-none"
             style="height: 30px; background: var(--pn); border: 1px solid var(--ln2); color: var(--tx); font-size: 13.5px"
           >
-            <option :value="15">15 km</option>
-            <option :value="50">50 km</option>
-            <option :value="150">150 km</option>
-            <option :value="500">500 km</option>
+            <option :value="10">10 mi</option>
+            <option :value="30">30 mi</option>
+            <option :value="100">100 mi</option>
+            <option :value="300">300 mi</option>
           </select>
         </label>
 
@@ -296,8 +298,8 @@ async function keep() {
           style="color: var(--acTx)"
         >desktop build</a>
         fetches outside the browser and can reach
-        {{ sources.unreachable.value.length === 1 ? 'it' : 'them' }}; so can
-        {{ sources.unreachable.value.length === 1 ? 'its' : 'their' }} own CSV, opened as a codeplug file.
+        {{ sources.unreachable.value.length === 1 ? 'it' : 'them' }}. Or export
+        {{ sources.unreachable.value.length === 1 ? 'its' : 'their' }} CSV and import it on the Presets page.
       </p>
     </section>
 
@@ -314,14 +316,14 @@ async function keep() {
           style="font-size: 12.5px; color: var(--mu); cursor: pointer"
         >
           <input v-model="includeSimplex" type="checkbox" style="width: 13px; height: 13px">
-          Include simplex nodes
+          Include hotspots
         </label>
 
         <RiskAction
           risk="neutral" size="sm" icon="i-lucide-save"
-          :label="`Keep ${filtered.length} as a set`"
+          :label="`Save ${filtered.length} as a set`"
           class="ms-auto" :disabled="filtered.length === 0"
-          @click="keep"
+          @click="saveSet"
         />
       </div>
 
@@ -329,8 +331,8 @@ async function keep() {
         v-if="hiddenSimplex"
         style="margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: var(--mu)"
       >
-        {{ hiddenSimplex }} simplex {{ hiddenSimplex === 1 ? 'entry is' : 'entries are' }} hidden.
-        Most are personal hotspots rather than repeaters, but boofwang cannot tell them apart for certain.
+        {{ hiddenSimplex }} single-frequency {{ hiddenSimplex === 1 ? 'entry' : 'entries' }} hidden; most are
+        personal hotspots.
       </p>
 
       <div class="card">
@@ -360,7 +362,7 @@ async function keep() {
                 {{ r.tx.kind === 'offset' ? `${r.tx.direction === 'plus' ? '+' : '-'}${MHZ(r.tx.offset)}` : 'simplex' }}
               </td>
               <td style="padding: 8px 8px; font-size: 13px; color: var(--mu)">
-                {{ r.modulation }}<span v-if="r.dmr"> · cc{{ r.dmr.colorCode }}</span>
+                {{ r.modulation }}<span v-if="r.dmr" title="Color code"> · CC {{ r.dmr.colorCode }}</span>
               </td>
               <td class="font-mono" style="padding: 8px 8px; font-size: 13px; color: var(--mu); text-align: right">{{ distanceOf(r) }}</td>
               <td style="padding: 8px 16px; font-size: 13px; color: var(--mu)">{{ r.city || '—' }}</td>
@@ -371,7 +373,7 @@ async function keep() {
           v-if="filtered.length > 200"
           style="margin: 0; padding: 9px 16px; border-top: 1px solid var(--ln); font-size: 12.5px; color: var(--mu)"
         >
-          Showing the first 200. All {{ filtered.length }} are kept if you save the set.
+          Showing the first 200. All {{ filtered.length }} are saved with the set.
         </p>
       </div>
 

@@ -65,7 +65,7 @@ function vfoTalkGroup(ch: { extras: { vendor?: Record<string, unknown> } }): str
     const m = /^tg-[0-9a-fx]+-(\d+)$/.exec(g.id)
     return m ? Number(m[1]) === slot : false
   })
-  return tg ? `TG ${tg.name || tg.number}` : `talk group slot ${slot}`
+  return tg ? String(tg.name || tg.number) : `talk group slot ${slot}`
 }
 const supported = computed(
   () =>
@@ -102,7 +102,7 @@ function onImportTalkGroups(entries: readonly { number: number; name: string }[]
   ].filter(Boolean).join(' ')
   toast.add({
     title: `Added ${added} talk group${added === 1 ? '' : 's'}`,
-    description: notes || 'Nothing reaches the radio until you write.',
+    ...(notes ? { description: notes } : {}),
     icon: noRoom ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check',
     color: noRoom ? 'warning' : 'success',
     duration: 10_000,
@@ -180,7 +180,7 @@ const parseIds = (text: string) => {
 const problem = ref('')
 
 /**
- * The address book can hold 50,000 entries, so it is filtered rather than
+ * The contact list can hold 50,000 entries, so it is filtered rather than
  * listed. Matching on name, callsign and number together is what someone
  * actually wants: they know one of the three.
  */
@@ -337,7 +337,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
         saved earlier.
       </p>
       <div class="flex flex-wrap items-center gap-2.5">
-        <RiskAction risk="neutral" icon="i-lucide-radio" label="Choose a radio" @click="navigateTo('/')" />
+        <RiskAction risk="neutral" icon="i-lucide-radio" label="Connect a radio" @click="navigateTo('/')" />
         <OpenCodeplugButton />
       </div>
     </div>
@@ -477,7 +477,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             </template>
           </div>
         </div>
-        <p class="note">A talk group's number and call type come from the radio and are written back unchanged.</p>
+        <p class="note">Names, numbers and call types are all written.</p>
       </section>
 
       <!-- Scan lists -->
@@ -524,10 +524,6 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             </div>
           </div>
         </div>
-        <p class="note">
-          A scan list holds at most 16 channels. Anything past that, or that this radio has no channel
-          for, is dropped rather than stored.
-        </p>
       </section>
 
       <!-- RX groups -->
@@ -573,9 +569,6 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             </div>
           </div>
         </div>
-        <p class="note">
-          An RX group holds DMR talk group numbers directly, not references to the talk group list above.
-        </p>
       </section>
 
       <!-- Radio IDs -->
@@ -671,10 +664,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
         </div>
 
         <div class="card">
-          <p v-if="codeplug.contacts.length === 0" class="empty">
-            This radio's address book is empty. It lives in a memory region of its own, so reading it costs
-            nothing when there is nothing in it.
-          </p>
+          <p v-if="codeplug.contacts.length === 0" class="empty">No contacts.</p>
           <p v-else-if="matchingContacts.length === 0" class="empty">
             Nothing matches “{{ contactQuery }}”.
           </p>
@@ -732,10 +722,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             </p>
           </template>
         </div>
-        <p class="note">
-          The address book lives in a memory region of its own, outside the codeplug the rest of this page
-          comes from. It is written back only when you change something in it, and a restore puts it back.
-        </p>
+        <p class="note">Contacts are written only when you change one, and a restore puts them back.</p>
       </section>
 
       <!-- Text messages -->
@@ -754,9 +741,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
           />
         </div>
         <div class="card">
-          <p v-if="codeplug.messages.length === 0" class="empty">
-            This radio has no canned messages stored.
-          </p>
+          <p v-if="codeplug.messages.length === 0" class="empty">No text messages.</p>
           <div
             v-for="(text, i) in codeplug.messages"
             v-else
@@ -808,10 +793,10 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               @change="codeplug.updateRoamChannel(chan.id, { name: ($event.target as HTMLInputElement).value })"
             >
             <span class="meta">{{ MHZ(chan.rxFreq) }} / {{ MHZ(chan.txFreq) }} MHz</span>
-            <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+            <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)" title="Color code">
               CC {{ chan.colorCode }}
             </span>
-            <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
+            <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)" title="Time slot">
               TS {{ chan.timeSlot }}
             </span>
           </div>
@@ -839,11 +824,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               <span class="meta ms-auto">{{ zone.enabled ? 'Enabled' : 'Disabled' }}</span>
             </div>
           </div>
-          <p class="note">
-            Names are written; membership is not. Flags, the name and one count byte account for all 33 bytes
-            of a roaming zone record, so the channel list is somewhere outside it that nobody has found, and
-            an editor that pretended otherwise would be writing into bytes that mean something else.
-          </p>
+          <p class="note">Names are written. Membership is read-only.</p>
         </template>
       </section>
 
@@ -878,10 +859,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
           </div>
         </div>
         <p class="note">
-          Block 0x03, which the OEM software reads and writes but which nobody has explained. The names are
-          real and editable. This is the one block on the radio that stores them as UTF-16. The two reference
-          numbers point at something unidentified, so they are shown and left alone; on a factory radio they
-          hold five pairs drawn from four values that match nothing else in the codeplug.
+          Names are editable. The two reference numbers are read from the radio and written back unchanged.
         </p>
       </section>
 
@@ -907,8 +885,11 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
               <span class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
                 {{ vfo.ch.power.label }}
               </span>
-              <span v-if="vfo.ch.modulation === 'DMR'" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)">
-                CC {{ vfo.ch.extras.vendor?.colorCode }} · TS {{ vfo.ch.extras.vendor?.timeSlot }}
+              <span v-if="vfo.ch.modulation === 'DMR'" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)" title="Color code">
+                CC {{ vfo.ch.extras.vendor?.colorCode }}
+              </span>
+              <span v-if="vfo.ch.modulation === 'DMR'" class="chip" style="border: 1px solid var(--ln2); background: transparent; color: var(--mu)" title="Time slot">
+                TS {{ vfo.ch.extras.vendor?.timeSlot }}
               </span>
               <span class="meta ms-auto">
                 {{ vfoTalkGroup(vfo.ch) }}
@@ -918,10 +899,8 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
           </div>
         </div>
         <p class="note">
-          The two VFOs are ordinary channel records at fixed offsets in the last channel block, outside the
-          channel list: nothing counts them and no zone or scan list can point at one. Their talk group is
-          the exception: it lives four bytes from the end of a different block entirely, which is why the
-          reference implementation reads it and does not write it. boofwang writes it.
+          The VFOs are outside the channel list, so no zone or scan list can include them. Their talk group
+          is written.
         </p>
       </section>
 
@@ -956,11 +935,7 @@ const nameOf = (index: number) => codeplug.channels.find((c) => c.index === inde
             </div>
           </div>
         </div>
-        <p class="note">
-          These are decoded so a backup is complete and so you can see what the radio holds. They are written
-          back exactly as they were found. Their fields are documented as derived rather than confirmed, and
-          a control for a byte whose meaning is a guess is worse than none.
-        </p>
+        <p class="note">Shown so a backup is complete. They are written back exactly as they were found.</p>
       </section>
     </template>
   </div>

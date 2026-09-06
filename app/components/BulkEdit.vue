@@ -109,7 +109,7 @@ const skipOptions = [
 ]
 const transmitOptions = [
   KEEP_OPTION,
-  { value: 'rx-only', label: 'RX-Only' },
+  { value: 'rx-only', label: 'RX only' },
   { value: 'allow', label: 'Allow transmit' },
 ]
 
@@ -138,7 +138,7 @@ const changes = computed<string[]>(() => {
   if (modulation.value !== KEEP) out.push(`Mode · ${modulation.value}`)
   if (step.value !== KEEP) out.push(`Step · ${(step.value / 1000).toFixed(2)} kHz`)
   if (skip.value !== KEEP) out.push(`Scan · ${skip.value === 'none' ? 'scan it' : 'skip it'}`)
-  if (transmit.value === 'rx-only') out.push('Transmit · RX-Only')
+  if (transmit.value === 'rx-only') out.push('Transmit · RX only')
   if (transmit.value === 'allow') out.push('Transmit · allowed')
   if (rxTone.value !== KEEP) {
     out.push(`Receive tone · ${rxTone.value === 'none' ? 'none' : `${formatCtcss(rxTone.value)} Hz`}`)
@@ -213,8 +213,8 @@ const slotSummary = computed(() => {
   >
     <template #body>
       <p style="font-size: 13.5px; line-height: 1.6; color: var(--mu); max-width: 68ch">
-        Every control starts on <span style="color: var(--tx)">leave alone</span>, and only the ones you move
-        are written. Nothing is sent to the radio, and undo takes the whole edit back in one step.
+        Every control starts on <span style="color: var(--tx)">leave alone</span>, and only the ones you change
+        are applied. Undo takes the whole edit back in one step.
       </p>
 
       <div class="mt-3 grid grid-cols-3 gap-3">
@@ -281,7 +281,7 @@ const slotSummary = computed(() => {
         >
           {{ exposure.inReceiveOnlyBand.length }} of {{ exposure.unlocked.length === 1 ? 'them' : 'those' }}
           {{ exposure.inReceiveOnlyBand.length === 1 ? 'receives' : 'receive' }} in a band this radio's band plan marks
-          receive-only. Check your license before transmitting there.
+          receive-only.
         </p>
       </div>
 
@@ -290,7 +290,7 @@ const slotSummary = computed(() => {
         style="border: 1px solid var(--ln); background: var(--pn); padding: 10px 13px"
       >
         <div class="label-xs" style="color: var(--fn); letter-spacing: 0.08em; margin-bottom: 6px">
-          {{ changes.length === 0 ? 'Nothing to change yet' : `Applied to ${channels.length} channel${channels.length === 1 ? '' : 's'}` }}
+          {{ changes.length === 0 ? 'Nothing to change yet' : `Will apply to ${channels.length} channel${channels.length === 1 ? '' : 's'}` }}
         </div>
         <p
           v-if="changes.length === 0"

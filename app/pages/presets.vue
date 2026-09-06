@@ -121,7 +121,7 @@ async function onFilePicked(event: Event) {
       description: [
         problems ? `${problems} row${problems === 1 ? '' : 's'} could not be read and were skipped.` : '',
         unknownColumns.length ? `Columns ignored: ${unknownColumns.join(', ')}.` : '',
-      ].filter(Boolean).join(' ') || 'Staged nowhere yet. Place it below when you are ready.',
+      ].filter(Boolean).join(' ') || 'Not placed yet. Choose a start slot below.',
       icon: problems ? 'i-lucide-triangle-alert' : 'i-lucide-circle-check',
       color: problems ? 'warning' : 'success',
       duration: 10_000,
@@ -132,7 +132,7 @@ async function onFilePicked(event: Event) {
     // disk is full sends them to correct the wrong thing.
     const quota = isQuotaError(e)
     toast.add({
-      title: quota ? 'No room to keep that set' : 'Could not read that file',
+      title: quota ? 'No room to save that set' : 'Could not read that file',
       description: quota
         ? 'The browser is out of storage for this site. Delete a backup or a saved set and try again.'
         : e instanceof Error ? e.message : String(e),
@@ -356,7 +356,7 @@ const plan = computed(() => {
   }
 
   if (n === 0) {
-    note = 'Nothing is selected. Tick at least one channel in the set.'
+    note = 'Nothing is selected. Check at least one channel in the set.'
   }
   else if (lostSlots.length > 0) {
     note = `${slotList(lostSlots)} would be pushed past slot ${cap} and lost. `
@@ -368,11 +368,11 @@ const plan = computed(() => {
     noteTone = 'dg'
   }
   else if (placements.length < n) {
-    note = `Only ${placements.length} of ${n} channels fit from slot ${start}. The rest are not staged.`
+    note = `Only ${placements.length} of ${n} channels fit from slot ${start}. The rest are not placed.`
   }
   else if (replacedSlots.length > 0) {
     note = `${slotList(replacedSlots)} already hold channels and will be replaced. `
-      + 'Nothing recovers them but a backup.'
+      + 'Undo takes the whole placement back.'
   }
   else if (moves.length > 0) {
     note = `${slotList(moves.map((m) => m.from))} already hold channels, so they shift down by ${n}. `
@@ -408,7 +408,7 @@ const rangeLabel = computed(() => {
 
 const stageLabel = computed(() => {
   const n = plan.value.placements.length
-  return `Stage ${n} channel${n === 1 ? '' : 's'}`
+  return `Add ${n} channel${n === 1 ? '' : 's'}`
 })
 
 /**
@@ -475,7 +475,7 @@ function stage() {
 
   if (refused.length > 0) {
     toast.add({
-      title: `${refused.length} preset(s) were left out`,
+      title: `${refused.length} channel${refused.length === 1 ? ' was' : 's were'} left out`,
       description: refused.slice(0, 3).join('; ') + (refused.length > 3 ? `; and ${refused.length - 3} more.` : ''),
       icon: 'i-lucide-triangle-alert',
       color: 'warning',
@@ -493,7 +493,7 @@ function stage() {
       <UIcon name="i-lucide-layers" class="shrink-0" style="width: 15px; height: 15px; color: var(--mu)" />
       <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em; color: var(--tx)">Presets</h1>
       <span style="font-size: 13.5px; color: var(--fn)">
-        Bundled channel sets, placed into slots you choose. Nothing commits until you have seen the plan.
+        Channel sets, placed into the slots you choose.
       </span>
     </div>
 
@@ -612,7 +612,6 @@ function stage() {
             />
             <p style="margin: 0; font-size: 13px; line-height: 1.55; color: var(--mu); max-width: 72ch">
               {{ selectedSet.license }}
-              <span style="color: var(--fn)"> You are responsible for what you transmit.</span>
             </p>
           </div>
 
@@ -853,10 +852,6 @@ function stage() {
                 :disabled="!plan.canStage"
                 @click="stage"
               />
-
-              <span style="font-size: 12.5px; color: var(--fn); line-height: 1.5">
-                Staged into the open codeplug only. Nothing reaches the radio until you write.
-              </span>
             </div>
           </div>
         </template>
@@ -877,8 +872,7 @@ function stage() {
               No codeplug open
             </h2>
             <p style="margin: 0 0 13px; font-size: 13.5px; line-height: 1.55; color: var(--mu)">
-              A preset is placed into slots, and there are no slots without a codeplug. Read a radio, or open a
-              codeplug file you saved earlier. The sets stay readable meanwhile.
+              Read a radio or open a codeplug file to place a set. The sets stay readable meanwhile.
             </p>
             <div class="flex flex-wrap items-center gap-2.5">
               <RiskAction risk="neutral" icon="i-lucide-usb" label="Connect a radio" @click="navigateTo('/')" />
