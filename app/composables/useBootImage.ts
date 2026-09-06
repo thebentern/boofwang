@@ -63,7 +63,7 @@ export function useBootImage() {
     fn: (t: Transport, range: { start: number; end: number }, signal: AbortSignal) => Promise<T>,
   ): Promise<T | null> {
     if (device.currentDriver().id !== 'dm32uv') {
-      toast.add({ title: 'Only the DM-32UV has one', description: 'No other radio here stores a startup picture.', color: 'neutral' })
+      toast.add({ title: 'Only the DM-32UV has a startup picture', color: 'neutral' })
       return null
     }
     busy.value = true
@@ -191,7 +191,7 @@ export function useBootImage() {
       backupTakenAt.value = new Date().toISOString()
       toast.add({
         title: 'Startup picture read',
-        description: 'Keep the download: this region is in no other backup boofwang takes.',
+        description: 'Save the file; it is the only copy.',
         icon: 'i-lucide-image-down',
         color: 'success',
         duration: 12_000,
@@ -219,9 +219,7 @@ export function useBootImage() {
       // not write without the held region whatever this function does.
       toast.add({
         title: 'Read the radio first',
-        description:
-          'The picture on the radio now exists nowhere else, so it has to be read before it can be replaced. ' +
-          'Nothing else boofwang stores contains it.',
+        description: 'Read the startup picture first. No codeplug backup contains it, so the read is the only copy.',
         icon: 'i-lucide-shield-alert',
         color: 'warning',
         duration: 0,
@@ -249,7 +247,7 @@ export function useBootImage() {
     if (ok) {
       toast.add({
         title: 'Startup picture written',
-        description: 'Every page was read back and matched. Power-cycle the radio to see it.',
+        description: 'Power-cycle the radio to see it.',
         icon: 'i-lucide-circle-check',
         color: 'success',
         duration: 12_000,

@@ -57,7 +57,7 @@ const credits = [
     name: 'CHIRP',
     license: 'GPL-3.0',
     url: 'https://chirpmyradio.com/',
-    what: 'Memory layouts and protocol details for the UV-K5 and UV-5R Mini were transcribed from its drivers, and its stock channel configurations are the source of the bundled FRS/GMRS/MURS/weather presets.',
+    what: 'Memory layouts and protocol details for the UV-K5, UV-82, UV-5G, UV-5R and UV-5R Mini were transcribed from its drivers, and its stock channel configurations are the source of the bundled FRS, GMRS, MURS and weather presets.',
   },
   {
     name: 'DM-32UV Protocol Specification',
@@ -82,12 +82,12 @@ const credits = [
     </div>
 
     <p style="margin-bottom: 24px; font-size: 14.5px; line-height: 1.65; color: var(--mu)">
-      A codeplug editor and programmer that runs in your browser, at
-      <a href="https://boofwa.ng" :style="LINK">boofwa.ng</a>. It speaks to radios over the Web Serial
-      API, so nothing needs installing and there is no account to create. There is also a
-      <a href="https://github.com/thebentern/boofwang/releases" target="_blank" rel="noopener" :style="LINK">desktop
-      build</a>, which is the same application in a window of its own: it exists because two repeater
-      directories refuse to answer a browser, and it can ask them on your behalf.
+      boofwang reads a radio's codeplug, its channels and settings, over a USB cable or Bluetooth, lets
+      you edit it, and writes it back. It runs in a browser at
+      <a href="https://boofwa.ng" :style="LINK">boofwa.ng</a> with nothing to install and no account, and as
+      <a href="https://github.com/thebentern/boofwang/releases" target="_blank" rel="noopener" :style="LINK">desktop</a>,
+      Android and iOS apps. The desktop app can also reach two repeater directories that do not answer
+      browsers.
     </p>
 
     <section style="margin-bottom: 22px">
@@ -129,16 +129,15 @@ const credits = [
           -->
           <p style="font-size: 13.5px; line-height: 1.55; color: var(--mu)">
             <template v-if="update.support.blocker === 'desktop-shell'">
-              This is the desktop build, which is already an installed application and already works without a
-              network. It updates by being replaced, from the releases page.
+              This is the desktop build. It works without a network. To update it, install a newer release.
             </template>
             <template v-else-if="update.support.blocker === 'mobile-shell'">
               This build is bundled inside the app. It updates when the app does, through the store it was
               installed from, and never on its own.
             </template>
             <template v-else-if="update.offlineReady">
-              Stored on this device. boofwang opens without a network, and the copy it opens is the one named
-              above until an update is applied.
+              Works offline. boofwang opens without a network, and the copy it opens is the one named above
+              until an update is applied.
             </template>
             <template v-else-if="update.support.supported">
               Not stored on this device yet. Reload once and boofwang keeps a copy, so it will open without a
@@ -159,7 +158,7 @@ const credits = [
               ghost
               size="sm"
               icon="i-lucide-refresh-cw"
-              :label="pending ? 'An update is waiting' : 'Check for updates'"
+              :label="pending ? 'An update is ready' : 'Check for updates'"
               :loading="update.checking"
               :disabled="pending"
               @click="check()"
@@ -184,10 +183,8 @@ const credits = [
         Where your data goes
       </h2>
       <p :style="BODY">
-        Nowhere. boofwang is a static site: no backend, no analytics, no upload endpoint. Codeplugs you
-        read are held in your browser and in files you explicitly save. Encryption keys you enter are
-        treated the same way, which also means anyone with access to your browser profile or to an
-        exported file can read them.
+        Codeplugs, backups and keys stay on this device, in the app's storage and in files you save.
+        Anyone with access to this browser profile or to an exported file can read them.
       </p>
       <p :style="BODY" style="margin-top: 8px">
         The long form, including the three repeater directories boofwang can be asked to call and
@@ -208,9 +205,9 @@ const credits = [
           target="_blank"
           rel="noopener"
           :style="LINK"
-        >GNU General Public License, version 3 or later</a>. It comes with absolutely no warranty.
-        Programming a radio incorrectly can render it unusable; always keep a backup you have verified
-        you can restore.
+        >GNU General Public License, version 3 or later</a>. It comes with absolutely no warranty. A bad
+        write can leave a radio unable to boot or transmit. boofwang takes a backup before every write;
+        keep it.
       </p>
     </section>
 
@@ -220,8 +217,9 @@ const credits = [
         Not affiliated
       </h2>
       <p :style="BODY">
-        An independent project, not affiliated with, endorsed by, or supported by Baofeng, Quansheng, or
-        the CHIRP project. Radio model names identify the hardware each driver targets and nothing more.
+        An independent project, not affiliated with, endorsed by, or supported by Baofeng, Quansheng,
+        Radioddity, or the CHIRP project. Radio model names identify the hardware each driver targets and
+        nothing more.
       </p>
     </section>
 
@@ -230,11 +228,6 @@ const credits = [
         <UIcon name="i-lucide-heart" :style="ICON" />
         Credits
       </h2>
-      <p :style="BODY" style="margin-bottom: 10px">
-        boofwang would not exist without the people who reverse-engineered these radios and published
-        what they found.
-      </p>
-
       <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px">
         <div
           v-for="(credit, index) in credits"
@@ -281,8 +274,8 @@ const credits = [
         Help it along
       </h2>
       <p style="margin-bottom: 12px; font-size: 14px; line-height: 1.6; color: var(--mu)">
-        Bug reports with a protocol log are worth more than anything else, especially from a radio
-        nobody here owns. Drivers are welcome too.
+        A bug report that includes the protocol log is the most useful kind, especially for a radio that
+        is not supported yet. Drivers are welcome too.
       </p>
 
       <div class="flex flex-wrap gap-[7px]">

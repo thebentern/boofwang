@@ -71,9 +71,9 @@ const canWrite = computed(() => codeplug.schema?.capabilities.write === true)
  */
 const hint = computed(() => {
   if (errors.value > 0) return 'Fix the error first'
-  if (!backup.value) return 'Read the radio to get a way back'
+  if (!backup.value) return 'Read the radio first to make a backup'
   if (!codeplug.dirty) return 'No unwritten edits'
-  return 'Backup on file · diff before send'
+  return 'Backup saved · review the diff, then write'
 })
 
 /**
@@ -109,7 +109,7 @@ const shortName = computed(() => codeplug.schema?.model ?? radioName.value)
 <template>
   <!--
     Not printed: every segment here is about the live session - whether a port
-    is open, whether there are unwritten edits, whether a way back exists - and
+    is open, whether there are unwritten edits, whether a backup exists - and
     all four are stale the moment the page leaves the screen.
   -->
   <!--
@@ -125,7 +125,7 @@ const shortName = computed(() => codeplug.schema?.model ?? radioName.value)
     A status bar earns its height by being glanceable, and four labeled
     segments are not glanceable on a 375px screen - they are a paragraph. So
     the line carries the model, whether there are unwritten edits, whether a
-    way back exists, and the one button that acts. Everything else is behind a
+    backup exists, and the one button that acts. Everything else is behind a
     tap, which is the right price for a detail nobody reads every time.
   -->
   <div v-if="codeplug.isOpen" class="print-hide">
@@ -185,7 +185,7 @@ const shortName = computed(() => codeplug.schema?.model ?? radioName.value)
 
     <div v-if="open" style="padding: 10px 14px 12px; border-top: 1px solid var(--ln)">
       <div class="flex items-center flex-wrap" style="gap: 6px; margin-bottom: 10px">
-        <span v-if="firmware" class="font-mono tabular" style="font-size: 12px; color: var(--fn)">{{ firmware }}</span>
+        <span v-if="firmware" class="font-mono tabular" style="font-size: 12px; color: var(--fn)">firmware {{ firmware }}</span>
         <span
           v-if="codeplug.dirty"
           class="inline-flex items-center"
@@ -253,7 +253,7 @@ const shortName = computed(() => codeplug.schema?.model ?? radioName.value)
         v-if="firmware"
         class="font-mono tabular whitespace-nowrap"
         style="flex: none; font-size: 12.5px; color: var(--fn)"
-      >{{ firmware }}</span>
+      >firmware {{ firmware }}</span>
 
       <span
         v-if="codeplug.dirty"
@@ -264,7 +264,7 @@ const shortName = computed(() => codeplug.schema?.model ?? radioName.value)
         class="chip whitespace-nowrap"
         style="flex: none"
         :style="backupTime ? { background: 'var(--okB)', color: 'var(--ok)' } : { background: 'var(--dgB)', color: 'var(--dg)' }"
-      >{{ backupPending ? 'checking' : backupTime ? `way back ${backupTime}` : 'no way back' }}</span>
+      >{{ backupPending ? 'checking' : backupTime ? `backup ${backupTime}` : 'no backup' }}</span>
       <span
         class="chip whitespace-nowrap"
         style="flex: none"
@@ -296,7 +296,7 @@ const shortName = computed(() => codeplug.schema?.model ?? radioName.value)
       <div class="flex items-center gap-2 pe-3.5" style="height: 36px; border-right: 1px solid var(--ln)">
         <UIcon name="i-lucide-radio" class="size-3.5 shrink-0" style="color: var(--fn)" />
         <span style="font-size: 14px; font-weight: 600; color: var(--tx)">{{ radioName }}</span>
-        <span v-if="firmware" class="font-mono tabular" style="font-size: 12.5px; color: var(--fn)">{{ firmware }}</span>
+        <span v-if="firmware" class="font-mono tabular" style="font-size: 12.5px; color: var(--fn)">firmware {{ firmware }}</span>
       </div>
 
       <!-- Edits -->
@@ -310,9 +310,9 @@ const shortName = computed(() => codeplug.schema?.model ?? radioName.value)
         >{{ codeplug.dirty ? 'unwritten' : 'none' }}</span>
       </div>
 
-      <!-- Way back -->
+      <!-- Backup -->
       <div class="flex items-center gap-2 px-3.5" style="height: 36px; border-right: 1px solid var(--ln)">
-        <span class="label-xs">Way back</span>
+        <span class="label-xs">Backup</span>
         <span
           v-if="backupPending"
           class="chip"

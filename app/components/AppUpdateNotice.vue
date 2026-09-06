@@ -80,7 +80,7 @@ watch([blocked, costly], () => (confirming.value = false))
       -->
       <div class="flex items-baseline flex-wrap gap-x-2 gap-y-0.5">
         <span role="status" style="font-size: 13.5px; font-weight: 600; color: var(--tx)">
-          A newer boofwang is ready
+          An update is ready
         </span>
         <span class="font-mono tabular" style="font-size: 12px; color: var(--fn)">
           {{ formatBuild(running) }} <UIcon name="i-lucide-arrow-right" class="size-3 align-middle" /> {{ waitingLabel }}
@@ -94,7 +94,7 @@ watch([blocked, costly], () => (confirming.value = false))
           missed once the transfer ends.
         -->
         <span v-if="blocked" style="font-size: 12.5px; color: var(--mu)">
-          Not while a transfer is running
+          Available when the transfer finishes
         </span>
 
         <template v-else-if="costly && !confirming">
@@ -139,9 +139,8 @@ watch([blocked, costly], () => (confirming.value = false))
       -->
       <div v-if="confirming && costly && !blocked" class="w-full pt-1 pb-1">
         <p style="font-size: 12.5px; line-height: 1.6; color: var(--mu); margin-bottom: 8px">
-          Your edits to the {{ radioName }} codeplug are held in this page and nowhere else. Updating reloads
-          the page, which discards them. They have not been written to the radio and there is no way back to
-          them afterwards. Write them to the radio first, or save a copy, if you want to keep them.
+          Updating reloads the page and discards your unwritten edits to the {{ radioName }} codeplug. To keep
+          them, write them to the radio or save a copy first.
         </p>
         <ConfirmTyped
           token="update"

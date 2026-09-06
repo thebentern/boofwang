@@ -319,11 +319,9 @@ async function linkTo(
      */
     const tried = candidates.map((c) => `${c.label} (${c.service})`).join(', ')
     throw new Error(
-      `${device.name ?? 'That device'} does not offer ${candidates.length === 1 ? 'the service' : 'any of the services'} ` +
-        `this build knows to try: ${tried}. It may be a different device from the chooser. If it is yours, ` +
-        'read its real service and characteristic with a Bluetooth scanner such as nRF Connect, then ' +
-        'reload with ?ble=service,write,notify to try them - prefix the list with uart: if the device is ' +
-        'a Bluetooth-to-serial dongle.',
+      `${device.name ?? 'That device'} does not offer any service this build knows: tried ${tried}. ` +
+        'If this is the right device, read its service and characteristic UUIDs with a Bluetooth scanner ' +
+        'such as nRF Connect and reload with ?ble=service,write,notify (prefix uart: for a Bluetooth dongle).',
     )
   }
 

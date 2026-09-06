@@ -155,14 +155,14 @@ function dongleOf(schema: RadioSchema | null): boolean {
  *
  * Each one is a fact the code actually has. The UV-K5's egzumer layout really
  * is refused a write by `variants.ts`, the Mini really does have two radios
- * behind one name resolved by the handshake, and the DM-32UV's three export
- * formats are the ones `session` offers. Nothing here promises a capability -
- * that is what the derived line above it is for.
+ * behind one name resolved by the handshake, and the DM-32UV is the one radio
+ * `encodeChirpImg` refuses. Nothing here promises a capability - that is what
+ * the derived line above it is for.
  */
 const CAVEATS: Partial<Record<RadioId, string>> = {
   uvk5: 'Reads egzumer custom firmware as well. That layout is read-only.',
   uv5rmini: 'Two variants share this name. boofwang identifies which one on connect.',
-  dm32uv: 'Exports as .bwp, CSV or raw .bin.',
+  dm32uv: 'No CHIRP .img export: CHIRP has no driver for this radio.',
 }
 
 
@@ -227,10 +227,8 @@ const groups = computed<{ key: string; icon: string; tone: string; title: string
       key: 'dongle',
       icon: 'i-lucide-bluetooth-searching',
       tone: 'var(--cn)',
-      title: 'Reads through a clip-on dongle',
-      note:
-        'A dongle clips onto the programming port and connects over Bluetooth. Read, back up, edit and ' +
-        'export here. Writing needs a cable, so a computer or an Android phone.',
+      title: 'Reads through a Bluetooth dongle',
+      note: 'Read, back up, edit and export here; writing needs a cable.',
       rows: viaDongle,
       unreachable: false,
     },
@@ -239,9 +237,7 @@ const groups = computed<{ key: string; icon: string; tone: string; title: string
       icon: 'i-lucide-cable',
       tone: 'var(--fn)',
       title: 'Needs a cable · not this device',
-      note:
-        'A dongle does not reach these, and this device cannot drive a cable. A computer or an Android ' +
-        'phone is the way to program them.',
+      note: 'Program these from a computer or an Android phone.',
       rows: cabled,
       unreachable: true,
     },
@@ -266,7 +262,7 @@ const groups = computed<{ key: string; icon: string; tone: string; title: string
     <p style="font-size: 13px; line-height: 1.55; color: var(--fn); margin-top: 4px">
       {{ usbHost
         ? 'Pick the one on the cable so boofwang sends the right handshake.'
-        : 'Ordered by what this device can reach, not by what boofwang supports.' }}
+        : 'Ordered by what this device can reach.' }}
       <template v-if="anyReadOnly">
         A radio marked read only can be read and backed up, but not written.
       </template>

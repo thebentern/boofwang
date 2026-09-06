@@ -58,7 +58,7 @@ describe('the opening card', () => {
     // The desktop shell still reaches `navigator.serial`, so this sentence is
     // true on three of the four hosts and must not be softened for the fourth.
     expect(fault).toContain('Program your radio from the browser')
-    expect(fault).toContain('Web Serial will ')
+    expect(fault).toContain('The browser lists serial ports only after ')
   })
 
   it('has a version for the app, registered beside the picking one', () => {
@@ -80,7 +80,7 @@ describe('the opening card', () => {
   })
 
   it('names what actually holds the first step back', () => {
-    expect(firstInApp).toContain('Android will not let it open')
+    expect(firstInApp).toContain('Android asks before boofwang can open')
   })
 
   it('keeps the button, which is the only way in on either host', () => {

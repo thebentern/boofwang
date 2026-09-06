@@ -165,8 +165,8 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['none', 'none'],
     title: 'Program your radio from the browser',
     body:
-      'Nothing to install, no account, no server. Your codeplug never leaves this machine. Web Serial will ' +
-      'not let us look for your cable until you ask us to, so the first step is always yours.',
+      'Runs in the browser. Your codeplug stays on this computer. The browser lists serial ports only after ' +
+      'you click, so start with the button.',
     actions: [{ key: 'pick', label: 'Connect a radio', icon: 'i-lucide-usb' }],
   },
 
@@ -177,8 +177,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['work', 'none'],
     title: '{browser} is showing its own port list',
     body:
-      'We cannot style that list, read it, or tell whether your cable is in it. So here is the one useful ' +
-      'thing we can say: a programming cable appears as its USB-serial chip, never as a radio.',
+      'boofwang cannot see that list. A programming cable appears as its USB-serial chip, not as a radio:',
     // The four bridges `KNOWN_BRIDGE_VENDORS` in lib/transport/usb-bridges.ts
     // knows by name, which are the four a programming cable is realistically
     // built around.
@@ -195,7 +194,7 @@ const STATES: Record<FaultState, FaultCopy> = {
     radio: 'in',
     links: ['ok', 'work'],
     title: 'Reading the {model}',
-    body: 'The memory is copied block by block. The backup is written the moment the last block lands.{inFront}',
+    body: 'The memory is copied block by block. The backup is saved the moment the last block lands.{inFront}',
     progress: true,
     actions: [{ key: 'cancel', label: 'Cancel', icon: 'i-lucide-x', ghost: true }],
   },
@@ -228,7 +227,7 @@ const STATES: Record<FaultState, FaultCopy> = {
       'a counterfeit adapter with TX bridged to RX, or a cable with nothing on the far end. boofwang stops ' +
       'rather than treating its own output as a reply.',
     steps: [
-      ['i-lucide-usb', 'A counterfeit CH340 or PL2303. Genuine chips are cheap; the fakes do this.'],
+      ['i-lucide-usb', 'A counterfeit CH340 or PL2303 adapter. A genuine CH340 or FTDI cable does not echo.'],
       ['i-lucide-cable', 'A cable plugged into the computer with nothing on the radio end.'],
       ['i-lucide-cpu', 'A serial adapter with a loopback jumper still fitted.'],
     ],
@@ -242,9 +241,10 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['ok', 'bad'],
     title: 'The port opened, but nothing answered',
     body:
-      'boofwang sent the {model} handshake and got silence. The cable is fine; the radio is not listening.',
+      'boofwang sent the {model} handshake and got silence. The port opened, so the adapter is working; ' +
+      'nothing answered.',
     steps: [
-      ['i-lucide-radio', 'Switch the radio on. It does not need any special mode.'],
+      ['i-lucide-radio', 'Turn the radio on. It does not need any special mode.'],
       ['i-lucide-cable', 'Push the plug in until it clicks. Half-seated is the commonest cause by far.'],
       ['i-lucide-zap', 'Turn the volume up. On some radios the programming pin shares the speaker jack.'],
     ],
@@ -284,8 +284,8 @@ const STATES: Record<FaultState, FaultCopy> = {
     steps: [
       [
         'i-lucide-users',
-        'Radios ship under near-identical names and answer different handshakes. Pick the driver that matches ' +
-          'the label on the radio, not the one that matches the cable.',
+        'Radios ship under near-identical names and answer different handshakes. Pick the radio whose name ' +
+          'is on the label.',
       ],
     ],
     actions: [RETRY, SAVE_LOG],
@@ -332,9 +332,8 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['work', 'none'],
     title: '{browser} is showing its own Bluetooth device list',
     body:
-      'That list belongs to the browser and we cannot style it, read it, or tell whether your radio is in ' +
-      'it. It shows devices named like a UV-5R Mini in wireless CPS mode, or advertising the service one ' +
-      'was read on. A radio that is switched off or already paired to a phone will not be there at all.',
+      'That list belongs to the browser and boofwang cannot see into it. It shows radios in wireless CPS ' +
+      'mode. A radio that is turned off or already paired to a phone will not be there.',
   },
 
   'ble-empty': {
@@ -345,17 +344,15 @@ const STATES: Record<FaultState, FaultCopy> = {
     links: ['warn', 'none'],
     title: 'No radio was listed',
     body:
-      'The chooser is filtered on the name a UV-5R Mini advertises in wireless CPS mode, and on the ' +
-      'service one was read on. Neither has been confirmed to be in this radio’s advertisement, so an ' +
-      'empty list may be a filter that cannot match rather than a radio that is not there. "Show every ' +
-      'device" removes both and is the way to tell the two apart.',
+      'The list is filtered on the name and service the radio advertises in wireless CPS mode. A radio ' +
+      'that is turned off, not in that mode, or already paired to a phone does not appear. "Show every ' +
+      'device" removes the filter.',
     steps: [
       ['i-lucide-radio', 'Put the radio into wireless CPS mode, and check it is not already paired to a phone.'],
       ['i-lucide-bluetooth', 'Show every device, and look for {bleName} in the list.'],
       [
         'i-lucide-git-branch',
-        'If it only appears that way, this radio advertises nothing that can be filtered on, and ' +
-          'lib/transport/bluetooth-uuids.ts is where that belongs.',
+        'If it only appears with "Show every device", report the device name and boofwang can add it.',
       ],
     ],
     actions: [
@@ -374,13 +371,15 @@ const STATES: Record<FaultState, FaultCopy> = {
     body:
       'boofwang connected to the radio over Bluetooth, sent the {model} handshake, and got silence. That ' +
       'means the link is up and the bytes are going somewhere that is not the radio’s programming ' +
-      'interface: most likely the wrong characteristic, or a service that carries something else entirely. ' +
-      'Nobody has proved this path against a radio yet, so treat a failure here as a boofwang problem before ' +
-      'a radio one.',
+      'interface: most likely the wrong characteristic, or a service that carries something else entirely.',
     steps: [
-      ['i-lucide-radio', 'Switch the radio on and make sure nothing else is connected to it.'],
-      ['i-lucide-search', 'Check the characteristic numbers with a Bluetooth scanner, as above.'],
-      ['i-lucide-cable', 'A programming cable is the path that has actually been proved to work.'],
+      ['i-lucide-radio', 'Turn the radio on and make sure nothing else is connected to it.'],
+      [
+        'i-lucide-search',
+        'Read the device’s service and characteristic UUIDs with a Bluetooth scanner such as nRF Connect, then try ' +
+          'them: in the app under "Use different UUIDs", in a browser by reloading with ?ble=service,write,notify.',
+      ],
+      ['i-lucide-cable', 'Try the programming cable.'],
     ],
     actions: [{ key: 'bluetooth', label: 'Try again', icon: 'i-lucide-arrow-right' }, SAVE_LOG],
   },
@@ -454,9 +453,8 @@ const FIRST_IN_APP: FaultCopy = {
   links: ['none', 'none'],
   title: 'Program your radio from the app',
   body:
-    'No account, no server. Your codeplug never leaves this device. boofwang can look for an adapter on the ' +
-    'OTG port without asking anyone, but Android will not let it open one until you allow that, so the ' +
-    'first step is always yours.',
+    'Your codeplug stays on this device. Android asks before boofwang can open an adapter on the OTG port, ' +
+    'so start with the button.',
   actions: [{ key: 'pick', label: 'Connect a radio', icon: 'i-lucide-usb' }],
 }
 
@@ -514,7 +512,7 @@ const steps = computed(() => {
     text.includes('wireless CPS mode')
       ? ([
           'i-lucide-radio',
-          'Check the dongle is pushed all the way onto the two-pin port, powered, and the radio is switched on.',
+          'Check the dongle is pushed all the way onto the two-pin port, powered, and the radio is turned on.',
         ] as const)
       : ([icon, text] as const),
   )
@@ -534,14 +532,18 @@ const TONE_ICON = {
 /** The log is only ever what was recorded; a state with nothing to show shows nothing. */
 const logText = computed(() => copy.value.staticLog ?? props.log ?? '')
 
-/** `handshake`, `read` and friends are protocol words; the bar is read by people. */
+/**
+ * `handshake`, `read` and friends are protocol words; the bar is read by people.
+ * The same words as `PHASE_WORDS` in app/pages/write.vue, because these are the
+ * same six phases and a person reading both screens should meet one vocabulary.
+ */
 const PHASES: Record<string, string> = {
-  handshake: 'saying hello',
-  scan: 'scanning memory',
-  read: 'reading blocks',
-  encode: 'encoding',
-  write: 'writing blocks',
-  verify: 'reading back',
+  handshake: 'identifying the radio',
+  scan: 'looking for the radio',
+  read: 'checking what the radio holds now',
+  encode: 'preparing the codeplug',
+  write: 'writing and verifying',
+  verify: 'reading back and comparing',
 }
 
 const phaseLabel = computed(() => {

@@ -172,7 +172,7 @@ export async function requestBridgePort(): Promise<PortChoice | null> {
   if (!url) return null
 
   const ports = await listBridgePorts(url)
-  if (ports.length === 0) throw new Error('The bridge sees no serial adapters. Is the cable plugged in?')
+  if (ports.length === 0) throw new Error('The bridge sees no serial adapters.')
 
   let chosen = ports[0]!
   if (ports.length > 1) {

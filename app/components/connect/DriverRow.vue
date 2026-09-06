@@ -112,7 +112,7 @@ const isSelected = computed(() => props.row.id === props.selected)
           v-else-if="row.dongle"
           class="inline-flex items-center"
           style="gap: 4px; font-size: 11.5px; padding: 2px 7px; border-radius: 4px; background: var(--pn3); color: var(--mu)"
-          title="Its programming port takes a clip-on Bluetooth dongle."
+          title="Its programming port takes a Bluetooth dongle."
         >
           <UIcon name="i-lucide-bluetooth" style="width: 11px; height: 11px; color: var(--fn)" />
           dongle
@@ -122,13 +122,13 @@ const isSelected = computed(() => props.row.id === props.selected)
 
           Not colored as a risk: nothing is about to happen to the radio, and
           the risk register is for actions. The icon and the words carry it, as
-          they do everywhere else - reading is all this row offers.
+          they do everywhere else - reading is all this row offers. No tooltip:
+          the sentence above the list already says what the marker means.
         -->
         <span
           v-if="row.readOnly"
           class="inline-flex items-center"
           style="gap: 4px; font-size: 11.5px; padding: 2px 7px; border-radius: 4px; background: var(--pn3); color: var(--mu)"
-          title="boofwang can read this radio and back it up, but not write to it."
         >
           <UIcon name="i-lucide-eye" style="width: 11px; height: 11px; color: var(--fn)" />
           read only

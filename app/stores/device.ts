@@ -81,8 +81,8 @@ export const useDeviceStore = defineStore('device', () => {
    */
   const keepLinkUp = computed(() =>
     lastKind.value === 'bluetooth'
-      ? 'Keep the radio switched on and in range'
-      : 'Keep the radio switched on and the cable connected',
+      ? 'Keep the radio turned on and in range'
+      : 'Keep the radio turned on and the cable connected',
   )
 
   /**

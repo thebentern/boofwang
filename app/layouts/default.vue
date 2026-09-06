@@ -48,7 +48,7 @@ const listsLabel = computed(() => (navSchema.value?.features.zones ? 'Zones' : '
  * reads six of them. The nav asking it too is what stops the trip being offered
  * at all, rather than offered and then answered with "this radio has none".
  *
- * Before this, a UV-K5 could reach Keys, Fleet and Splash, and all three were
+ * Before this, a UV-K5 could reach Keys, Fleet and Startup picture, and all three were
  * empty when it got there.
  *
  * With nothing read the schema is unknown and the gated destinations are
@@ -74,7 +74,7 @@ const nav = computed(() => {
     },
     { label: 'Settings', to: '/settings', icon: 'i-lucide-sliders-horizontal', show: (s?.settings.length ?? 0) > 0 },
     { label: 'Keys', to: '/keys', icon: 'i-lucide-key-round', show: !!f?.encryption },
-    { label: 'Splash', to: '/startup-image', icon: 'i-lucide-image', show: !!f?.bootPicture },
+    { label: 'Startup picture', to: '/startup-image', icon: 'i-lucide-image', show: !!f?.bootPicture },
     { label: 'Fleet', to: '/fleet', icon: 'i-lucide-users', show: !!f?.radioIds },
     { label: 'Backups', to: '/backups', icon: 'i-lucide-history', show: true },
     { label: 'About', to: '/about', icon: 'i-lucide-info', show: true },
@@ -227,7 +227,7 @@ const { state: updateState } = useAppUpdate()
               type="button"
               class="flex items-center gap-1.5 rounded-[5px] px-2.5"
               style="height: 25px; font-size: 14px; color: var(--mu)"
-              aria-label="More destinations"
+              aria-label="More"
             >
               <UIcon name="i-lucide-menu" style="width: 13px; height: 13px" />
               More
@@ -298,9 +298,8 @@ const { state: updateState } = useAppUpdate()
         <NuxtLink to="/about" class="font-mono tabular" style="color: var(--fn)">
           boofwa.ng {{ formatBuild(build) }}
         </NuxtLink>
-        <span v-if="updateState.offlineReady">Offline ready</span>
+        <span v-if="updateState.offlineReady">Works offline</span>
         <span>GNU GPL v3 or later</span>
-        <span>Everything runs in your browser. Nothing is uploaded anywhere.</span>
         <a
           href="https://github.com/thebentern/boofwang/issues/new"
           target="_blank"
@@ -366,7 +365,7 @@ const { state: updateState } = useAppUpdate()
         class="flex flex-col items-center justify-center"
         style="height: 56px; gap: 3px"
         :style="moreOpen ? { color: 'var(--acTx)', background: 'var(--pn3)' } : { color: 'var(--mu)' }"
-        aria-label="More destinations"
+        aria-label="More"
         @click="moreOpen = !moreOpen"
       >
         <UIcon name="i-lucide-menu" style="width: 19px; height: 19px" />
@@ -462,7 +461,7 @@ const { state: updateState } = useAppUpdate()
           boofwa.ng {{ formatBuild(build) }}
         </NuxtLink>
         <p style="font-size: 12.5px; color: var(--fn); margin-top: 3px">
-          <template v-if="updateState.offlineReady">Offline ready · </template>GNU GPL v3 or later.
+          <template v-if="updateState.offlineReady">Works offline · </template>GNU GPL v3 or later.
         </p>
         <NuxtLink to="/privacy" style="font-size: 12.5px; color: var(--acTx)">Privacy</NuxtLink>
       </div>

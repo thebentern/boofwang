@@ -90,7 +90,7 @@ function signal(rssi: number | undefined): string {
           style="margin: 0; padding: 18px 16px; font-size: 13.5px; line-height: 1.55; color: var(--mu)"
         >
           <template v-if="chooser.scanning">
-            Looking for a radio. Put it in its wireless programming mode and keep it within a meter.
+            Looking for a radio. Put it in wireless CPS mode and keep it within a meter.
           </template>
           <template v-else>Nothing was found.</template>
           <template v-if="!chooser.everyDevice && chooser.hidden > 0">
@@ -142,8 +142,8 @@ function signal(rssi: number | undefined): string {
 
         <div v-if="advanced" style="margin-top: 8px">
           <p style="margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: var(--mu)">
-            service,write,notify as read by a Bluetooth scanner. Prefix with uart: for a Bluetooth-to-serial
-            dongle. Leave empty to go back to the built-in profile.
+            service,write,notify as read by a Bluetooth scanner. Prefix with uart: for a Bluetooth dongle.
+            Leave empty to go back to the built-in profile.
           </p>
           <div class="flex gap-2">
             <input

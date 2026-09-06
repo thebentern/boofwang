@@ -94,7 +94,7 @@ describe('the connect page', () => {
 })
 
 describe('the picking card', () => {
-  const BROWSER_CLAIM = 'We cannot style that list'
+  const BROWSER_CLAIM = 'boofwang cannot see that list'
 
   it('keeps the browser copy for the browser', () => {
     expect(fault).toContain(BROWSER_CLAIM)

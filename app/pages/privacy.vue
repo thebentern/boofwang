@@ -12,8 +12,10 @@
  * 2026-09-03, and each claim names the file that makes it true so the next
  * person can check it the same way:
  *
- *   - no service worker ships in the shell build, so the app makes no request
- *     of its own. `mobile/android/app/src/main/assets/public/` has no sw.js.
+ *   - the web build's service worker asks boofwa.ng for a newer build, which
+ *     is the one request boofwang makes unasked. No service worker ships in
+ *     the shell builds: `mobile/android/app/src/main/assets/public/` has no
+ *     sw.js, so the apps make no request of their own.
  *   - the three directory lookups are in `lib/data/`. Only radioid.ts puts
  *     anything of the user's in a URL, and it is the callsign typed into the
  *     search box: `?callsign=...` at radioid.ts:122. hearham.ts and
@@ -68,7 +70,7 @@ const DIRECTORIES = [
   },
   {
     host: 'brandmeister.network',
-    what: 'The talkgroup and device lists.',
+    what: 'The talk group and device lists.',
     sends: 'Nothing but the request itself.',
     url: 'https://brandmeister.network/',
   },
@@ -87,8 +89,8 @@ const DIRECTORIES = [
       ours for anything to be sent to. What you read off a radio stays on the device you read it with.
     </p>
     <p style="margin-bottom: 24px; font-size: 12.5px; line-height: 1.6; color: var(--fn)">
-      That is the whole policy. The rest of this page is the detail behind it, because a claim this
-      broad is worth nothing unless you can check it.
+      The sections below say where each kind of data is kept and which network requests the app can
+      make.
     </p>
 
     <section style="margin-bottom: 22px">
@@ -99,7 +101,7 @@ const DIRECTORIES = [
       <p :style="BODY">
         Codeplugs you read, the backups boofwang keeps of them, your presets, your scan lists and your
         settings are held in the app's own storage on the device, and in whatever files you choose to
-        export. None of it is transmitted, and the Android app switches off the system backup that would
+        export. None of it is transmitted, and the Android app turns off the system backup that would
         otherwise copy it to your Google account. Deleting a backup in boofwang deletes it;
         uninstalling the app removes everything it kept, and files you exported yourself stay
         wherever you saved them.
@@ -126,9 +128,10 @@ const DIRECTORIES = [
         What leaves, and only when you ask
       </h2>
       <p :style="BODY" style="margin-bottom: 10px">
-        boofwang makes no network request on its own. It does not check for updates, report errors or
-        load anything from another host. The only requests it ever makes are the repeater and
-        talkgroup lookups, and each one happens because you pressed a button to make it happen.
+        On the web, your browser fetches boofwang from boofwa.ng and periodically asks the same host
+        whether a newer build exists; that request carries nothing about you. Inside the Android and iOS
+        apps there is no such check. Every other request is a repeater or talk group lookup you asked
+        for.
       </p>
 
       <div style="border: 1px solid var(--ln); background: var(--pn); border-radius: 7px">
@@ -148,8 +151,7 @@ const DIRECTORIES = [
 
       <p :style="BODY" style="margin-top: 10px">
         Like any request from your device, each one shows that host your IP address. Those three
-        services are not run by boofwang and are not accountable to this policy: what they log is
-        theirs to say, and their own terms apply once you have asked boofwang to talk to them.
+        services are not run by boofwang, and their own privacy policies apply to those requests.
       </p>
     </section>
 
@@ -164,11 +166,10 @@ const DIRECTORIES = [
         and longitude into the repeater search yourself, or you leave them empty.
       </p>
       <p :style="BODY" style="margin-top: 8px">
-        In a web browser that button does appear, and pressing it is the only thing that asks your
-        browser for a position. Either way the coordinates go into the two boxes on that screen and
-        are used here, on the device, to work out how far away each repeater is. They are sent to
-        none of the directories above: one refuses a search by position outright, and the other two
-        are filtered here after their whole list has been fetched.
+        In a web browser that button appears, and pressing it is the only thing that asks your browser
+        for a position. The coordinates go into the two boxes on that screen and are used on the device
+        to work out how far away each repeater is. They are sent to no directory: the lists are fetched
+        whole and filtered here.
       </p>
     </section>
 
@@ -179,13 +180,12 @@ const DIRECTORIES = [
       </h2>
       <p :style="BODY">
         Reaching a radio over a cable or over Bluetooth needs permission from your operating system.
-        On a phone the Bluetooth one is asked for when the connect screen first checks whether there
-        is an adapter, which is as the app opens rather than at the moment you connect. Permission
-        for a cable is asked for when you plug one in.
+        On a phone, the Bluetooth permission is requested when the app opens, because the connect
+        screen checks for an adapter then. Permission for a cable is asked for when you plug one in.
       </p>
       <p :style="BODY" style="margin-top: 8px">
-        Bluetooth is declared as not being used to derive your location, and that is true: boofwang
-        never turns a scan into a position. The scan itself is not filtered by the operating system,
+        boofwang does not use Bluetooth to work out where you are. The scan itself is not filtered by
+        the operating system,
         so while it runs your phone receives the advertisements of every nearby Bluetooth device, the
         same as any scanning app. boofwang shows you the ones that look like a radio, discards the
         rest, and keeps and transmits none of it. Neither permission is used for anything other than
@@ -196,7 +196,7 @@ const DIRECTORIES = [
     <section style="margin-bottom: 22px">
       <h2 class="flex items-center gap-[7px]" :style="HEADING" style="margin-bottom: 6px">
         <UIcon name="i-lucide-info" :style="ICON" />
-        Children, changes and getting hold of us
+        Children, changes and contact
       </h2>
       <p :style="BODY">
         boofwang is a tool for licensed and license-exempt radio operators and is not directed at

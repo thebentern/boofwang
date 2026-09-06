@@ -108,7 +108,7 @@ export function useFleetSession() {
 
     const unitHash = await driver.unitFingerprint(image)
 
-    // The same handset presented twice. The rule is in `lib` so it can be
+    // The same radio presented twice. The rule is in `lib` so it can be
     // tested without a radio; see it for why this matters more than it looks.
     const took = unitAlreadyProgrammed(unitHash, unit.id, fleet.outcomes)
     if (took !== null) {
@@ -116,9 +116,9 @@ export function useFleetSession() {
       toast.add({
         title: 'This radio has already been programmed in this run',
         description:
-          `It took the row for ${JSON.stringify(other?.label ?? took)}. Writing ${JSON.stringify(unit.label)} ` +
-          'to it would give it a second identity and leave that row describing a radio that no longer ' +
-          'holds it. Plug in a different radio, or take that row back to pending first.',
+          `This radio already took the row for ${JSON.stringify(other?.label ?? took)}. Writing ` +
+          `${JSON.stringify(unit.label)} to it would overwrite that. Plug in a different radio, or move that ` +
+          'row back to pending.',
         icon: 'i-lucide-shield-alert',
         color: 'error',
         duration: 0,
@@ -192,7 +192,7 @@ export function useFleetSession() {
       unitHash,
       blocks: ok ? blocks : 0,
       note: ok
-        ? `${blocks} block${blocks === 1 ? '' : 's'} written and read back`
+        ? `${blocks} block${blocks === 1 ? '' : 's'} written`
         : 'Nothing was written. The reason is in the notification.',
     })
     if (ok) fleet.clearCurrent()

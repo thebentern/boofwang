@@ -208,7 +208,7 @@ export function useRadioSession() {
     if (!backup) {
       toast.add({
         title: 'No backup of this radio',
-        description: 'Read the radio before writing to it, so there is a way back.',
+        description: 'Read the radio before writing to it, so there is a backup.',
         icon: 'i-lucide-shield-alert',
         color: 'error',
         duration: 0,
@@ -268,7 +268,9 @@ export function useRadioSession() {
 
       toast.add({
         title: 'Written and verified',
-        description: `${report.blocksWritten} block(s), ${report.bytesWritten} bytes. Every block was read back and matched.`,
+        description:
+          `${report.blocksWritten} ${report.blocksWritten === 1 ? 'block' : 'blocks'}, ` +
+          `${report.bytesWritten} bytes.`,
         icon: 'i-lucide-circle-check',
         color: 'success',
         duration: 10_000,
@@ -276,7 +278,7 @@ export function useRadioSession() {
     } catch (e) {
       device.captureFailure(e)
       toast.add({
-        title: 'Write failed',
+        title: 'The write stopped',
         description: e instanceof Error ? e.message : String(e),
         icon: 'i-lucide-triangle-alert',
         color: 'error',
@@ -377,9 +379,10 @@ export function useRadioSession() {
                 'boofwang and was not compared.'
               : 'Nothing needed to be written.'
             : partial
-              ? `${report.blocksWritten} of ${total} block(s) were restored and verified. This radio only ` +
-                `supports writing ${scope ?? 'part of its memory'}, so the rest is unchanged.`
-              : `${report.blocksWritten} block(s) restored. Every one was read back and matched.`,
+              ? `${report.blocksWritten} of ${total} ${total === 1 ? 'block' : 'blocks'} were restored and ` +
+                `verified. This radio only supports writing ${scope ?? 'part of its memory'}, so the rest ` +
+                'is unchanged.'
+              : `${report.blocksWritten} ${report.blocksWritten === 1 ? 'block' : 'blocks'} restored.`,
         icon: partial || (report.blocksWritten === 0 && scope) ? 'i-lucide-info' : 'i-lucide-circle-check',
         color: partial || (report.blocksWritten === 0 && scope) ? 'warning' : 'success',
         duration: 12_000,
@@ -387,7 +390,7 @@ export function useRadioSession() {
     } catch (e) {
       device.captureFailure(e)
       toast.add({
-        title: 'Restore failed',
+        title: 'The restore stopped',
         description: e instanceof Error ? e.message : String(e),
         icon: 'i-lucide-triangle-alert',
         color: 'error',
@@ -464,7 +467,7 @@ export function useRadioSession() {
         //
         // The order is not cosmetic. Opening the codeplug is what tells the
         // rest of the app a radio has been read, and the status bar answers
-        // "is there a way back" the instant it hears that. Loading first meant
+        // "is there a backup" the instant it hears that. Loading first meant
         // it always looked before the backup landed, so every read ended with
         // a toast saying a backup had been saved next to a status bar saying
         // to read the radio to get one.
@@ -482,7 +485,7 @@ export function useRadioSession() {
 
         toast.add({
           title: 'Codeplug read',
-          description: `${codeplug.channelCount} channel(s). A backup was saved in this browser.`,
+          description: `${codeplug.channelCount} ${codeplug.channelCount === 1 ? 'channel' : 'channels'}. A backup was saved.`,
           icon: 'i-lucide-circle-check',
           color: 'success',
         })

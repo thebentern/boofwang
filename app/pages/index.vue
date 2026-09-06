@@ -33,11 +33,11 @@ const bluetooth = useBluetoothSupport()
 /*
  * Whether a shell, not a browser, is the thing talking to the radio. Two
  * sentences depend on it: what the first hop of the trail is called, and
- * whether "this browser does have Web Bluetooth" is a true thing to say.
+ * whether "this browser supports Bluetooth" is a true thing to say.
  */
 const inShell = shellProvidesTransports(useShell().host)
 const firstHop = inShell ? 'app' : 'browser'
-const bleHave = inShell ? 'This device has Bluetooth' : 'This browser does have Web Bluetooth'
+const bleHave = inShell ? 'This device has Bluetooth' : 'This browser supports Bluetooth'
 /*
  * Whether a programming cable is a route this device has at all.
  *
@@ -196,9 +196,9 @@ const adapterLabel = computed(() => {
  */
 const detail = computed(() => {
   const parts: string[] = []
-  if (firmware.value) parts.push(`fw ${firmware.value}`)
+  if (firmware.value) parts.push(`firmware ${firmware.value}`)
   if (adapterLabel.value) parts.push(adapterLabel.value)
-  if (!confirmed.value) parts.push('model not confirmed yet')
+  if (!confirmed.value) parts.push('not identified yet')
   return parts.join(' · ')
 })
 
@@ -391,7 +391,7 @@ function withoutARadio(): boolean {
   if (!needsChoice.value) return false
   toast.add({
     title: 'Which radio is on the cable?',
-    description: 'Pick it from the list below. boofwang will not guess - the wrong handshake looks exactly like a broken lead.',
+    description: 'Pick it from the list below. boofwang does not guess: the wrong handshake looks the same as a broken cable.',
     icon: 'i-lucide-list',
     color: 'warning',
     duration: 8000,
@@ -734,15 +734,10 @@ const bleNote = computed(() => {
       return `The ${radioName.value} is programmed over a cable only, and this device cannot drive one. ` +
         'A computer or an Android phone is the way to program it.'
     }
-    return `${bleHave}, but the ${radioName.value} is programmed over a cable only. ` +
-      'The Baofeng UV-5R Mini is the one radio here that has been read wirelessly.'
+    return `${bleHave}, but the ${radioName.value} is programmed over a cable only.`
   }
   if (bluetoothProfile().verified) return `${bleHave}, so try connecting that way instead.`
-  return (
-    `${bleHave}, which is a different API, so there is one more thing to try ` +
-    'below. It has never been tested against a radio, and the service number it looks for is a guess, so ' +
-    'do not be surprised when it finds nothing.'
-  )
+  return `${bleHave}, so there is one more thing to try below.`
 })
 
 /** The states where reaching for a file instead of a cable is the sensible move. */
