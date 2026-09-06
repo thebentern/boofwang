@@ -281,7 +281,7 @@ const slotSummary = computed(() => {
         >
           {{ exposure.inReceiveOnlyBand.length }} of {{ exposure.unlocked.length === 1 ? 'them' : 'those' }}
           {{ exposure.inReceiveOnlyBand.length === 1 ? 'receives' : 'receive' }} in a band this radio's band plan marks
-          receive-only. Check your licence before transmitting there.
+          receive-only. Check your license before transmitting there.
         </p>
       </div>
 

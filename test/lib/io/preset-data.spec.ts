@@ -59,15 +59,15 @@ describe('bundled presets', () => {
     }
   })
 
-  it('gives GMRS the 15 channels its licence covers, plus 8 repeater pairs', () => {
+  it('gives GMRS the 15 channels its license covers, plus 8 repeater pairs', () => {
     expect(PRESET_SETS.find((s) => s.id === 'gmrs')!.channels).toHaveLength(23)
     expect(PRESET_SETS.find((s) => s.id === 'murs')!.channels).toHaveLength(5)
   })
 
   it('carries no FRS-only channel in the GMRS set', () => {
-    // 467.5625-467.7125 are channels 8-14 and are FRS-only. A GMRS licence does
+    // 467.5625-467.7125 are channels 8-14 and are FRS-only. A GMRS license does
     // not cover transmitting there, so a GMRS set that offered them would be
-    // handing someone a channel their licence does not reach.
+    // handing someone a channel their license does not reach.
     const gmrs = PRESET_SETS.find((s) => s.id === 'gmrs')!
     for (const c of gmrs.channels) {
       const isFrsOnly = c.rxFreq >= 467_562_500 && c.rxFreq <= 467_712_500 && c.tx.kind === 'simplex'

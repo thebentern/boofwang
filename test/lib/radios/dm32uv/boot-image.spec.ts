@@ -342,7 +342,7 @@ describe('the way to the radio goes through the backup rule', () => {
     })
 
   it('is reached from exactly one place, the composable that enforces the rule', () => {
-    // Separators normalised: this compares paths as text, and on Windows they
+    // Separators normalized: this compares paths as text, and on Windows they
     // arrive with backslashes.
     const seen = importers().map((f) => f.slice(root.length).split(sep).join('/'))
     expect(seen).toEqual(['app/composables/useBootImage.ts'])

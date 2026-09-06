@@ -485,7 +485,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
     },
 
     /**
-     * Serialise a codeplug onto a copy of the image it came from.
+     * Serialize a codeplug onto a copy of the image it came from.
      *
      * There is deliberately no `encode(doc)`. Starting from the bytes the radio
      * gave us is what guarantees that everything this driver does not model -

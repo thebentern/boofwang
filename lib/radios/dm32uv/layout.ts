@@ -121,13 +121,13 @@ export const DM32_CHANNEL = defineStruct(CHANNEL_SIZE, {
     ]),
   ),
   /**
-   * Byte 0x1D on a digital channel. The timeslot is bit 4 and the colour code
+   * Byte 0x1D on a digital channel. The timeslot is bit 4 and the color code
    * is the whole low nibble - attested by the reference's OEM CPS capture,
    * where the user named channels after their slot: `RIC Monitor TS1` stores
    * `0x01` and `RIC Monitor TS2` stores `0x11`.
    *
-   * Declaring the colour code as three bits put the timeslot on bit 3, so
-   * switching a channel to TS2 wrote `0x0a` - which the radio reads as colour
+   * Declaring the color code as three bits put the timeslot on bit 3, so
+   * switching a channel to TS2 wrote `0x0a` - which the radio reads as color
    * code 10, still on TS1.
    */
   digital: at(
@@ -421,16 +421,16 @@ export const DM32_SETTINGS = defineStruct(0x600, {
     bits(1, { volumeChangePrompt: [0, 1], timeDisplay: [1, 1], unknown2: [2, 1], dateFormat: [3, 1], unknownHigh: [4, 4] }),
   ),
   menuExitTime: at(0x36, u8),
-  standbyCharColour1: at(0x37, u8),
+  standbyCharColor1: at(0x37, u8),
   utcZone: at(0x41, u8),
   backlightBrightness: at(0x30, u8),
   autoBacklightDuration: at(0x31, u8),
-  callsignColour: at(0x34, bits(1, { colour: [0, 4], reserved: [4, 4] })),
-  standbyTextColour: at(0x35, bits(1, { colour: [0, 4], reserved: [4, 4] })),
-  channelAColour: at(0x38, bits(1, { colour: [0, 4], reserved: [4, 4] })),
-  channelBColour: at(0x39, bits(1, { colour: [0, 4], reserved: [4, 4] })),
-  zoneAColour: at(0x3a, bits(1, { colour: [0, 4], reserved: [4, 4] })),
-  zoneBColour: at(0x3b, bits(1, { colour: [0, 4], reserved: [4, 4] })),
+  callsignColor: at(0x34, bits(1, { color: [0, 4], reserved: [4, 4] })),
+  standbyTextColor: at(0x35, bits(1, { color: [0, 4], reserved: [4, 4] })),
+  channelAColor: at(0x38, bits(1, { color: [0, 4], reserved: [4, 4] })),
+  channelBColor: at(0x39, bits(1, { color: [0, 4], reserved: [4, 4] })),
+  zoneAColor: at(0x3a, bits(1, { color: [0, 4], reserved: [4, 4] })),
+  zoneBColor: at(0x3b, bits(1, { color: [0, 4], reserved: [4, 4] })),
   gpsFlags: at(
     0x40,
     bits(1, {
@@ -716,11 +716,11 @@ export const DM32_SETTINGS = defineStruct(0x600, {
 })
 
 /**
- * The colour enum shared by all six colour bytes.
+ * The color enum shared by all six color bytes.
  *
  * Values 8-15 are storable in the nibble but the reference names none of them.
  */
-export const DM32_COLOURS = [
+export const DM32_COLORS = [
   'White',
   'Black',
   'Orange',
@@ -958,7 +958,7 @@ export const DM32_ROAMCHANNEL = defineStruct(ROAMCHANNEL_SIZE, {
   // Only the low bits are understood in either byte, so both are modelled as
   // bitfields: a whole-byte write here is the mistake that once erased
   // scan-list membership from channel byte 0x19.
-  colour: at(0x18, bits(1, { colorCode: [0, 4], unknownHigh: [4, 4] })),
+  color: at(0x18, bits(1, { colorCode: [0, 4], unknownHigh: [4, 4] })),
   slot: at(0x19, bits(1, { timeSlot: [0, 1], unknownHigh: [1, 7] })),
 })
 

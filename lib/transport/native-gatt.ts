@@ -6,7 +6,7 @@ import type {
   GattDeviceLike,
   GattNotification,
 } from './bluetooth-port.js'
-import { normaliseUuid, type BluetoothProfile } from './bluetooth-uuids.js'
+import { normalizeUuid, type BluetoothProfile } from './bluetooth-uuids.js'
 import { TransportError } from './errors.js'
 
 /**
@@ -146,7 +146,7 @@ const CONNECTION_PRIORITY_HIGH = 1
 
 function safeUuid(value: string): string | undefined {
   try {
-    return normaliseUuid(value)
+    return normalizeUuid(value)
   } catch {
     // A device may enumerate a UUID in a form nobody anticipated. It cannot
     // match a profile either way, and one bad entry must not hide the rest.
@@ -161,7 +161,7 @@ function safeUuid(value: string): string | undefined {
  * Candidates are tried in order because that is what the browser path does
  * and what the profile lists were written for: `BL1_DONGLE_PROFILES` leads
  * with the shape a real dongle enumerated as. Matching is by service only,
- * on the normalised form of both sides, since a plugin may hand back a
+ * on the normalized form of both sides, since a plugin may hand back a
  * 16-bit alias where a profile holds the 128-bit expansion.
  */
 export async function connectNativeGattLink(
@@ -220,7 +220,7 @@ export async function connectNativeGattLink(
   let profile: BluetoothProfile | undefined
   let service: BleServiceInfo | undefined
   for (const candidate of candidates) {
-    const found = byUuid.get(normaliseUuid(candidate.service))
+    const found = byUuid.get(normalizeUuid(candidate.service))
     if (found) {
       profile = candidate
       service = found
@@ -242,9 +242,9 @@ export async function connectNativeGattLink(
     )
   }
 
-  const serviceUuid = normaliseUuid(profile.service)
-  const writeUuid = normaliseUuid(profile.write)
-  const notifyUuid = normaliseUuid(profile.notify)
+  const serviceUuid = normalizeUuid(profile.service)
+  const writeUuid = normalizeUuid(profile.write)
+  const notifyUuid = normalizeUuid(profile.notify)
 
   const characteristics = new Map<string, BleCharacteristicInfo>()
   for (const c of service.characteristics) {

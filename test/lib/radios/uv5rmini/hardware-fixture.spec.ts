@@ -158,7 +158,7 @@ describe('the rest of the image', () => {
 
   it('still round-trips byte-for-byte with settings decoded', () => {
     // Decoding them must not tempt the encoder into writing them back: nothing
-    // edits settings yet, and normalising a byte nobody asked to change is what
+    // edits settings yet, and normalizing a byte nobody asked to change is what
     // breaks the invariant the whole write path rests on.
     const img = image()
     const out = writableDriver.encode(writableDriver.decode(img), img)

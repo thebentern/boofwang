@@ -10,7 +10,7 @@ import {
   TIDRADIO_BL1_FF00,
   TIDRADIO_BL1_FFE0,
   UV5RM_BLE,
-  normaliseUuid,
+  normalizeUuid,
 } from '#core/transport/bluetooth-uuids.js'
 
 const b = (...xs: number[]) => Uint8Array.from(xs)
@@ -48,8 +48,8 @@ describe('choosing a profile from what the device enumerates', () => {
     const client = new FakeBleClient({ services: FF00 })
     const { link } = await connectNativeGattLink(client, DEVICE, [TIDRADIO_BL1_FF00, TIDRADIO_BL1_FFE0])
     expect(link.profile).toBe(TIDRADIO_BL1_FF00)
-    expect(link.write.uuid).toBe(normaliseUuid('ff02'))
-    expect(link.notify.uuid).toBe(normaliseUuid('ff01'))
+    expect(link.write.uuid).toBe(normalizeUuid('ff02'))
+    expect(link.notify.uuid).toBe(normalizeUuid('ff01'))
   })
 
   it('moves to the second candidate when the first service is absent', async () => {
@@ -84,7 +84,7 @@ describe('choosing a profile from what the device enumerates', () => {
     await expect(attempt).rejects.toThrow(NativeGattError)
     await expect(attempt).rejects.toThrow(UV5RM_BLE.service)
     await expect(attempt).rejects.toThrow(NORDIC_UART.service)
-    await expect(attempt).rejects.toThrow(normaliseUuid('ae30'))
+    await expect(attempt).rejects.toThrow(normalizeUuid('ae30'))
   })
 
   it('lets go of the device when nothing matches', async () => {
@@ -103,8 +103,8 @@ describe('choosing a profile from what the device enumerates', () => {
     })
     const attempt = connectNativeGattLink(client, DEVICE, [UV5RM_BLE])
     await expect(attempt).rejects.toThrow(NativeGattError)
-    await expect(attempt).rejects.toThrow(normaliseUuid('ffe1'))
-    await expect(attempt).rejects.toThrow(normaliseUuid('ffe2'))
+    await expect(attempt).rejects.toThrow(normalizeUuid('ffe1'))
+    await expect(attempt).rejects.toThrow(normalizeUuid('ffe2'))
     expect(client.connected).toBe(false)
   })
 
@@ -147,7 +147,7 @@ describe('notifications reach the port', () => {
 
   it('subscribes on open and unsubscribes on close', async () => {
     const { client, t } = await linked(FFE0)
-    expect(client.notifying).toEqual([`${normaliseUuid('ffe0')}/${normaliseUuid('ffe1')}`])
+    expect(client.notifying).toEqual([`${normalizeUuid('ffe0')}/${normalizeUuid('ffe1')}`])
     await t.close()
     expect(client.notifying).toEqual([])
   })
@@ -160,8 +160,8 @@ describe('writes reach the plugin', () => {
     expect(client.writes).toHaveLength(1)
     expect(client.writes[0]!.acknowledged).toBe(true)
     expect(client.writes[0]!.bytes).toEqual(b(0x50, 0x52, 0x4f))
-    expect(client.writes[0]!.service).toBe(normaliseUuid('ffe0'))
-    expect(client.writes[0]!.characteristic).toBe(normaliseUuid('ffe1'))
+    expect(client.writes[0]!.service).toBe(normalizeUuid('ffe0'))
+    expect(client.writes[0]!.characteristic).toBe(normalizeUuid('ffe1'))
     await t.close()
   })
 
@@ -184,7 +184,7 @@ describe('writes reach the plugin', () => {
 
   it('copies what it is handed, because the plugin reads the view later', async () => {
     // The port slices too, but the characteristic is reachable on its own,
-    // and the plugin serialises the DataView when its queue gets there.
+    // and the plugin serializes the DataView when its queue gets there.
     const client = new FakeBleClient({ services: FFE0 })
     const { link } = await connectNativeGattLink(client, DEVICE, [UV5RM_BLE])
     const frame = b(1, 2, 3, 4)
@@ -196,7 +196,7 @@ describe('writes reach the plugin', () => {
   it('routes a two-handle profile to the write handle, not the notify one', async () => {
     const { client, t } = await linked(FF00, [TIDRADIO_BL1_FF00])
     await t.write(b(0x06))
-    expect(client.writes[0]!.characteristic).toBe(normaliseUuid('ff02'))
+    expect(client.writes[0]!.characteristic).toBe(normalizeUuid('ff02'))
     client.notify('ff00', 'ff01', b(0x06))
     expect(await t.readExactly(1)).toEqual(b(0x06))
     await t.close()

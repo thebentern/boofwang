@@ -17,7 +17,7 @@ import {
   UV5RM_AE30_ECHO,
   UV5RM_BLE,
   bluetoothProfile,
-  normaliseUuid,
+  normalizeUuid,
   parseBluetoothProfile,
   resetBluetoothProfile,
   setBluetoothProfile,
@@ -343,7 +343,7 @@ describe('the UUIDs themselves', () => {
      *
      * `resetBluetoothProfile` assigned `NORDIC_UART` literally - correct when
      * it was written and Nordic was the default, never revisited once the
-     * initialiser became a captured profile. `resolveBluetoothProfile()` calls
+     * initializer became a captured profile. `resolveBluetoothProfile()` calls
      * it on every load carrying no `?ble=` override, which is every ordinary
      * one, so the shipped chooser filtered on a service nobody has ever seen
      * advertised and listed nothing at all, with a radio a foot away.
@@ -391,17 +391,17 @@ describe('the UUIDs themselves', () => {
   })
 
   it('expands a 16-bit alias, which is how vendors quote them', () => {
-    expect(normaliseUuid('FFE0')).toBe('0000ffe0-0000-1000-8000-00805f9b34fb')
-    expect(normaliseUuid('0xffe1')).toBe('0000ffe1-0000-1000-8000-00805f9b34fb')
+    expect(normalizeUuid('FFE0')).toBe('0000ffe0-0000-1000-8000-00805f9b34fb')
+    expect(normalizeUuid('0xffe1')).toBe('0000ffe1-0000-1000-8000-00805f9b34fb')
   })
 
   it('lower-cases a long one rather than rejecting it', () => {
-    expect(normaliseUuid('6E400001-B5A3-F393-E0A9-E50E24DCCA9E')).toBe(NORDIC_UART.service)
+    expect(normalizeUuid('6E400001-B5A3-F393-E0A9-E50E24DCCA9E')).toBe(NORDIC_UART.service)
   })
 
   it('rejects something that is not a UUID at all', () => {
     // Web Bluetooth throws a TypeError naming neither the value nor the field.
-    expect(() => normaliseUuid('nordic')).toThrow(BluetoothUuidError)
+    expect(() => normalizeUuid('nordic')).toThrow(BluetoothUuidError)
   })
 
   it('parses the three-part override someone with a radio would type', () => {
@@ -470,7 +470,7 @@ describe('the dongle profiles', () => {
     expect(BL1_DONGLE_PROFILES).toEqual([TIDRADIO_BL1_FF00, TIDRADIO_BL1_FFE0])
     // FF00 is the service the TD-PTT fob advertised. The HM-10 FFE0 shape is
     // kept behind it for a unit that carries that instead.
-    expect(TIDRADIO_BL1_FF00.service).toBe(normaliseUuid('ff00'))
+    expect(TIDRADIO_BL1_FF00.service).toBe(normalizeUuid('ff00'))
     // The FFE0 variant is service-identical to the UV-5R Mini's own module -
     // the ambiguity docs/protocols/ble-dongle.md records. It is only ever
     // offered from the dongle candidate list, never resolved by UUID alone.
@@ -486,8 +486,8 @@ describe('the dongle profiles', () => {
      * costume. FF02/FF01 is the transparent-looking pair, and its silence is
      * the honest failure.
      */
-    expect(TIDRADIO_BL1_FF00.write).toBe(normaliseUuid('ff02'))
-    expect(TIDRADIO_BL1_FF00.notify).toBe(normaliseUuid('ff01'))
+    expect(TIDRADIO_BL1_FF00.write).toBe(normalizeUuid('ff02'))
+    expect(TIDRADIO_BL1_FF00.notify).toBe(normalizeUuid('ff01'))
     expect(TIDRADIO_BL1_FF00.write).not.toBe(TIDRADIO_FF22_PER_BYTE.write)
   })
 
@@ -522,10 +522,10 @@ describe('the dongle profiles', () => {
      * bluetooth-uuids.ts warns about, committed by trusting an enumeration
      * as an advertisement.
      */
-    expect(TIDRADIO_BL1_FF00.service).toBe(normaliseUuid('ff00'))
-    expect(TIDRADIO_BL1_FF00.advertisedServices).toContain(normaliseUuid('bf98'))
+    expect(TIDRADIO_BL1_FF00.service).toBe(normalizeUuid('ff00'))
+    expect(TIDRADIO_BL1_FF00.advertisedServices).toContain(normalizeUuid('bf98'))
     // And the fob's own advertisement is still covered.
-    expect(TIDRADIO_BL1_FF00.advertisedServices).toContain(normaliseUuid('ff00'))
+    expect(TIDRADIO_BL1_FF00.advertisedServices).toContain(normalizeUuid('ff00'))
   })
 
   it('carry the names both bench devices actually advertised', () => {

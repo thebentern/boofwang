@@ -380,7 +380,7 @@ async function applyToOpen() {
   <div>
     <!--
       No `accept` inside a phone shell. iOS maps the list to document types
-      and greys out every file for an extension it does not know, which .bwp
+      and grays out every file for an extension it does not know, which .bwp
       is; Android widens an unknown extension to everything anyway.
     -->
     <input ref="input" type="file" :accept="looseAccept ? undefined : ACCEPT" class="hidden" @change="onPick" >

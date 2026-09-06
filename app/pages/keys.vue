@@ -3,7 +3,7 @@
  * The Keys screen: the notice, then the key slots.
  *
  * The notice states the rule and cites it, and the operator - who holds the
- * licence and is responsible for what they transmit - decides. Making them
+ * license and is responsible for what they transmit - decides. Making them
  * declare a service first only taught people to click the answer that opened
  * the screen.
  */

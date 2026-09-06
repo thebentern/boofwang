@@ -489,7 +489,7 @@ describe('validation covers the delta, not the radio’s pre-existing state', ()
   it('writes a channel that transmits in a receive-only band, and warns about it', async () => {
     // Deliberate policy, and a reversal: this used to be refused. Transmitting
     // into a receive-only allocation is a licensing question rather than a
-    // hardware one - a different country's band plan, a commercial licence,
+    // hardware one - a different country's band plan, a commercial license,
     // MARS/CAP - and boofwang is not the licensing authority. The warning is
     // loud and the write goes through. See lib/validate/rules.ts.
     const { port, eeprom } = radioPort(RAW.slice())

@@ -54,7 +54,7 @@ const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 const source = readFileSync(SVG, 'utf8')
 
 /**
- * The macOS silhouette: the drawing scaled into 824 of 1024, centred.
+ * The macOS silhouette: the drawing scaled into 824 of 1024, centered.
  *
  * Done by wrapping rather than by editing the source, so there is one drawing
  * and the difference between the platforms stays visible in one place.
@@ -138,7 +138,7 @@ function smallVariant(tileRadius) {
  * Same rule the repo already applies between 32 and 1024: redraw, do not scale.
  * One arc pair rather than two, and the OUTER one - a wide arc survives a small
  * render where a narrow one closes onto its neighbour. Stroke 34 to 64, dot r74
- * to r104, and a flat ground because a gradient across 48px is a flat colour
+ * to r104, and a flat ground because a gradient across 48px is a flat color
  * with extra file size.
  */
 function homeMark() {
@@ -261,7 +261,7 @@ function ico(images) {
     directory.writeUInt8(size >= 256 ? 0 : size, at + 1)
     directory.writeUInt8(0, at + 2) // palette
     directory.writeUInt8(0, at + 3) // reserved
-    directory.writeUInt16LE(1, at + 4) // colour planes
+    directory.writeUInt16LE(1, at + 4) // color planes
     directory.writeUInt16LE(32, at + 6) // bits per pixel
     directory.writeUInt32LE(data.length, at + 8)
     directory.writeUInt32LE(offset, at + 12)

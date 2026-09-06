@@ -111,8 +111,8 @@ function onPointerMove(e: PointerEvent) {
   const dy = (e.movementY / box.height) / framing.value.zoom
   framing.value = {
     ...framing.value,
-    centreX: Math.min(1, Math.max(0, framing.value.centreX - dx)),
-    centreY: Math.min(1, Math.max(0, framing.value.centreY - dy)),
+    centerX: Math.min(1, Math.max(0, framing.value.centerX - dx)),
+    centerY: Math.min(1, Math.max(0, framing.value.centerY - dy)),
   }
 }
 function onPointerUp(e: PointerEvent) {
@@ -186,8 +186,8 @@ defineExpose({ render })
           @pointercancel="onPointerUp"
         />
         <p style="font-size: 12.5px; color: var(--fn); margin-top: 6px; max-width: 240px; line-height: 1.5">
-          Drag to move the crop. This is drawn from the encoded bytes, not from your file, so the colours here
-          are the colours the radio gets.
+          Drag to move the crop. This is drawn from the encoded bytes, not from your file, so the colors here
+          are the colors the radio gets.
         </p>
       </div>
 
@@ -230,7 +230,7 @@ defineExpose({ render })
       style="font-size: 13.5px; line-height: 1.6; color: var(--fn); max-width: 66ch"
     >
       A JPEG, PNG or anything else this browser can open. It is cropped to 240 x 320 and converted to the
-      65-thousand-colour format the radio's screen uses, and you see the result of that rather than the file
+      65-thousand-color format the radio's screen uses, and you see the result of that rather than the file
       you picked.
     </p>
 

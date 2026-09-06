@@ -46,7 +46,7 @@ export class TransportTimeoutError extends TransportError {
 export class DesyncedError extends TransportError {
   override readonly name = 'DesyncedError'
   constructor(readonly op: string) {
-    super(`Serial stream is out of sync (while attempting: ${op}). Resynchronise before continuing.`)
+    super(`Serial stream is out of sync (while attempting: ${op}). Resynchronize before continuing.`)
   }
 }
 

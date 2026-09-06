@@ -260,13 +260,13 @@ const STATES: Record<FaultState, FaultCopy> = {
     body:
       'One command timed out, and its answer turned up while boofwang was waiting for the next one. Every ' +
       'frame after that is shifted by a few bytes. Continuing would write plausible-looking garbage, so the ' +
-      'transport refuses everything until it resynchronises.',
+      'transport refuses everything until it resynchronizes.',
     steps: [
       ['i-lucide-history', 'boofwang closes the port and reopens it. Nothing was written.'],
       ['i-lucide-cable', 'If it recurs on the same cable, that cable is dropping bytes under load.'],
       ['i-lucide-file-down', 'The protocol log is the useful thing to attach to a bug report.'],
     ],
-    actions: [{ key: 'read', label: 'Resynchronise and retry', icon: 'i-lucide-history' }, SAVE_LOG],
+    actions: [{ key: 'read', label: 'Resynchronize and retry', icon: 'i-lucide-history' }, SAVE_LOG],
   },
 
   wrong: {
@@ -524,7 +524,7 @@ const bleNote = computed(() => (copy.value.showBleNote ? (props.bleNote ?? '') :
 
 const TONE_BORDER = { dg: 'var(--dgL)', cn: 'var(--cnL)', in: 'var(--inL)' } as const
 const TONE_BACKGROUND = { dg: 'var(--dgB)', cn: 'var(--cnB)', in: 'var(--inB)' } as const
-const TONE_COLOUR = { dg: 'var(--dg)', cn: 'var(--cn)', in: 'var(--in)' } as const
+const TONE_COLOR = { dg: 'var(--dg)', cn: 'var(--cn)', in: 'var(--in)' } as const
 const TONE_ICON = {
   dg: 'i-lucide-circle-alert',
   cn: 'i-lucide-triangle-alert',
@@ -606,7 +606,7 @@ const actions = computed(() => {
         <UIcon
           :name="TONE_ICON[copy.tone]"
           style="width: 17px; height: 17px"
-          :style="{ color: TONE_COLOUR[copy.tone] }"
+          :style="{ color: TONE_COLOR[copy.tone] }"
         />
       </span>
 

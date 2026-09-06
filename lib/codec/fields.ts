@@ -192,7 +192,7 @@ export function ascii(n: number, opts: AsciiOpts = {}): Field<string> {
       }
       // Idempotent write: if these bytes already decode to `v`, leave them
       // exactly as they are. Radios pad with NUL, 0xFF or spaces inconsistently
-      // - and sometimes leave junk after the terminator - so normalising the
+      // - and sometimes leave junk after the terminator - so normalizing the
       // padding on every write would make `read` then `write` perturb bytes
       // nobody asked to change, filling every upload diff with phantom edits.
       if (this.get(buf, off) === v) return

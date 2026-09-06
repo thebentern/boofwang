@@ -166,7 +166,7 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
      * the three the base UV-17 Pro declares.
      *
      * The air band is receive-only in the schema because it is receive-only in
-     * law: 108-137 MHz is aeronautical, and no amateur or business licence
+     * law: 108-137 MHz is aeronautical, and no amateur or business license
      * authorises transmitting there.
      */
     bands: [

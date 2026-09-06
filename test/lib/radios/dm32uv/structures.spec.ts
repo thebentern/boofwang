@@ -108,7 +108,7 @@ describe('scan lists', () => {
   })
 
   it('stops at the count, not at the first blank record', () => {
-    // Records 3-7 are initialised blank templates, not zeros. A reader that
+    // Records 3-7 are initialized blank templates, not zeros. A reader that
     // scanned for emptiness would agree here by luck; one that trusted a 16-bit
     // count would report 21,250 lists, because 0x001 is already the 'S' of
     // "Scan List 1".
@@ -359,8 +359,8 @@ describe('settings', () => {
     const s = d.decode(image()).settings
     expect(s.powerOnLine1).toBe('EchoMike')
     expect(s.powerOnLine2).toBe('DM-32UV')
-    expect(s['callsignColour.colour']).toBe(2)
-    expect(s['zoneAColour.colour']).toBe(0)
+    expect(s['callsignColor.color']).toBe(2)
+    expect(s['zoneAColor.color']).toBe(0)
     expect(s.backlightBrightness).toBe(5)
   })
 
@@ -439,7 +439,7 @@ describe('settings', () => {
       'alertTones.keyPress',
       'alertTonesCont.batteryLow',
       'backlightBrightness',
-      'standbyCharColour1',
+      'standbyCharColor1',
       'gpsFlags.gpsSwitch',
       'callHoldTime',
       'digitalFlags.missedCallAlert',
@@ -472,7 +472,7 @@ describe('settings', () => {
 
   it('writes each documented region where the reference says it lives', () => {
     const cases: [string, number, number][] = [
-      ['standbyCharColour1', 0x037, 6],
+      ['standbyCharColor1', 0x037, 6],
       ['activeWaitTime', 0x062, 9],
       ['preCarrierTime', 0x064, 11],
       ['smsFormat', 0x066, 5],

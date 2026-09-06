@@ -256,7 +256,7 @@ const link = computed<FaultState | 'ready'>(() => {
  * mismatched headline never hides what actually happened.
  */
 function classify(message: string): FaultState {
-  if (/out of sync|resynchronise/i.test(message)) return 'desync'
+  if (/out of sync|resynchroniz/i.test(message)) return 'desync'
   // Over Bluetooth there is no adapter to echo and no plug to reseat, so the
   // two states whose remedies are entirely about a cable route elsewhere. A
   // silent radio on a GATT link is much more likely to be our characteristic

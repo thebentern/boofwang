@@ -8,7 +8,7 @@ const BAND_LABELS = ['50-76 MHz', '108-137 MHz', '137-174 MHz', '174-350 MHz', '
 
 /**
  * The air band is receive-only: it is AM aviation spectrum, and no amateur
- * licence authorises transmitting there. Marking it in the schema means the
+ * license authorises transmitting there. Marking it in the schema means the
  * validator objects before anything reaches the radio.
  */
 const RX_ONLY_BANDS = new Set([1])
@@ -358,7 +358,7 @@ export const EGZUMER_SETTINGS_GROUPS = [
     layouts: [EGZUMER_LAYOUT],
     description:
       'What the firmware will let the radio transmit on. Transmitting outside the allocations your ' +
-      'licence covers is illegal wherever you are, whatever the radio permits.',
+      'license covers is illegal wherever you are, whatever the radio permits.',
     fields: [
       {
         key: 'intFlock',
@@ -518,7 +518,7 @@ export const STOCK_SETTINGS_GROUPS = [
     layouts: [STOCK_LAYOUT],
     description:
       'What the radio will let you transmit on. These are the firmware\u2019s own limits, and widening ' +
-      'them does not widen your licence: what you may transmit is decided by the licence you hold and ' +
+      'them does not widen your license: what you may transmit is decided by the license you hold and ' +
       'the rules where you are, not by this radio.',
     fields: [
       { key: 'flock', label: 'Frequency lock', type: 'enum', options: listed(['Off', 'FCC', 'CE', 'GB', '430 MHz', '438 MHz']) },

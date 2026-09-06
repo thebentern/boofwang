@@ -5,7 +5,7 @@ import { capabilitiesFor, detectHost, hostSupports } from '#core/platform/host.j
 
 describe('the registry keeps its promises about attribution', () => {
   it('gives every source a non-empty attribution', () => {
-    // Credit is the consideration boofwang offers for data it has no licence
+    // Credit is the consideration boofwang offers for data it has no license
     // for. A source that ships without it is a source being used for nothing in
     // return.
     for (const s of DATA_SOURCES) {
@@ -13,9 +13,9 @@ describe('the registry keeps its promises about attribution', () => {
     }
   })
 
-  it('gives every source a licence line and a homepage', () => {
+  it('gives every source a license line and a homepage', () => {
     for (const s of DATA_SOURCES) {
-      expect(s.licence.trim(), s.id).not.toBe('')
+      expect(s.license.trim(), s.id).not.toBe('')
       expect(s.homepage, s.id).toMatch(/^https:\/\//)
     }
   })
@@ -28,8 +28,8 @@ describe('the registry keeps its promises about attribution', () => {
     // These strings render in the product, so they follow the product's rules:
     // no em-dashes, and boofwang stays lowercase.
     for (const s of DATA_SOURCES) {
-      expect(s.licence, s.id).not.toMatch(/—/)
-      expect(s.licence, s.id).not.toMatch(/\bBoofwang\b/)
+      expect(s.license, s.id).not.toMatch(/—/)
+      expect(s.license, s.id).not.toMatch(/\bBoofwang\b/)
     }
   })
 })

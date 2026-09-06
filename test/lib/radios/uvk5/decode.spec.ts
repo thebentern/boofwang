@@ -254,7 +254,7 @@ describe('validate enforces the receive-only bands the schema declares', () => {
     expect(rule!.severity).toBe('warning')
     expect(rule!.channel).toBe(1)
     expect(rule!.message).toMatch(/receive-only/)
-    expect(rule!.message).toMatch(/licence/)
+    expect(rule!.message).toMatch(/license/)
     // Nothing about this channel blocks a write.
     expect(diags.filter((d) => d.severity === 'error')).toEqual([])
   })

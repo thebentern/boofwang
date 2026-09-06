@@ -28,7 +28,7 @@ describe('RecordingTransport', () => {
     ])
   })
 
-  it('serialises to a replayable JSON fixture', async () => {
+  it('serializes to a replayable JSON fixture', async () => {
     const port = new FakeSerialPort({ greeting: b(0xff) })
     const rec = new RecordingTransport(new SerialTransport(port))
     await rec.open({ baudRate: 9600 })

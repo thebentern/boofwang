@@ -54,7 +54,7 @@ describe('which file a request path means', () => {
     }
   })
 
-  it('refuses an encoded traversal, which normalising alone would not catch', () => {
+  it('refuses an encoded traversal, which normalizing alone would not catch', () => {
     expect(resolveSitePath('/%2e%2e/%2e%2e/etc/passwd', ROOT)).toBeNull()
   })
 

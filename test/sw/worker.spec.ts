@@ -87,7 +87,7 @@ describe('what it refuses to handle', () => {
   it('passes cross-origin requests straight through', async () => {
     // The whole live data layer. hearham, RadioID and the BrandMeister device
     // list are fetched at runtime and none of them may ever come out of a
-    // cache: a repeater that changed frequency six months ago is a licence
+    // cache: a repeater that changed frequency six months ago is a license
     // problem, not a convenience problem.
     const sw = loadWorker()
     await sw.install()

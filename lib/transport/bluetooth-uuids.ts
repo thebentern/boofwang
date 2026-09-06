@@ -135,7 +135,7 @@ export interface BluetoothProfile {
  *
  * Vendors quote short UUIDs (`FFE0`) as often as long ones, and a device
  * filter built from the short form silently matches nothing, so both spellings
- * are accepted and normalised to this.
+ * are accepted and normalized to this.
  */
 const BASE_UUID = '0000xxxx-0000-1000-8000-00805f9b34fb'
 
@@ -153,7 +153,7 @@ export class BluetoothUuidError extends Error {
  * mixed-case or short UUID in a filter throws a `TypeError` that names neither
  * the value nor the field.
  */
-export function normaliseUuid(value: string): string {
+export function normalizeUuid(value: string): string {
   const trimmed = value.trim().toLowerCase()
   if (FULL_UUID.test(trimmed)) return trimmed
 
@@ -217,11 +217,11 @@ export const NORDIC_UART: BluetoothProfile = {
 export const UV5RM_BLE: BluetoothProfile = {
   id: 'uv5rm-ffe0',
   label: 'Baofeng wireless CPS (HM-10 transparent serial)',
-  service: normaliseUuid('ffe0'),
+  service: normalizeUuid('ffe0'),
   // One characteristic both ways. Writing and notifying on the same handle is
   // normal for these modules and is what the radio actually answered on.
-  write: normaliseUuid('ffe1'),
-  notify: normaliseUuid('ffe1'),
+  write: normalizeUuid('ffe1'),
+  notify: normalizeUuid('ffe1'),
   /*
    * `walkie-talkie` is what Chrome labels these radios in a chooser, and these
    * are prefixes of it rather than the whole string.
@@ -252,9 +252,9 @@ export const UV5RM_BLE: BluetoothProfile = {
 export const UV5RM_AE30_ECHO: BluetoothProfile = {
   id: 'uv5rm-ae30-echo',
   label: 'Baofeng AE30 — echoes what is written to it',
-  service: normaliseUuid('ae30'),
-  write: normaliseUuid('ae01'),
-  notify: normaliseUuid('ae02'),
+  service: normalizeUuid('ae30'),
+  write: normalizeUuid('ae01'),
+  notify: normalizeUuid('ae02'),
   namePrefixes: [],
   verified: false,
 }
@@ -332,7 +332,7 @@ const BL1_NAME_PREFIXES: readonly string[] = [
 export const TIDRADIO_BL1_FF00: BluetoothProfile = {
   id: 'tidradio-bl1-ff00',
   label: 'TIDRADIO dongle (FF00 vendor serial)',
-  service: normaliseUuid('ff00'),
+  service: normalizeUuid('ff00'),
   /*
    * FF02/FF01, not the pair that answers.
    *
@@ -344,8 +344,8 @@ export const TIDRADIO_BL1_FF00: BluetoothProfile = {
    * which is true, instead of misreporting a protocol error against bytes
    * the radio never sent.
    */
-  write: normaliseUuid('ff02'),
-  notify: normaliseUuid('ff01'),
+  write: normalizeUuid('ff02'),
+  notify: normalizeUuid('ff01'),
   /*
    * BF98 is what the `BF_Writer` broadcasts, and it is not FF00.
    *
@@ -355,7 +355,7 @@ export const TIDRADIO_BL1_FF00: BluetoothProfile = {
    * this file warns about. FF00 stays here too because the TD-PTT fob does
    * advertise it, and both go in the filter.
    */
-  advertisedServices: [normaliseUuid('ff00'), normaliseUuid('bf98')],
+  advertisedServices: [normalizeUuid('ff00'), normalizeUuid('bf98')],
   namePrefixes: BL1_NAME_PREFIXES,
   radioLink: 'serial',
   /*
@@ -389,9 +389,9 @@ export const TIDRADIO_BL1_FF00: BluetoothProfile = {
 export const TIDRADIO_FF22_PER_BYTE: BluetoothProfile = {
   id: 'tidradio-ff22-per-byte',
   label: 'TIDRADIO FF22 — answers one byte per byte, not a data path',
-  service: normaliseUuid('ff00'),
-  write: normaliseUuid('ff22'),
-  notify: normaliseUuid('ff21'),
+  service: normalizeUuid('ff00'),
+  write: normalizeUuid('ff22'),
+  notify: normalizeUuid('ff21'),
   namePrefixes: [],
   radioLink: 'serial',
   verified: false,
@@ -400,9 +400,9 @@ export const TIDRADIO_FF22_PER_BYTE: BluetoothProfile = {
 export const TIDRADIO_BL1_FFE0: BluetoothProfile = {
   id: 'tidradio-bl1-ffe0',
   label: 'TIDRADIO dongle (HM-10 transparent serial)',
-  service: normaliseUuid('ffe0'),
-  write: normaliseUuid('ffe1'),
-  notify: normaliseUuid('ffe1'),
+  service: normalizeUuid('ffe0'),
+  write: normalizeUuid('ffe1'),
+  notify: normalizeUuid('ffe1'),
   namePrefixes: BL1_NAME_PREFIXES,
   radioLink: 'serial',
   verified: false,
@@ -466,10 +466,10 @@ export function parseBluetoothProfile(spec: string): BluetoothProfile {
     )
   }
 
-  const service = normaliseUuid(parts[0]!)
-  const write = normaliseUuid(parts[1]!)
+  const service = normalizeUuid(parts[0]!)
+  const write = normalizeUuid(parts[1]!)
   // A two-part spec is the HM-10 shape: one characteristic, both directions.
-  const notify = normaliseUuid(parts[2] ?? parts[1]!)
+  const notify = normalizeUuid(parts[2] ?? parts[1]!)
 
   /*
    * No name filter on a hand-entered profile. Somebody pasting UUIDs is
@@ -506,7 +506,7 @@ export function parseBluetoothProfile(spec: string): BluetoothProfile {
  *
  * `resetBluetoothProfile` used to assign `NORDIC_UART` literally. That was
  * right when it was written and Nordic was the default; two commits later the
- * initialiser was a captured profile and the reset was never touched. And
+ * initializer was a captured profile and the reset was never touched. And
  * `resolveBluetoothProfile()` calls the reset on **every load carrying no
  * `?ble=` override** - which is every ordinary one - so the shipped app spent
  * every session filtering its chooser on a service nobody has seen advertised,

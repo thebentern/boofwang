@@ -598,7 +598,7 @@ function stage() {
             What it takes to be allowed to transmit here, stated once and not
             enforced. A per-row "allowed" chip said nothing useful - it was
             "allowed" on every row of every set - while the thing that actually
-            varies is the licence, and that is not something a codeplug editor
+            varies is the license, and that is not something a codeplug editor
             can check or should pretend to police.
           -->
           <div
@@ -611,7 +611,7 @@ function stage() {
               style="width: 14px; height: 14px; color: var(--fn); margin-top: 1px"
             />
             <p style="margin: 0; font-size: 13px; line-height: 1.55; color: var(--mu); max-width: 72ch">
-              {{ selectedSet.licence }}
+              {{ selectedSet.license }}
               <span style="color: var(--fn)"> You are responsible for what you transmit.</span>
             </p>
           </div>
@@ -622,7 +622,7 @@ function stage() {
             Written onto every staged channel as `provenance.attribution` since
             the model existed, and shown nowhere until now. For the bundled sets
             that was a small omission. For a fetched set it is not: credit is
-            what boofwang offers in place of a licence it does not have, and
+            what boofwang offers in place of a license it does not have, and
             credit nobody can see is not credit. See docs/provenance.md.
           -->
           <p

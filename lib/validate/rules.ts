@@ -23,10 +23,10 @@ import { validateReferences } from './references.js'
  * that states the rule and gets out of the way. Transmitting into a
  * receive-only allocation is a serious thing to do and the warning says so in
  * as many words - but it is a licensing question, not a hardware one, and this
- * tool is not the licensing authority. Operators hold the licence, the site
+ * tool is not the licensing authority. Operators hold the license, the site
  * carries the disclaimer, and there are legitimate reasons to program a
  * frequency this table calls receive-only: a different country's allocation, a
- * commercial licence, MARS/CAP, or a receiver that simply never transmits.
+ * commercial license, MARS/CAP, or a receiver that simply never transmits.
  * Blocking the write did not prevent any of that. It only meant the remedy on
  * offer was to discard the intent - `runFix` in the channel table marks every
  * affected slot receive-only - or to give up on the tool.
@@ -112,7 +112,7 @@ export function validateChannel(
       })
     } else if (!txBand.txAllowed) {
       // The air band is the case that matters: AM aviation spectrum, which no
-      // amateur licence authorises transmitting on. Said plainly, and left to
+      // amateur license authorises transmitting on. Said plainly, and left to
       // the operator - see the note at the top of this file for why this warns
       // rather than blocks.
       out.push({
@@ -122,7 +122,7 @@ export function validateChannel(
         field: 'tx',
         message:
           `This channel can transmit on ${mhz(txHz)}, in the ${txBand.label} band, which this radio's ` +
-          'band plan marks receive-only. Check your licence before transmitting here; ' +
+          'band plan marks receive-only. Check your license before transmitting here; ' +
           'marking the channel receive-only will silence this.',
       })
     }

@@ -6,7 +6,7 @@ import {
   BOOT_IMAGE_HEIGHT,
   BOOT_IMAGE_WIDTH,
   BootImageError,
-  centreCrop,
+  centerCrop,
   cropRect,
   DEFAULT_FRAMING,
   decodeBootImage,
@@ -36,7 +36,7 @@ function rgba(width: number, height: number, at: (x: number, y: number) => Rgba)
   return out
 }
 
-const solid = (width: number, height: number, colour: Rgba) => rgba(width, height, () => colour)
+const solid = (width: number, height: number, color: Rgba) => rgba(width, height, () => color)
 
 /** The 16-bit word for pixel `i`, low byte first. */
 const wordAt = (bytes: Uint8Array, i: number) => bytes[i * 2]! | (bytes[i * 2 + 1]! << 8)
@@ -75,7 +75,7 @@ describe('RGB565', () => {
      * The specification calls the format BGR565 - twice, with no diagram and no
      * byte order - and decoding the factory splash as BGR565 produced a gold
      * BAOFENG logo, which looked right because Baofeng's logo is orange. It was
-     * not right. Writing a colour chart to a real radio and looking at the
+     * not right. Writing a color chart to a real radio and looking at the
      * panel put red at the top only when red was encoded in the HIGH bits. The
      * factory splash therefore displays blue on the radio, and the render that
      * looked correct was the wrong one.
@@ -95,10 +95,10 @@ describe('RGB565', () => {
     // Exact, not approximate: 0 and 255 are the two values 5 bits can represent
     // perfectly, so a swap or a rounding mistake shows up as a whole channel
     // moving rather than as a shade.
-    for (const colour of [RED, GREEN, BLUE]) {
-      const back = decodeBootImage(encodeBootImage(solid(240, 320, colour), 240, 320))
-      expect(pixelAt(back.rgba, 0, 0)).toEqual(colour)
-      expect(pixelAt(back.rgba, BOOT_IMAGE_WIDTH - 1, BOOT_IMAGE_HEIGHT - 1)).toEqual(colour)
+    for (const color of [RED, GREEN, BLUE]) {
+      const back = decodeBootImage(encodeBootImage(solid(240, 320, color), 240, 320))
+      expect(pixelAt(back.rgba, 0, 0)).toEqual(color)
+      expect(pixelAt(back.rgba, BOOT_IMAGE_WIDTH - 1, BOOT_IMAGE_HEIGHT - 1)).toEqual(color)
     }
   })
 })
@@ -134,7 +134,7 @@ describe('encodeBootImage', () => {
 
     const half = decodeBootImage(encodeBootImage(solid(240, 320, [255, 255, 255, 128]), 240, 320))
     // Mid grey, within the step size of a 5-bit channel. Not exactly equal
-    // across the three: green has an extra bit and quantises differently.
+    // across the three: green has an extra bit and quantizes differently.
     for (const channel of pixelAt(half.rgba, 0, 0).slice(0, 3)) {
       expect(channel).toBeGreaterThan(120)
       expect(channel).toBeLessThan(140)
@@ -171,15 +171,15 @@ describe('decodeBootImage', () => {
 })
 
 describe('scale and crop', () => {
-  it('takes the largest centred rectangle with the shape of the screen', () => {
-    expect(centreCrop(480, 320)).toEqual({ x: 120, y: 0, width: 240, height: 320 })
-    expect(centreCrop(240, 640)).toEqual({ x: 0, y: 160, width: 240, height: 320 })
-    expect(centreCrop(240, 320)).toEqual({ x: 0, y: 0, width: 240, height: 320 })
-    expect(centreCrop(1200, 1600)).toEqual({ x: 0, y: 0, width: 1200, height: 1600 })
+  it('takes the largest centered rectangle with the shape of the screen', () => {
+    expect(centerCrop(480, 320)).toEqual({ x: 120, y: 0, width: 240, height: 320 })
+    expect(centerCrop(240, 640)).toEqual({ x: 0, y: 160, width: 240, height: 320 })
+    expect(centerCrop(240, 320)).toEqual({ x: 0, y: 0, width: 240, height: 320 })
+    expect(centerCrop(1200, 1600)).toEqual({ x: 0, y: 0, width: 1200, height: 1600 })
   })
 
   it('drops the sides of a landscape source rather than squeezing them in', () => {
-    // Red everywhere the centre crop should discard, green inside it. A
+    // Red everywhere the center crop should discard, green inside it. A
     // stretch keeps the red; a crop cannot.
     const source = rgba(480, 320, (x) => (x >= 120 && x < 360 ? GREEN : RED))
     expect(words(encodeBootImage(source, 480, 320)).every((w) => w === 0x07e0)).toBe(true)
@@ -223,11 +223,11 @@ describe('scale and crop', () => {
  *
  * `docs/protocols/dm32uv.md` has the session. Rendering the same bytes as
  * RGB565 produced the identical splash with the logo blue - perfect layout,
- * legible text, wrong colour - which is exactly why this is a test and not a
+ * legible text, wrong color - which is exactly why this is a test and not a
  * comment.
  */
 describe('what a real DM-32UV showed on its own panel', () => {
-  it('puts red at the top of a colour chart, which is how the channel order was settled', () => {
+  it('puts red at the top of a color chart, which is how the channel order was settled', () => {
     // A chart of solid bands was written to a radio and photographed by eye.
     // Encoded with blue in the high bits the top band came out blue; encoded
     // with red in the high bits it came out red. The panel is the only
@@ -250,15 +250,15 @@ describe('what a real DM-32UV showed on its own panel', () => {
 /**
  * Framing: where in the source the picture is taken from.
  *
- * A fixed centre crop is the wrong answer often enough to matter - the subject
+ * A fixed center crop is the wrong answer often enough to matter - the subject
  * of a photograph is usually not in the middle, and a logo on a wide banner is
- * nowhere near it - so the crop takes a zoom and a centre. The maths lives here
+ * nowhere near it - so the crop takes a zoom and a center. The maths lives here
  * rather than in the component because a rectangle that drifts outside the
  * source produces black edges, and that is worth a test rather than an eye.
  */
 describe('cropRect', () => {
-  it('is the centre crop when nothing has been moved', () => {
-    expect(cropRect(640, 480, DEFAULT_FRAMING)).toEqual(centreCrop(640, 480))
+  it('is the center crop when nothing has been moved', () => {
+    expect(cropRect(640, 480, DEFAULT_FRAMING)).toEqual(centerCrop(640, 480))
   })
 
   it('takes less of the source as the zoom goes up', () => {
@@ -279,7 +279,7 @@ describe('cropRect', () => {
     // Dragging past the corner must stop the frame, not show blank: a crop
     // outside the source samples nothing and comes out black.
     for (const [cx, cy] of [[0, 0], [1, 1], [-5, 9], [0.5, 0]]) {
-      const r = cropRect(640, 480, { zoom: 2, centreX: cx!, centreY: cy! })
+      const r = cropRect(640, 480, { zoom: 2, centerX: cx!, centerY: cy! })
       expect(r.x).toBeGreaterThanOrEqual(0)
       expect(r.y).toBeGreaterThanOrEqual(0)
       expect(r.x + r.width).toBeLessThanOrEqual(640 + 1e-9)
@@ -289,11 +289,11 @@ describe('cropRect', () => {
 
   it('refuses to zoom out past the whole frame', () => {
     // Below 1 there is no more source to show, only padding.
-    expect(cropRect(640, 480, { ...DEFAULT_FRAMING, zoom: 0.25 })).toEqual(centreCrop(640, 480))
+    expect(cropRect(640, 480, { ...DEFAULT_FRAMING, zoom: 0.25 })).toEqual(centerCrop(640, 480))
   })
 
   it('survives nonsense without producing a rectangle outside the source', () => {
-    const r = cropRect(640, 480, { zoom: Number.NaN, centreX: Number.NaN, centreY: Infinity })
+    const r = cropRect(640, 480, { zoom: Number.NaN, centerX: Number.NaN, centerY: Infinity })
     expect(Number.isFinite(r.x) && Number.isFinite(r.width)).toBe(true)
     expect(r.x + r.width).toBeLessThanOrEqual(640 + 1e-9)
   })
@@ -310,8 +310,8 @@ describe('cropRect', () => {
         rgba[i + 3] = 255
       }
     }
-    const left = decodeBootImage(encodeBootImage(rgba, w, h, { zoom: 2, centreX: 0, centreY: 0.5 }))
-    const right = decodeBootImage(encodeBootImage(rgba, w, h, { zoom: 2, centreX: 1, centreY: 0.5 }))
+    const left = decodeBootImage(encodeBootImage(rgba, w, h, { zoom: 2, centerX: 0, centerY: 0.5 }))
+    const right = decodeBootImage(encodeBootImage(rgba, w, h, { zoom: 2, centerX: 1, centerY: 0.5 }))
     expect([left.rgba[0], left.rgba[1], left.rgba[2]]).toEqual([255, 0, 0])
     expect([right.rgba[0], right.rgba[1], right.rgba[2]]).toEqual([0, 255, 0])
   })

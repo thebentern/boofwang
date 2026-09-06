@@ -245,7 +245,7 @@ export function encodeInto(mem: Uint8Array, doc: Codeplug): void {
       continue
     }
     // A slot that is already empty is left exactly as the radio had it.
-    // Normalising it would rewrite bytes nobody asked to change: this radio
+    // Normalizing it would rewrite bytes nobody asked to change: this radio
     // ships with scanlist bits set in the attribute byte of unused slots, and
     // "tidying" those breaks the round-trip invariant for no benefit. Erasing
     // is for a channel the user actually deleted.

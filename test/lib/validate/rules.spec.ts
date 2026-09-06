@@ -58,7 +58,7 @@ describe.each(RADIOS)('$id', ({ schema }) => {
   })
 
   it('refuses a transmit frequency outside every band, which reading rxFreq cannot see', () => {
-    // Receives legally; a split parks transmit on CB, which no amateur licence
+    // Receives legally; a split parks transmit on CB, which no amateur license
     // covers and no band on any of these radios reaches.
     const found = validateChannel(
       ordinary(schema, { tx: { kind: 'split', txFreq: hz(27_185_000) } }),

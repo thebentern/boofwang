@@ -29,27 +29,27 @@ import type { PortChoice } from '~/composables/useWebSerial'
  */
 
 /**
- * The plugin is initialised once. On Android this is also where the runtime
+ * The plugin is initialized once. On Android this is also where the runtime
  * permission dialogue appears, and the flag has to agree with the manifest's
  * `neverForLocation` on BLUETOOTH_SCAN - test/app/mobile-config.spec.ts holds
  * the two together, because when they disagree the scan silently lists
  * nothing.
  */
-let initialised: Promise<void> | null = null
-function initialise(): Promise<void> {
-  initialised ??= BleClient.initialize({ androidNeverForLocation: true }).catch((e: unknown) => {
-    initialised = null
+let initialized: Promise<void> | null = null
+function initialize(): Promise<void> {
+  initialized ??= BleClient.initialize({ androidNeverForLocation: true }).catch((e: unknown) => {
+    initialized = null
     throw e
   })
-  return initialised
+  return initialized
 }
 
 /** What the support card needs to know: is there an adapter, and may we use it. */
 export async function nativeBluetoothProbe(): Promise<Pick<BluetoothProbe, 'adapterAvailable' | 'permission'>> {
   try {
-    await initialise()
+    await initialize()
   } catch {
-    // The plugin refuses to initialise when the permission was denied, and
+    // The plugin refuses to initialize when the permission was denied, and
     // that is the only way it says so.
     return { permission: 'denied', adapterAvailable: null }
   }
@@ -118,7 +118,7 @@ async function linkTo(
 export async function requestNativeBluetoothRadio(
   opts: { everyDevice?: boolean; profiles?: readonly BluetoothProfile[]; withDefault?: boolean } = {},
 ): Promise<PortChoice | null> {
-  await initialise()
+  await initialize()
   const { resolved, candidates } = candidatesFor(opts)
 
   const chooser = useBleChooserStore()
@@ -161,7 +161,7 @@ function toAdvertisement(r: ScanResult) {
  */
 export async function reconnectNativeBluetoothRadio(): Promise<PortChoice | null> {
   if (!granted) return null
-  await initialise()
+  await initialize()
   const resolved = resolveBluetoothProfile()
   const candidates = resolved.overridden ? [resolved.profile] : [granted.profile]
   await granted.link.closed

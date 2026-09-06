@@ -6,7 +6,7 @@ import { commitUrl, describeAge, formatBuild } from '#core/version/build.js'
  * plus the one place that asks for anything back.
  *
  * Prose column, 720px. Everything here is a claim someone can check, so the
- * credits carry their licence and a link to the upstream work rather than a
+ * credits carry their license and a link to the upstream work rather than a
  * thank-you list - the GPL obliges anyone redistributing boofwang to be able to
  * trace where its knowledge of each radio came from, and `docs/provenance.md`
  * is the long form of this section.
@@ -55,19 +55,19 @@ const checkedAge = computed(() => (update.lastCheckedAt ? describeAge(update.las
 const credits = [
   {
     name: 'CHIRP',
-    licence: 'GPL-3.0',
+    license: 'GPL-3.0',
     url: 'https://chirpmyradio.com/',
     what: 'Memory layouts and protocol details for the UV-K5 and UV-5R Mini were transcribed from its drivers, and its stock channel configurations are the source of the bundled FRS/GMRS/MURS/weather presets.',
   },
   {
     name: 'DM-32UV Protocol Specification',
-    licence: 'MIT',
+    license: 'MIT',
     url: 'https://github.com/infamy/DM32-Protocol-Spec',
     what: 'The only public documentation of the DM-32UV serial protocol and memory layout. Everything boofwang knows about that radio starts here.',
   },
   {
     name: 'UV-K5 reverse engineering notes',
-    licence: 'CC-BY-SA-4.0',
+    license: 'CC-BY-SA-4.0',
     url: 'https://github.com/sq5bpf/uvk5-reverse-engineering',
     what: 'Jacek Lipkowski SQ5BPF’s original work on the UV-K5 framing, obfuscation and EEPROM map.',
   },
@@ -256,7 +256,7 @@ const credits = [
             <span
               class="chip font-mono"
               style="color: var(--fn); border: 1px solid var(--ln)"
-            >{{ credit.licence }}</span>
+            >{{ credit.license }}</span>
           </div>
           <p style="font-size: 13.5px; line-height: 1.55; color: var(--mu)">{{ credit.what }}</p>
         </div>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { NO_TONE } from '../model/tones.js'
 import { distanceKm, isUsableCoord } from './geo.js'
-import { isStorableColorCode, parseMHzField, txSpecFor } from './normalise.js'
+import { isStorableColorCode, parseMHzField, txSpecFor } from './normalize.js'
 import type {
   JsonFetcher,
   RepeaterRecord,
@@ -77,7 +77,7 @@ function toRecord(raw: RawDevice): RepeaterRecord | SourceIssue {
       ref,
       severity: 'error',
       message:
-        `${callsign || ref} publishes colour code ${String(cc)}, which is outside the 0 to 15 DMR range `
+        `${callsign || ref} publishes color code ${String(cc)}, which is outside the 0 to 15 DMR range `
         + 'and cannot be stored.',
     }
   }

@@ -144,7 +144,7 @@ function apply() {
       -->
       <p v-if="source" style="margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: var(--mu)">
         <span class="label-xs" style="color: var(--fn)">Source</span>
-        {{ source.attribution }} · {{ source.licence }}
+        {{ source.attribution }} · {{ source.license }}
       </p>
 
       <div style="max-height: 260px; overflow-y: auto">

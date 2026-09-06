@@ -64,7 +64,7 @@ export const UV5G_SCHEMA: RadioSchema = {
      * first transmit-capable band, which lands it on GMRS 15 rather than an
      * arbitrary band edge.
      *
-     * Receive-only here is the firmware's rule, not just the licence: this
+     * Receive-only here is the firmware's rule, not just the license: this
      * radio is sold as Part 95E certified, transmitting on GMRS channels only,
      * with wideband receive. That claim comes from the vendor and the
      * certification, not from keying the radio on the bench - boofwang has no

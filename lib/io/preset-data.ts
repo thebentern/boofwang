@@ -128,12 +128,12 @@ export interface PresetSet {
   /**
    * What it takes to be allowed to transmit on this set, in one line.
    *
-   * Stated and not enforced. Whether someone holds the licence is not something
+   * Stated and not enforced. Whether someone holds the license is not something
    * a codeplug editor can know or should pretend to police - it can say what
    * the rule is and let the operator, who is the one responsible for what they
    * transmit, get on with it.
    */
-  readonly licence: string
+  readonly license: string
   /** Channel spacing the plan uses; the driver picks the nearest step it actually has. */
   readonly stepHz: Hz
   /** Why transmit is off, when it is. Shown by the channel editor instead of a bare grey field. */
@@ -197,14 +197,14 @@ function listenOnly(name: string, mhz: number, bandwidthHz: number): PresetChann
 
 const GMRS: PresetSet = {
   id: 'gmrs',
-  licence: 'An FCC GMRS licence (Part 95E) covers you and your immediate family. No exam.',
+  license: 'An FCC GMRS license (Part 95E) covers you and your immediate family. No exam.',
   group: 'us',
   name: 'GMRS — 15 channels + 8 repeater pairs',
   shortName: 'GMRS',
   icon: 'i-lucide-users',
   source: 'Bundled',
   description:
-    'The Part 95E channels a GMRS licence covers: 1-7 and 15-22, which are shared with FRS and interoperate '
+    'The Part 95E channels a GMRS license covers: 1-7 and 15-22, which are shared with FRS and interoperate '
     + 'directly, plus the eight 462/467 MHz repeater pairs, which carry a 141.3 Hz tone by convention. '
     + 'Channels 8-14 are FRS-only and are not included.',
   attribution: '47 CFR 95 Subpart E',
@@ -220,7 +220,7 @@ const GMRS: PresetSet = {
     simplex('GMRS 7', 462.7125, 5, BW_20K),
     // Channels 8-14 are deliberately absent. The 467 MHz interstitials are
     // FRS-only: a GMRS licensee may not transmit there at all, so a GMRS set
-    // that carried them would be offering channels the licence does not cover.
+    // that carried them would be offering channels the license does not cover.
     // Channels 1-7 and 15-22 are shared with FRS and interoperate directly.
     // 15-22: the main GMRS channels, 50 W.
     simplex('GMRS 15', 462.55, 50, BW_20K),
@@ -245,7 +245,7 @@ const GMRS: PresetSet = {
 
 const NOAA: PresetSet = {
   id: 'noaa',
-  licence: 'Receive only — these are NOAA broadcast transmitters. There is nothing to transmit to.',
+  license: 'Receive only — these are NOAA broadcast transmitters. There is nothing to transmit to.',
   group: 'us',
   name: 'NOAA weather — 7 channels',
   shortName: 'NOAA weather',
@@ -270,7 +270,7 @@ const NOAA: PresetSet = {
 
 const MURS: PresetSet = {
   id: 'murs',
-  licence: 'No licence needed. MURS is licence-free under Part 95J, at 2 W and on these five channels only.',
+  license: 'No license needed. MURS is license-free under Part 95J, at 2 W and on these five channels only.',
   group: 'us',
   name: 'MURS — 5 channels',
   shortName: 'MURS',
@@ -291,7 +291,7 @@ const MURS: PresetSet = {
 
 const BAND_2M: PresetSet = {
   id: 'band2m',
-  licence: 'An amateur radio licence — Technician or above in the US — and your callsign on air.',
+  license: 'An amateur radio license — Technician or above in the US — and your callsign on air.',
   group: 'us',
   name: '2 m band plan — ARRL',
   shortName: '2 m band plan',
@@ -313,7 +313,7 @@ const BAND_2M: PresetSet = {
 
 const BAND_70CM: PresetSet = {
   id: 'band70cm',
-  licence: 'An amateur radio licence — Technician or above in the US — and your callsign on air.',
+  license: 'An amateur radio license — Technician or above in the US — and your callsign on air.',
   group: 'us',
   name: '70 cm band plan — ARRL',
   shortName: '70 cm band plan',
@@ -340,7 +340,7 @@ const BAND_70CM: PresetSet = {
 
 const UK_PMR446: PresetSet = {
   id: 'ukpmr',
-  licence: 'No licence needed in the UK and most of Europe. 500 mW and the supplied antenna only.',
+  license: 'No license needed in the UK and most of Europe. 500 mW and the supplied antenna only.',
   group: 'other',
   name: 'UK PMR446 — 16 channels',
   shortName: 'UK PMR446',

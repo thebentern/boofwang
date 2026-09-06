@@ -873,7 +873,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
     },
 
     /**
-     * Serialise a codeplug onto a copy of the image it came from.
+     * Serialize a codeplug onto a copy of the image it came from.
      *
      * Channel records, zone names, talk groups and key slots are written;
      * every other byte of every block comes through from the base untouched,
@@ -1315,7 +1315,7 @@ export function encodeChannel(data: Uint8Array, offset: number, ch: Channel, rad
   const current = DM32_CHANNEL.read(data, offset)
 
   // Preserve whichever analog/digital spelling the radio already used: the mode
-  // nibble has two values for each, and normalising them would rewrite bytes to
+  // nibble has two values for each, and normalizing them would rewrite bytes to
   // say what they already said.
   const wasDigital = current.mode.channelMode === 1 || current.mode.channelMode === 3
   const channelMode = wasDigital === digital ? current.mode.channelMode : digital ? 1 : 0
@@ -1840,7 +1840,7 @@ export { blockIds, isAllocated }
  * Scan lists, block 0x11.
  *
  * Bounded by the count byte rather than by scanning for an empty record. This
- * radio's records 3-7 are initialised blank templates - name of eleven 0xFF,
+ * radio's records 3-7 are initialized blank templates - name of eleven 0xFF,
  * hang time 1 - so "stop at the first empty record" and "stop at the count"
  * happen to agree here, but only the count is correct in general.
  */
@@ -2480,7 +2480,7 @@ export function decodeRoamChannels(image: RadioImage): Codeplug['roamChannels'] 
       name,
       rxFreq: hz(rec.rxFreq),
       txFreq: hz(rec.txFreq),
-      colorCode: rec.colour.colorCode,
+      colorCode: rec.color.colorCode,
       timeSlot: rec.slot.timeSlot === 1 ? 2 : 1,
     })
   }
@@ -2509,7 +2509,7 @@ export function encodeRoamChannels(image: RadioImage, channels: Codeplug['roamCh
       rxFreq: entry.rxFreq,
       txFreq: entry.txFreq,
       // Only the bits that are understood; the rest of each byte survives.
-      colour: { colorCode: entry.colorCode & 0x0f },
+      color: { colorCode: entry.colorCode & 0x0f },
       slot: { timeSlot: entry.timeSlot === 2 ? 1 : 0 },
     })
   }

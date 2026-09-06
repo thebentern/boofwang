@@ -10,17 +10,17 @@ import {
 } from '#core/model/encryption.js'
 
 describe('validateKeyHex', () => {
-  it('accepts a full AES-256 key and normalises it', () => {
+  it('accepts a full AES-256 key and normalizes it', () => {
     const r = validateKeyHex('aes256', '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff')
     expect(r.ok).toBe(true)
-    expect(r.normalised).toBe('00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF')
+    expect(r.normalized).toBe('00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF')
   })
 
   it('tolerates the separators people paste', () => {
     const spaced = validateKeyHex('aes128', '00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff')
     const colons = validateKeyHex('aes128', '00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff')
     expect(spaced.ok).toBe(true)
-    expect(colons.normalised).toBe(spaced.normalised)
+    expect(colons.normalized).toBe(spaced.normalized)
   })
 
   it('rejects a key that is one nibble short', () => {
@@ -102,10 +102,10 @@ describe('encryptionLegality', () => {
     expect(encryptionLegality(162_550_000).allowed).toBe(false)
   })
 
-  it('permits it on land mobile, while naming the licence needed', () => {
+  it('permits it on land mobile, while naming the license needed', () => {
     const r = encryptionLegality(464_500_000)
     expect(r.allowed).toBe(true)
-    expect(r.reason).toMatch(/Part 90 land-mobile|licence that authorises/)
+    expect(r.reason).toMatch(/Part 90 land-mobile|license that authorizes/)
     expect(r.reason).toMatch(/You are responsible/)
   })
 })
