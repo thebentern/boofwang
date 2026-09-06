@@ -48,7 +48,7 @@ export interface PresetChannel {
    */
   readonly txAllowed: boolean
   readonly tone: TonePair
-  /** Authorised bandwidth in hertz, as the rules write it rather than as "wide"/"narrow". */
+  /** Authorized bandwidth in hertz, as the rules write it rather than as "wide"/"narrow". */
   readonly bandwidthHz: number
   /**
    * The transmit limit the rule sets, before any radio is involved.
@@ -141,7 +141,7 @@ export interface PresetSet {
   readonly channels: readonly PresetChannel[]
 }
 
-// Authorised bandwidths, in hertz. Named because 11_250 and 12_500 are one
+// Authorized bandwidths, in hertz. Named because 11_250 and 12_500 are one
 // digit apart and mean different rules.
 const BW_25K = 25_000
 const BW_20K = 20_000
@@ -378,7 +378,7 @@ export const PRESET_SETS: readonly PresetSet[] = [GMRS, NOAA, MURS, BAND_2M, BAN
  *
  * `saved` is listed even though nothing fills it yet: the group is where a
  * saved set will appear, and an empty heading that says so is more useful than
- * a heading that materialises the first time something is saved.
+ * a heading that materializes the first time something is saved.
  */
 export const PRESET_GROUPS: readonly { readonly id: PresetGroupId; readonly label: string }[] = [
   { id: 'us', label: 'United States' },

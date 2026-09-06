@@ -6,7 +6,7 @@ import { CHIRP_ATTRS, CHIRP_CHANNELS, buildEeprom, imageFrom, type FixtureChanne
 
 /**
  * Generates a realistic 200-channel image for manual UI checks: the channel
- * table's virtualisation, the diagnostics summary and the receive-only styling
+ * table's virtualization, the diagnostics summary and the receive-only styling
  * are all things you have to look at rather than assert.
  *
  * Skipped unless BOOFWANG_FIXTURE is set, so a normal run writes nothing.

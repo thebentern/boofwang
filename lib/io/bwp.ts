@@ -160,7 +160,7 @@ export async function decodeBwp(data: Uint8Array): Promise<RadioImage> {
   }
 }
 
-/** Read a `.bwp` header without materialising the payload, for a file listing. */
+/** Read a `.bwp` header without materializing the payload, for a file listing. */
 export function peekBwpHeader(data: Uint8Array): BwpHeader | null {
   if (!looksLikeBwp(data)) return null
   const headerLen = data[6]! | (data[7]! << 8)

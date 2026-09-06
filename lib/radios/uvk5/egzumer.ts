@@ -252,7 +252,7 @@ export function decodeEgzumerChannel(mem: Uint8Array, i: number, build: BuildOpt
  * Values above 2 are not ones the firmware produces. CHIRP logs them and falls
  * back to FM, which is what happens here too - with one deliberate difference:
  * CHIRP also discards the bandwidth bit in that case, and this does not, so an
- * unrecognised record still round-trips the narrow flag it was found with
+ * unrecognized record still round-trips the narrow flag it was found with
  * rather than being rewritten as wide.
  */
 function decodeModulation(nibble: number): Modulation {

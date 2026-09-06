@@ -237,7 +237,7 @@ export async function sayHello(t: Transport, tries = 5, opts?: FramingOpts): Pro
       }
       const firmware = parseFirmwareString(reply)
       // An empty string means no terminator was found in the reply, so nothing
-      // in it looks like a firmware version. Treating that as an unrecognised
+      // in it looks like a firmware version. Treating that as an unrecognized
       // *firmware* would be wrong and actively misleading - it points at the
       // radio's software when the real problem is that this is not a firmware
       // reply at all.

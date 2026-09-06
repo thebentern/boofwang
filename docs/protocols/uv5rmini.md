@@ -67,7 +67,7 @@ A channel is unused when its **first byte alone** is 0xFF. Transmit is
 inhibited when all four transmit-frequency bytes are 0xFF **or** all four are
 0x00. That two-spelling rule is `baofeng_common.py`'s `_is_txinh` and it is
 family-specific: the classic UV-5R family's (`uv5r.py`) accepts only the 0xFF
-spelling, which is why the UV-82 driver canonicalises a zero filling on any
+spelling, which is why the UV-82 driver canonicalizes a zero filling on any
 record it changes and this driver can keep either spelling as found. AM is not
 stored anywhere: it is derived from the receive frequency falling in the air
 band.
@@ -210,7 +210,7 @@ configuration.
 ### Feature write session, 2026-08-20
 
 Five channels were programmed at once to exercise every path that had only ever
-been checked against synthesised records, then read back and parsed with
+been checked against synthesized records, then read back and parsed with
 **CHIRP's own bitwise engine** rather than this codebase's decoder:
 
 | Path | What CHIRP read back |

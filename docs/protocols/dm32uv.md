@@ -993,7 +993,7 @@ from which lists the store actually mutates rather than from a hand-kept list.
 `writeScope` had drifted behind `writeTargets` for the third time, each time
 claiming *less* than the driver writes — the direction that reads as safe and is
 not, because it tells someone a restore rolls back more than it can. A test now
-checks every parenthesised noun the writer emits appears in the sentence.
+checks every parenthesized noun the writer emits appears in the sentence.
 
 ## The startup image - the converter and the region
 
@@ -1257,7 +1257,7 @@ list membership since. The stale paragraph is corrected in place.
   first is 608 bytes holding exactly one non-zero byte, and the second is six
   bytes with no structure to infer.
 - The meaning of 22 allocated blocks — twice attempted, and now positively
-  characterised as not-codeplug rather than merely unread. See above.
+  characterized as not-codeplug rather than merely unread. See above.
 - **What the two block 0x03 reference fields point at.** Five pairs from four
   values that match nothing else in the codeplug.
 - **The polarity of the menu enable bits** at `0x500-0x507`. Set-means-shown is

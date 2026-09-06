@@ -98,7 +98,7 @@ const CLASSIC_FAMILY: readonly { radioId: RadioId; rclass: readonly string[]; mo
  * is the same fact the ident magic establishes over a cable. The size still
  * has to match; a claim on the wrong number of bytes is treated as no
  * information, and the file falls through to the ordinary size lookup - the
- * same fallback an unrecognised UV-K5 firmware string takes.
+ * same fallback an unrecognized UV-K5 firmware string takes.
  */
 function classicLayoutFor(metadata: ChirpMetadata, memoryLength: number): RawLayout | null {
   const member = CLASSIC_FAMILY.find(

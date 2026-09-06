@@ -125,7 +125,7 @@ describe('readFrame', () => {
     await t.close()
   })
 
-  it('rejects a bad header rather than resynchronising on it', async () => {
+  it('rejects a bad header rather than resynchronizing on it', async () => {
     const { t } = await withReply('ffff0400' + '00000000' + '0000dcba')
     await expect(readFrame(t, { timeoutMs: 300 })).rejects.toBeInstanceOf(ProtocolError)
     await t.close()
@@ -318,7 +318,7 @@ describe('a cable that echoes instead of a radio that answers', () => {
    * PL2303 cable, put every transmitted byte back on the receive line. The echo
    * is a structurally perfect frame - right header, right footer, valid CRC -
    * so every validation layer accepted it, and the echoed hello decoded to an
-   * empty firmware string, which surfaced as "unrecognised firmware". That sent
+   * empty firmware string, which surfaced as "unrecognized firmware". That sent
    * the user looking for a firmware problem when the radio simply was not
    * talking.
    */

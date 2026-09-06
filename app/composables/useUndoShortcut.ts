@@ -30,7 +30,7 @@ import { useCodeplugStore } from '~/stores/codeplug'
  * two of them open at once must not have the first to close speak for both.
  *
  * State rather than a query for the open field, because the field is focused a
- * tick or more after it opens - the channel table's virtualiser has to mount
+ * tick or more after it opens - the channel table's virtualizer has to mount
  * the row first, which can follow a two-hundred-row scroll - and for that
  * window the editor is open without being either rendered or focused.
  */

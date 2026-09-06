@@ -17,8 +17,8 @@ can still package the app.
 
 | | Unsigned | Signed | Signed and notarized |
 |---|---|---|---|
-| macOS first run | "cannot be opened because the developer cannot be verified", with no Open button in the dialogue | Same dialogue, but right-click → Open works cleanly | Opens normally |
-| Windows first run | SmartScreen "unrecognised app", Run anyway is behind "More info" | Warning fades as the certificate builds reputation; EV certificates start clean | n/a |
+| macOS first run | "cannot be opened because the developer cannot be verified", with no Open button in the dialog | Same dialog, but right-click → Open works cleanly | Opens normally |
+| Windows first run | SmartScreen "unrecognized app", Run anyway is behind "More info" | Warning fades as the certificate builds reputation; EV certificates start clean | n/a |
 | Cost | nothing | Apple $99/yr, Windows $200-400/yr | same |
 
 The macOS jump from unsigned to *notarized* is the one that changes a user's
@@ -219,7 +219,7 @@ certificate and put it in a secret", mostly does not work any more.
 Three realistic routes:
 
 **Azure Trusted Signing** - about $10/month, and the one that fits CI. Microsoft
-holds the key in their HSM and you authorise signing through Azure. Requires an
+holds the key in their HSM and you authorize signing through Azure. Requires an
 Azure subscription and an identity validation. This is what I would choose.
 electron-builder supports it directly through `azureSignOptions`.
 

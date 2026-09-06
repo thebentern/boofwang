@@ -404,7 +404,7 @@ export function useRadioSession() {
    *
    * `acquired` exists for Bluetooth. `requestDevice` needs transient user
    * activation just as `requestPort` does, and the chooser it opens is a second
-   * dialogue the user has to answer - so the page has to raise it inside its own
+   * dialog the user has to answer - so the page has to raise it inside its own
    * click handler and hand the result here, rather than this function deciding
    * after the fact which chooser to open. When it is absent the serial path is
    * unchanged.

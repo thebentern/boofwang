@@ -7,7 +7,7 @@ import type { BluetoothProfile } from '#core/transport/bluetooth-uuids.js'
  * The Bluetooth device list a native app has to draw for itself.
  *
  * In a browser `requestDevice` opens a chooser the page cannot see into. The
- * mobile shell has no such dialogue: scan results arrive as events and the
+ * mobile shell has no such dialog: scan results arrive as events and the
  * page shows them. This store is the list; `BluetoothScanList.vue` is its
  * rendering; `app/mobile/bluetooth.ts` drives the scan and waits on `begin`
  * for the row the person taps.

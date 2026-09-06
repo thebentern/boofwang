@@ -418,7 +418,7 @@ describe('a key slot this build does not understand', () => {
   const SLOT_SIZE = 0x2c
 
   it('is preserved rather than erased', () => {
-    // A record with an unrecognised type byte never reaches the document, so
+    // A record with an unrecognized type byte never reaches the document, so
     // "absent from the document" cannot be read as "the user deleted it".
     // Erasing on that basis would destroy a working key on any firmware using
     // a type this build has not seen.

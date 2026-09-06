@@ -116,7 +116,7 @@ describe('the legend', () => {
     const css = readFileSync(fileURLToPath(new URL('../../../app/assets/css/main.css', import.meta.url)), 'utf8')
     for (const b of bandLegend()) {
       expect(b.token, `${b.service} has no token`).toMatch(/^--band-/)
-      // Defined in the dark block, the light block, and neutralised for print.
+      // Defined in the dark block, the light block, and neutralized for print.
       const defs = css.match(new RegExp(`${b.token}:`, 'g')) ?? []
       expect(defs.length, `${b.token} is defined ${defs.length} times, expected 3`).toBe(3)
     }

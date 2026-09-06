@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
  * reachable, because the app layer's reconnect called the serial chooser outright.
  *
  * The effect was not a refusal - nothing declined to write over Bluetooth - but
- * a cable dialogue put in front of someone holding a radio that has no cable
+ * a cable dialog put in front of someone holding a radio that has no cable
  * attached, with a toast about serial ports. And it fired every time rather
  * than occasionally: reading closes the port when it finishes, so there is
  * never a live link by the time an edit has been made.
@@ -67,7 +67,7 @@ describe('the paths that reconnect', () => {
   })
 
   it('try the granted Bluetooth device before raising a second chooser', () => {
-    // `requestDevice` needs transient user activation and shows a dialogue for
+    // `requestDevice` needs transient user activation and shows a dialog for
     // a radio the user has already picked once. `gatt.connect()` on a granted
     // device needs neither.
     const chooser = body(SESSION, 'acquireLike')

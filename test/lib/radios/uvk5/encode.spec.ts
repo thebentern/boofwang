@@ -334,7 +334,7 @@ describe('encode rejects what it cannot honor', () => {
 })
 
 describe('arbitrary edits still preserve everything unowned', () => {
-  it('holds across randomised channel changes', () => {
+  it('holds across randomized channel changes', () => {
     const image = realImage()
     const owned = driver.ownedRanges(0)
     const isOwned = (i: number) => owned.some(([s, e]) => i >= s && i < e)

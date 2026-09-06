@@ -89,7 +89,7 @@ describe('which radio answers to "UV-5G"', () => {
   it('recognizes the bench firmware by containment, the way CHIRP matches basetypes', () => {
     // HN5RV011 starts with none of CHIRP's BASETYPE_UV5R strings but contains
     // N5RV. A prefix match - which is what the UV-82 driver uses for its own
-    // basetypes - would call this real radio unrecognised.
+    // basetypes - would call this real radio unrecognized.
     expect(classifyBasetype('HN5RV011')).toEqual({ model: 'UV-5G', triPower: false })
   })
 
@@ -249,7 +249,7 @@ describe('the round-trip invariant, on real radio bytes', () => {
 
   it('keeps the receive-only marker on every NOAA channel through a re-encode', () => {
     // These are real CHIRP-style FF fills off a real radio - the case the
-    // UV-82's spec had to synthesise. Nothing may rewrite them.
+    // UV-82's spec had to synthesize. Nothing may rewrite them.
     const img = image()
     const out = driver.encode(driver.decode(img), img).regions[0]!.data
     for (let i = 0; i < CHANNEL_COUNT; i++) {

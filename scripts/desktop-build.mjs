@@ -36,7 +36,7 @@ import { fileURLToPath } from 'node:url'
  *              runner can hold. See docs/signing.md for what to do instead.
  *
  * Notarization is deliberately separate from signing. A signed but un-notarized
- * macOS build still meets Gatekeeper's first-run dialogue; only notarization
+ * macOS build still meets Gatekeeper's first-run dialog; only notarization
  * removes it. Signing without notarizing is a real intermediate state and worth
  * being able to produce.
  */

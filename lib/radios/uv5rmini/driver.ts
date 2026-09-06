@@ -599,7 +599,7 @@ export function encodeChannel(
    * four bytes on the wire to say what they already said.
    *
    * The classic UV-5R family cannot do this: its `_is_txinh` (uv5r.py) accepts
-   * only all-0xFF, so the UV-82 driver canonicalises a zero filling on any
+   * only all-0xFF, so the UV-82 driver canonicalizes a zero filling on any
    * record it changes. Do not unify the two - the keep-as-found here is safe
    * precisely because this family's parser reads both spellings.
    */

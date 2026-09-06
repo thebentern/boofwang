@@ -802,7 +802,7 @@ export function encodeChannel(
    * was checked against uv5r.py - `baofeng_common.py` does accept both, but
    * that `_is_txinh` belongs to the UV-5R Mini's family, not this one.
    *
-   * So the marker is canonicalised whenever anything else in the record
+   * So the marker is canonicalized whenever anything else in the record
    * changed. The record is exactly one write block, so a record that already
    * differs carries the four bytes at no extra cost on the wire. Only a record
    * byte-identical to what was read keeps a zero filling - that is what keeps

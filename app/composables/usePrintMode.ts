@@ -7,7 +7,7 @@ import { hostSupports } from '#core/platform/host.js'
  * The channel table renders a window of about forty rows and nothing else,
  * which is what keeps four thousand slots usable. It is also what would put
  * forty rows on paper. Printing therefore has to be a state the table can see,
- * so it can drop out of the virtualiser for the one render that goes to the
+ * so it can drop out of the virtualizer for the one render that goes to the
  * printer - a cost that is fine once and would be intolerable continuously.
  *
  * Two ways in, because there are two ways out.

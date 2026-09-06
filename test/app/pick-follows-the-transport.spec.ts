@@ -88,7 +88,7 @@ describe('the connect page', () => {
     )
   })
 
-  it('tells the fault card which dialogue is up', () => {
+  it('tells the fault card which dialog is up', () => {
     expect(page).toContain(':shell-picks-port="shellPicksPort"')
   })
 })

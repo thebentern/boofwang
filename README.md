@@ -215,7 +215,7 @@ the channel count and the channel list, in one file that references nothing
 outside itself and can be emailed or pasted into a wiki. It never carries
 encryption keys, in any form, including the names of the slots they sit in - a
 `.bwp` is what to send when the whole radio is genuinely wanted. The channels
-page also prints, dropping the interface and the virtualised window so that
+page also prints, dropping the interface and the virtualized window so that
 every channel reaches the paper with its receive-only marking still legible in
 black and white.
 
@@ -403,7 +403,7 @@ for every fixture.
   every affected channel — and then left to you. A frequency the radio cannot
   physically tune or key is still a blocking error, because that is a fact about
   the hardware rather than about your license.
-- Unrecognised firmware is read-only but still readable, so an unsupported radio
+- Unrecognized firmware is read-only but still readable, so an unsupported radio
   can still be backed up.
 - Encryption key material is masked by default and revealed one slot at a time.
   The keys page states the legal position: encryption is prohibited on amateur

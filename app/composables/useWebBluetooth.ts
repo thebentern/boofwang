@@ -279,7 +279,7 @@ export async function reconnectBluetoothRadio(): Promise<PortChoice | null> {
  * Shared by the chooser and the reconnect, because everything below the
  * chooser is identical: the same GATT connect, the same service lookup, the
  * same two characteristics. Splitting it the other way - a reconnect that
- * re-ran the chooser - is what would put a second dialogue in front of a
+ * re-ran the chooser - is what would put a second dialog in front of a
  * write.
  *
  * Candidates are tried in order and the first whose service the device

@@ -148,7 +148,7 @@ checks that it does.
 
 ## The device list
 
-A native app has no `requestDevice` dialogue. The scan results come to the
+A native app has no `requestDevice` dialog. The scan results come to the
 page and the page draws them (`app/components/connect/BluetoothScanList.vue`).
 The scan runs with no native filter, because CoreBluetooth cannot filter by
 name and whether the UV-5R Mini advertises its service is still recorded as
@@ -204,7 +204,7 @@ applies to artifact names.
 ### iOS
 
 The team is `6YF6QJH524`, `O=Benjamin Meadors` - the individual one, the same
-team the desktop builds are signed and notarised with. It is written down in
+team the desktop builds are signed and notarized with. It is written down in
 two places rather than left to whatever Xcode has selected: `DEVELOPMENT_TEAM`
 in the App target's Debug and Release configurations, and `teamID` in
 `mobile/ExportOptions.plist`. The account belongs to more than one team, and
@@ -213,7 +213,7 @@ the app and one of their slots spent. An unset team is how that happens by
 accident.
 
 The certificate is an **Apple Distribution** identity, not the Developer ID
-one the desktop build is notarised with; `docs/signing.md` records how much
+one the desktop build is notarized with; `docs/signing.md` records how much
 time the wrong certificate type cost once already. You need:
 
 - an App ID `ng.boofwa.app` in the developer portal,
@@ -224,7 +224,7 @@ time the wrong certificate type cost once already. You need:
 Secrets: `IOS_DIST_CERT_P12` (base64), `IOS_DIST_CERT_PASSWORD`,
 `IOS_PROVISIONING_PROFILE_BASE64`. With them a tag produces an `.ipa` on the
 run and sends it to App Store Connect with `altool`, reusing the `APPLE_API_*`
-key the desktop build notarises with. Without them the run builds the project
+key the desktop build notarizes with. Without them the run builds the project
 for the simulator, which is the check a pull request gets.
 
 The step runs after the artifact upload so a rejection cannot take the `.ipa`
@@ -264,7 +264,7 @@ Delivery UUID: c62a5ae7-b1d9-4c95-a6cb-69c2b68070c8
 ```
 
 App Store Connect lists it under TestFlight as 0.1.3 (1003), processing. So
-the Developer role the key was made with for notarisation does carry an
+the Developer role the key was made with for notarization does carry an
 upload through to the end, which was the open question, and the build number
 derived from the version arrives as Apple's build number unchanged.
 
@@ -449,7 +449,7 @@ not the legacy `onBackPressed`. That is the first place to look, but it is a
 hypothesis and not a diagnosis.
 
 One caveat that has to travel with this: the presses were `adb shell input
-keyevent 4`, and a synthesised key is not a swipe. Predictive back is gesture
+keyevent 4`, and a synthesized key is not a swipe. Predictive back is gesture
 driven and the two paths are not identical, so **this needs one confirmation
 by hand** - swipe back in the app on a real phone - before it is treated as a
 defect rather than as an artifact of how it was tested.

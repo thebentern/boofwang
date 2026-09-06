@@ -291,7 +291,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
      *    of two codeplugs while the app reports success.
      * 4. Write each differing block and read it back **immediately**. Failing
      *    on the first bad block leaves as much of the radio intact as possible.
-     * 5. Whatever happens, try to leave programming mode, resynchronising the
+     * 5. Whatever happens, try to leave programming mode, resynchronizing the
      *    line first if an abort poisoned it.
      *
      * Any failure after the first byte carries the partial report, because a

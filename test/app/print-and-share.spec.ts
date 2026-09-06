@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
  * are source checks - which is the right shape for the two defects they guard
  * against, because both are a single expression going quietly wrong.
  *
- * The first is the virtualiser. The channel table mounts about forty rows and
+ * The first is the virtualizer. The channel table mounts about forty rows and
  * that is the whole reason a 4,000-slot radio is usable; it is also, if nobody
  * intervenes, exactly what reaches the printer. A printout that silently stops
  * at slot 41 looks like a complete document.
@@ -90,14 +90,14 @@ describe('the interface is not printed', () => {
   })
 })
 
-describe('printing bypasses the virtualiser', () => {
+describe('printing bypasses the virtualizer', () => {
   it('renders every channel while printing, and the window otherwise', () => {
     const block = blockAfter(TABLE, 'const renderedRows = computed', 500)
     expect(block).toContain('if (printing.value)')
 
     const printBranch = block.slice(block.indexOf('if (printing.value)'), block.indexOf('return virtualizer'))
     expect(printBranch).toContain('printRows.value')
-    expect(printBranch, 'the print path still asks the virtualiser what is visible').not.toContain('getVirtualItems')
+    expect(printBranch, 'the print path still asks the virtualizer what is visible').not.toContain('getVirtualItems')
 
     // And the screen path is untouched: this is a mode, not a removal.
     expect(block).toContain('virtualizer.value.getVirtualItems()')
@@ -109,7 +109,7 @@ describe('printing bypasses the virtualiser', () => {
     expect(block).toContain("position: 'absolute'")
   })
 
-  it('drops the spacer the virtualiser needs, which would print as blank pages', () => {
+  it('drops the spacer the virtualizer needs, which would print as blank pages', () => {
     const block = blockAfter(TABLE, 'const bodyStyle = computed', 300)
     expect(block).toContain('printing.value')
     expect(block).toContain('totalHeight.value')

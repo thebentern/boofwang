@@ -24,7 +24,7 @@ const KINDS: readonly HostKind[] = ['browser', 'desktop', 'android', 'ios']
 describe('detectHost reads the bridge exactly', () => {
   it('answers browser for anything that is not one of the two shapes', () => {
     // The Capacitor plugin writes the lowercase platform name and nothing
-    // else. A capitalised name or a bare true is some other program's idea of
+    // else. A capitalized name or a bare true is some other program's idea of
     // a bridge, and the fail-closed answer is the one that offers nothing it
     // cannot back.
     for (const injected of [

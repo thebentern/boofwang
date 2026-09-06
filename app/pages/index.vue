@@ -52,7 +52,7 @@ const usbHost = hostSupports(useShell().host, ['usbHost'])
  * Whether the shell picks the adapter itself rather than raising a chooser.
  *
  * The neighboring capability, and deliberately not the same question. This one
- * is about the dialogue, `usbHost` about the hardware, and Android answers yes
+ * is about the dialog, `usbHost` about the hardware, and Android answers yes
  * to both while an iPhone answers no to both - which is what makes it tempting
  * to collapse them and wrong to: a plain desktop browser has no native serial
  * and does want the cable offered. Three things turn on this one - what the
@@ -89,7 +89,7 @@ const mounted = ref(false)
 /**
  * True while the browser's Bluetooth chooser is up.
  *
- * Kept apart from `picking` because the two dialogues are different dialogues
+ * Kept apart from `picking` because the two dialogs are different dialogs
  * with different advice: the serial one lists USB-serial chips, and the
  * Bluetooth one lists whatever is advertising a service number this project is
  * only guessing at.
@@ -248,10 +248,10 @@ const link = computed<FaultState | 'ready'>(() => {
  * Matched on the message because that is what survives `connectAndRead`, which
  * reports failures through the store rather than rethrowing. The strings are
  * the ones `lib/transport/errors.ts` and `lib/radio/driver.ts` construct, and
- * every branch below is a distinct remedy: resynchronise, replace the adapter,
+ * every branch below is a distinct remedy: resynchronize, replace the adapter,
  * pick a different driver, switch the radio on.
  *
- * Anything unrecognised falls to `off`, which is the commonest cause by a wide
+ * Anything unrecognized falls to `off`, which is the commonest cause by a wide
  * margin - and whose card prints the real message verbatim underneath, so a
  * mismatched headline never hides what actually happened.
  */
@@ -405,7 +405,7 @@ function withoutARadio(): boolean {
  * `requestPort` needs transient activation, so this is the first thing the
  * click handler does and nothing is awaited before it.
  *
- * What that raises depends on the host, and the two dialogues are not the same
+ * What that raises depends on the host, and the two dialogs are not the same
  * shape. In a browser it is `navigator.serial`'s own chooser, which belongs to
  * the browser - we cannot style it, read it, or tell whether it had anything in
  * it, which is why `picking` says so instead of pretending to drive it. Inside

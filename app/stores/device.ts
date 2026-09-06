@@ -54,7 +54,7 @@ export const useDeviceStore = defineStore('device', () => {
    * is asked when nothing is connected. Reading closes the port when it
    * finishes, so by the time someone has edited a channel and pressed write
    * there is no live link to ask - and the write used to reach for the serial
-   * chooser regardless, which put a cable dialogue in front of someone holding
+   * chooser regardless, which put a cable dialog in front of someone holding
    * a radio connected over Bluetooth.
    *
    * A port that does not declare a carrier is a cable: `SerialPortLike.kind` is

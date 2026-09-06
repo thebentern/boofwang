@@ -167,7 +167,7 @@ export const UV5RMINI_SCHEMA: RadioSchema = {
      *
      * The air band is receive-only in the schema because it is receive-only in
      * law: 108-137 MHz is aeronautical, and no amateur or business license
-     * authorises transmitting there.
+     * authorizes transmitting there.
      */
     bands: [
       { loHz: hz(108_000_000), hiHz: hz(135_999_999), label: '108-136 MHz air', txAllowed: false },

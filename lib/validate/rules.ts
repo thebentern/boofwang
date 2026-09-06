@@ -112,7 +112,7 @@ export function validateChannel(
       })
     } else if (!txBand.txAllowed) {
       // The air band is the case that matters: AM aviation spectrum, which no
-      // amateur license authorises transmitting on. Said plainly, and left to
+      // amateur license authorizes transmitting on. Said plainly, and left to
       // the operator - see the note at the top of this file for why this warns
       // rather than blocks.
       out.push({

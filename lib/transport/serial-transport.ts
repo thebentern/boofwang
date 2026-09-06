@@ -43,7 +43,7 @@ interface Waiter {
  *    out-of-order reply is not expressible.
  *
  * 3. **A timeout poisons the transport.** See `DesyncedError` - silently
- *    resynchronising on a late reply is how a codeplug gets written from
+ *    resynchronizing on a late reply is how a codeplug gets written from
  *    byte-shifted garbage.
  */
 export class SerialTransport implements Transport {
@@ -307,7 +307,7 @@ export class SerialTransport implements Transport {
   /**
    * Drain whatever is on the line until it has been quiet for `quietMs`, then
    * clear the desynced flag. This is the only way out of `desynced`, and it is
-   * deliberately explicit: a driver has to decide that resynchronising is safe.
+   * deliberately explicit: a driver has to decide that resynchronizing is safe.
    */
   async resync(quietMs = 200, opts?: ReadOpts): Promise<Uint8Array> {
     if (this.#state === 'disconnected') throw new DeviceDisconnectedError()

@@ -19,7 +19,7 @@
  * screenshot, in print, and to someone who cannot separate amber from green.
  *
  * The topology is fixed and written out rather than looped, because there is no
- * fourth hop to generalise for and three named spans read better than a loop
+ * fourth hop to generalize for and three named spans read better than a loop
  * over a discriminated union.
  *
  * Over Bluetooth the middle hop is not an adapter - there is no cable and no

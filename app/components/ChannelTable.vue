@@ -52,7 +52,7 @@ const ROW_HEIGHT = 30
  * right edge. So below `sm` the row stops being a table row: name over
  * frequencies over chips, with the slot number and a chevron on the right.
  *
- * Same data, same `view()`, same virtualiser. Only the arrangement changes,
+ * Same data, same `view()`, same virtualizer. Only the arrangement changes,
  * which is why there is no second component: two renderers of one row view
  * cannot disagree about what a channel says.
  */
@@ -69,7 +69,7 @@ const PHONE_ROW_HEIGHT = 78
 const MEDIUM_ROW_HEIGHT = 52
 const { phone: narrow, medium } = useFormFactor()
 
-/** What the virtualiser is told a row costs. Printing is always the table. */
+/** What the virtualizer is told a row costs. Printing is always the table. */
 const rowHeight = computed(() => {
   if (printing.value) return ROW_HEIGHT
   if (narrow.value) return PHONE_ROW_HEIGHT
@@ -586,7 +586,7 @@ function view(r: SlotRow): RowView {
   }
 }
 
-// -------------------------------------------------------------- virtualiser
+// -------------------------------------------------------------- virtualizer
 
 const scroller = useTemplateRef<HTMLElement>('scroller')
 const headerEl = useTemplateRef<HTMLElement>('headerEl')
@@ -608,7 +608,7 @@ const virtualizer = useVirtualizer(
  * estimated at.
  *
  * `estimateSize` is read once per item and cached. `narrow` is false until
- * `onMounted` runs, so the virtualiser sizes every row at 30px before the
+ * `onMounted` runs, so the virtualizer sizes every row at 30px before the
  * phone layout is known, and then renders the card grid inside a 30px box:
  * the name, the frequencies and the chips all land on top of each other. The
  * options being a computed is not enough - the cache has to be dropped.
@@ -634,7 +634,7 @@ const printRows = computed<SlotRow[]>(() =>
 /**
  * The rows that actually get mounted.
  *
- * On screen this is the virtualiser's window - forty-odd rows, which is what
+ * On screen this is the virtualizer's window - forty-odd rows, which is what
  * keeps four thousand slots scrollable. While printing it is the whole list,
  * laid out in normal flow so the browser can paginate it: absolutely positioned
  * rows inside a fixed-height box print as one screenful and lose the rest,
@@ -652,7 +652,7 @@ const renderedRows = computed(() => {
   })
 })
 
-/** The spacer the virtualiser needs, and that print must not inherit. */
+/** The spacer the virtualizer needs, and that print must not inherit. */
 const bodyStyle = computed(() =>
   printing.value
     ? { position: 'relative' as const }
@@ -732,7 +732,7 @@ function rowStyle(r: { start: number; size: number; row: SlotRow; view: RowView 
  * Scroll a row clear of the sticky header.
  *
  * Done by arithmetic rather than `scrollToIndex` because the header floats over
- * the first visible row: the virtualiser would happily park the target
+ * the first visible row: the virtualizer would happily park the target
  * underneath it, which for a cell about to take the caret is indistinguishable
  * from the keystroke doing nothing.
  */
@@ -780,7 +780,7 @@ function startEdit(r: SlotRow, col: EditCol) {
  * Focus the field once it exists, and open it selected.
  *
  * The retry is not defensive padding: moving from the last programmed channel
- * to the first VFO slot can scroll two hundred rows, and the virtualiser only
+ * to the first VFO slot can scroll two hundred rows, and the virtualizer only
  * mounts the target row after the browser has delivered the scroll event. A
  * single `nextTick` looks for an input that has not been created yet, and the
  * keystroke silently does nothing.

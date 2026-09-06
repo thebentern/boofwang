@@ -211,7 +211,7 @@ interface WriteTarget {
 /**
  * What a write reaches, in words, for the restore screen and the write gate.
  *
- * Kept honest by a test rather than by care: it asserts every parenthesised
+ * Kept honest by a test rather than by care: it asserts every parenthesized
  * noun `writeTargets` emits appears here. Under-claiming is the failure that
  * matters, because a scope that reads narrower than the writer tells someone a
  * restore will roll back more than it can.

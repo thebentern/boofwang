@@ -243,7 +243,7 @@ export class UnsupportedFirmwareError extends DriverError {
   override readonly name = 'UnsupportedFirmwareError'
   constructor(readonly firmware: string) {
     super(
-      `Unrecognised firmware ${JSON.stringify(firmware)}. ` +
+      `Unrecognized firmware ${JSON.stringify(firmware)}. ` +
         'The radio can be read and backed up, but writing is disabled because the memory layout is unknown.',
     )
   }
@@ -264,7 +264,7 @@ export class RadioInProgrammingModeError extends DriverError {
  * checksum - so every layer below this happily accepts it, and the radio
  * appears to be answering with nonsense rather than not answering at all. On
  * the UV-K5 the echoed hello even decodes to an empty firmware string, which
- * once surfaced as "unrecognised firmware" and sent people looking for a
+ * once surfaced as "unrecognized firmware" and sent people looking for a
  * firmware problem that does not exist.
  *
  * Observed cause, from a real session: a counterfeit Prolific PL2303 adapter

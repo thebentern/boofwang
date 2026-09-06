@@ -157,7 +157,7 @@ describe('decoded channels agree with CHIRP field for field', () => {
 
 describe('the round-trip invariant, on real radio bytes', () => {
   // The property the whole write path will rest on, now exercised against
-  // memory that a real radio produced rather than anything synthesised here.
+  // memory that a real radio produced rather than anything synthesized here.
   it('reading and writing back every channel record changes nothing', () => {
     const buf = RAW.slice()
     for (let i = 0; i < CHANNEL_COUNT; i++) {
@@ -326,7 +326,7 @@ describe('the whole stack, replaying a real radio', () => {
 describe('frames exactly as the radio sent them', () => {
   /**
    * A verbatim hello reply, captured over an FTDI cable from a UV-K5 running
-   * 2.01.32. Not synthesised, and that is the entire point.
+   * 2.01.32. Not synthesized, and that is the entire point.
    *
    * boofwang once verified the checksum on every reply, described in the code
    * as an improvement over CHIRP. Every synthetic test passed, because the

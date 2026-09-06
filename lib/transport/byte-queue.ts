@@ -65,7 +65,7 @@ export class ByteQueue {
 
   /**
    * Index of the first occurrence of `needle`, or -1.
-   * Scans across chunk boundaries without materialising the buffer.
+   * Scans across chunk boundaries without materializing the buffer.
    */
   indexOf(needle: Uint8Array, from = 0): number {
     if (needle.length === 0) return from

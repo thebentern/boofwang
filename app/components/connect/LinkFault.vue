@@ -126,7 +126,7 @@ const props = defineProps<{
    * Only the Android app does, and it changes what two of these cards are
    * honestly able to say. There is no list there to be unable to see and no
    * chip name to look for in one: `app/mobile/serial.ts` takes the adapter on
-   * the OTG port and the dialogue that follows is Android's, about that one
+   * the OTG port and the dialog that follows is Android's, about that one
    * device. It is also what the opening card has to name in place of Web
    * Serial, which does not exist in a WebView. See `IN_APP`.
    *
@@ -410,7 +410,7 @@ function fill(text: string): string {
  *
  * Not a separate `FaultState`, because it is the same moment in the same flow
  * with the same trail and the same lack of anything to offer: what differs is
- * only which dialogue is up. Splitting it would have put the distinction in
+ * only which dialog is up. Splitting it would have put the distinction in
  * `link`, `IN_PROGRESS` and every list of states, to say one thing.
  *
  * The browser copy's two claims are both false here. There is a list, and it is
@@ -552,7 +552,7 @@ const phaseLabel = computed(() => {
 /**
  * Nothing is offered while the radio is still being talked to.
  *
- * These two states are waiting on a dialogue or a transfer, and their own
+ * These two states are waiting on a dialog or a transfer, and their own
  * actions are the cancel. Offering a change of carrier mid-attempt would be a
  * second thing to click at the moment the screen is least able to act on it.
  */

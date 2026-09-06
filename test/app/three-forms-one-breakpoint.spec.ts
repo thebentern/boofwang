@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
  * bar, the channel table's rows and toolbar, the channel editor, the write
  * screen's confirmation and the diff footer - and each measures the viewport
  * for itself. That is the right call per component (a modal cannot ask its
- * parent, and `sm:` in a class does not help a virtualiser that needs a row
+ * parent, and `sm:` in a class does not help a virtualizer that needs a row
  * height in pixels), and it is exactly the arrangement that drifts: one of them
  * reads 768 six months from now and a phone gets a tab bar with a desktop
  * table under it.
@@ -87,9 +87,9 @@ describe('one form-factor rule, in one file', () => {
 })
 
 /**
- * The row forms, which the virtualiser has to be told about in pixels.
+ * The row forms, which the virtualizer has to be told about in pixels.
  *
- * `sm:` cannot express this: the virtualiser caches a row height per item and
+ * `sm:` cannot express this: the virtualizer caches a row height per item and
  * renders absolutely positioned rows, so a height that only exists in CSS
  * would leave every row overlapping. All three heights are constants and the
  * cache is dropped when the form changes - both were defects found on a phone

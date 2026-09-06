@@ -140,7 +140,7 @@ describe('a UV-5R, which shares its length with the UV-82 and the UV-5G', () => 
     expect(opened.image.radioId).toBe('uv5r')
   })
 
-  it('leaves an unrecognised classic-family file as a UV-82, rather than guessing', async () => {
+  it('leaves an unrecognized classic-family file as a UV-82, rather than guessing', async () => {
     const opened = await openImageFile(withMetadata(FAMILY.slice(), { rclass: 'Nonsense', model: 'Nonsense' }))
     expect(opened.image.radioId).toBe('uv82')
   })
@@ -221,7 +221,7 @@ describe('a CHIRP .img', () => {
 
   it('falls back to the size guess for a firmware string it does not recognize', async () => {
     // Guessing a layout from an unknown firmware is the thing the variant table
-    // exists to refuse, so an unrecognised string is treated as no information.
+    // exists to refuse, so an unrecognized string is treated as no information.
     const odd = await encodeChirpImg({ ...uvk5Image(), variant: 'SOMEONES-FORK-9' })
     const opened = await openImageFile(odd)
     expect(opened.image.layout).toBe('stock')

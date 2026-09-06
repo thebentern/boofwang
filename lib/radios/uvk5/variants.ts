@@ -6,7 +6,7 @@
  * The UV-K5 has a large custom-firmware ecosystem, and the variants do not all
  * share an EEPROM layout - egzumer moves the calibration boundary, for one. So
  * the firmware string reported at hello decides which layout applies, and an
- * unrecognised string means the layout is unknown.
+ * unrecognized string means the layout is unknown.
  *
  * Unknown firmware is **read-only, never unreadable**. Refusing to talk to it
  * would be worse than useless: a backup is exactly what someone with an
@@ -61,7 +61,7 @@ export const VARIANT_RULES: readonly VariantRule[] = [
 
 export const UNKNOWN_VARIANT: VariantInfo = {
   layout: 'unknown',
-  label: 'Unrecognised firmware',
+  label: 'Unrecognized firmware',
   calStart: 0x1d00,
   canWrite: false,
   note:

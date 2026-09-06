@@ -18,7 +18,7 @@ import type { PortChoice } from '~/composables/useWebSerial'
  * uses. Nothing below the port knows which it is on.
  *
  * What a native app lacks is the browser's chooser. `requestDevice` is a
- * dialogue the page cannot see into; here the scan results come to the page
+ * dialog the page cannot see into; here the scan results come to the page
  * and the page shows them, which is `app/stores/bleChooser.ts` and
  * `BluetoothScanList.vue`. The scan runs with no native filter and the rows
  * are matched in JavaScript, for the reasons set out in
@@ -30,7 +30,7 @@ import type { PortChoice } from '~/composables/useWebSerial'
 
 /**
  * The plugin is initialized once. On Android this is also where the runtime
- * permission dialogue appears, and the flag has to agree with the manifest's
+ * permission dialog appears, and the flag has to agree with the manifest's
  * `neverForLocation` on BLUETOOTH_SCAN - test/app/mobile-config.spec.ts holds
  * the two together, because when they disagree the scan silently lists
  * nothing.

@@ -78,7 +78,7 @@ describe('the round-trip invariant, on real radio bytes', () => {
     // untouched record is passed through byte for byte, zero spelling
     // included - that is what keeps encode(decode(image), image) exact.
     // CHIRP's uv5r.py reads only the 0xFF spelling as inhibited, so any
-    // record this driver actually changes is canonicalised - tested under
+    // record this driver actually changes is canonicalized - tested under
     // "receive-only, which is the one that matters".
     for (const fill of [0xff, 0x00] as const) {
       const img = image()
@@ -318,7 +318,7 @@ describe('receive-only, which is the one that matters', () => {
     }
   })
 
-  it('canonicalises a zero marker when the record is otherwise edited', () => {
+  it('canonicalizes a zero marker when the record is otherwise edited', () => {
     /*
      * CHIRP's `_is_txinh` for this family (uv5r.py) accepts exactly one
      * marker: FF FF FF FF. A zero filling reads back as a split with transmit

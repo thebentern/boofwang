@@ -155,7 +155,7 @@ function choiceFor(device: UsbSerialDevice): PortChoice {
  * The adapter on the OTG port, permission asked for if it has not been.
  *
  * Null when the person declined, like a dismissed chooser. Choosing boofwang
- * in the system dialogue on plug-in grants permission implicitly, which is
+ * in the system dialog on plug-in grants permission implicitly, which is
  * the one path that never prompts again.
  */
 export async function requestNativePort(): Promise<PortChoice | null> {

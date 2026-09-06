@@ -82,7 +82,7 @@ export type KeyEditResolution =
  *
  * A blank key field means "leave the stored key alone", which is what makes it
  * possible to correct a slot's name without retyping 64 hex characters nobody
- * has memorised. The alternative - demanding the key back before any edit -
+ * has memorized. The alternative - demanding the key back before any edit -
  * looks safer and is not: it turns every rename into an opportunity to mistype
  * a working key into a broken one, and the damage only shows up later, as a
  * call that will not decrypt.

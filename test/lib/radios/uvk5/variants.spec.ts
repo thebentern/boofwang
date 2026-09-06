@@ -28,7 +28,7 @@ describe('classifyFirmware', () => {
     expect(v.canWrite).toBe(false)
   })
 
-  it('treats anything unrecognised as read-only, not unreadable', () => {
+  it('treats anything unrecognized as read-only, not unreadable', () => {
     // Refusing to read would be backwards: a backup is exactly what someone on
     // an unsupported firmware needs, and it is how the variant gets supported.
     for (const fw of ['', 'IJV 3.5', 'f4hwn 2.9', 'wibble', '9.99.99']) {

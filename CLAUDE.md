@@ -164,7 +164,7 @@ session.
    cross-check that is run and not committed dies with the session. Compare the
    reference's *predicates*, not only its tables - CHIRP matches basetypes by
    containment rather than prefix, and reading that as a prefix makes a real
-   radio unrecognised. Where there is no parser to import, say so in the
+   radio unrecognized. Where there is no parser to import, say so in the
    protocol note and lean harder on hardware: CHIRP has no DM-32UV driver. This
    step caught the UV-K5's 10 Hz scaling, the UV-82's inverted `wide` bit, the
    UV-5R Mini's 105-code DTCS table and the DM-32UV's BCD tones - every one of

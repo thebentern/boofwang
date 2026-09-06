@@ -8,7 +8,7 @@ const BAND_LABELS = ['50-76 MHz', '108-137 MHz', '137-174 MHz', '174-350 MHz', '
 
 /**
  * The air band is receive-only: it is AM aviation spectrum, and no amateur
- * license authorises transmitting there. Marking it in the schema means the
+ * license authorizes transmitting there. Marking it in the schema means the
  * validator objects before anything reaches the radio.
  */
 const RX_ONLY_BANDS = new Set([1])
