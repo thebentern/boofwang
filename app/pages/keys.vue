@@ -63,7 +63,7 @@ const noKeySlots = computed(() => codeplug.isOpen && !encryption.value)
           earlier, and the slots appear here.
         </p>
         <div class="flex flex-wrap items-center gap-2.5">
-          <RiskAction risk="neutral" icon="i-lucide-radio" label="Choose a radio" @click="navigateTo('/')" />
+          <RiskAction risk="neutral" icon="i-lucide-radio" label="Connect a radio" @click="navigateTo('/')" />
           <OpenCodeplugButton />
         </div>
       </div>

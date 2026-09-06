@@ -10,7 +10,7 @@ import { BOOT_IMAGE_BYTES, BOOT_IMAGE_HEIGHT, BOOT_IMAGE_WIDTH, decodeBootImage 
  * outside every backup boofwang takes. A codeplug can be rebuilt from a CSV;
  * the factory splash cannot be rebuilt from anything, and the only copy that
  * will ever exist is the one read before the first write. So reading is the
- * first step and the download is offered immediately.
+ * first step and saving is offered immediately.
  *
  * And writing a picture is not enough to see one: the radio decides between the
  * picture, a text message and the battery voltage with a separate setting, and
@@ -68,7 +68,7 @@ async function downloadCurrent() {
   if (!saved) return
   toast.add({
     title: 'Saved',
-    description: 'Raw 240 x 320 pixels. Nothing else boofwang stores contains this region, so keep it.',
+    description: 'Raw 240 x 320 pixels.',
     icon: 'i-lucide-hard-drive-download',
     color: 'success',
     duration: 10_000,
@@ -91,8 +91,7 @@ async function send() {
       </h1>
     </div>
     <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 72ch">
-      The picture a DM-32UV shows while it powers up. 240 by 320, and it lives in a part of the radio that no
-      codeplug backup covers.
+      The picture a DM-32UV shows while it powers up, 240 by 320.
     </p>
 
     <div
@@ -104,15 +103,15 @@ async function send() {
         This is a DM-32UV feature
       </h2>
       <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 68ch">
-        No other radio boofwang supports stores a startup picture. Connect a DM-32UV, or read one, and this
-        page becomes useful.
+        Only the DM-32UV stores a startup picture. Connect one to use this page.
       </p>
     </div>
 
     <template v-else>
       <!--
         Step one, and not a formality: this region is in no backup boofwang has
-        ever taken, so the read is the only way back that will ever exist.
+        ever taken, so the read is the only backup that will ever exist. This
+        card is the one place the page says so.
       -->
       <div
         class="mt-5 rounded-[7px]"
@@ -125,15 +124,13 @@ async function send() {
         <div class="flex items-start flex-wrap" style="gap: 16px">
           <div style="flex: 1; min-width: 260px">
             <div class="label-xs" style="color: var(--fn); letter-spacing: 0.08em; margin-bottom: 6px">
-              A way back
+              Backup
             </div>
             <p v-if="!boot.backup.value" style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 62ch">
-              Read what the radio has now before replacing it. This region sits outside the codeplug, so no
-              <code class="font-mono">.bwp</code>, no stored backup and no export contains it. A codeplug can be
-              rebuilt from a CSV; the factory picture cannot be rebuilt from anything.
+              No codeplug backup includes this picture. Read it first and save the file; it is the only copy.
             </p>
             <p v-else style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 62ch">
-              Read from the radio. Download it and keep it somewhere: this is the only copy that exists.
+              Read from the radio.
             </p>
 
             <div class="mt-3 flex flex-wrap" style="gap: 8px">
@@ -149,7 +146,7 @@ async function send() {
                 risk="neutral"
                 ghost
                 icon="i-lucide-hard-drive-download"
-                label="Download it"
+                label="Save it"
                 @click="downloadCurrent"
               />
               <ConfirmTyped
@@ -209,14 +206,12 @@ async function send() {
 
         <!--
           Destructive, per the risk register: this discards the picture on the
-          radio now, which no backup boofwang takes anywhere else covers, so the
-          confirmation names that and asks for the word. A plain button here was
-          the one write in the application that did not.
+          radio now, so the confirmation names that and asks for the word. A
+          plain button here was the one write in the application that did not.
         -->
         <div class="mt-4">
           <p v-if="staged && boot.backup.value" style="margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--mu); max-width: 70ch">
-            This replaces the picture the radio shows when it starts. The one it has now was read at
-            the top of this page and is the only copy - keep that download if you might want it back.
+            This replaces the picture the radio shows when it starts.
           </p>
           <ConfirmTyped
             v-if="staged && boot.backup.value"
@@ -228,14 +223,13 @@ async function send() {
             @confirm="send"
           />
           <span v-else-if="!boot.backup.value" style="font-size: 13px; color: var(--fn)">
-            Read the radio first, so there is a way back.
+            Read the radio first, so there is a backup.
           </span>
         </div>
       </div>
 
       <p class="mt-4" style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
-        Every page is read back and compared after it is written. The picture region is separate from the
-        codeplug, so this does not touch channels, contacts or settings.
+        Every page is read back and compared after it is written.
       </p>
     </template>
   </div>

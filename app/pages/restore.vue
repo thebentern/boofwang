@@ -12,7 +12,7 @@ import { SCHEMAS, isImplemented } from '#core/radio/registry.js'
  * risk register is for: restoring cannot happen by accident.
  *
  * There is deliberately no diff here. A write shows one because divergence
- * between the image and the radio is unintended; a restore is the opposite -
+ * between the codeplug and the radio is unintended; a restore is the opposite -
  * the radio is expected to differ, and making it match again is the whole
  * request - so a diff would invite a decision that is already made.
  */
@@ -52,6 +52,13 @@ const canWrite = computed(() => hasDriver.value && schema.value?.capabilities.wr
  */
 const writeScope = computed(() => schema.value?.capabilities.writeScope ?? null)
 
+/**
+ * The banner over a running restore, in the carrier's terms. "Do not unplug"
+ * names a plug a Bluetooth user does not have, and this reads the same source
+ * as `keepLinkUp` so the two cannot disagree on one screen.
+ */
+const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the link up' : 'Do not unplug'))
+
 const takenAt = computed(() => {
   const at = backup.value?.createdAt
   if (!at) return ''
@@ -83,7 +90,7 @@ async function confirmRestore() {
       <div class="flex items-center gap-2" style="margin-bottom: 7px">
         <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" style="color: var(--dg)" />
         <span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dg); font-weight: 600">
-          Do not unplug
+          {{ holdLabel }}
         </span>
       </div>
       <h1 style="font-size: 19px; font-weight: 600; margin-bottom: 14px">Restoring the radio</h1>
@@ -152,15 +159,15 @@ async function confirmRestore() {
             {{ canWrite ? 'Overwrites the radio' : 'Nothing will be sent' }}
           </div>
           <h1 style="font-size: 17.5px; font-weight: 600">
-            {{ canWrite ? `Restore the radio to ${takenAt}` : 'This image cannot be put back' }}
+            {{ canWrite ? `Restore the radio to ${takenAt}` : 'This backup cannot be put back' }}
           </h1>
         </div>
       </div>
 
       <div style="padding: 16px 17px">
         <p v-if="canWrite" style="font-size: 14px; line-height: 1.6; color: var(--mu); margin-bottom: 13px">
-          Whatever is on the radio now is replaced by this image. Anything programmed since that read, by boofwang or
-          by anything else, is gone. There is no diff here on purpose: a restore expects the radio to differ.
+          Whatever is on the radio now is replaced by this backup. Anything programmed since that read, by boofwang or
+          by anything else, is gone.
         </p>
 
         <!--
@@ -194,12 +201,12 @@ async function confirmRestore() {
 
         <p v-if="!canWrite" style="font-size: 14px; line-height: 1.6; color: var(--mu); margin-bottom: 15px">
           <template v-if="!hasDriver">
-            There is no driver for the {{ backup.radioId }} yet, so boofwang cannot put this image back.
+            There is no driver for the {{ backup.radioId }} yet, so boofwang cannot put this backup back.
           </template>
           <template v-else>
-            boofwang can read the {{ schema?.model }} but cannot write to it, so this image cannot be put back.
+            boofwang can read the {{ schema?.model }} but cannot write to it, so this backup cannot be put back.
           </template>
-          The image is still yours: save it from the backups list and program it with something that can.
+          The backup is still yours: save it from the backups list and program it with something that can.
         </p>
 
         <div
@@ -210,12 +217,9 @@ async function confirmRestore() {
           <UIcon name="i-lucide-circle-dot" class="size-3.5 shrink-0" style="color: var(--cn); margin-top: 2px" />
           <p style="font-size: 14px; line-height: 1.6; color: var(--mu)">
             <strong style="font-weight: 600; color: var(--tx)">
-              The {{ schema?.model }} only accepts writes to its {{ writeScope }}.
+              boofwang writes the {{ writeScope }} of a {{ schema?.model }}.
             </strong>
-            Those are put back and nothing else. Roaming zone membership and the twenty-odd memory blocks
-            nobody has decoded stay exactly as the radio has them now, as do the individual settings inside
-            other structures whose meaning is a guess. The count at the end is of what was actually sent, so this is
-            not the full rollback the word restore usually promises.
+            Everything else on the radio stays as it is now, so this is a partial restore.
           </p>
         </div>
 
@@ -253,8 +257,7 @@ async function confirmRestore() {
             color: var(--fn);
           "
         >
-          boofwang comes with no warranty. We are not liable for a radio a restore leaves unusable. Use at your
-          own risk.
+          boofwang comes with no warranty and no liability for a radio a write leaves unusable.
         </p>
 
         <RiskAction
@@ -267,9 +270,8 @@ async function confirmRestore() {
         />
 
         <p v-if="canWrite" style="margin-top: 14px; font-size: 13px; line-height: 1.6; color: var(--fn)">
-          No base image is supplied for a restore, so the driver reads the radio and sends only the blocks that differ,
-          reading each one back before sending the next. A block that fails verification stops the restore there and
-          the radio keeps the blocks already confirmed.
+          Only blocks that differ are sent, each read back before the next. If one does not match, the restore stops
+          there.
         </p>
       </div>
     </div>

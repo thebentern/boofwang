@@ -14,8 +14,8 @@ import { evaluateWriteGate } from '#core/radio/write-gate.js'
  * this is a page - there is room for the account of what changes, and there is
  * one fewer dialog rather than one more.
  *
- * Three cards in a fixed order, and the order is the argument: a way back
- * exists, here is what changes, now say the word. A write is never one click
+ * Three cards in a fixed order, and the order is the argument: a backup
+ * exists, here is what changes, now confirm it. A write is never one click
  * from idle.
  */
 useSeoMeta({ title: 'Write to radio' })
@@ -31,7 +31,7 @@ const view = ref<View>('form')
 /**
  * The backup lookup hits IndexedDB, so there is a moment where "none found" and
  * "not looked yet" are indistinguishable. They are held apart because the write
- * gate reads a missing backup as a blocker, and flashing "there is no way back"
+ * gate reads a missing backup as a blocker, and flashing "there is no backup"
  * at someone who has one is the kind of false alarm that teaches people to
  * ignore the real one.
  */
@@ -175,7 +175,7 @@ const warnings = computed(() => {
 })
 
 /**
- * How old the way back is, and what it does not contain.
+ * How old the backup is, and what it does not contain.
  *
  * The newest stored backup of this radio wins, whenever it was taken. Anything
  * the radio has been told by other software since then is not in it, which is
@@ -191,8 +191,7 @@ const backupBody = computed(() => {
   const days = Math.floor((Date.now() - taken.getTime()) / 86_400_000)
   if (days < 1) {
     return (
-      `A backup of this radio, read today at ${time}, is stored in this browser. It includes calibration. ` +
-      'Nothing about this write can put the radio somewhere that image cannot recover.'
+      `A backup of this radio, read today at ${time}, is stored in this browser. It includes calibration.`
     )
   }
   const when = days === 1 ? `yesterday at ${time}` : `${days} days ago, on ${taken.toLocaleDateString()}`
@@ -206,7 +205,7 @@ const PHASE_WORDS: Record<Progress['phase'], string> = {
   handshake: 'identifying the radio',
   scan: 'looking for the radio',
   read: 'checking what the radio holds now',
-  encode: 'preparing the image',
+  encode: 'preparing the codeplug',
   write: 'writing and verifying',
   verify: 'reading back and comparing',
 }
@@ -235,6 +234,26 @@ const sweepDone = computed(() =>
  */
 const sentBlocks = ref(0)
 
+/**
+ * The banner over a running write, in the carrier's terms.
+ *
+ * "Do not unplug" names a plug a Bluetooth user does not have. `device.lastKind`
+ * is what `keepLinkUp` reads, and the label follows the same source so the two
+ * cannot disagree on one screen.
+ */
+const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the link up' : 'Do not unplug'))
+
+/**
+ * The phone's confirm label counts channel changes, and a settings, key-slot or
+ * zone edit has none, which used to read "Slide to send 0 changes" above a
+ * write that sends real blocks.
+ */
+const slideLabel = computed(() => {
+  const n = changeCount.value
+  if (n === 0) return 'Slide to send the changes'
+  return `Slide to send ${n} change${n === 1 ? '' : 's'}`
+})
+
 async function send() {
   const before = codeplug.image
   sentBlocks.value = blocks.value
@@ -257,7 +276,7 @@ async function send() {
       Read a radio first. The read changes nothing, and it saves the backup this page will not write without.
     </p>
     <div class="mt-4">
-      <RiskAction risk="safe" icon="i-lucide-radio" label="Go to Connect" size="lg" @click="navigateTo('/')" />
+      <RiskAction risk="safe" icon="i-lucide-radio" label="Connect a radio" size="lg" @click="navigateTo('/')" />
     </div>
   </div>
 
@@ -266,11 +285,10 @@ async function send() {
     <div class="flex items-center flex-wrap" style="gap: 9px; margin-bottom: 5px">
       <UIcon name="i-lucide-upload" style="width: 16px; height: 16px; color: var(--cn)" />
       <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">Write to the {{ model }}</h1>
-      <span style="font-size: 13.5px; color: var(--fn)">3 steps · nothing sent yet</span>
+      <span style="font-size: 13.5px; color: var(--fn)">3 steps · nothing written yet</span>
     </div>
     <p style="margin-bottom: 13px; font-size: 14px; color: var(--mu); max-width: 78ch">
-      Three things stand between an edit and the radio, in this order: a way back, an account of what changes,
-      and your word.
+      A backup, the list of changes, then your confirmation.
     </p>
 
     <!--
@@ -281,10 +299,7 @@ async function send() {
     <!--
       On a phone the long preamble becomes a strip that stays put while the diff
       scrolls, because the sentence it needs to carry is the one that matters
-      for the next thirty seconds: keep the radio on and boofwang in front. The
-      paragraph about undocumented formats is true and is not what somebody
-      mid-write needs under their thumb - it is on the card above, where they
-      read it before starting.
+      for the next thirty seconds: keep the radio on and boofwang in front.
 
       The wording is derived rather than written twice. `device.keepLinkUp`
       knows which carrier is in use and words itself accordingly, which is why
@@ -325,17 +340,14 @@ async function send() {
           Writing can leave a radio in a state it will not start from
         </div>
         <p style="font-size: 13px; line-height: 1.6; color: var(--mu)">
-          These are undocumented formats worked out by reading other people's implementations and watching
-          real radios, not a specification from the manufacturer. A write that is interrupted, or that turns
-          out to have been wrong about a byte, can leave a radio that will not boot or will not transmit.
-          Recovery usually means writing a known-good backup back over it, which is why one is required
-          before anything is sent. {{ device.keepLinkUp }} until it finishes.
+          An interrupted write can leave a radio that will not boot or will not transmit. The backup below is
+          what puts it back, which is why one is required before anything is sent.
         </p>
       </div>
     </div>
 
     <div class="grid" style="gap: 9px">
-      <!-- Card 1. A way back. -->
+      <!-- Card 1. Backup. -->
       <div
         class="rounded-[7px] overflow-hidden"
         :style="{
@@ -363,7 +375,7 @@ async function send() {
 
           <div class="min-w-0 flex-1">
             <div class="flex items-baseline flex-wrap" style="gap: 9px">
-              <span style="font-size: 15px; font-weight: 600">A way back</span>
+              <span style="font-size: 15px; font-weight: 600">Backup</span>
 
               <span v-if="checking" class="chip" style="background: var(--pn3); color: var(--fn)">checking…</span>
               <span
@@ -393,7 +405,7 @@ async function send() {
         </div>
       </div>
 
-      <!-- Card 2. What changes. This is the confirmation step; the typed token below only records it. -->
+      <!-- Card 2. Changes. This is the confirmation step; the typed token below only records it. -->
       <div class="rounded-[7px] overflow-hidden" style="background: var(--pn); border: 1px solid var(--ln)">
         <div class="flex items-start gap-3" style="padding: 17px 19px">
           <span
@@ -405,7 +417,7 @@ async function send() {
 
           <div class="min-w-0 flex-1">
             <div class="flex items-baseline flex-wrap" style="gap: 9px">
-              <span style="font-size: 15px; font-weight: 600">What changes</span>
+              <span style="font-size: 15px; font-weight: 600">Changes</span>
 
               <span
                 v-if="diff && diff.changed > 0"
@@ -442,13 +454,12 @@ async function send() {
                 style="background: var(--dgB); color: var(--dg)"
               >
                 <UIcon name="i-lucide-lock" class="size-3" />
-                {{ diff.receiveOnlyLost }} RX-Only lost
+                {{ diff.receiveOnlyLost }} receive-only lost
               </span>
             </div>
 
             <p style="margin-top: 5px; font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 70ch">
-              Not a byte count. One line per channel, and the two that carry more than their size are called out
-              by name: a channel gaining transmit, and a slot being erased.
+              One line per channel. Channels that gain transmit and slots that are erased are marked.
             </p>
           </div>
         </div>
@@ -492,7 +503,7 @@ async function send() {
         </p>
       </div>
 
-      <!-- Card 3. Your word. -->
+      <!-- Card 3. Confirm. -->
       <div class="rounded-[7px] overflow-hidden" style="background: var(--pn); border: 1px solid var(--cnL)">
         <div class="flex items-start gap-3" style="padding: 17px 19px">
           <span
@@ -504,7 +515,7 @@ async function send() {
 
           <div class="min-w-0 flex-1">
             <div class="flex items-baseline flex-wrap" style="gap: 9px">
-              <span style="font-size: 15px; font-weight: 600">Your word</span>
+              <span style="font-size: 15px; font-weight: 600">Confirm</span>
               <span v-if="blocked" class="chip" style="background: var(--dgB); color: var(--dg)">
                 <UIcon name="i-lucide-circle-x" class="size-3" />
                 Blocked
@@ -514,11 +525,6 @@ async function send() {
                 Confirm to send
               </span>
             </div>
-
-            <p style="margin-top: 5px; font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 70ch">
-              Writing is the only action in boofwang that asks you to type. It is also the only one that can leave
-              a radio unusable.
-            </p>
           </div>
         </div>
 
@@ -550,7 +556,7 @@ async function send() {
                 v-if="otherBlockers.length === 0"
                 style="font-size: 14px; line-height: 1.55; color: var(--tx); max-width: 74ch"
               >
-                A way back has to exist before anything is sent. The first card says what is missing.
+                A backup has to exist before anything is sent. The first card says what is missing.
               </p>
             </div>
           </div>
@@ -574,7 +580,7 @@ async function send() {
           -->
           <ConfirmSlide
             v-if="narrow"
-            :label="`Slide to send ${changeCount} change${changeCount === 1 ? '' : 's'}`"
+            :label="slideLabel"
             risk="caution"
             icon="i-lucide-upload"
             :disabled="!ready"
@@ -614,25 +620,11 @@ async function send() {
               color: var(--fn);
             "
           >
-            boofwang comes with no warranty. We are not liable for a radio a write leaves unusable. Use at your
-            own risk.
+            boofwang comes with no warranty and no liability for a radio a write leaves unusable.
           </p>
         </div>
       </div>
     </div>
-
-    <!--
-      Deliberately not "before the next is sent". Two of the four drivers write
-      every block and then verify in a second pass, so promising a strict
-      write-verify-write order would describe a failure model the user does not
-      have: on those, a mismatch is found after everything was already sent.
-      What is true of all of them is that no write is called done until every
-      block has been read back.
-    -->
-    <p style="margin-top: 14px; font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
-      No write is finished until every block has been read back off the radio and compared. If any block does not
-      match, the write stops and says which one. The backup above is what puts the radio back.
-    </p>
   </section>
 
   <section v-else-if="view === 'sending'" class="mx-auto" style="max-width: 520px; padding: 80px 16px">
@@ -640,7 +632,7 @@ async function send() {
     <div class="rounded-[8px]" style="border: 1px solid var(--cnL); background: var(--pn); padding: 20px">
       <div class="flex items-center gap-2" style="margin-bottom: 7px">
         <UIcon name="i-lucide-triangle-alert" class="size-3.5" style="color: var(--cn)" />
-        <span class="label-xs" style="color: var(--cn); letter-spacing: 0.08em">Do not unplug</span>
+        <span class="label-xs" style="color: var(--cn); letter-spacing: 0.08em">{{ holdLabel }}</span>
       </div>
 
       <h1 style="margin-bottom: 14px; font-size: 19px; font-weight: 600">Writing to the radio</h1>
@@ -688,8 +680,7 @@ async function send() {
         rest of this page refuses to tell.
       -->
       <p style="margin-bottom: 16px; font-size: 14px; line-height: 1.6; color: var(--mu)">
-        The radio now holds what you were shown. That state is the new baseline, and the backup you started from
-        is still on file under Backups.
+        The radio now holds what you were shown. The backup you started from is still on file under Backups.
       </p>
 
       <div class="flex flex-wrap gap-2">

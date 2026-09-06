@@ -111,7 +111,7 @@ describe('the liability line', () => {
       ['restore', RESTORE],
     ] as const) {
       expect(src, `${name} has no warranty line`).toMatch(/comes with no warranty/)
-      expect(src, `${name} does not disclaim liability`).toMatch(/not liable for a radio a \w+ leaves unusable/)
+      expect(src, `${name} does not disclaim liability`).toMatch(/no liability for a radio a \w+ leaves unusable/)
     }
   })
 

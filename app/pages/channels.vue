@@ -41,8 +41,7 @@ const { phone } = useFormFactor()
     >
       <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em">No codeplug open</h1>
       <p style="margin-top: 6px; font-size: 14.5px; line-height: 1.6; color: var(--mu); max-width: 62ch">
-        Read one from a radio, or open a <code class="font-mono">.bwp</code> file you saved earlier. Reading
-        changes nothing on the radio and saves a backup before you edit anything.
+        Read one from a radio, or open a <code class="font-mono">.bwp</code> file you saved earlier.
       </p>
       <div class="flex flex-wrap items-center gap-3" style="margin-top: 14px">
         <RiskAction

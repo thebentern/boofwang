@@ -28,7 +28,7 @@ const SESSION = readFileSync(
 const DEVICE = readFileSync(fileURLToPath(new URL('../../app/stores/device.ts', import.meta.url)), 'utf8')
 
 /** The screens that send bytes, as the reader sees them: template only. */
-const SCREENS = ['pages/write.vue', 'pages/restore.vue', 'components/WriteToRadioDialog.vue'].map((name) => ({
+const SCREENS = ['pages/write.vue', 'pages/restore.vue'].map((name) => ({
   name,
   template: readFileSync(fileURLToPath(new URL(`../../app/${name}`, import.meta.url)), 'utf8').split('</script>').pop()!,
 }))

@@ -46,7 +46,7 @@ const KIND = {
 
 const NOTE = {
   'gains-transmit': { text: 'gains transmit', tone: 'caution' },
-  'loses-transmit': { text: 'transmit disabled', tone: 'neutral' },
+  'loses-transmit': { text: 'now receive-only', tone: 'neutral' },
   'slot-cleared': { text: 'slot cleared', tone: 'danger' },
   'error-cleared': { text: 'error cleared', tone: 'ok' },
   'from-preset': { text: 'from preset', tone: 'neutral' },
@@ -77,13 +77,20 @@ function kindOf(c: ChannelChange) {
  * "Gains transmit" and "erased" come before the byte count on purpose: the
  * numbers that matter are the ones with a legal or safety meaning, and the
  * wire size is the least interesting fact about a write.
+ *
+ * Only the non-zero parts are shown. Printing "0 gains transmit · 0 slots
+ * erased" under every rename made the line that carries the safety facts read
+ * as boilerplate, which is how the one time it says 1 gets skipped too. The
+ * channel count always stays so the line is never empty.
  */
 const totals = computed(() => {
   const d = props.diff
   const parts = [`${d.changed} channel${d.changed === 1 ? '' : 's'} change`]
-  parts.push(`${d.gainsTransmit} gains transmit`)
-  parts.push(`${d.erased} slot${d.erased === 1 ? '' : 's'} erased`)
-  parts.push(`${d.receiveOnlyLost} RX-Only lost`)
+  if (d.gainsTransmit > 0) parts.push(`${d.gainsTransmit} gain${d.gainsTransmit === 1 ? 's' : ''} transmit`)
+  if (d.erased > 0) parts.push(`${d.erased} slot${d.erased === 1 ? '' : 's'} erased`)
+  if (d.receiveOnlyLost > 0) {
+    parts.push(`${d.receiveOnlyLost} lose${d.receiveOnlyLost === 1 ? 's' : ''} receive-only`)
+  }
   return parts.join(' · ')
 })
 </script>

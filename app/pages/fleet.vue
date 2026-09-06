@@ -8,14 +8,14 @@ import type { FleetUnit } from '#core/radio/fleet.js'
  * One codeplug onto a room full of radios.
  *
  * A club buys twenty DM-32UVs and one person builds the channel plan. What
- * every handset needs is that plan; what none of them may share is a DMR ID.
+ * every radio needs is that plan; what none of them may share is a DMR ID.
  * So the roster is the spine of this page: a row per radio, carrying the two
  * things that are its own, checked for duplicates before a single radio is
  * plugged in.
  *
  * The run itself is deliberately unremarkable. Each radio is read, which is
  * what stores its backup; the roster row is applied to the master; the diff is
- * shown; the word is typed. That is the ordinary write flow, once per handset,
+ * shown; the word is typed. That is the ordinary write flow, once per radio,
  * and this page adds a record of which radios have been done rather than a
  * faster way to write to one. There is no bulk send and there is no fleet
  * exception to the typed confirmation.
@@ -36,7 +36,7 @@ const toast = useToast()
  * Kept in sync while nothing is running, because the duplicate-ID check needs a
  * schema and its whole value is firing before a radio is plugged in. Once the
  * run starts the store holds its own: the editor's document is replaced by each
- * handset that gets read, and the run must not follow it.
+ * radio that gets read, and the run must not follow it.
  */
 watch(
   () => codeplug.doc?.radio ?? null,
@@ -51,7 +51,7 @@ const model = computed(() => fleet.schema?.model ?? 'radio')
  *
  * Schema-driven, so an analog radio simply loses the two columns rather than
  * being offered fields it has nowhere to keep. The rest of the run still works
- * on one: the per-unit backup, the diff and the write are what it is made of.
+ * on one: the per-radio backup, the diff and the write are what it is made of.
  */
 const idFeature = computed(() => fleet.schema?.features.radioIds ?? false)
 const varies = computed(() => idFeature.value !== false)
@@ -73,7 +73,7 @@ function importPasted() {
     toast.add({
       title: 'No radios in that',
       description:
-        'Expected a row per radio, with a name, a DMR ID and a callsign. A header row is read if there is one.',
+        'Expected a row per radio, with a label, a DMR ID and a callsign. A header row is read if there is one.',
       icon: 'i-lucide-circle-alert',
       color: 'error',
       duration: 0,
@@ -88,7 +88,7 @@ function importPasted() {
     description:
       problems.length === 0
         ? 'Check the DMR IDs against your own list before starting.'
-        : `${problems.length} row(s) were left out: ${problems.map((p) => `line ${p.line}, ${p.message}`).join(' ')}`,
+        : `${problems.length} row${problems.length === 1 ? ' was' : 's were'} left out: ${problems.map((p) => `line ${p.line}, ${p.message}`).join(' ')}`,
     icon: problems.length === 0 ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert',
     color: problems.length === 0 ? 'success' : 'warning',
     duration: problems.length === 0 ? 8000 : 0,
@@ -121,7 +121,7 @@ const busy = ref(false)
  * Looked up after each read rather than watched, because the answer only
  * changes when a radio is read - and the read is what stores it. Held apart
  * from "not looked yet" for the same reason the write page holds them apart:
- * telling somebody there is no way back when there is teaches them to ignore
+ * telling somebody there is no backup when there is teaches them to ignore
  * the message when it is true.
  */
 const backup = ref<{ identHash: string; createdAt?: string } | null>(null)
@@ -192,7 +192,7 @@ function finish() {
 /**
  * What this write does to the radio's channels.
  *
- * Against the image that was just read off *this* handset, not against the
+ * Against the codeplug that was just read off *this* radio, not against the
  * master. Every radio in the run gets a different diff, and that is the point:
  * the second-hand one with somebody else's channels on it is a hundred rows,
  * and the one programmed last week is three.
@@ -247,22 +247,29 @@ const warnings = computed(() => {
 
 const STATE_CHIP = {
   written: { label: 'written', icon: 'i-lucide-circle-check', fg: 'var(--ok)', bg: 'var(--okB)' },
-  failed: { label: 'failed', icon: 'i-lucide-circle-x', fg: 'var(--dg)', bg: 'var(--dgB)' },
+  failed: { label: 'not written', icon: 'i-lucide-circle-x', fg: 'var(--dg)', bg: 'var(--dgB)' },
   skipped: { label: 'skipped', icon: 'i-lucide-circle-minus', fg: 'var(--fn)', bg: 'var(--pn3)' },
 } as const
 
-const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
+const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Callsign' } as const
+
+/**
+ * The banner over a transfer, in the carrier's terms. "Do not unplug" names a
+ * plug a Bluetooth user does not have, and this reads the same source as
+ * `keepLinkUp` so the two cannot disagree on one screen.
+ */
+const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the link up' : 'Do not unplug'))
 </script>
 
 <template>
   <div v-if="!codeplug.isOpen" class="mx-auto px-4 py-10" style="max-width: 880px">
-    <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">There is no codeplug to send</h1>
+    <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">There is no codeplug to write</h1>
     <p class="mt-2" style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 70ch">
       Fleet programming puts one codeplug on a roster of radios. Read the radio it was built on, or open the
       file somebody sent you, and that becomes the master for the run.
     </p>
     <div class="mt-4">
-      <RiskAction risk="safe" icon="i-lucide-radio" label="Go to Connect" size="lg" @click="navigateTo('/')" />
+      <RiskAction risk="safe" icon="i-lucide-radio" label="Connect a radio" size="lg" @click="navigateTo('/')" />
     </div>
   </div>
 
@@ -271,12 +278,11 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
     <div class="flex items-center flex-wrap" style="gap: 9px; margin-bottom: 5px">
       <UIcon name="i-lucide-users" style="width: 16px; height: 16px; color: var(--ac)" />
       <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">Program a fleet</h1>
-      <span style="font-size: 13.5px; color: var(--fn)">nothing sent yet</span>
     </div>
     <p style="margin-bottom: 16px; font-size: 14px; color: var(--mu); max-width: 78ch">
-      One codeplug onto a roster of radios, varying only what belongs to each handset. Each radio is read
-      before it is written, which is what stores its backup, and each write asks for the word on its own diff.
-      Nothing here writes to more than one radio at a time.
+      One codeplug, written to each radio on the roster with its own DMR ID. Every radio is read first, so it
+      has a backup, and every write is confirmed on its own diff. Nothing here writes to more than one radio at a
+      time.
     </p>
 
     <!-- What every radio gets. -->
@@ -295,8 +301,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
           {{ codeplug.talkGroups.length }} talk group{{ codeplug.talkGroups.length === 1 ? '' : 's' }}
         </p>
         <p class="note">
-          The radio's own DMR IDs never travel with it. Each handset keeps the ones it has, and the roster
-          below decides what goes in the first slot, which is the one a channel falls back to.
+          Each radio keeps its own DMR IDs. The roster sets the first one, which channels use by default.
         </p>
       </div>
 
@@ -308,11 +313,10 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
         <input v-model="fleet.copyKeys" type="checkbox" style="margin-top: 3px" >
         <span>
           <span style="font-size: 14px; font-weight: 600; color: var(--tx)">
-            Send the {{ masterKeys }} key slot{{ masterKeys === 1 ? '' : 's' }} as well
+            Include the {{ masterKeys }} key slot{{ masterKeys === 1 ? '' : 's' }}
           </span>
           <span class="note" style="display: block; margin-top: 2px">
-            Off unless asked for. A business fleet sharing its keys is what this screen is for. A club
-            receiving somebody's keys because they wanted the channel list is not.
+            Off by default. Turn on only if every radio on this roster is meant to share these keys.
           </span>
         </span>
       </label>
@@ -348,14 +352,14 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
 
     <div v-if="pasting" class="card" style="margin-bottom: 9px; padding: 15px 17px">
       <p class="note" style="margin-top: 0; margin-bottom: 8px">
-        A row per radio. Any order of columns, with a header row naming them, or name, DMR ID and callsign
-        in that order without one.
+        A row per radio. Any order of columns with a header row naming them, or label, DMR ID and callsign in
+        that order without one.
       </p>
       <textarea
         v-model="pasted"
         rows="6"
         spellcheck="false"
-        placeholder="label,dmrId,name&#10;Dave's HT,2345678,M0DAV&#10;Sam's HT,2345679,M0SAM"
+        placeholder="label,dmrId,callsign&#10;Dave's HT,2345678,KD8ABC&#10;Sam's HT,2345679,W1XYZ"
         class="w-full rounded-[6px] px-2.5 py-2 outline-none font-mono"
         style="background: var(--pn2); border: 1px solid var(--ln2); color: var(--tx); font-size: 13px"
       />
@@ -364,7 +368,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
           risk="safe"
           size="sm"
           icon="i-lucide-check"
-          label="Read the list"
+          label="Use this list"
           :disabled="pasted.trim() === ''"
           @click="importPasted"
         />
@@ -387,7 +391,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
         <span class="idx" style="padding-bottom: 8px">{{ i + 1 }}</span>
 
         <label class="grid gap-1" style="min-width: 150px; flex: 1 1 150px">
-          <span class="label-xs">Radio</span>
+          <span class="label-xs">Label</span>
           <input
             :value="unit.label"
             type="text"
@@ -415,7 +419,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
           </label>
 
           <label class="grid gap-1" style="min-width: 120px">
-            <span class="label-xs">Radio name</span>
+            <span class="label-xs">Callsign</span>
             <input
               :value="unit.name"
               type="text"
@@ -442,7 +446,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
     </div>
 
     <p v-if="!varies" class="note">
-      The {{ model }} has no DMR identity of its own, so there is nothing per radio to vary. Every handset
+      The {{ model }} has no DMR identity of its own, so there is nothing per radio to vary. Every radio
       gets the same codeplug, and the run is still worth having for the backup it takes off each one.
     </p>
 
@@ -477,7 +481,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
         @click="run.startRun()"
       />
       <span class="note" style="margin: 0">
-        Starting sends nothing. It locks the roster so an ID cannot change once radios have been done.
+        Starting locks the roster so an ID cannot change once radios have been done.
       </span>
     </div>
   </section>
@@ -508,7 +512,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
     >
       <div class="flex items-center gap-2" style="margin-bottom: 6px">
         <UIcon name="i-lucide-triangle-alert" class="size-3.5" style="color: var(--cn)" />
-        <span class="label-xs" style="color: var(--cn); letter-spacing: 0.08em">Do not unplug</span>
+        <span class="label-xs" style="color: var(--cn); letter-spacing: 0.08em">{{ holdLabel }}</span>
       </div>
       <h2 style="margin-bottom: 12px; font-size: 17px; font-weight: 600">
         {{ transfer.label }}<template v-if="fleet.current"> · {{ fleet.current.label }}</template>
@@ -528,7 +532,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
       </p>
     </div>
 
-    <!-- The radio on the cable, once it has been read. -->
+    <!-- The connected radio, once it has been read. -->
     <div
       v-else-if="fleet.current && fleet.plan"
       class="card"
@@ -548,7 +552,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
         <p style="margin-top: 5px; font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 74ch">
           This is the radio in front of you as it stands now, against what the roster says it should hold.
           Read the identity below before the channel list: it is the only thing on this page that says
-          whether you plugged in the right handset.
+          whether you connected the right radio.
         </p>
       </div>
 
@@ -675,7 +679,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
       <UIcon name="i-lucide-circle-check" class="size-3.5 shrink-0" style="color: var(--ok); margin-top: 2px" />
       <p style="font-size: 14px; line-height: 1.55; color: var(--tx); max-width: 76ch">
         {{ sent.label }} took {{ sent.blocks }} block{{ sent.blocks === 1 ? '' : 's' }}, every one read back
-        and matched. Unplug it and pick the next radio below.
+        and matched. Disconnect it and pick the next radio below.
       </p>
     </div>
 
@@ -711,7 +715,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
         </span>
         <span v-else-if="fleet.currentId === unit.id" class="chip" style="background: var(--cnB); color: var(--cn)">
           <UIcon name="i-lucide-usb" class="size-3" />
-          on the cable
+          connected
         </span>
 
         <span v-if="fleet.outcomes[unit.id]" class="note" style="margin: 0; flex: 1 1 200px">
@@ -743,12 +747,12 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
     </div>
 
     <p v-if="fleet.pending.length === 0" class="note">
-      Every radio on the roster has been dealt with. Save the record before you end the run: it is the only
-      copy of which handset took which identity.
+      Every radio on the roster is done. Save the record before you end the run: it is the only copy of
+      which radio took which identity.
     </p>
     <p v-else-if="fleet.currentId === null" class="note">
-      Plug in the next radio, switch it on, then press Read next to its row. The read is what stores the
-      backup this write cannot happen without.
+      Plug in the next radio, turn it on, then press Read this radio next to its row. The read is what stores
+      the backup this write cannot happen without.
     </p>
 
     <div class="flex items-center gap-2 flex-wrap" style="margin-top: 15px">
@@ -786,7 +790,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
       <p style="font-size: 14px; line-height: 1.55; color: var(--tx); max-width: 76ch; margin-bottom: 10px">
         Ending the run throws away the record of which {{ fleet.written.length }} radio{{
           fleet.written.length === 1 ? '' : 's'
-        }} were written and which physical handset took each row. The radios keep what they were given and
+        }} were written and which physical radio took each row. The radios keep what they were given and
         every backup stays under Backups, but this list is not stored anywhere and cannot be rebuilt.
       </p>
       <ConfirmTyped token="END" label="End the run" risk="destructive" icon="i-lucide-x" @confirm="finish">

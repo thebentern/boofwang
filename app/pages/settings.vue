@@ -61,7 +61,7 @@ const known = computed(() =>
         Settings belong to a codeplug. Read a radio, or open a codeplug file you saved earlier.
       </p>
       <div class="flex flex-wrap items-center gap-2.5">
-        <RiskAction risk="neutral" icon="i-lucide-radio" label="Choose a radio" @click="navigateTo('/')" />
+        <RiskAction risk="neutral" icon="i-lucide-radio" label="Connect a radio" @click="navigateTo('/')" />
         <OpenCodeplugButton />
       </div>
     </div>
@@ -74,15 +74,13 @@ const known = computed(() =>
         No settings for the {{ codeplug.schema?.vendor }} {{ codeplug.schema?.model }} yet
       </h2>
       <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 74ch">
-        Its settings are read from the radio and written back unchanged, but none have been decoded well
-        enough to offer a control for. They survive a read and write either way.
+        boofwang does not yet edit this radio's settings. They are written back as read.
       </p>
     </div>
 
     <template v-else>
       <p style="font-size: 13px; color: var(--mu); line-height: 1.6; max-width: 78ch; margin-bottom: 12px">
-        These are the settings this build understands. Everything else the radio stores is read, preserved
-        byte for byte and written back exactly as it was found.
+        Everything the radio stores that is not shown here is written back as read.
       </p>
 
       <SchemaForm :groups="groups" :values="codeplug.settings" @change="codeplug.setSetting" />

@@ -30,11 +30,11 @@ onMounted(async () => {
 })
 
 /**
- * Where a stored image came from, in the user's words.
+ * Where a stored backup came from, in the user's words.
  *
  * A pre-write backup is the one taken because something was about to change,
  * so it is the only origin that spends color: it marks the point a radio was
- * last altered, which is exactly what someone hunting for a way back is after.
+ * last altered, which is exactly what someone hunting for a backup is after.
  */
 const ORIGIN = {
   download: { label: 'Read from radio', icon: 'i-lucide-download', caution: false },
@@ -43,7 +43,7 @@ const ORIGIN = {
 } as const
 
 /**
- * The image the open codeplug was decoded from.
+ * The backup the open codeplug was decoded from.
  *
  * Matched on the content hash rather than the record id, because a write
  * reloads the store from the encoded image while keeping the base hash - so
@@ -60,7 +60,7 @@ function canRestore(b: StoredBackup) {
 
 async function openBackup(b: StoredBackup) {
   if (!isImplemented(b.radioId)) {
-    toast.add({ title: 'No driver', description: `boofwang cannot decode ${b.radioId} images yet.`, color: 'warning' })
+    toast.add({ title: 'No driver', description: `boofwang cannot decode ${b.radioId} codeplugs yet.`, color: 'warning' })
     return
   }
   codeplug.load(fromStoredBackup(b), createDriver(b.radioId))
@@ -88,7 +88,7 @@ function goToRestore(b: StoredBackup) {
  * Deleting is destructive, so it asks - but not with a typed token.
  *
  * Typing a word is reserved for the two actions that change the radio. Losing a
- * stored image is recoverable by reading the radio again, so the cost here is a
+ * stored backup is recoverable by reading the radio again, so the cost here is a
  * second click and a sentence naming what goes, which is enough to stop the
  * misclick without training anyone to type through prompts.
  */
@@ -105,7 +105,7 @@ async function askPersist() {
   toast.add(
     persisted.value
       ? { title: 'Storage will be kept', description: 'The browser has agreed to keep your backups.', color: 'success' }
-      : { title: 'Not granted', description: 'The browser declined. Download anything you cannot afford to lose.', color: 'warning' },
+      : { title: 'Not granted', description: 'The browser declined. Save anything you cannot afford to lose.', color: 'warning' },
   )
 }
 </script>
@@ -127,9 +127,9 @@ async function askPersist() {
     >
       <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" style="color: var(--cn)" />
       <span style="font-size: 14px; color: var(--tx)">
-        <strong style="font-weight: 600">These backups can be evicted.</strong>
+        <strong style="font-weight: 600">The browser may delete these.</strong>
         <span style="color: var(--mu)">
-          Browsers discard script-created storage under pressure, and Safari drops it after a week without a visit.
+          Storage can be cleared when space is short, and Safari clears it after a week without a visit.
         </span>
       </span>
       <RiskAction
@@ -184,7 +184,7 @@ async function askPersist() {
                 v-if="isBaseline(b)"
                 class="chip"
                 style="background: var(--okB); color: var(--ok); border: 1px solid var(--okL)"
-              >current baseline</span>
+              >open now</span>
             </div>
             <div class="font-mono tabular truncate" style="font-size: 12.5px; color: var(--fn)" :title="b.sha256">
               {{ b.radioId }} · {{ b.byteLength.toLocaleString() }} bytes · sha256 {{ b.sha256.slice(0, 16) }}…
@@ -199,7 +199,7 @@ async function askPersist() {
               icon="i-lucide-pencil"
               label="Open"
               :disabled="!isImplemented(b.radioId)"
-              :title="isImplemented(b.radioId) ? undefined : `boofwang cannot decode ${b.radioId} images yet.`"
+              :title="isImplemented(b.radioId) ? undefined : `boofwang cannot decode ${b.radioId} codeplugs yet.`"
               @click="openBackup(b)"
             />
             <RiskAction
@@ -217,7 +217,6 @@ async function askPersist() {
               icon="i-lucide-upload"
               label="Restore"
               :disabled="!canRestore(b)"
-              :title="canRestore(b) ? undefined : `boofwang can read the ${b.radioId} but cannot write to it, so this image cannot be put back.`"
               @click="goToRestore(b)"
             />
             <RiskAction
@@ -245,10 +244,10 @@ async function askPersist() {
           <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" style="color: var(--dg)" />
           <span style="font-size: 13px; line-height: 1.5; color: var(--mu)">
             <template v-if="isBaseline(b)">
-              This is the image the open codeplug came from. Delete it and the way back is only on the radio.
+              This is the backup the open codeplug came from. Delete it and the only copy is on the radio.
             </template>
             <template v-else>
-              Nothing here can get this image back. Only reading the radio again can.
+              Nothing here can get this backup back. Only reading the radio again can.
             </template>
           </span>
           <div class="ms-auto flex items-center gap-1.5">
@@ -266,8 +265,7 @@ async function askPersist() {
     </div>
 
     <p v-if="backups.length" style="margin-top: 11px; font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 78ch">
-      Restore overwrites what is on the radio right now with the image above. It is the same register as a write, and it
-      asks the same way. A read that has never been written from is the safest thing in this list.
+      Restore replaces everything on the radio with the backup, and asks for a typed confirmation like a write does.
     </p>
   </div>
 </template>
