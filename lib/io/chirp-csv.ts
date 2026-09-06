@@ -60,7 +60,7 @@ export interface ChirpToneFields {
 }
 
 /**
- * Collapse a normalised tone pair into CHIRP's seven fields.
+ * Collapse a normalized tone pair into CHIRP's seven fields.
  *
  * This is `split_tone_decode` from `chirp_common.py` run forwards: given the
  * transmit and receive tone specs, it picks the narrowest `tmode` that

@@ -138,7 +138,7 @@ describe('reading a radio end to end', () => {
     expect(ident.layout).toBe('unknown')
     expect(ident.caps.read).toBe(true)
     expect(ident.caps.write).toBe(false)
-    expect(ident.caps.reason).toMatch(/not recognised/)
+    expect(ident.caps.reason).toMatch(/not recognized/)
 
     // Crucially it still produces a full backup.
     const image = await driver.readImage(t, ident, CTX)

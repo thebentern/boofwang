@@ -283,7 +283,7 @@ describe('writing', () => {
 
 describe('the handshake, against a radio that talks first', () => {
   /**
-   * Observed on hardware. This radio emits initialisation bytes after the port
+   * Observed on hardware. This radio emits initialization bytes after the port
    * opens; they sit in the receive buffer and are then mistaken for a reply.
    * The symptom is misleading - PSEARCH appears to succeed on the stray bytes,
    * every read afterwards is one response behind, and the error names PASSSTA:

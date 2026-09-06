@@ -146,8 +146,10 @@ vite.config.ts.timestamp-*
 # see docs/provenance.md. Fetch with scripts/fetch-reference.sh
 reference/
 
-# Dev-server launch config is machine-local
-.claude/
+# Dev-server launch config and agent worktrees are machine-local. Skills are
+# repository knowledge, the same as CLAUDE.md and docs/, so they are tracked.
+.claude/*
+!.claude/skills/
 
 # Python bytecode from the development bridge.
 __pycache__/

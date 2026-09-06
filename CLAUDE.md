@@ -177,8 +177,10 @@ and no `Co-Authored-By` trailers.
 
 **Interface copy** is sentence case, never title case. The product is always
 lowercase `boofwang`, even sentence-initially. **No em-dashes in `app/`** — use a
-full stop, a comma, a colon, or a middot for field separators. British spelling in
-prose, American in identifiers and CSS.
+full stop, a comma, a colon, or a middot for field separators. American spelling
+throughout: prose, identifiers and CSS. The audience is FCC Part 90/95/97, so it is
+a license, a color code, and you program a radio - "programme" is not a verb here in
+any dialect.
 
 Errors state what happened, as facts. Never "failed to", never an apology. A
 developer-facing error carries the actual bytes. Uncertainty is stated in the

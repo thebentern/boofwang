@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
  * boofwang is GPLv3, and it borrows layout and protocol knowledge from GPL-3.0
  * (CHIRP), MIT (DM32-Protocol-Spec) and CC-BY-SA (SQ5BPF) sources. Per-file
  * identifiers are what keep that provenance legible to anyone who redistributes
- * the code, which the licence obliges them to be able to do.
+ * the code, which the license obliges them to be able to do.
  */
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))

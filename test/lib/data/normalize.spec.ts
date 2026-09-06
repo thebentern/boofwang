@@ -6,7 +6,7 @@ import {
   parseMHzField,
   parseMode,
   txSpecFor,
-} from '#core/data/normalise.js'
+} from '#core/data/normalize.js'
 import { hz } from '#core/model/units.js'
 
 /**

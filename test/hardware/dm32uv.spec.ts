@@ -296,7 +296,7 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
 
       const settingsWere = { ...doc.settings }
       doc.settings.powerOnLine1 = 'HW BOOF'
-      doc.settings['callsignColour.colour'] = 5
+      doc.settings['callsignColor.color'] = 5
       doc.settings['gpsFlags.gpsSwitch'] = settingsWere['gpsFlags.gpsSwitch'] === 1 ? 0 : 1
 
       /*
@@ -307,7 +307,7 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
        */
       const NEW_SETTINGS: Record<string, number> = {
         'alertTonesCont.batteryLow': settingsWere['alertTonesCont.batteryLow'] === 1 ? 0 : 1,
-        standbyCharColour1: 7,
+        standbyCharColor1: 7,
         activeWaitTime: 9,
         preCarrierTime: 11,
         smsFormat: 5,
@@ -554,9 +554,9 @@ describe.skipIf(!HW)('DM-32UV on the bench', () => {
       expect([...tgIndexNow.byName].sort((a, b) => a - b)).toEqual(tgIndexNow.live)
 
       expect(back.settings.powerOnLine1).toBe('HW BOOF')
-      expect(back.settings['callsignColour.colour']).toBe(5)
+      expect(back.settings['callsignColor.color']).toBe(5)
       // One nibble of a shared byte moved; the other must not have.
-      expect(back.settings['standbyTextColour.colour']).toBe(settingsWere['standbyTextColour.colour'])
+      expect(back.settings['standbyTextColor.color']).toBe(settingsWere['standbyTextColor.color'])
       // And the settings this build models but does not offer are unchanged.
       expect(back.settings.gpsReportInterval).toBe(settingsWere.gpsReportInterval)
 

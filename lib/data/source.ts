@@ -8,7 +8,7 @@ import type { Hz } from '../model/units.js'
  * External sources of repeater and talk group data.
  *
  * Everything here is somebody else's data, fetched at runtime and never
- * committed. Each source carries its own attribution and licence because that
+ * committed. Each source carries its own attribution and license because that
  * is the consideration boofwang offers in return for using it, and because
  * `docs/provenance.md` has to be able to say where every byte came from. A
  * source with no attribution is a bug, and there is a test that says so.
@@ -21,7 +21,7 @@ import type { Hz } from '../model/units.js'
  */
 
 /**
- * One repeater, normalised.
+ * One repeater, normalized.
  *
  * Deliberately not a `PresetChannel`: this carries what the search interface
  * needs to show (who runs it, where it is, whether it is up) alongside what a
@@ -72,7 +72,7 @@ export interface RepeaterRecord {
  * The DMR settings a repeater listing can supply.
  *
  * No power, no radio ID and no encryption: those are properties of the operator
- * and their licence, not of the repeater, and a directory has no business
+ * and their license, not of the repeater, and a directory has no business
  * setting them.
  */
 export interface DmrParams {
@@ -132,7 +132,7 @@ export interface DataSource {
   /** Shown wherever data from this source is displayed, and copied onto every channel it produces. */
   readonly attribution: string
   /** What the publisher permits, in one line. Never guessed - see docs/provenance.md. */
-  readonly licence: string
+  readonly license: string
   readonly homepage: string
   /**
    * Whether to offer this source at all.

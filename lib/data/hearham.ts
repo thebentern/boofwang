@@ -2,7 +2,7 @@
 import type { TonePair } from '../model/tones.js'
 import { hz, type Hz } from '../model/units.js'
 import { distanceKm, isUsableCoord } from './geo.js'
-import { isStorableColorCode, parseAccess, parseMode, txSpecFor } from './normalise.js'
+import { isStorableColorCode, parseAccess, parseMode, txSpecFor } from './normalize.js'
 import type {
   JsonFetcher,
   RepeaterRecord,
@@ -20,7 +20,7 @@ import type {
  * 22,635 records, 15,274 are FM.
  *
  * It sends no `Access-Control-Allow-Origin`, so it needs the desktop shell -
- * see `needs` in `registry.ts`. It also publishes no data licence, which is
+ * see `needs` in `registry.ts`. It also publishes no data license, which is
  * recorded in `docs/provenance.md` and repeated to the user wherever its data
  * is shown. If its owner asks us to stop, `enabled: false` in the registry is
  * the whole change.

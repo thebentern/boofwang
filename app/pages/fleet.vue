@@ -128,7 +128,7 @@ const backup = ref<{ identHash: string; createdAt?: string } | null>(null)
 
 const sent = ref<{ label: string; blocks: number } | null>(null)
 
-async function programme(unit: FleetUnit) {
+async function program(unit: FleetUnit) {
   if (busy.value) return
   busy.value = true
   backup.value = null
@@ -270,7 +270,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
     <!-- Stage one: the roster. Nothing here has touched a radio. -->
     <div class="flex items-center flex-wrap" style="gap: 9px; margin-bottom: 5px">
       <UIcon name="i-lucide-users" style="width: 16px; height: 16px; color: var(--ac)" />
-      <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">Programme a fleet</h1>
+      <h1 style="font-size: 21px; font-weight: 600; letter-spacing: -0.02em">Program a fleet</h1>
       <span style="font-size: 13.5px; color: var(--fn)">nothing sent yet</span>
     </div>
     <p style="margin-bottom: 16px; font-size: 14px; color: var(--mu); max-width: 78ch">
@@ -635,7 +635,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
             icon="i-lucide-refresh-cw"
             label="Read it again"
             :disabled="busy"
-            @click="programme(fleet.current)"
+            @click="program(fleet.current)"
           />
         </div>
       </div>
@@ -659,7 +659,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
               icon="i-lucide-refresh-cw"
               label="Read it again"
               :disabled="busy"
-              @click="programme(fleet.current)"
+              @click="program(fleet.current)"
             />
           </template>
         </ConfirmTyped>
@@ -726,7 +726,7 @@ const FIELD_LABEL = { dmrId: 'DMR ID', name: 'Radio name' } as const
             icon="i-lucide-usb"
             label="Read this radio"
             :disabled="busy || fleet.currentId !== null || transfer.active"
-            @click="programme(unit)"
+            @click="program(unit)"
           />
           <RiskAction
             v-if="fleet.outcomes[unit.id]"

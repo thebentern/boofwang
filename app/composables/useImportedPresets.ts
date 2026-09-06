@@ -152,7 +152,7 @@ export function useImportedPresets() {
       icon: 'i-lucide-file-down',
       source: 'Saved here',
       description: `${channels.length} channel${channels.length === 1 ? '' : 's'} imported from ${name}.`,
-      licence: 'Whatever the frequencies in this file require. boofwang did not write them and cannot say.',
+      license: 'Whatever the frequencies in this file require. boofwang did not write them and cannot say.',
       attribution: name,
       stepHz: hz(5000),
       channels: channels.map(toPresetChannel),
@@ -165,14 +165,14 @@ export function useImportedPresets() {
   /**
    * Keep a set of repeaters fetched from a directory.
    *
-   * The attribution and licence come from the source's registry entry rather
+   * The attribution and license come from the source's registry entry rather
    * than from anything typed here, so the credit shown beside the channels is
    * the same string `docs/provenance.md` records.
    */
   async function saveFetched(
     name: string,
     records: readonly RepeaterRecord[],
-    source: { name: string; attribution: string; licence: string },
+    source: { name: string; attribution: string; license: string },
   ): Promise<PresetSet> {
     const set: PresetSet = {
       id: newId('fetched'),
@@ -182,7 +182,7 @@ export function useImportedPresets() {
       icon: 'i-lucide-radio-tower',
       source: 'Saved here',
       description: `${records.length} repeater${records.length === 1 ? '' : 's'} from ${source.name}.`,
-      licence: source.licence,
+      license: source.license,
       attribution: source.attribution,
       stepHz: hz(5000),
       channels: records.map(repeaterToPreset),
@@ -201,7 +201,7 @@ export function useImportedPresets() {
       icon: 'i-lucide-save',
       source: 'Saved here',
       description: `${channels.length} channel${channels.length === 1 ? '' : 's'} saved from a codeplug.`,
-      licence: 'Whatever the frequencies in this file require. boofwang did not write them and cannot say.',
+      license: 'Whatever the frequencies in this file require. boofwang did not write them and cannot say.',
       attribution: 'Saved in this browser',
       stepHz: hz(5000),
       channels: [...channels],

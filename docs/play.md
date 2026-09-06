@@ -23,7 +23,7 @@ only covers the store.
 | Upload key | Generated 2026-09-04, RSA 4096, valid to 2054. SHA-256 `04:92:1F:AC:...:D9:B1`. Kept at `~/boofwang-release.keystore` with its password in `~/.boofwang-upload-key.pw`, both 0600. |
 | CI secrets | All four `ANDROID_*` secrets set, so a tag now signs. |
 | Internal testing release | `1002 (0.1.2)` **live** on the internal track since 2026-09-04 07:36. Track active, 4.17 MB install, 19,276 supported devices. Not yet reviewed, so testers see the temporary name `ng.boofwa.app (unreviewed)`. |
-| Internal testers | One list, `boofwang internal`, with ben@meshtastic.com. Opt-in at <https://play.google.com/apps/internaltest/4700406117493732747>, then the Play listing appears for that account. |
+| Internal testers | One list, `boofwang internal`, fourteen addresses as of 2026-09-05. Opt-in at <https://play.google.com/apps/internaltest/4700406117493732747>, then the Play listing appears for that account. Play stores a Gmail address without its dots, so adding the dotted form of an address already on the list folded into it and the count did not move. |
 | `targetSdk` | 36. Play's floor for new submissions is 35, so this is current. |
 | `versionCode` | Derived from the version: 0.1.2 is 1002. Play accepted it. |
 | `applicationId` | `ng.boofwa.app`, matching the iOS bundle id and the App ID already registered. |

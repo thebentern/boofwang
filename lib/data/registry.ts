@@ -10,9 +10,9 @@ import { hostSupports, type HostKind } from '../platform/host.js'
  * contributes nothing to the bundle beyond the few strings needed to say it
  * exists.
  *
- * The licence lines below are what the publisher actually says, which in two
+ * The license lines below are what the publisher actually says, which in two
  * cases is nothing at all. That is recorded rather than smoothed over: a source
- * with no licence is a decision someone took, and the interface repeats the
+ * with no license is a decision someone took, and the interface repeats the
  * line so the person staging the data can take it too. `docs/provenance.md`
  * carries the longer version.
  */
@@ -21,8 +21,8 @@ const BRANDMEISTER: DataSource = {
   id: 'brandmeister',
   name: 'BrandMeister',
   attribution: 'BrandMeister DMR network',
-  licence:
-    'No published data licence. The API is open and needs no account. boofwang fetches its whole '
+  license:
+    'No published data license. The API is open and needs no account. boofwang fetches its whole '
     + 'repeater list once per session, around 10 MB, and searches it in your browser; what you search '
     + 'for never leaves the browser.',
   homepage: 'https://brandmeister.network/',
@@ -37,8 +37,8 @@ const HEARHAM: DataSource = {
   id: 'hearham',
   name: 'hearham',
   attribution: 'hearham.com repeater directory',
-  licence:
-    'No published data licence. The database is widely described as free to use in applications, but '
+  license:
+    'No published data license. The database is widely described as free to use in applications, but '
     + 'the site itself does not say so.',
   homepage: 'https://hearham.com/',
   enabled: true,
@@ -49,7 +49,7 @@ const RADIOID: DataSource = {
   id: 'radioid',
   name: 'RadioID',
   attribution: 'RadioID.net DMR registry',
-  licence:
+  license:
     'Lookups are permitted. Mirroring the database, republishing it or building a competing directory '
     + 'needs written permission, which boofwang does not have and does not need.',
   homepage: 'https://radioid.net/',

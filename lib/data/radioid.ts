@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { NO_TONE } from '../model/tones.js'
 import { hz } from '../model/units.js'
-import { isStorableColorCode, parseMHzField, parseSignedMHzOffset, txSpecFor } from './normalise.js'
+import { isStorableColorCode, parseMHzField, parseSignedMHzOffset, txSpecFor } from './normalize.js'
 import type {
   JsonFetcher,
   RepeaterRecord,
@@ -73,7 +73,7 @@ function toRecord(raw: RawRepeater): RepeaterRecord | SourceIssue {
     return {
       ref,
       severity: 'error',
-      message: `${ref} publishes colour code ${String(cc)}, which is outside the 0 to 15 DMR range.`,
+      message: `${ref} publishes color code ${String(cc)}, which is outside the 0 to 15 DMR range.`,
     }
   }
 

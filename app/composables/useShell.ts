@@ -7,7 +7,7 @@ import type { ShellBridge } from '#core/platform/shell.js'
  *
  * The one reader of `window.boofwang`. The desktop preload and the mobile
  * shell both leave their bridge there before the page runs, and `detectHost`
- * fails closed on anything else, so an ordinary tab, a half-initialised bridge
+ * fails closed on anything else, so an ordinary tab, a half-initialized bridge
  * and a prerender with no `window` at all answer `'browser'`. Decided once and
  * cached: the answer cannot change within a page's lifetime, and reading it
  * lazily rather than at module scope is what keeps the prerender alive.

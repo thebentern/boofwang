@@ -56,7 +56,7 @@ describe('evaluateWriteGate', () => {
 
   it('refuses unknown firmware even when everything else is fine', () => {
     expect(
-      codes(ok({ ident: { ...ident, caps: { read: true, write: false, reason: 'Unrecognised firmware' } } })),
+      codes(ok({ ident: { ...ident, caps: { read: true, write: false, reason: 'Unrecognized firmware' } } })),
     ).toContain('firmware-unknown')
   })
 

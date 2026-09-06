@@ -65,7 +65,7 @@ export const UNKNOWN_VARIANT: VariantInfo = {
   calStart: 0x1d00,
   canWrite: false,
   note:
-    'This firmware is not recognised, so its memory layout cannot be assumed. ' +
+    'This firmware is not recognized, so its memory layout cannot be assumed. ' +
     'The radio can still be read and backed up, and sending that backup in is how support gets added.',
 }
 

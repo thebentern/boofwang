@@ -79,7 +79,7 @@ const TONES: Record<HopTone, { border: string; background: string; color: string
 }
 
 /** A link in progress is still a link: solid, and coloured as informational. */
-const LINK_COLOURS: Record<HopLink, string> = {
+const LINK_COLORS: Record<HopLink, string> = {
   ok: 'var(--ok)',
   work: 'var(--in)',
   bad: 'var(--dg)',
@@ -137,7 +137,7 @@ const description = computed(
       aria-hidden="true"
       class="font-mono px-[3px]"
       style="font-size: 12.5px"
-      :style="{ color: LINK_COLOURS[firstLink] }"
+      :style="{ color: LINK_COLORS[firstLink] }"
     >{{ LINK_GLYPHS[firstLink] }}</span>
 
     <span
@@ -153,7 +153,7 @@ const description = computed(
       aria-hidden="true"
       class="font-mono px-[3px]"
       style="font-size: 12.5px"
-      :style="{ color: LINK_COLOURS[secondLink] }"
+      :style="{ color: LINK_COLORS[secondLink] }"
     >{{ LINK_GLYPHS[secondLink] }}</span>
 
     <span

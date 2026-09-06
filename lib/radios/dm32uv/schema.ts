@@ -3,7 +3,7 @@ import { hz, mW } from '../../model/units.js'
 import { CTCSS_DECIHZ, DTCS_CODES } from '../../model/tones.js'
 import type { RadioSchema } from '../../radio/schema.js'
 import {
-  DM32_COLOURS,
+  DM32_COLORS,
   DM32_KEY_FUNCTIONS,
   KEY_SLOTS,
   MESSAGE_MAX_CHARS,
@@ -13,7 +13,7 @@ import {
 import { BAUD_RATE, OPEN_SETTLE_MS } from './protocol.js'
 import { BOOT_IMAGE_HEIGHT, BOOT_IMAGE_WIDTH } from '../../io/boot-image.js'
 
-const COLOUR_OPTIONS = DM32_COLOURS.map((label, value) => ({ value, label }))
+const COLOR_OPTIONS = DM32_COLORS.map((label, value) => ({ value, label }))
 const KEY_OPTIONS = DM32_KEY_FUNCTIONS.map((label, value) => ({ value, label }))
 const ON_OFF = [
   { value: 0, label: 'Off' },
@@ -91,20 +91,20 @@ export const DM32UV_SETTINGS_GROUPS = [
     ],
   },
   {
-    id: 'colours',
-    label: 'Colours',
-    description: 'The six display colours the radio stores, one nibble each.',
+    id: 'colors',
+    label: 'Colors',
+    description: 'The six display colors the radio stores, one nibble each.',
     fields: [
-      { key: 'callsignColour.colour', label: 'Callsign', type: 'enum', options: COLOUR_OPTIONS },
-      { key: 'standbyTextColour.colour', label: 'Standby text', type: 'enum', options: COLOUR_OPTIONS },
-      { key: 'channelAColour.colour', label: 'Channel A', type: 'enum', options: COLOUR_OPTIONS },
-      { key: 'channelBColour.colour', label: 'Channel B', type: 'enum', options: COLOUR_OPTIONS },
-      { key: 'zoneAColour.colour', label: 'Zone A', type: 'enum', options: COLOUR_OPTIONS },
-      { key: 'zoneBColour.colour', label: 'Zone B', type: 'enum', options: COLOUR_OPTIONS },
+      { key: 'callsignColor.color', label: 'Callsign', type: 'enum', options: COLOR_OPTIONS },
+      { key: 'standbyTextColor.color', label: 'Standby text', type: 'enum', options: COLOR_OPTIONS },
+      { key: 'channelAColor.color', label: 'Channel A', type: 'enum', options: COLOR_OPTIONS },
+      { key: 'channelBColor.color', label: 'Channel B', type: 'enum', options: COLOR_OPTIONS },
+      { key: 'zoneAColor.color', label: 'Zone A', type: 'enum', options: COLOR_OPTIONS },
+      { key: 'zoneBColor.color', label: 'Zone B', type: 'enum', options: COLOR_OPTIONS },
       {
-        key: 'standbyCharColour1',
+        key: 'standbyCharColor1',
         label: 'Standby character',
-        help: 'A whole byte rather than a nibble, and its range runs to 30 rather than the colour list. The reference has no second offset for the pair this belongs to.',
+        help: 'A whole byte rather than a nibble, and its range runs to 30 rather than the color list. The reference has no second offset for the pair this belongs to.',
         type: 'int',
         min: 0,
         max: 30,
@@ -757,7 +757,7 @@ export const DM32UV_SETTINGS_GROUPS = [
       { key: 'menuChannelA.txFrequency', label: 'Transmit frequency', type: 'bool' },
       { key: 'menuChannelA.ctcDcs', label: 'CTCSS and DCS', type: 'bool' },
       { key: 'menuChannelA.txContact', label: 'Transmit contact', type: 'bool' },
-      { key: 'menuChannelA.colorCode', label: 'Colour code', type: 'bool' },
+      { key: 'menuChannelA.colorCode', label: 'Color code', type: 'bool' },
       { key: 'menuChannelA.timeSlot', label: 'Time slot', type: 'bool' },
       { key: 'menuChannelA.radioId', label: 'Radio ID', type: 'bool' },
       { key: 'menuChannelA.radioName', label: 'Radio name', type: 'bool' },
@@ -857,7 +857,7 @@ export const DM32UV_SCHEMA: RadioSchema = {
   },
 
   extraFields: [
-    { key: 'colorCode', label: 'Colour code', type: 'int', min: 0, max: 15, icon: 'lucide:hash' },
+    { key: 'colorCode', label: 'Color code', type: 'int', min: 0, max: 15, icon: 'lucide:hash' },
     {
       key: 'timeSlot',
       label: 'Time slot',

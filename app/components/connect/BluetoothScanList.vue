@@ -90,7 +90,7 @@ function signal(rssi: number | undefined): string {
           style="margin: 0; padding: 18px 16px; font-size: 13.5px; line-height: 1.55; color: var(--mu)"
         >
           <template v-if="chooser.scanning">
-            Looking for a radio. Put it in its wireless programming mode and keep it within a metre.
+            Looking for a radio. Put it in its wireless programming mode and keep it within a meter.
           </template>
           <template v-else>Nothing was found.</template>
           <template v-if="!chooser.everyDevice && chooser.hidden > 0">

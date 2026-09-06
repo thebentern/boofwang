@@ -142,7 +142,7 @@ describe('rendering the worker', () => {
     expect(out).toContain('const PRECACHE = ["/index.html","/_nuxt/e.js"]')
   })
 
-  it('keeps the licence header, because the file ships', () => {
+  it('keeps the license header, because the file ships', () => {
     expect(render().startsWith('// SPDX-License-Identifier: GPL-3.0-or-later')).toBe(true)
   })
 

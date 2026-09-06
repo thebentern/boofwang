@@ -68,7 +68,7 @@ export interface StoredSession {
   id: string
   radioId: RadioId
   updatedAt: string
-  /** The serialised codeplug document. */
+  /** The serialized codeplug document. */
   doc: unknown
 }
 

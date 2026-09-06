@@ -188,7 +188,7 @@ export interface RadioDriver {
   decode(image: RadioImage): Codeplug
 
   /**
-   * Serialise `doc` onto a copy of `base`.
+   * Serialize `doc` onto a copy of `base`.
    *
    * There is deliberately no `encode(doc)`. Taking the original image is what
    * guarantees that bytes this codebase has never decoded survive a

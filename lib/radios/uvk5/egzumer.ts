@@ -465,7 +465,7 @@ export function encodeEgzumerInto(mem: Uint8Array, doc: Codeplug): void {
       encodeEgzumerChannel(mem, slot, ch)
       continue
     }
-    // A slot that is already empty is left alone. Normalising it would rewrite
+    // A slot that is already empty is left alone. Normalizing it would rewrite
     // bytes nobody asked to change - this radio ships with scanlist bits set in
     // unused attribute slots - and erasing is for a channel actually deleted.
     if (!isErasedRecord(mem, channelAddr(slot), EGZUMER_CHANNEL.size)) eraseEgzumerChannel(mem, slot)

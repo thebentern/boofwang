@@ -320,7 +320,7 @@ export const EGZUMER_SETTINGS = defineStruct(EGZUMER_SETTINGS_END - EGZUMER_SETT
   dtmfPermitRemoteKill: at(0x6a, u8),
 
   // 0x0EE0. Five gaps run through this block; the struct declares only the
-  // codes themselves, so the gaps are preserved rather than normalised.
+  // codes themselves, so the gaps are preserved rather than normalized.
   dtmfLocalCode: at(0x70, ascii(3, { pad: 0x00 })),
   dtmfKillCode: at(0x78, ascii(5, { pad: 0x00 })),
   dtmfReviveCode: at(0x80, ascii(5, { pad: 0x00 })),

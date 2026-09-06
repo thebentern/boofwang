@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { normaliseUuid, type BluetoothProfile } from './bluetooth-uuids.js'
+import { normalizeUuid, type BluetoothProfile } from './bluetooth-uuids.js'
 
 /**
  * Web Bluetooth's chooser filter, reimplemented for a scan the app runs itself.
@@ -41,11 +41,11 @@ export interface ScanAdvertisement {
   readonly uuids?: readonly string[]
 }
 
-/** The services a scan may match on, normalised and de-duplicated. */
+/** The services a scan may match on, normalized and de-duplicated. */
 export function advertisedServicesOf(candidates: readonly BluetoothProfile[]): string[] {
   const out = new Set<string>()
   for (const c of candidates) {
-    for (const s of c.advertisedServices ?? [c.service]) out.add(normaliseUuid(s))
+    for (const s of c.advertisedServices ?? [c.service]) out.add(normalizeUuid(s))
   }
   return [...out]
 }
@@ -61,7 +61,7 @@ export function namePrefixesOf(candidates: readonly BluetoothProfile[]): string[
 
 function safeUuid(value: string): string | undefined {
   try {
-    return normaliseUuid(value)
+    return normalizeUuid(value)
   } catch {
     // An advertisement is whatever the peripheral put on the air. One entry
     // that is not a UUID must not stop the others being matched.

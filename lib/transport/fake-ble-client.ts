@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { normaliseUuid } from './bluetooth-uuids.js'
+import { normalizeUuid } from './bluetooth-uuids.js'
 import type { BleCharacteristicProperties, BleClientLike, BleServiceInfo } from './native-gatt.js'
 
 /**
@@ -24,7 +24,7 @@ import type { BleCharacteristicProperties, BleClientLike, BleServiceInfo } from 
  * - **Notifications share one buffer.** Same trap `FakeGattLink` springs: the
  *   `DataView` handed to a callback is over memory the stack reuses, so a
  *   port that keeps it instead of copying finds its bytes rewritten.
- * - **A write's `DataView` is kept, not copied.** The plugin serialises the
+ * - **A write's `DataView` is kept, not copied.** The plugin serializes the
  *   view when its own queue reaches the write, not when the call is made, so
  *   the fake holds the view it was handed. A link that did not copy first
  *   would show the caller's later edits in `writes`.
@@ -80,7 +80,7 @@ export interface FakeBleWrite {
  */
 function canonical(uuid: string): string {
   try {
-    return normaliseUuid(uuid)
+    return normalizeUuid(uuid)
   } catch {
     return uuid.toLowerCase()
   }

@@ -558,7 +558,7 @@ export function encodeChannel(
    * Both have two spellings for the same meaning. "No tone" is 0x0000 as the
    * radio writes it and 0xFFFF in blank memory, and both decode to no tone; an
    * unnamed channel is 0x00-filled here and 0xFF-padded when written. Encoding
-   * the decoded value unconditionally normalises one spelling to the other,
+   * the decoded value unconditionally normalizes one spelling to the other,
    * which changes bytes to say exactly what they already said - it breaks the
    * byte-exact round trip and puts pointless blocks on the wire.
    */

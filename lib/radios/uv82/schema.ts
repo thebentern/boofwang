@@ -104,9 +104,9 @@ export const UV82_SETTINGS_GROUPS = [
     label: 'Display',
     fields: [
       { key: 'abr', label: 'Backlight timeout', type: 'int', min: 0, max: 24, help: 'Seconds. 0 keeps it off.' },
-      { key: 'wtled', label: 'Standby LED colour', type: 'enum', options: list(['Off', 'Blue', 'Orange', 'Purple']) },
-      { key: 'rxled', label: 'Receive LED colour', type: 'enum', options: list(['Off', 'Blue', 'Orange', 'Purple']) },
-      { key: 'txled', label: 'Transmit LED colour', type: 'enum', options: list(['Off', 'Blue', 'Orange', 'Purple']) },
+      { key: 'wtled', label: 'Standby LED color', type: 'enum', options: list(['Off', 'Blue', 'Orange', 'Purple']) },
+      { key: 'rxled', label: 'Receive LED color', type: 'enum', options: list(['Off', 'Blue', 'Orange', 'Purple']) },
+      { key: 'txled', label: 'Transmit LED color', type: 'enum', options: list(['Off', 'Blue', 'Orange', 'Purple']) },
       { key: 'mdfa', label: 'Display mode (A)', type: 'enum', options: list(['Channel', 'Name', 'Frequency']) },
       { key: 'mdfb', label: 'Display mode (B)', type: 'enum', options: list(['Channel', 'Name', 'Frequency']) },
       { key: 'f2a.displayab', label: 'Active display', type: 'enum', options: list(['A', 'B']) },

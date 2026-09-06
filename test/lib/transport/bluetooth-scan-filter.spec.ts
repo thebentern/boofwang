@@ -10,7 +10,7 @@ import {
   NORDIC_UART,
   TIDRADIO_BL1_FF00,
   UV5RM_BLE,
-  normaliseUuid,
+  normalizeUuid,
 } from '#core/transport/bluetooth-uuids.js'
 
 describe('matching by name, the way the chooser does', () => {
@@ -97,9 +97,9 @@ describe('what does not match', () => {
 describe('the lists a scan is built from', () => {
   it('collects advertised services, substituting them for the enumerated one where they differ', () => {
     const services = advertisedServicesOf([UV5RM_BLE, TIDRADIO_BL1_FF00, NORDIC_UART])
-    expect(services).toContain(normaliseUuid('ffe0'))
-    expect(services).toContain(normaliseUuid('bf98'))
-    expect(services).toContain(normaliseUuid('ff00'))
+    expect(services).toContain(normalizeUuid('ffe0'))
+    expect(services).toContain(normalizeUuid('bf98'))
+    expect(services).toContain(normalizeUuid('ff00'))
     expect(services).toContain(NORDIC_UART.service)
     expect(new Set(services).size).toBe(services.length)
   })

@@ -30,13 +30,13 @@ export const KEY_TYPE_LABELS: Readonly<Record<EncryptionType, string>> = {
 
 export interface KeyValidation {
   ok: boolean
-  /** Normalised uppercase hex with separators stripped, when valid. */
-  normalised: string
+  /** Normalized uppercase hex with separators stripped, when valid. */
+  normalized: string
   error?: string
 }
 
 /**
- * Check and normalise a pasted key.
+ * Check and normalize a pasted key.
  *
  * Deliberately strict about length: a key that is one nibble short is not a
  * key, and accepting it would produce a radio that appears configured and
@@ -46,25 +46,25 @@ export function validateKeyHex(type: EncryptionType, input: string): KeyValidati
   const cleaned = input.replace(/0x/gi, '').replace(/[\s:_-]/g, '').toUpperCase()
 
   if (type === 'none') {
-    return { ok: cleaned.length === 0, normalised: '', ...(cleaned.length ? { error: 'Select a key type first.' } : {}) }
+    return { ok: cleaned.length === 0, normalized: '', ...(cleaned.length ? { error: 'Select a key type first.' } : {}) }
   }
-  if (cleaned.length === 0) return { ok: false, normalised: '', error: 'Enter a key.' }
+  if (cleaned.length === 0) return { ok: false, normalized: '', error: 'Enter a key.' }
   if (!/^[0-9A-F]+$/.test(cleaned)) {
-    return { ok: false, normalised: '', error: 'A key is hexadecimal: digits 0-9 and letters A-F only.' }
+    return { ok: false, normalized: '', error: 'A key is hexadecimal: digits 0-9 and letters A-F only.' }
   }
 
   const wantHexChars = KEY_BYTES[type] * 2
   if (cleaned.length !== wantHexChars) {
     return {
       ok: false,
-      normalised: '',
+      normalized: '',
       error:
         `${KEY_TYPE_LABELS[type]} needs exactly ${KEY_BYTES[type]} bytes — ${wantHexChars} hex characters. ` +
         `This is ${cleaned.length}.`,
     }
   }
 
-  return { ok: true, normalised: cleaned }
+  return { ok: true, normalized: cleaned }
 }
 
 /** The key already stored in a slot, as far as an edit is concerned. */
@@ -109,7 +109,7 @@ export function resolveKeyEdit(
 
   const validation = validateKeyHex(draft.type, draft.hex)
   if (!validation.ok) return { ok: false, error: validation.error ?? 'Enter a key.' }
-  return { ok: true, keyHex: validation.normalised, keptExisting: false }
+  return { ok: true, keyHex: validation.normalized, keptExisting: false }
 }
 
 /**

@@ -6,7 +6,7 @@
  * flatly prohibited on the amateur and personal radio services. The radio will
  * do it either way, so the tool is the only thing in the chain that can say
  * which is which - and saying it is the whole job. The operator holds the
- * licence and decides; boofwang states the rule and the citation, and gets out
+ * license and decides; boofwang states the rule and the citation, and gets out
  * of the way.
  *
  * The `bar` variant is the same notice compressed to one line, so the citations
@@ -100,8 +100,8 @@ const showBody = computed(() => isGate.value || expanded.value)
     >
       <div class="grid" style="gap: 9px">
         <p style="font-size: 14.5px; line-height: 1.6; color: var(--mu); max-width: 74ch">
-          Encryption is permitted only where your licence authorises it, typically a
-          <strong style="color: var(--tx); font-weight: 600">Part 90 land-mobile licence</strong>
+          Encryption is permitted only where your license authorizes it, typically a
+          <strong style="color: var(--tx); font-weight: 600">Part 90 land-mobile license</strong>
           for business, industrial or public-safety operation.
         </p>
         <p style="font-size: 14.5px; line-height: 1.6; color: var(--mu); max-width: 74ch">
@@ -112,7 +112,7 @@ const showBody = computed(() => isGate.value || expanded.value)
           encrypted channel on those frequencies is unlawful even if the radio allows it.
         </p>
         <p style="font-size: 14px; line-height: 1.6; color: var(--fn); max-width: 74ch">
-          boofwang does not check your licence. You are responsible for what you transmit.
+          boofwang does not check your license. You are responsible for what you transmit.
         </p>
       </div>
 

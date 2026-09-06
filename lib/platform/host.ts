@@ -39,7 +39,7 @@ export interface HostCapabilities {
    * Whether outbound requests can carry a `User-Agent` we choose.
    *
    * Browsers forbid setting it. No source currently in the registry requires
-   * one: the requirement belonged to RepeaterBook, which is excluded on licence
+   * one: the requirement belonged to RepeaterBook, which is excluded on license
    * grounds. Declared because the shell has the capability, not because
    * anything needs it - see `docs/provenance.md`.
    */
@@ -214,7 +214,7 @@ export function hostLabel(host: HostKind): string | null {
  *
  * Anything other than the exact shape the shells promise resolves to
  * `'browser'`, the least capable answer. A missing preload, a partially
- * initialised bridge and a page opened in an ordinary tab are indistinguishable
+ * initialized bridge and a page opened in an ordinary tab are indistinguishable
  * from here and must all take the same path: a bug that guesses `'desktop'`
  * would offer a control that cannot work, which is worse than offering nothing.
  *

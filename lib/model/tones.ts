@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 /**
- * CTCSS and DTCS, normalised.
+ * CTCSS and DTCS, normalized.
  *
  * CHIRP spreads this across seven CSV fields - `Tone`, `rToneFreq`,
  * `cToneFreq`, `DtcsCode`, `RxDtcsCode`, `DtcsPolarity`, `CrossMode` - whose

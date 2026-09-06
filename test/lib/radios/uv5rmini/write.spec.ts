@@ -341,7 +341,7 @@ describe('settings, written as well as read', () => {
   })
 
   it('leaves the settings region untouched when nothing changed', () => {
-    // Decoding a field is the usual temptation to start normalising it.
+    // Decoding a field is the usual temptation to start normalizing it.
     const img = image()
     const out = writable.encode(writable.decode(img), img)
     const a = img.regions.find((r) => r.start === 0x9000)!.data

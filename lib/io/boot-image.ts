@@ -53,7 +53,7 @@ export interface BootImagePixels {
  * untouched by the swap, which is why a test on green alone proves nothing.
  */
 export function packRgb565(r: number, g: number, b: number): number {
-  return ((quantise(r, 31) << 11) | (quantise(g, 63) << 5) | quantise(b, 31)) >>> 0
+  return ((quantize(r, 31) << 11) | (quantize(g, 63) << 5) | quantize(b, 31)) >>> 0
 }
 
 export function unpackRgb565(word: number): { r: number; g: number; b: number } {
@@ -91,12 +91,12 @@ function writeWord(bytes: Uint8Array, offset: number, word: number): void {
 /**
  * 8 bits to 5 or 6, rounded rather than truncated.
  *
- * Rounding is what makes the pair exact: `expand5(quantise(v, 31))` returns `v`
+ * Rounding is what makes the pair exact: `expand5(quantize(v, 31))` returns `v`
  * for every value 5 bits can hold, so re-encoding what was just decoded gives
  * back the same bytes. Truncation loses a step each way and the round-trip test
  * would have to be written loosely enough to stop catching anything.
  */
-function quantise(value: number, max: number): number {
+function quantize(value: number, max: number): number {
   const clamped = value <= 0 ? 0 : value >= 255 ? 255 : value
   return Math.round((clamped * max) / 255)
 }
@@ -113,7 +113,7 @@ export interface CropRect {
 }
 
 /**
- * The largest centred rectangle of the source that has the radio's shape.
+ * The largest centered rectangle of the source that has the radio's shape.
  *
  * Crop rather than stretch. A boot splash is nearly always a photo or a logo,
  * and 240 x 320 is a tall 3:4 frame; squeezing a landscape photo into it makes
@@ -122,24 +122,24 @@ export interface CropRect {
  * does and nobody complains.
  *
  * The edges are fractional on purpose - a 641-pixel-wide source has no integer
- * centre - and the resampler works in continuous coordinates, so they do not
+ * center - and the resampler works in continuous coordinates, so they do not
  * need rounding here.
  */
 /** How the user has framed the picture: 1 fits the whole thing, above 1 zooms in. */
 export interface CropFraming {
   readonly zoom: number
-  /** Where the crop is centred, 0 to 1 across the source. 0.5 is the middle. */
-  readonly centreX: number
-  readonly centreY: number
+  /** Where the crop is centered, 0 to 1 across the source. 0.5 is the middle. */
+  readonly centerX: number
+  readonly centerY: number
 }
 
-export const DEFAULT_FRAMING: CropFraming = { zoom: 1, centreX: 0.5, centreY: 0.5 }
+export const DEFAULT_FRAMING: CropFraming = { zoom: 1, centerX: 0.5, centerY: 0.5 }
 
 /**
  * The rectangle of the source that becomes the picture, given how it is framed.
  *
- * `centreCrop` is this with the defaults, and is kept because most callers want
- * exactly that. This one exists because a fixed centre crop is the wrong answer
+ * `centerCrop` is this with the defaults, and is kept because most callers want
+ * exactly that. This one exists because a fixed center crop is the wrong answer
  * often enough to be annoying: the subject of a photograph is usually not in the
  * middle, and a logo on a wide banner is nowhere near it.
  *
@@ -150,14 +150,14 @@ export const DEFAULT_FRAMING: CropFraming = { zoom: 1, centreX: 0.5, centreY: 0.
  * blank.
  */
 export function cropRect(width: number, height: number, framing: CropFraming): CropRect {
-  const base = centreCrop(width, height)
+  const base = centerCrop(width, height)
   const zoom = Math.max(1, Number.isFinite(framing.zoom) ? framing.zoom : 1)
   const w = base.width / zoom
   const h = base.height / zoom
 
   const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v)
-  const cx = clamp(Number.isFinite(framing.centreX) ? framing.centreX : 0.5, 0, 1) * width
-  const cy = clamp(Number.isFinite(framing.centreY) ? framing.centreY : 0.5, 0, 1) * height
+  const cx = clamp(Number.isFinite(framing.centerX) ? framing.centerX : 0.5, 0, 1) * width
+  const cy = clamp(Number.isFinite(framing.centerY) ? framing.centerY : 0.5, 0, 1) * height
 
   return {
     x: clamp(cx - w / 2, 0, Math.max(0, width - w)),
@@ -167,7 +167,7 @@ export function cropRect(width: number, height: number, framing: CropFraming): C
   }
 }
 
-export function centreCrop(width: number, height: number): CropRect {
+export function centerCrop(width: number, height: number): CropRect {
   const aspect = BOOT_IMAGE_WIDTH / BOOT_IMAGE_HEIGHT
   if (width / height > aspect) {
     const cropped = height * aspect
@@ -180,7 +180,7 @@ export function centreCrop(width: number, height: number): CropRect {
 /**
  * RGBA pixels in, 153,600 bytes of RGB565 out.
  *
- * The source is scaled and centre-cropped to 240 x 320 by averaging over the
+ * The source is scaled and center-cropped to 240 x 320 by averaging over the
  * area each destination pixel covers. Area averaging rather than picking the
  * nearest source pixel because the usual input is a photograph several times
  * larger than the screen, and nearest-neighbour throws away most of it: fine

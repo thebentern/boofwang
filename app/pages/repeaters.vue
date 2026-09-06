@@ -269,7 +269,7 @@ async function keep() {
 
       <p v-if="selectedSource" style="margin: 11px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--mu)">
         <span class="label-xs" style="color: var(--fn)">Source</span>
-        {{ selectedSource.attribution }} · {{ selectedSource.licence }}
+        {{ selectedSource.attribution }} · {{ selectedSource.license }}
       </p>
 
       <!--

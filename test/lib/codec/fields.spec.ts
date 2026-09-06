@@ -335,7 +335,7 @@ describe('idempotent writes (the property uploads depend on)', () => {
     expect([...b]).toEqual(before)
   })
 
-  it('ascii still normalises padding for a genuine edit', () => {
+  it('ascii still normalizes padding for a genuine edit', () => {
     const f = ascii(8, { pad: 0xff })
     const b = buf(0x41, 0x42, 0x43, 0x44, 0x00, 0x00, 0x00, 0x00)
     f.set(b, 0, 'XY')
