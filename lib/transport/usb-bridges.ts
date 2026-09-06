@@ -5,7 +5,7 @@
  *
  * Named so an error can say "Prolific PL2303" rather than "067b:2303". Worth
  * the table: counterfeit PL2303 chips in particular cause a disproportionate
- * share of programming-cable failures, and recognising one by name is the
+ * share of programming-cable failures, and recognizing one by name is the
  * difference between a user replacing a cable and a user filing a bug.
  *
  * These are the four chips a programming cable is realistically built around,

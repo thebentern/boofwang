@@ -69,7 +69,7 @@ before suspecting the radio.
   (462.5500-462.7250 and 467.5500-467.7250 MHz) ahead of the 130-176 and
   400-520 MHz receive spans, because every consumer takes the first band that
   contains a frequency. Transmit outside the windows draws the regulatory
-  warning, never an error - the licence is the operator's, and the refusal to
+  warning, never an error - the license is the operator's, and the refusal to
   transmit there is the firmware's. That refusal is the vendor's Part 95E
   claim; boofwang has no way to test it from the bench and does not try.
 - **No single-PTT switch and no VFO/MR lock.** Both bytes are decoded and
@@ -85,7 +85,7 @@ As shipped: GMRS 1-22 simplex, REPTR 1-8 as +5 MHz splits into the 467 window,
 and NOAA 1-11 receive-only. Three details worth keeping:
 
 - The eleven NOAA channels carry `FF FF FF FF` in the transmit frequency - the
-  one receive-only marker CHIRP recognises, straight from the factory. The
+  one receive-only marker CHIRP recognizes, straight from the factory. The
   fixture therefore exercises the decode path that matters most without any
   synthetic patching.
 - GMRS 8-14, the 467 MHz interstitials, ship narrow and low power, which is
@@ -95,7 +95,7 @@ and NOAA 1-11 receive-only. Three details worth keeping:
   both are 6,472 bytes - so `RAW_LAYOUTS` deliberately omits this radio and a
   raw dump opens as a UV-82. A `.bwp` or CHIRP `.img` carries the identity and
   opens correctly; CHIRP `.img` metadata naming `RadioddityUV5GRadio` is
-  honoured.
+  honored.
 
 ## Verified write session, 2026-08-30
 

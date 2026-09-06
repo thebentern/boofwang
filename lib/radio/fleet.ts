@@ -211,7 +211,7 @@ export function validateFleetRoster(
     out.push({
       severity: 'error',
       ruleId: 'fleet.roster.empty',
-      message: 'The roster has no radios in it, so there is nothing to programme.',
+      message: 'The roster has no radios in it, so there is nothing to program.',
     })
     return out
   }

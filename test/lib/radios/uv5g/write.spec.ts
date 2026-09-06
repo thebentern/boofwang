@@ -47,7 +47,7 @@ const writable = createUv5gDriver({ enableWrite: true })
  * A radio that answers the classic protocol behind the UV-5G's magic.
  *
  * The magic arrives one byte at a time; a full match earns the 0x06. The
- * firmware probe's first block skips the leading acknowledgement - CHIRP's
+ * firmware probe's first block skips the leading acknowledgment - CHIRP's
  * `first_command` - and every read after it takes one, which is exactly the
  * flow a real UV-82 broke when it was got wrong.
  */
@@ -65,7 +65,7 @@ function radio(contents: Uint8Array, opts: { refuseFirstMagic?: boolean } = {}) 
         /*
          * Magic bytes first, control bytes after. The magic itself contains
          * 0x06 at index five, so a stub that answers every lone 0x06 with an
-         * acknowledgement acks its own magic mid-stream - which is exactly
+         * acknowledgment acks its own magic mid-stream - which is exactly
          * how the first version of this stub passed identify without ever
          * comparing a byte of it.
          */
@@ -80,8 +80,8 @@ function radio(contents: Uint8Array, opts: { refuseFirstMagic?: boolean } = {}) 
           magicBuf = []
           magicAttempts++
           if (!ok) return
-          // The bench unit's first-contact behaviour: 0xfe to the first
-          // magic after sitting idle, an acknowledgement to the next.
+          // The bench unit's first-contact behavior: 0xfe to the first
+          // magic after sitting idle, an acknowledgment to the next.
           if (opts.refuseFirstMagic && magicAttempts === 1) {
             out.push(0xfe)
           } else {
@@ -95,7 +95,7 @@ function radio(contents: Uint8Array, opts: { refuseFirstMagic?: boolean } = {}) 
         const addr = (cmd[1]! << 8) | cmd[2]!
         const size = cmd[3]!
         // The 0x1E80 warm-up block is the only one ever requested with the
-        // leading acknowledgement skipped, so it is the only one that must not
+        // leading acknowledgment skipped, so it is the only one that must not
         // send it.
         if (addr !== 0x1e80) out.push(0x06)
         out.push(0x58, cmd[1]!, cmd[2]!, cmd[3]!)
@@ -145,7 +145,7 @@ describe('identify, over the wire', () => {
     expect(ident.variant).toBe('HN5RV011')
   })
 
-  it('offers a firmware it does not recognise read-only, with the reason spelled out', async () => {
+  it('offers a firmware it does not recognize read-only, with the reason spelled out', async () => {
     const strange = RAW.slice()
     // The version window: aux block1[48:62], which is image 0x1838-0x1846.
     strange.set(new TextEncoder().encode('XYZZY123'), IDENT_SIZE + MAIN_SIZE + 48)

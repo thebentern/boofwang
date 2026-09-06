@@ -19,7 +19,7 @@ describe('the bridge vendor table', () => {
     })
   })
 
-  it('recognises each of them and nothing else', () => {
+  it('recognizes each of them and nothing else', () => {
     for (const vid of Object.keys(KNOWN_BRIDGE_VENDORS)) expect(isKnownBridgeVendor(Number(vid))).toBe(true)
     expect(isKnownBridgeVendor(0x1234)).toBe(false)
     expect(isKnownBridgeVendor(undefined)).toBe(false)

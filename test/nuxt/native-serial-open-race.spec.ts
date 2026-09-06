@@ -107,7 +107,7 @@ describe('the Android app opening a port', () => {
   })
 
   it('keeps bytes the radio sent before the handle came back', async () => {
-    // 0x06, the acknowledgement every one of these radios answers with.
+    // 0x06, the acknowledgment every one of these radios answers with.
     plugin.onOpen = (emit) => emit('data', { handle: '1', data: 'Bg==' })
 
     const port = await openedPort()

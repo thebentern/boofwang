@@ -229,7 +229,7 @@ describe('txInhibitConflicts', () => {
     expect(txInhibitConflicts(cp, true)).toEqual([])
   })
 
-  it('names every receive-only channel a radio could not honour', () => {
+  it('names every receive-only channel a radio could not honor', () => {
     const conflicts = txInhibitConflicts(cp, false)
     expect(conflicts.map((c) => c.name)).toEqual(['WX3'])
   })

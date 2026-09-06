@@ -32,15 +32,15 @@ describe('brandmeister.fetchRepeaters', () => {
     expect(r.tx).toEqual({ kind: 'offset', direction: 'minus', offset: hz(7_600_000) })
   })
 
-  it('carries the colour code as DMR rather than forcing it into a tone', async () => {
+  it('carries the color code as DMR rather than forcing it into a tone', async () => {
     const { records } = await brandmeister.fetchRepeaters(stub([SV4M]), {})
     expect(records[0]!.dmr).toEqual({ colorCode: 1 })
     expect(records[0]!.tone).toEqual({ rx: null, tx: null, rxInverted: false })
     expect(records[0]!.modulation).toBe('DMR')
   })
 
-  it('refuses a record whose colour code cannot be stored, and names it', async () => {
-    // Live data carries one record with colour code 17. The DM-32UV stores this
+  it('refuses a record whose color code cannot be stored, and names it', async () => {
+    // Live data carries one record with color code 17. The DM-32UV stores this
     // in four bits, so 17 becomes 1 and the channel silently addresses the
     // wrong repeater.
     const { records, issues } = await brandmeister.fetchRepeaters(
@@ -72,7 +72,7 @@ describe('brandmeister.fetchRepeaters', () => {
     expect(records[0]!.location).toBeUndefined()
   })
 
-  it('sorts by distance and honours a radius', async () => {
+  it('sorts by distance and honors a radius', async () => {
     const near = { ...SV4M, id: 1, callsign: 'NEAR', lat: 39.5, lng: 23.0 }
     const far = { ...SV4M, id: 2, callsign: 'FAR', lat: 52.5, lng: 13.4 }
     const { records } = await brandmeister.fetchRepeaters(stub([far, near]), {

@@ -86,7 +86,7 @@ describe('which radio answers to "UV-5G"', () => {
     expect([...MAGIC_UV5G]).not.toEqual([...MAGIC_UV82])
   })
 
-  it('recognises the bench firmware by containment, the way CHIRP matches basetypes', () => {
+  it('recognizes the bench firmware by containment, the way CHIRP matches basetypes', () => {
     // HN5RV011 starts with none of CHIRP's BASETYPE_UV5R strings but contains
     // N5RV. A prefix match - which is what the UV-82 driver uses for its own
     // basetypes - would call this real radio unrecognised.
@@ -146,7 +146,7 @@ describe('decoded channels agree with CHIRP field for field', () => {
 describe('the factory codeplug, which is the GMRS story in bytes', () => {
   const cp = driver.decode(image())
 
-  it('ships the NOAA channels receive-only, with the marker CHIRP recognises', () => {
+  it('ships the NOAA channels receive-only, with the marker CHIRP recognizes', () => {
     // Eleven weather channels, every one with FF FF FF FF in the transmit
     // frequency. This is the one field where a decode bug matters most: read
     // these as transmit-capable and a weather frequency ends up in a radio

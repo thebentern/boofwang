@@ -33,7 +33,7 @@ export interface RepeaterRecord {
   readonly sourceId: string
   /**
    * The upstream record's own identifier, so a bad record can be reported in
-   * terms its publisher recognises rather than as "row 4,812 of what we fetched".
+   * terms its publisher recognizes rather than as "row 4,812 of what we fetched".
    */
   readonly ref: string
   readonly callsign: string
@@ -117,7 +117,7 @@ export interface SourceResult {
   readonly issues: readonly SourceIssue[]
 }
 
-/** What a source can be asked for. Not every source honours every field. */
+/** What a source can be asked for. Not every source honors every field. */
 export interface SourceQuery {
   readonly near?: { readonly lat: number; readonly lon: number }
   /** Kilometres from `near`. Ignored without it. */

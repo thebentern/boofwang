@@ -56,8 +56,8 @@ describe('the slide confirmation', () => {
     expect(SLIDE).not.toMatch(/key === 'Enter'/)
   })
 
-  it('takes its colour from the risk level rather than hardcoding one', () => {
-    // Colour is never the only carrier, and the register must not drift per
+  it('takes its color from the risk level rather than hardcoding one', () => {
+    // Color is never the only carrier, and the register must not drift per
     // component: caution and destructive read their tone from the same place.
     expect(SLIDE).toMatch(/risk === 'destructive' \? 'dg' : 'cn'/)
   })
@@ -117,7 +117,7 @@ describe('the liability line', () => {
 
   it('sits behind a hairline and is not dressed as the warning', () => {
     // The amber card is the warning. Nesting the legal position inside it, or
-    // giving it a semantic colour, weakens both.
+    // giving it a semantic color, weakens both.
     expect(WRITE).toMatch(/border-top: 1px solid var\(--ln\);[\s\S]{0,120}color: var\(--fn\)/)
     expect(WRITE).not.toMatch(/comes with no warranty[\s\S]{0,200}var\(--cn\)/)
   })

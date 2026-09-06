@@ -277,7 +277,7 @@ describe('the write gate', () => {
 })
 
 describe('receive-only, which is the one that matters', () => {
-  it('writes the marker CHIRP recognises when a channel becomes receive-only', () => {
+  it('writes the marker CHIRP recognizes when a channel becomes receive-only', () => {
     /*
      * CHIRP's `_is_txinh` accepts exactly one marker: FF FF FF FF. A transmit
      * frequency of zero is read as a split with tx 0.000 MHz - transmit
@@ -383,7 +383,7 @@ describe('receive-only, which is the one that matters', () => {
 describe('radios this build will not write', () => {
   it('refuses the tri-power HP, which has a power level this build cannot express', () => {
     // The HP shares the plain UV-82's magic and three power levels are indexed
-    // by the same two-bit field. Modelling two would rewrite a Low channel as
+    // by the same two-bit field. Modeling two would rewrite a Low channel as
     // High, promoting a channel the user never touched to 8 W.
     const schema = writable.schema
     expect(schema.capabilities.write).toBe(true)

@@ -99,7 +99,7 @@ export interface ShortcutKey {
  * to undo is the right answer while an overlay owns the screen.
  *
  * `dialogOpen` is a function rather than a value so that the search of the DOM
- * for an overlay happens only once a Ctrl-Z has already been recognised,
+ * for an overlay happens only once a Ctrl-Z has already been recognized,
  * rather than on every keystroke typed anywhere in the app.
  */
 export function undoShortcutAction(

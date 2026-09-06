@@ -234,7 +234,7 @@ describe('a DMR channel arriving on a radio that has no DMR', () => {
   it('drops the digital settings rather than leaving them on an FM channel', () => {
     // The modulation rule already said "everything DMR specific about the
     // channel does not carry over". That has to be true of the bytes too: an
-    // FM channel still carrying a colour code is inert on the UV-82 that
+    // FM channel still carrying a color code is inert on the UV-82 that
     // cannot read it, and read back as real the moment that codeplug is
     // transplanted onto a radio that can.
     const out = clampChannel(dmrChannel(), UV82)

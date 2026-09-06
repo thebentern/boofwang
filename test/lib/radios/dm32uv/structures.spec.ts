@@ -355,7 +355,7 @@ describe('zone membership', () => {
 })
 
 describe('settings', () => {
-  it('decodes this radio’s own power-on message and colours', () => {
+  it('decodes this radio’s own power-on message and colors', () => {
     const s = d.decode(image()).settings
     expect(s.powerOnLine1).toBe('EchoMike')
     expect(s.powerOnLine2).toBe('DM-32UV')
@@ -374,7 +374,7 @@ describe('settings', () => {
     expect(back.backlightBrightness).toBe(3)
   })
 
-  it('writes one bit of a bitfield without disturbing its neighbours', () => {
+  it('writes one bit of a bitfield without disturbing its neighbors', () => {
     const img = image()
     const doc = d.decode(img)
     const before = page(img, SETTINGS_BLOCK)[0x40]!
@@ -461,7 +461,7 @@ describe('settings', () => {
     }
   })
 
-  it('round-trips every modelled setting through a write', () => {
+  it('round-trips every modeled setting through a write', () => {
     const img = image()
     const doc = d.decode(img)
     // Hand the whole decoded settings record straight back. Every field must
@@ -711,7 +711,7 @@ describe('the DMR address book', () => {
     expect(d.ownedRanges(contactsBase(img)!)).toEqual([])
   })
 
-  it('writes an edited contact and leaves its neighbours alone', () => {
+  it('writes an edited contact and leaves its neighbors alone', () => {
     const img = withContacts(50)
     const doc = d.decode(img)
     doc.contacts[1] = { ...doc.contacts[1]!, name: 'RENAMED', callsign: 'W1AW' }
@@ -899,7 +899,7 @@ describe('the write gate sees a contact edit', () => {
   }
 
   it('counts the bytes and names the page, rather than calling it unowned', () => {
-    // The flag that broke this said "never send". diffImages honours it by
+    // The flag that broke this said "never send". diffImages honors it by
     // routing every change into `unowned`, so the gate refused a contact edit
     // as an encoder defect and reported it as no change at all - in the same
     // breath as capabilities.writeScope promising contacts were writable.
@@ -1334,7 +1334,7 @@ describe('roaming', () => {
   it('touches only the low bits of the two flag bytes', () => {
     const img = image()
     const data = page(img, ROAMCHANNEL_BLOCK)
-    data[0x18] = 0xf3 // colour code 3, high nibble set
+    data[0x18] = 0xf3 // color code 3, high nibble set
     data[0x19] = 0xfe // slot 1, high bits set
     const doc = d.decode(img)
     doc.roamChannels[0] = { ...doc.roamChannels[0]!, colorCode: 5, timeSlot: 2 }
@@ -1517,7 +1517,7 @@ describe('the two VFOs', () => {
     expect(equalBytes(page(out, VFO_BLOCK), page(img, VFO_BLOCK))).toBe(true)
   })
 
-  it('writes a VFO without disturbing its neighbour', () => {
+  it('writes a VFO without disturbing its neighbor', () => {
     const img = image()
     const doc = d.decode(img)
     doc.vfo = { ...doc.vfo, a: { ...doc.vfo.a!, rxFreq: hz(446_006_25 * 10), tx: { kind: 'simplex' } } }

@@ -76,7 +76,7 @@ describe('maskKey', () => {
 })
 
 describe('isBlankKey', () => {
-  it('recognises a cleared or redacted slot', () => {
+  it('recognizes a cleared or redacted slot', () => {
     expect(isBlankKey('0'.repeat(64))).toBe(true)
     expect(isBlankKey('00112233')).toBe(false)
   })

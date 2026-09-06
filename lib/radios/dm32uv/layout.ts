@@ -101,7 +101,7 @@ export const DM32_CHANNEL = defineStruct(CHANNEL_SIZE, {
     ]),
   ),
   /**
-   * Byte 0x19. Modelled bit by bit rather than as a `u8` so that writing the
+   * Byte 0x19. Modeled bit by bit rather than as a `u8` so that writing the
    * bandwidth cannot take scan-list membership with it: `u8.set` stores all
    * eight bits, so a channel in scan list 3 with Auto Scan on (`0xcc`) came
    * back as `0x00`.
@@ -153,7 +153,7 @@ export const DM32_CHANNEL = defineStruct(CHANNEL_SIZE, {
  * The spec's record layout matches hardware exactly. What did **not** match is
  * the block header: the zone count is a **single byte** at +0x000, not a
  * 16-bit word. Reading two bytes on the test radio gave 1796 for what are
- * plainly four zones, because the neighbouring byte is something else.
+ * plainly four zones, because the neighboring byte is something else.
  */
 export const DM32_ZONE = defineStruct(ZONE_SIZE, {
   name: at(0x00, ascii(11, { pad: 0x00, terminators: [0x00, 0xff] })),
@@ -385,13 +385,13 @@ export const SETTINGS_BLOCK = 0x04
  * Radio settings, block 0x04.
  *
  * One flat struct rather than a record array. Only the fields the reference
- * establishes are modelled; the ~3.8 KiB of the page nobody has named is never
+ * establishes are modeled; the ~3.8 KiB of the page nobody has named is never
  * assigned, so it survives a write by never being touched.
  *
  * Confidence is not uniform and the driver treats it that way - the schema only
  * offers the fields below that the reference marks CONFIRMED, plus the handful
  * of DERIVED ones whose meaning this radio's own bytes corroborate. Fields
- * modelled but not offered are still round-tripped.
+ * modeled but not offered are still round-tripped.
  */
 export const DM32_SETTINGS = defineStruct(0x600, {
   powerOnInterface: at(0x00, u8),
@@ -955,7 +955,7 @@ export const DM32_ROAMCHANNEL = defineStruct(ROAMCHANNEL_SIZE, {
   name: at(0x00, ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })),
   rxFreq: at(0x10, bcdFreqLE(4)),
   txFreq: at(0x14, bcdFreqLE(4)),
-  // Only the low bits are understood in either byte, so both are modelled as
+  // Only the low bits are understood in either byte, so both are modeled as
   // bitfields: a whole-byte write here is the mistake that once erased
   // scan-list membership from channel byte 0x19.
   color: at(0x18, bits(1, { colorCode: [0, 4], unknownHigh: [4, 4] })),
@@ -1069,7 +1069,7 @@ export const DM32_EMERGENCY = defineStruct(EMERGENCY_SIZE, {
 // ------------------------------------------------------------ analog config --
 
 /**
- * Block 0x06: DTMF signalling and two analog contact lists.
+ * Block 0x06: DTMF signaling and two analog contact lists.
  *
  * Eight sub-structures in one page rather than an array. Read only - the
  * settings record at 0x100 is almost entirely unexplained, and a control for a

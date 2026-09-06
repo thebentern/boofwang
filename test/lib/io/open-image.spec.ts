@@ -219,7 +219,7 @@ describe('a CHIRP .img', () => {
     expect(opened.image.regions[1]!.readOnly).toBe(true)
   })
 
-  it('falls back to the size guess for a firmware string it does not recognise', async () => {
+  it('falls back to the size guess for a firmware string it does not recognize', async () => {
     // Guessing a layout from an unknown firmware is the thing the variant table
     // exists to refuse, so an unrecognised string is treated as no information.
     const odd = await encodeChirpImg({ ...uvk5Image(), variant: 'SOMEONES-FORK-9' })
@@ -278,7 +278,7 @@ describe('a DM-32UV .bin, which describes itself', () => {
     sha256: '',
   })
 
-  it('is recognised from the block id in each page tail', () => {
+  it('is recognized from the block id in each page tail', () => {
     const flat = encodeRawBin(dm32Image())
     expect(looksLikeDm32Bin(flat)).toBe(true)
   })

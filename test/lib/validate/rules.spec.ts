@@ -178,7 +178,7 @@ describe('the radio own pseudo-channels', () => {
 })
 
 describe('bands that differ from the schema', () => {
-  it('are honoured, so a wide-receive build is not reported as broken', () => {
+  it('are honored, so a wide-receive build is not reported as broken', () => {
     const schema = SCHEMAS.uvk5!
     const ch = ordinary(schema, { rxFreq: hz(21_300_000), tx: { kind: 'simplex' } })
     expect(ids(validateChannel(ch, schema))).toContain('radio.band.rx-out-of-range')

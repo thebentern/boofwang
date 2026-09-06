@@ -46,7 +46,7 @@ describe('the port looks like a serial port to everything above it', () => {
 
   it('declares itself as bluetooth, through the transport and the recorder', async () => {
     // This is the flag a driver reads to pick its block size, and it has to
-    // survive both wrappers or the driver silently gets the cable behaviour.
+    // survive both wrappers or the driver silently gets the cable behavior.
     const { t } = await opened()
     expect(t.kind).toBe('bluetooth')
     expect(new RecordingTransport(t).kind).toBe('bluetooth')
@@ -133,7 +133,7 @@ describe('framing: what a driver writes becomes GATT writes', () => {
     await t.close()
   })
 
-  it('honours a larger MTU when one is configured', async () => {
+  it('honors a larger MTU when one is configured', async () => {
     const { link, t } = await opened({ maxWriteBytes: 244 }, { maxWriteBytes: 244 })
     await t.write(Uint8Array.from({ length: 132 }, (_, i) => i & 0xff))
     expect(link.writes).toHaveLength(1)
@@ -491,7 +491,7 @@ describe('the dongle profiles', () => {
     expect(TIDRADIO_BL1_FF00.write).not.toBe(TIDRADIO_FF22_PER_BYTE.write)
   })
 
-  it('record the per-byte responder so it is recognised, never tried', () => {
+  it('record the per-byte responder so it is recognized, never tried', () => {
     // Same treatment as UV5RM_AE30_ECHO: present so the next person probing a
     // TIDRADIO dongle, finding the only pair that talks back, has something
     // to read before concluding they found the data path.

@@ -113,7 +113,7 @@ const changeCount = computed(() => diff.value?.changed ?? 0)
  * Blocks the radio will actually receive, which is not always the diff.
  *
  * Counted by `blocksToSend` rather than here, because the fleet run has to
- * report the same number for each radio it programmes and two screens counting
+ * report the same number for each radio it programs and two screens counting
  * "what goes down the wire" separately is how one of them ends up describing
  * the edit instead of the write.
  */

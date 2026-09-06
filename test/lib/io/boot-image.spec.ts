@@ -133,7 +133,7 @@ describe('encodeBootImage', () => {
     expect(words(clear).every((w) => w === 0)).toBe(true)
 
     const half = decodeBootImage(encodeBootImage(solid(240, 320, [255, 255, 255, 128]), 240, 320))
-    // Mid grey, within the step size of a 5-bit channel. Not exactly equal
+    // Mid gray, within the step size of a 5-bit channel. Not exactly equal
     // across the three: green has an extra bit and quantizes differently.
     for (const channel of pixelAt(half.rgba, 0, 0).slice(0, 3)) {
       expect(channel).toBeGreaterThan(120)
@@ -203,7 +203,7 @@ describe('scale and crop', () => {
 
   it('averages over the area a destination pixel covers', () => {
     // Downscaling by picking one source pixel out of each block would return
-    // pure black or pure white here. The average of a checkerboard is grey.
+    // pure black or pure white here. The average of a checkerboard is gray.
     const source = rgba(480, 640, (x, y) => ((x + y) % 2 === 0 ? [0, 0, 0, 255] : [255, 255, 255, 255]))
     const back = decodeBootImage(encodeBootImage(source, 480, 640))
     for (const channel of pixelAt(back.rgba, 10, 10).slice(0, 3)) {

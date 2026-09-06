@@ -234,8 +234,8 @@ export const REGIONS = regionsFor(PROG_SIZE)
  * struct and this one has seven - the addresses are not a rearrangement of
  * each other and neither can be derived from the other.
  *
- * The eight password bytes at 0xE98 are deliberately not modelled. They round
- * trip because nothing names them, which is the behaviour wanted for a secret:
+ * The eight password bytes at 0xE98 are deliberately not modeled. They round
+ * trip because nothing names them, which is the behavior wanted for a secret:
  * boofwang neither shows it nor rewrites it.
  */
 export const SETTINGS_MAIN_BASE = 0x0e70

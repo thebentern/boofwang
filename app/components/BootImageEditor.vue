@@ -15,8 +15,8 @@ import {
  * The preview is rendered from the **encoded bytes**, not from the source file.
  * That is the whole point of it. A channel order or byte order mistake produces
  * a picture that is correctly framed, correctly shaped and perfectly legible,
- * with only the colours wrong - which is exactly how this codebase shipped
- * BGR565 for a while and only caught it by writing a colour chart to a radio
+ * with only the colors wrong - which is exactly how this codebase shipped
+ * BGR565 for a while and only caught it by writing a color chart to a radio
  * and looking at the panel. A preview drawn from the source file would have
  * looked right the entire time.
  *

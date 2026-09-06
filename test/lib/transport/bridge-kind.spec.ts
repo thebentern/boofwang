@@ -6,7 +6,7 @@ import { uploadBlockSize, BLE_UPLOAD_BLOCK_SIZE, BLOCK_SIZE } from '#core/radios
 /**
  * The bridge has to say which carrier it is.
  *
- * A driver may change behaviour on it - the UV-5R Mini sends 0x80 upload blocks
+ * A driver may change behavior on it - the UV-5R Mini sends 0x80 upload blocks
  * over Bluetooth where the cable takes 0x40 - so a Bluetooth bridge that
  * reported itself as serial would write the wrong size while looking perfectly
  * healthy. That is the failure this pair of tests exists to prevent.

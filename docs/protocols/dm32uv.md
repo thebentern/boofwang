@@ -35,7 +35,7 @@ The specification marks much of its record layout `DERIVED` from two captures of
 a single unit. Three claims did not survive contact with a second radio.
 
 **The zone count is one byte, not two.** Reading a 16-bit word at the zone
-block's `+0x000` gives 1796 on a radio with four zones; the neighbouring byte is
+block's `+0x000` gives 1796 on a radio with four zones; the neighboring byte is
 something else.
 
 **There are 22 key slots, not eight.** Block `0x10` holds 22 consecutive `0x2C`
@@ -184,7 +184,7 @@ see any of them because the decoder and the encoder shared the same wrong bits.
 |---|---|---|---|
 | `0x18` | forbid-TX bit 1, power bit 0 | forbid-TX bit 3, power bits 2-1, lone worker bit 0 | reference `:300-308`; this radio's `LR DMR` = `0x1c` |
 | `0x19` | whole byte, bandwidth bit 0 | bandwidth bit 7, scan add bit 6, scan list bits 5-2, bits 1-0 preserved | reference `:309-317` |
-| `0x1D` | timeslot bit 3, colour code 3 bits | timeslot bit 4, colour code low nibble | reference `:392-406`, OEM CPS `TS1`=`0x01` / `TS2`=`0x11` |
+| `0x1D` | timeslot bit 3, color code 3 bits | timeslot bit 4, color code low nibble | reference `:392-406`, OEM CPS `TS1`=`0x01` / `TS2`=`0x11` |
 
 The `0x18` fault was not cosmetic. This radio's `LR DMR`, `AR DMR`, `USA DMR` and
 `Test DMR` all hold `0x18 = 0x1c` — bit 3 set, transmit forbidden — and boofwang
@@ -197,7 +197,7 @@ Two write passes, each read back with the Python reader and diffed byte by byte:
 
 | Block | Bytes | Change |
 |---|---|---|
-| `0x12` | 15 | `MURS-1` → `HWTEST MURS`; `0x18` `0x04`→`0x02` (power High→Medium, forbid-TX untouched); `TAC 1` `0x1D` `0x00`→`0x1d` (colour code 13, timeslot 2) |
+| `0x12` | 15 | `MURS-1` → `HWTEST MURS`; `0x18` `0x04`→`0x02` (power High→Medium, forbid-TX untouched); `TAC 1` `0x1D` `0x00`→`0x1d` (color code 13, timeslot 2) |
 | `0x5c` | 10 | zone 1 `Tactical` → `HWZONE`, channel list untouched |
 | `0x44` | 15 | talk group 1 renamed, its number and call type bytes preserved |
 
@@ -589,7 +589,7 @@ channel block, `0x41`.
 
 ```
 0f9f  VFO A    rx/tx 462.63700   0x18 = 04  analog, High
-0fcf  VFO B    rx/tx 432.02750   0x18 = 14  digital, High, colour code 1, TS1
+0fcf  VFO B    rx/tx 432.02750   0x18 = 14  digital, High, color code 1, TS1
 0fff  block id
 ```
 
@@ -858,7 +858,7 @@ claimed, and the 29-byte difference is deliberate rather than incidental:
 | `0x032`, `0x045`, `0x080` | Named in the reference, understood by nobody |
 | Fun+ `+0x02` × 10 | Padding the reference's parser skips |
 
-Added: the second alert-tone byte, standby character colour, the four digital
+Added: the second alert-tone byte, standby character color, the four digital
 timers, the digital and name-display flag bytes, transmit dwell, One Touch Call
 (5 × 5 B from 0x200), Fun+ (10 × 7 B from 0x230), the whole APRS region
 including the eight report channels and the fixed position, and the 40-odd menu
@@ -905,7 +905,7 @@ them and disables the write in as many words — *"we don't write it here to
 avoid potential corruption … disabled until properly debugged"* — and notes the
 consequence, that VFO talk group changes do not persist.
 
-That was a judgement about its own writer rather than about the addresses,
+That was a judgment about its own writer rather than about the addresses,
 which are better attested than most of that block: its read capture's tail is
 `00 00 00 01 01 01 00 43` and its write capture's is `ff ff 0e 01 0e 01 ff 43`,
 two independent captures putting identical two-byte records at exactly 0x0FFA
@@ -970,7 +970,7 @@ signature (JPEG, PNG, BMP, GIF, gzip, zip, RIFF), and no pairwise similarity
 between any two of them.
 
 Three of them looked briefly like a boot image — 0x51 is `c2 18` repeated
-(RGB565 dark grey), 0x6b is `5e 3d` repeated (a sky blue), and 0x56 counts up in
+(RGB565 dark gray), 0x6b is `5e 3d` repeated (a sky blue), and 0x56 counts up in
 16-bit steps like a gradient. Adjacent-row correlation kills it: at every
 candidate width from 96 to 320 pixels it stays between 0.007 and 0.047, where a
 raster image would be far higher.
@@ -1023,8 +1023,8 @@ touch the DOM, and the only image decoder a browser will lend us is the one
 behind `<canvas>`. The browser decodes, `lib/` does the arithmetic, and the
 arithmetic is the part that can be silently wrong: with the channels exchanged
 the same bytes still make a picture, correctly framed and correctly shaped, and
-only the colours differ. That is not hypothetical - it is what happened, and
-only a colour chart on the panel caught it.
+only the colors differ. That is not hypothetical - it is what happened, and
+only a color chart on the panel caught it.
 
 ## The startup image - verified session, 2026-08-21
 
@@ -1052,7 +1052,7 @@ instructive part. Decoding the factory splash as BGR565 produces a gold BAOFENG
 logo on a near-black background. That looks correct, because Baofeng's printed
 logo is orange, and it was taken as confirmation. It was not.
 
-What settled it was writing a chart of solid colour bands and looking at the
+What settled it was writing a chart of solid color bands and looking at the
 panel:
 
 | Encoding | Top band on the radio |

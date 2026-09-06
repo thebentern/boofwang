@@ -222,7 +222,7 @@ export interface RadioSchema {
     /**
      * Whether a single channel can be marked receive-only.
      *
-     * `false` means an RX-only channel cannot be honoured and must be refused
+     * `false` means an RX-only channel cannot be honored and must be refused
      * rather than programmed as transmit-capable. `mechanism` records how it is
      * achieved when it can be, since not every radio has a dedicated bit - the
      * UV-K5 has none, and instead parks the transmit frequency at 0 MHz.
@@ -265,7 +265,7 @@ export interface RadioSchema {
      * The power-on picture, when the radio has memory for one.
      *
      * Carries its dimensions rather than a bare `true` for the same reason its
-     * neighbours carry limits: a screen that offers a crop needs to know the
+     * neighbors carry limits: a screen that offers a crop needs to know the
      * aspect it is cropping to, and asking a radio module for it means naming
      * that radio under `app/`.
      *

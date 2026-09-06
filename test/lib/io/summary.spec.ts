@@ -29,7 +29,7 @@ const FIXTURE = buildEeprom([
  * Key material that could not plausibly arrive any other way.
  *
  * All letters, so that a four-character run of it cannot be confused with a
- * frequency, a colour in the stylesheet or a word in the prose - which is what
+ * frequency, a color in the stylesheet or a word in the prose - which is what
  * makes the "not even partially" assertion below mean something.
  */
 const SECRET_HEX = 'ABCDEFABCDEFABCDEFABCDEFABCDEFAB'
@@ -157,7 +157,7 @@ describe('the summary itself', () => {
     expect(summary.showNotes).toBe(false)
   })
 
-  it('marks receive-only in words, not in colour', () => {
+  it('marks receive-only in words, not in color', () => {
     const wx = summary.rows.find((r) => r.name === 'WX3')!
     expect(wx.receiveOnly).toBe(true)
     expect(wx.tx).toBe(RECEIVE_ONLY)

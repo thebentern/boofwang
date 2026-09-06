@@ -204,8 +204,8 @@ export const RESET = Uint8Array.from([0xdd, 0x05, 0x00, 0x00])
  *
  * Mirrors CHIRP's `_getstring(rep, 4, 24)`: start at offset 4 and stop at the
  * first byte outside printable ASCII. CHIRP returns an empty string if it never
- * finds one, and that behaviour is kept - a reply with 24 printable bytes and
- * no terminator is not a firmware string we recognise, and pretending otherwise
+ * finds one, and that behavior is kept - a reply with 24 printable bytes and
+ * no terminator is not a firmware string we recognize, and pretending otherwise
  * would let an unknown radio through the variant gate.
  */
 export function parseFirmwareString(reply: Uint8Array, begin = 4, maxLen = 24): string {

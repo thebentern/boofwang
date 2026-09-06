@@ -51,7 +51,7 @@ const usbHost = hostSupports(useShell().host, ['usbHost'])
 /*
  * Whether the shell picks the adapter itself rather than raising a chooser.
  *
- * The neighbouring capability, and deliberately not the same question. This one
+ * The neighboring capability, and deliberately not the same question. This one
  * is about the dialogue, `usbHost` about the hardware, and Android answers yes
  * to both while an iPhone answers no to both - which is what makes it tempting
  * to collapse them and wrong to: a plain desktop browser has no native serial
@@ -273,7 +273,7 @@ function classify(message: string): FaultState {
 }
 
 /**
- * Cancelling is not a fault, and the transport cannot tell the difference.
+ * Canceling is not a fault, and the transport cannot tell the difference.
  *
  * Pressing Cancel aborts the signal, which surfaces as an ordinary transport
  * error - so without this the screen would answer a deliberate cancellation
@@ -755,7 +755,7 @@ const offerFile = computed(() => link.value !== 'ready' && FILE_STATES.includes(
  *
  * It no longer falls back to "whatever a read would use when a port is open",
  * because that is now the selection and the selection has its own mark. Two
- * states, two colours: one says what you chose, the other says what answered.
+ * states, two colors: one says what you chose, the other says what answered.
  */
 const activeRadio = computed<RadioId | null>(() => confirmed.value)
 </script>

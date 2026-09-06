@@ -244,7 +244,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
        *
        * The other three radios here take a sparse write happily and that is
        * what makes a one-channel edit cost one block. This one cannot, so it
-       * gets CHIRP's behaviour instead: the whole image, every time. It is 521
+       * gets CHIRP's behavior instead: the whole image, every time. It is 521
        * blocks and about 17 seconds, which is a price worth paying.
        */
       const regionOf = (start: number) => image.regions.find((r) => r.start === start)
@@ -278,7 +278,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
 
       /*
        * Over its own Bluetooth module the radio takes twice as much per
-       * frame, which halves the number of acknowledgement round trips - and a
+       * frame, which halves the number of acknowledgment round trips - and a
        * BLE round trip is what makes this transfer slow. Reads stay at 0x40
        * either way, so the two plans differ and the read-back pass gets its
        * own.
@@ -339,7 +339,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
           })
         }
 
-        // Every block is read back and compared. An acknowledgement says the
+        // Every block is read back and compared. An acknowledgment says the
         // frame arrived, not that it landed where it was meant to.
         //
         // The read-back walks the 0x40 plan, which over Bluetooth is not the

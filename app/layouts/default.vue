@@ -102,7 +102,7 @@ const activePath = computed(() => {
  * came to do and the other is where they end up. The next two are the first two
  * gated destinations the open radio actually has, so a DM-32UV gets Zones and
  * Backups while a UV-K5 with nothing open gets Presets and Repeaters. That is a
- * judgement call rather than a rule, and it is one line to change.
+ * judgment call rather than a rule, and it is one line to change.
  *
  * Five columns because four leaves a gap and six makes a 56px target too narrow
  * to hit; More is always the fifth so its position never moves under a thumb.

@@ -55,7 +55,7 @@ import {
  *      mechanism that would catch a future bug in that region.
  *
  * This project has shipped both. The first as a region left flagged read-only
- * after it became writable; the second as a claim copied from a neighbouring
+ * after it became writable; the second as a claim copied from a neighboring
  * block whose page happened to mean something different.
  */
 
@@ -183,7 +183,7 @@ describe('nothing claims more than it writes', () => {
    * check without complaint.
    *
    * So each claim is pinned to the layout constants that justify it. Copying a
-   * neighbour's line fails immediately, which is how the over-claim happens.
+   * neighbor's line fails immediately, which is how the over-claim happens.
    */
   const EXPECTED: Record<number, readonly (readonly [number, number])[]> = {
     0x02: [], // calibration, permanently blocked

@@ -94,7 +94,7 @@ describe('writing stock settings back', () => {
   })
 
   it('never rewrites the eight password bytes', () => {
-    // Not modelled at all, which is the behaviour wanted for a secret: they
+    // Not modeled at all, which is the behavior wanted for a secret: they
     // round-trip because nothing names them, and boofwang neither shows one
     // nor writes one.
     const img = image()

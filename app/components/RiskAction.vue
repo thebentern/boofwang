@@ -3,12 +3,12 @@
  * One button that knows what its action costs.
  *
  * The risk register is the spine of the interface: every action belongs to
- * exactly one level, and the level decides the icon, the colour, the button
+ * exactly one level, and the level decides the icon, the color, the button
  * weight and what the confirmation costs. Putting that in one component is what
  * stops it drifting per screen - which is how the old UI ended up with reading
  * a radio and overwriting one looking identical.
  *
- * Colour is never the only carrier. The default icon and the verb change too,
+ * Color is never the only carrier. The default icon and the verb change too,
  * so the level survives being printed, screenshotted, or read by someone who
  * cannot distinguish amber from green.
  */

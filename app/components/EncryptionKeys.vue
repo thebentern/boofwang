@@ -174,7 +174,7 @@ function toggleReveal(slot: number) {
  * How the key column reads for a row.
  *
  * A slot holding all zeros gets the same words as an empty one but a caution
- * colour, because it is the more dangerous of the two: it looks programmed in
+ * color, because it is the more dangerous of the two: it looks programmed in
  * every menu on the radio and will not decrypt anything.
  */
 function keyText(row: { key: { keyHex: string } | undefined; blank: boolean; slot: number }) {

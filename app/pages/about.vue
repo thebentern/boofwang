@@ -21,7 +21,7 @@ const HEADING = 'font-size:12.5px;font-weight:600;letter-spacing:0.02em'
 const BODY = 'font-size:12.5px;line-height:1.65;color:var(--mu)'
 const ICON = 'width:13px;height:13px;color:var(--fn);flex-shrink:0'
 
-/** A link inside prose. Blue is the only unearned colour on this page. */
+/** A link inside prose. Blue is the only unearned color on this page. */
 const LINK = 'color:var(--in)'
 
 /**

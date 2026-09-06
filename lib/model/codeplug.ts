@@ -53,7 +53,7 @@ export interface DmrContact {
   remark: string
 }
 
-/** A repeater the radio can roam to: a pair, a colour code and a slot. */
+/** A repeater the radio can roam to: a pair, a color code and a slot. */
 export interface RoamChannel {
   id: string
   name: string
@@ -113,7 +113,7 @@ export interface EmergencySystem {
 }
 
 /**
- * Analog signalling: DTMF codes and the two contact lists that go with them.
+ * Analog signaling: DTMF codes and the two contact lists that go with them.
  *
  * Read only, and deliberately shallow. The settings record that sits between
  * the code lists is almost entirely unexplained, so nothing here offers to

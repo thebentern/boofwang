@@ -35,7 +35,7 @@ what is lost, named, then a typed word - when there are unwritten edits.
 The cache is narrow on purpose. It holds exactly what the build emitted, adds
 nothing opportunistically, and never touches a cross-origin request: the
 repeater directories, the BrandMeister device list and the RadioID database are
-live, and a repeater that changed frequency six months ago is a licence problem
+live, and a repeater that changed frequency six months ago is a license problem
 rather than a convenience one. `sw/worker.js` states the four rules in full, and
 `test/sw/` runs that exact file in a fake worker scope, because the alternative
 way to check it is to deploy a site, install it, unplug the network and look at
@@ -376,7 +376,7 @@ for every fixture.
   radios.
 - Every write is preceded by a byte diff. A change outside the ranges the driver
   claims to own blocks the write; it indicates a defect in the encoder.
-- **Every block written is read back and compared.** An acknowledgement says a
+- **Every block written is read back and compared.** An acknowledgment says a
   frame arrived, not that it landed where it was meant to or survived being
   written to flash. The UV-K5 and the DM-32UV verify each block before sending
   the next; the UV-82 and the UV-5R Mini send the plan and then read every block
@@ -402,7 +402,7 @@ for every fixture.
 - Transmitting into a receive-only allocation is warned about, prominently, on
   every affected channel — and then left to you. A frequency the radio cannot
   physically tune or key is still a blocking error, because that is a fact about
-  the hardware rather than about your licence.
+  the hardware rather than about your license.
 - Unrecognised firmware is read-only but still readable, so an unsupported radio
   can still be backed up.
 - Encryption key material is masked by default and revealed one slot at a time.
@@ -415,7 +415,7 @@ for the radio or firmware, image/radio mismatch, missing or foreign backup,
 encode failure, changed bytes outside owned ranges, validation errors, and
 nothing to write.
 
-## Licence
+## License
 
 GPL-3.0-or-later. See [`LICENSE`](LICENSE) and
 [`docs/provenance.md`](docs/provenance.md).

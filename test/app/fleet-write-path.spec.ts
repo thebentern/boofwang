@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
  *
  * So the fleet run is twenty ordinary writes. It calls the same two functions
  * the connect page and the write page call, and adds a record. These tests
- * guard that arrangement rather than the behaviour, because the behaviour they
+ * guard that arrangement rather than the behavior, because the behavior they
  * protect only shows itself on somebody's bricked handset.
  *
  * A source check, deliberately: there is no Vue or Pinia harness in this suite,

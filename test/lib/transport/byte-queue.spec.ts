@@ -42,7 +42,7 @@ describe('ByteQueue', () => {
     expect(q.indexOf(b(9, 9))).toBe(-1)
   })
 
-  it('honours the search start offset', () => {
+  it('honors the search start offset', () => {
     const q = new ByteQueue()
     q.push(b(0xaa, 0xbb, 0xaa, 0xbb))
     expect(q.indexOf(b(0xaa, 0xbb))).toBe(0)

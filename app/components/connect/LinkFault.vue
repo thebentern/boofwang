@@ -114,7 +114,7 @@ const props = defineProps<{
    * a fact about the hardware rather than about a browser or a plugin, and it
    * decides whether the cable is a route that exists to be offered.
    *
-   * Required, unlike its neighbours, because there is no safe default. An
+   * Required, unlike its neighbors, because there is no safe default. An
    * optional boolean prop is cast to false when it is absent, which would
    * withdraw the way back to the cable on every host at once and say nothing.
    * Required makes forgetting it a typecheck failure instead.

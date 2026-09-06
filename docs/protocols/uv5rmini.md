@@ -156,7 +156,7 @@ constant and one rule:
 
 Everything else is identical: same handshake, same frame layout, same
 obfuscation, same per-block 0x06. The reason for the larger block is that every
-one costs a round trip for its acknowledgement, and a BLE round trip is far
+one costs a round trip for its acknowledgment, and a BLE round trip is far
 dearer than a 115200-baud one.
 
 CHIRP decides it is on BLE by sniffing the serial device path for `/tmp/ttyBLE…`
@@ -196,7 +196,7 @@ on the bench for the restore.
    byte-identical** - the thing the earlier sparse write destroyed.
 4. Restored, and the radio returned to `0b029cf2...` byte for byte.
 
-### Two behaviours worth knowing
+### Two behaviors worth knowing
 
 Clearing a channel name writes 12 bytes of 0xFF where the factory image had
 0x00. Both decode to no name and the radio displays neither, but a cleared name
@@ -204,7 +204,7 @@ is not byte-identical to a never-set one.
 
 A whole-image write puts back whatever the image holds at radio address 0x9018,
 a byte the radio maintains itself and changes between sessions. CHIRP has the
-same behaviour for the same reason. It is one byte of runtime state, not
+same behavior for the same reason. It is one byte of runtime state, not
 configuration.
 
 ### Feature write session, 2026-08-20
@@ -326,7 +326,7 @@ Two things kept it alive. An empty chooser is indistinguishable from a radio
 that is switched off, so every failure had an innocent explanation to hand. And
 a test asserted `resetBluetoothProfile()` landed on `NORDIC_UART` - pinning the
 bug rather than the intent, which is why moving the default twice never turned
-the suite red. There is now one `DEFAULT_PROFILE`, the initialiser and the reset
+the suite red. There is now one `DEFAULT_PROFILE`, the initializer and the reset
 both use it, and the test compares against it rather than against a literal.
 
 ### What the fixed chooser does
@@ -334,7 +334,7 @@ both use it, and the test compares against it rather than against a literal.
 With the substitution gone, a filtered request carrying this radio's own numbers
 worked first time: the chooser listed the radio and nothing else. So the radio
 *is* reachable by filter, and every conclusion above to the contrary was an
-artefact of the bug rather than a fact about the hardware.
+artifact of the bug rather than a fact about the hardware.
 
 Which half of the filter matched is not known, and a chooser cannot say - the
 browser ORs `{ services: [ffe0] }` with the `namePrefix` entries and does not
@@ -360,7 +360,7 @@ paths, and only one of them had been exercised.
 By asking the radio, not by reasoning from convention. A GATT enumeration listed
 three vendor services — `AE30`, `AE3A` and `FFE0` — and **no Nordic UART**,
 which the first implementation had assumed. Sending the identify magic on each
-writable characteristic and watching for the acknowledgement settled it: `FFE0`
+writable characteristic and watching for the acknowledgment settled it: `FFE0`
 replied `06` and nothing else did.
 
 `AE30` is worth knowing about. Writing to `ae01` returns the bytes just written,
@@ -383,7 +383,7 @@ block:
 | Address | Field | Cable | BLE |
 |---|---|---|---|
 | `0x9018` | `activeVfo` | 0 | 1 |
-| `0x901A` | not modelled | 0x11 | 0x01 |
+| `0x901A` | not modeled | 0x11 | 0x01 |
 | `0x9022` | `bluetooth` | 0 | 1 |
 
 Those are the radio's own state, not the transport's doing: the `bluetooth` flag

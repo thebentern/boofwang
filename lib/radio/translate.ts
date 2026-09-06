@@ -10,7 +10,7 @@ import { clampPower, type BandLimit, type RadioSchema } from './schema.js'
  * `Codeplug` is radio-agnostic, so the records themselves travel. What does not
  * travel is everything the target cannot represent, and the whole difficulty is
  * that most of those have a plausible-looking wrong answer. A DCS code the
- * target's table lacks can be approximated to a near neighbour, and the result
+ * target's table lacks can be approximated to a near neighbor, and the result
  * is a channel whose squelch never opens - worse than no tone at all, and
  * silent. So a tone that cannot be carried is dropped and said out loud, not
  * rounded.
@@ -156,7 +156,7 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
   }
 
   // 2. Transmit band. This one has a safe adjustment - stop transmitting - so
-  //    it is taken, and rule 3 decides whether the radio can honour it.
+  //    it is taken, and rule 3 decides whether the radio can honor it.
   const txHz = txFrequency(next)
   if (txHz !== null) {
     const txBand = bandFor(bands, txHz)
@@ -218,7 +218,7 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
     // bytes as well as of the sentence. `extras` travels untouched everywhere
     // else in this file, which is right when a channel is copied between slots
     // on one radio - but a DMR repeater staged onto an analogue radio would
-    // otherwise become an FM channel still carrying a colour code and a
+    // otherwise become an FM channel still carrying a color code and a
     // timeslot. Inert on the radio that cannot read them, and read back as real
     // the moment that codeplug is transplanted to one that can.
     //

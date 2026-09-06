@@ -68,7 +68,7 @@ describe('the web app manifest', () => {
 
   it('is tinted with the page background, not with something near it', () => {
     // Installed, the app fills the display and the system chrome sits directly
-    // against the page. A colour that is close but not equal reads as a seam
+    // against the page. A color that is close but not equal reads as a seam
     // along the top edge of a phone.
     const bg = token('bg')
     expect(manifest.background_color.toUpperCase()).toBe(bg)

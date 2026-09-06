@@ -379,7 +379,7 @@ describe('fields this radio does not have', () => {
   const cp = createUvk5Driver().decode(realImage())
 
   it('never reports a skip flag, because the UV-K5 has none', () => {
-    // CHIRP declares `rf.valid_skips = []` for this radio. Scan behaviour is
+    // CHIRP declares `rf.valid_skips = []` for this radio. Scan behavior is
     // scanlist membership and nothing else. Deriving a skip from "in neither
     // scanlist" stamped `S` on every exported CSV row, which would mark every
     // channel scan-skipped on whatever radio imported the file.

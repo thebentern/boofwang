@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest'
  *
  * A source check, deliberately: there is no Nuxt or Pinia harness in this
  * suite, and what is being guarded is the shape of the session - one port per
- * operation, released on the way out, the settle honoured on the way back in.
+ * operation, released on the way out, the settle honored on the way back in.
  */
 const SOURCE = readFileSync(
   fileURLToPath(new URL('../../app/composables/useBootImage.ts', import.meta.url)),

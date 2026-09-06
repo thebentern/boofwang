@@ -204,7 +204,7 @@ export const NORDIC_UART: BluetoothProfile = {
  *
  * Which of them carried the protocol was then settled the only way it can be:
  * by sending the radio its own identify magic on each writable characteristic
- * and watching for the acknowledgement. FFE0 answered `06`. It is an HM-10
+ * and watching for the acknowledgment. FFE0 answered `06`. It is an HM-10
  * style transparent serial link, so one characteristic carries both directions,
  * which the port supports because it never assumes the two are distinct.
  *
@@ -244,7 +244,7 @@ export const UV5RM_BLE: BluetoothProfile = {
 }
 
 /**
- * The echo characteristic, kept so it can be recognised rather than rediscovered.
+ * The echo characteristic, kept so it can be recognized rather than rediscovered.
  *
  * Never a default and never tried automatically. It is here so that anyone
  * enumerating this radio and finding AE30 first has something to read.
@@ -378,7 +378,7 @@ export const TIDRADIO_BL1_FF00: BluetoothProfile = {
 
 /**
  * The characteristic that answers a byte for every byte, kept so it is
- * recognised rather than rediscovered.
+ * recognized rather than rediscovered.
  *
  * Never a default and never tried automatically, exactly like the UV-5R
  * Mini's AE30 echo above. It is here so that anyone probing a TIDRADIO

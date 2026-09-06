@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 /**
  * The palette, checked as numbers rather than trusted as taste.
  *
- * Colour is the one part of an interface that can be adjusted by eye, in a
+ * Color is the one part of an interface that can be adjusted by eye, in a
  * moment, by anyone - which is exactly why a contrast floor written down once
  * stops holding. This reads the shipped stylesheet, not a copy of the intended
  * values, so a hex edited in `main.css` is what gets measured.
@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest'
  * already went and made its type larger for the same reason.
  *
  * Two of these assertions are not about contrast at all. One keeps the accent
- * and the danger colour far enough apart in *hue* to be told apart, which
+ * and the danger color far enough apart in *hue* to be told apart, which
  * luminance contrast cannot see and which two warm oranges will happily fail.
  * The other keeps hairlines at the weight they were tuned to, because a border
  * that quietly gains contrast turns a calm table into a grid.
@@ -25,7 +25,7 @@ import { describe, expect, it } from 'vitest'
 
 const CSS = readFileSync(fileURLToPath(new URL('../../app/assets/css/main.css', import.meta.url)), 'utf8')
 
-/** The five colours the palette is, spelled as the source spells them. */
+/** The five colors the palette is, spelled as the source spells them. */
 const PALETTE = {
   slateDeep: '#202C39',
   slate: '#283845',
@@ -34,7 +34,7 @@ const PALETTE = {
   apricot: '#F29559',
 } as const
 
-// ------------------------------------------------------------------ colour --
+// ------------------------------------------------------------------ color --
 
 const bytes = (hex: string) => {
   const h = hex.replace('#', '').slice(0, 6)
@@ -86,7 +86,7 @@ const THEMES = {
 }
 
 describe('the palette is the one that was chosen', () => {
-  it('uses all five colours literally, not approximations of them', () => {
+  it('uses all five colors literally, not approximations of them', () => {
     for (const [name, hex] of Object.entries(PALETTE)) {
       expect(CSS.includes(hex), `${name} ${hex} is not in the stylesheet`).toBe(true)
     }
@@ -107,7 +107,7 @@ describe('the palette is the one that was chosen', () => {
   })
 
   it('spends the three brights on accent, not on risk', () => {
-    // Semantic colours have to stay free to mean something. These three carry
+    // Semantic colors have to stay free to mean something. These three carry
     // identity; ok/cn/dg/in carry consequence, and they are not the same job.
     expect(THEMES.dark.ac).toBe(PALETTE.apricot)
     expect(THEMES.dark.ac2).toBe(PALETTE.wheat)
@@ -139,7 +139,7 @@ describe.each(Object.entries(THEMES))('%s theme contrast', (theme, T) => {
 
   it('keeps the accent legible as a mark and as words', () => {
     // #F29559 clears both bars on the dark slate, which is unusual for a bright
-    // accent and is why the logo, links and the focus ring can share a colour.
+    // accent and is why the logo, links and the focus ring can share a color.
     // `--acTx` still exists as its own token because the light theme has to
     // darken it to #B4551F to stay readable on paper-white.
     expect(pair('ac', 'pn'), 'accent as a mark').toBeGreaterThanOrEqual(3)
@@ -168,7 +168,7 @@ describe.each(Object.entries(THEMES))('%s theme contrast', (theme, T) => {
   it('keeps danger far enough from the accent in hue to tell apart', () => {
     // Luminance contrast is blind to this: two orange-reds of the same
     // lightness score perfectly against each other and are indistinguishable.
-    // "Brand" and "this could break your radio" must not be the same colour.
+    // "Brand" and "this could break your radio" must not be the same color.
     expect(hueGap(T.ac!, T.dg!), 'accent vs danger').toBeGreaterThanOrEqual(25)
   })
 
@@ -199,7 +199,7 @@ describe('print', () => {
   const paper = tokensOf(/@media print \{\s*:root,/m)
 
   it('drops the accent to ink rather than printing a terracotta rule', () => {
-    // A mono laser renders it as a grey nobody can tell from a hairline.
+    // A mono laser renders it as a gray nobody can tell from a hairline.
     expect(paper.ac).toBe('#000000')
     expect(paper.acTx).toBe('#000000')
   })

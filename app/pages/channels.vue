@@ -65,7 +65,7 @@ const { phone } = useFormFactor()
         this dialog gives it.
       -->
       <!--
-        Full height on a phone, centred dialog above it. A channel form is a
+        Full height on a phone, centerd dialog above it. A channel form is a
         dozen fields and a phone has no room to float one in the middle of the
         screen with a scrim either side of it.
 

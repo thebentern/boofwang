@@ -104,7 +104,7 @@ const driver = createUvk5Driver()
 const writable = createUvk5Driver({ enableWrite: true })
 
 describe('the variant', () => {
-  it('is recognised by its hello prefix and moves the calibration boundary', () => {
+  it('is recognized by its hello prefix and moves the calibration boundary', () => {
     const v = classifyFirmware(FIRMWARE)
     expect(v.layout).toBe('egzumer')
     expect(v.calStart).toBe(EGZUMER_CAL_START)

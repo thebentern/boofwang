@@ -15,7 +15,7 @@
  *
  * The links are mono glyphs rather than borders or SVG so the trail survives
  * being pasted into a bug report as text, and so its meaning does not rest on
- * colour: a dashed run reads as "not started" and a cross as "broken" in a
+ * color: a dashed run reads as "not started" and a cross as "broken" in a
  * screenshot, in print, and to someone who cannot separate amber from green.
  *
  * The topology is fixed and written out rather than looped, because there is no
@@ -78,7 +78,7 @@ const TONES: Record<HopTone, { border: string; background: string; color: string
   neutral: { border: 'var(--ln)', background: 'var(--pn2)', color: 'var(--fn)' },
 }
 
-/** A link in progress is still a link: solid, and coloured as informational. */
+/** A link in progress is still a link: solid, and colored as informational. */
 const LINK_COLORS: Record<HopLink, string> = {
   ok: 'var(--ok)',
   work: 'var(--in)',

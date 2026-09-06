@@ -32,7 +32,7 @@ export default defineNuxtPlugin(async () => {
    * Transfer guarding. The store stays host-agnostic; this is the one place
    * that knows an app can be backgrounded. While a transfer runs the screen
    * stays on and the back button is held. When the app goes to the background
-   * anyway, the transfer is NOT cancelled - a cancel poisons the transport,
+   * anyway, the transfer is NOT canceled - a cancel poisons the transport,
    * and a notification shade pulled down on Android may not have cost
    * anything - but it is marked interrupted, so a failure that follows is
    * blamed on the interruption rather than on the radio.

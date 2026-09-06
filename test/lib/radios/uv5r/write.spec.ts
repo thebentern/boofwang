@@ -67,7 +67,7 @@ const writable = createUv5rDriver({ enableWrite: true })
  * `answers` is which one, so that a unit that knows only the pre-BFB291 magic
  * can be scripted. Magic bytes are matched before control bytes: the magic
  * contains 0x06 at index five, and a stub that answers every lone 0x06 with an
- * acknowledgement acks its own magic mid-stream.
+ * acknowledgment acks its own magic mid-stream.
  */
 function radio(contents: Uint8Array, opts: { answers?: Uint8Array } = {}) {
   const answers = opts.answers ?? MAGIC_UV5R_291
@@ -99,7 +99,7 @@ function radio(contents: Uint8Array, opts: { answers?: Uint8Array } = {}) {
         const addr = (cmd[1]! << 8) | cmd[2]!
         const size = cmd[3]!
         // The 0x1E80 warm-up block is the only one requested with the leading
-        // acknowledgement skipped, so it is the only one that must not send it.
+        // acknowledgment skipped, so it is the only one that must not send it.
         if (addr !== 0x1e80) out.push(0x06)
         out.push(0x58, cmd[1]!, cmd[2]!, cmd[3]!)
         for (let i = 0; i < size; i++) {

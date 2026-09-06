@@ -70,7 +70,7 @@ class FakeCache {
   async addAll(requests: (FakeRequest | string)[]) {
     /*
      * Atomic, the way a browser's is: every response is fetched before any of
-     * them is stored, and one 404 rejects the lot. Modelled rather than
+     * them is stored, and one 404 rejects the lot. Modeled rather than
      * simplified because the worker relies on it - a half-filled cache serves
      * some of one build and some of another, and says nothing about it.
      */

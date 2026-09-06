@@ -43,10 +43,10 @@ const driver = createUvk5Driver()
 /**
  * Generous timeouts on purpose.
  *
- * These tests exercise protocol behaviour, not latency. The fake radio replies
+ * These tests exercise protocol behavior, not latency. The fake radio replies
  * immediately, so the only way a timeout fires here is CPU starvation - which
  * happens on a busy CI runner and would turn a green suite red for no reason
- * anyone could act on. Timeout behaviour itself is tested directly in
+ * anyone could act on. Timeout behavior itself is tested directly in
  * serial-transport.spec.ts, where it is the point.
  */
 const CTX = { readTimeoutMs: 30_000 }
@@ -177,7 +177,7 @@ describe('reading a radio end to end', () => {
 })
 
 describe('read timeout is configurable', () => {
-  it('honours a caller-supplied timeout', async () => {
+  it('honors a caller-supplied timeout', async () => {
     // A BLE-serial bridge or a congested hub can stretch a reply past the
     // default; a spurious timeout mid-transfer desyncs the link and aborts the
     // read, which is worse than simply waiting.

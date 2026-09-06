@@ -9,7 +9,7 @@ import { hz, type Hz } from '../model/units.js'
  * Every rule here exists because real data broke a simpler one. The fields
  * these directories publish are free text typed by thousands of people over
  * twenty years, and they are not a schema: a field called `encode` holds a
- * CTCSS tone in most records, a DMR colour code in five thousand of them, and
+ * CTCSS tone in most records, a DMR color code in five thousand of them, and
  * in a few dozen it holds `'$145'`, `'0000.'` or `'A'`.
  *
  * The governing rule is the one the CSV importer already follows: a value that
@@ -56,7 +56,7 @@ const CTCSS_MAX = CTCSS_DECIHZ[CTCSS_DECIHZ.length - 1]!
 
 export interface ParsedAccess {
   readonly tone: ToneSpec | null
-  /** Present when the field carried a `CCn` colour code instead of, or as well as, a tone. */
+  /** Present when the field carried a `CCn` color code instead of, or as well as, a tone. */
   readonly colorCode?: number
   /** Why something was dropped, if it was. Empty when the field was clean or blank. */
   readonly issues: readonly string[]
@@ -67,8 +67,8 @@ export interface ParsedAccess {
  *
  * Splits on `/`, because that is the separator these directories use when a
  * repeater needs more than one thing to open it, and then asks of each part
- * only whether it is unambiguously a CTCSS tone or unambiguously a colour code.
- * `NAC`, `RAN`, `CAN` and DCS parts are recognised well enough to be ignored
+ * only whether it is unambiguously a CTCSS tone or unambiguously a color code.
+ * `NAC`, `RAN`, `CAN` and DCS parts are recognized well enough to be ignored
  * rather than misread as tones.
  *
  * A field carrying two CTCSS tones - `'88.5/71.9'` appears in live data - is
@@ -310,9 +310,9 @@ export function txSpecFor(rxFreq: Hz, repeaterInput: Hz | null): TxSpec {
 }
 
 /**
- * Whether a published colour code can be stored at all.
+ * Whether a published color code can be stored at all.
  *
- * Live BrandMeister data carries colour codes from 0 to 17. DMR defines 0 to
+ * Live BrandMeister data carries color codes from 0 to 17. DMR defines 0 to
  * 15, and the DM-32UV stores it in four bits - so 17 does not fail, it becomes
  * 1. The channel then looks correct everywhere it is displayed and cannot key
  * the repeater it names. Range-check before the value is anywhere near a

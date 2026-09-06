@@ -80,7 +80,7 @@ export interface PlacementPlan {
  * Plan where a run of channels lands, without writing anything.
  *
  * Placement appends after the highest slot already programmed and never writes
- * over an occupied one - the behaviour the original comment promised. It does
+ * over an occupied one - the behavior the original comment promised. It does
  * not fill earlier gaps, which is a choice rather than an oversight: someone
  * who has channels at 1-10 and 190-200 is describing a layout, and quietly
  * threading new channels through the holes in it is not what "copy these

@@ -23,7 +23,7 @@ function currentHost(): HostKind {
  *
  * Its endpoint rejects query parameters, so a search means fetching all 33,000
  * records - about 10 MB. Doing that per keystroke would be indefensible on a
- * phone tether at a hilltop, which is exactly where somebody programmes a radio.
+ * phone tether at a hilltop, which is exactly where somebody programs a radio.
  * Held per source id, dropped when the tab goes.
  */
 const responseCache = new Map<string, unknown>()

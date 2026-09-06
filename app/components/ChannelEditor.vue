@@ -97,7 +97,7 @@ const nameError = computed(() =>
 const canSave = computed(() => rxError.value === null && nameError.value === null && !encryptionBlocked.value)
 
 /**
- * On a phone this is a full-height sheet, not a centred dialog.
+ * On a phone this is a full-height sheet, not a centerd dialog.
  *
  * Two things forced it. The form is `grid-cols-2` and `grid-cols-3`, which puts
  * a select at about 120px on a 375px screen - narrower than the words inside

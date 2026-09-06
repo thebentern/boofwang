@@ -187,7 +187,7 @@ describe('talking to the page', () => {
     expect(sw.skipWaitingCalls()).toBe(1)
   })
 
-  it('ignores a message it does not recognise', async () => {
+  it('ignores a message it does not recognize', async () => {
     const sw = loadWorker()
     sw.message({ type: 'skipWaiting' })
     sw.message(null)

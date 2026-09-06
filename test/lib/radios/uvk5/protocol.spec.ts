@@ -299,7 +299,7 @@ describe('readMem / writeMem', () => {
     await t.close()
   })
 
-  it('treats an acknowledgement for the wrong address as a failure', async () => {
+  it('treats an acknowledgment for the wrong address as a failure', async () => {
     // Silently accepting this would mean believing a block landed somewhere it
     // did not, and a verify pass would then compare the wrong bytes.
     const port = new FakeSerialPort({

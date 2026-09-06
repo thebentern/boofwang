@@ -308,7 +308,7 @@ describe('regressions from the write-path review', () => {
   })
 
   it('never lets the merge touch a byte outside the key area', () => {
-    // Asserted in writeImage as well, as a last line of defence: a merge that
+    // Asserted in writeImage as well, as a last line of defense: a merge that
     // strays is a defect in boofwang and must not reach the radio.
     const img = image()
     const cp = writable.decode(img)
@@ -399,7 +399,7 @@ describe('erasing a key slot', () => {
     expect([...patched.subarray(off, off + SLOT_SIZE)]).toEqual(new Array(SLOT_SIZE).fill(0))
   })
 
-  it('does not disturb its neighbours when erasing', () => {
+  it('does not disturb its neighbors when erasing', () => {
     const img = image()
     const doc = writable.decode(img)
     doc.encryptionKeys = doc.encryptionKeys.filter((k) => k.slot !== 3)
@@ -407,8 +407,8 @@ describe('erasing a key slot', () => {
     const before = blockOf(img).slice()
     const patched = before.slice()
     encodeKeys(patched, doc.encryptionKeys)
-    for (const neighbour of [2, 4]) {
-      const off = keySlotOffset(neighbour)
+    for (const neighbor of [2, 4]) {
+      const off = keySlotOffset(neighbor)
       expect(equalBytes(patched.subarray(off, off + SLOT_SIZE), before.subarray(off, off + SLOT_SIZE))).toBe(true)
     }
   })
@@ -664,14 +664,14 @@ describe('channel flag bytes, against the reference hex', () => {
     expect(m[0x19]).toBe(0x4f)
   })
 
-  // reference:392-406 - timeslot is bit 4, colour code is the low nibble,
+  // reference:392-406 - timeslot is bit 4, color code is the low nibble,
   // attested by an OEM CPS capture where TS1 stores 0x01 and TS2 stores 0x11.
   it('writes time slot 2 to bit 4, as the CPS capture does', () => {
     const m = mem()
     m.set([0x50, 0x12, 0x00, 0x43], 0x10)
     m.set([0x50, 0x12, 0x00, 0x43], 0x14)
     m[0x18] = 0x10 // digital
-    m[0x1d] = 0x01 // colour code 1, TS1
+    m[0x1d] = 0x01 // color code 1, TS1
     const ch = decodeChannel(m, REC, 0)!
     expect(ch.extras.vendor?.timeSlot).toBe('1')
     expect(ch.extras.vendor?.colorCode).toBe('1')
@@ -680,17 +680,17 @@ describe('channel flag bytes, against the reference hex', () => {
       ...ch,
       extras: { ...ch.extras, vendor: { ...ch.extras.vendor, timeSlot: '2' } },
     })
-    // Writing bit 3 instead gave 0x09, which the radio reads as colour code 9
-    // on time slot 1 - the slot unchanged and the colour code destroyed.
+    // Writing bit 3 instead gave 0x09, which the radio reads as color code 9
+    // on time slot 1 - the slot unchanged and the color code destroyed.
     expect(m[0x1d]).toBe(0x11)
   })
 
-  it('carries colour codes above 7, which three bits could not hold', () => {
+  it('carries color codes above 7, which three bits could not hold', () => {
     const m = mem()
     m.set([0x50, 0x12, 0x00, 0x43], 0x10)
     m.set([0x50, 0x12, 0x00, 0x43], 0x14)
     m[0x18] = 0x10
-    m[0x1d] = 0x1d // colour code 13, TS2
+    m[0x1d] = 0x1d // color code 13, TS2
     const ch = decodeChannel(m, REC, 0)!
     expect(ch.extras.vendor?.colorCode).toBe('13')
     expect(ch.extras.vendor?.timeSlot).toBe('2')

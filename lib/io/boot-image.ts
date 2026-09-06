@@ -49,7 +49,7 @@ export interface BootImagePixels {
  * Getting this backwards is the failure this module exists to avoid. Read as
  * RGB565 the same bytes still produce a picture - correctly framed, correctly
  * shaped, with red and blue exchanged - so it looks like a working feature and
- * only a colour chart or a face gives it away. Green sits in the middle and is
+ * only a color chart or a face gives it away. Green sits in the middle and is
  * untouched by the swap, which is why a test on green alone proves nothing.
  */
 export function packRgb565(r: number, g: number, b: number): number {
@@ -75,7 +75,7 @@ export function unpackRgb565(word: number): { r: number; g: number; b: number } 
  * contact count.
  *
  * Confined to these two functions on purpose. If a real radio renders a written
- * image with its colours wrong in a way a red/blue swap cannot explain - stripes
+ * image with its colors wrong in a way a red/blue swap cannot explain - stripes
  * or a hue rotation rather than blue skin - the byte order is the thing to flip,
  * and this is the only place it is decided.
  */
@@ -183,7 +183,7 @@ export function centerCrop(width: number, height: number): CropRect {
  * The source is scaled and center-cropped to 240 x 320 by averaging over the
  * area each destination pixel covers. Area averaging rather than picking the
  * nearest source pixel because the usual input is a photograph several times
- * larger than the screen, and nearest-neighbour throws away most of it: fine
+ * larger than the screen, and nearest-neighbor throws away most of it: fine
  * detail turns into aliasing, and text in a logo comes out broken.
  *
  * Alpha is composited over black. A radio powering up shows this on an unlit

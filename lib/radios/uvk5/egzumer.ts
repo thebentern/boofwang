@@ -226,7 +226,7 @@ export function decodeEgzumerChannel(mem: Uint8Array, i: number, build: BuildOpt
     power: { mW: powerLevel.mW, label: powerLevel.label },
     tuningStep: hz(stepHzAt(raw.step)) as Hz,
     // Unchanged from stock: this radio has no skip flag at all, so scan
-    // behaviour is scanlist membership and nothing else.
+    // behavior is scanlist membership and nothing else.
     skip: 'none',
     comment: '',
     extras: {

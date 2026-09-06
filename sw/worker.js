@@ -23,7 +23,7 @@
  *   2. Serve stale *data*. The repeater directories, the BrandMeister device
  *      list and the RadioID database are all live, all cross-origin, and none
  *      of them should ever come out of a cache this file controls. A repeater
- *      that moved frequency six months ago is a licence problem, not a
+ *      that moved frequency six months ago is a license problem, not a
  *      convenience problem.
  *
  * So this worker serves exactly what the build shipped and nothing else. It

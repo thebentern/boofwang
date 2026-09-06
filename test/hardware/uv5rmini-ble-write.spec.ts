@@ -24,7 +24,7 @@ import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial
  * and the upload rewrites every block, so a link that drops halfway leaves a
  * wiped radio rather than a half-written one, and Bluetooth is a fortieth of
  * the cable's speed with a 20-byte GATT write under each 0x80 block. Before
- * running it: a fresh battery, the radio within a metre, and a cable on the
+ * running it: a fresh battery, the radio within a meter, and a cable on the
  * bench for the restore this test cannot do if the link goes.
  *
  * Skipped unless `BOOFWANG_HW` is set, because it needs a UV-5R Mini in its

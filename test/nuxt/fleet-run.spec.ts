@@ -8,7 +8,7 @@ import { useFleetStore } from '~/stores/fleet'
 /**
  * The run's bookkeeping, exercised through the store rather than around it.
  *
- * Two of these were written after the behaviour was wrong on screen. The roster
+ * Two of these were written after the behavior was wrong on screen. The roster
  * was validated against a schema the store only learned about when the run
  * started, so a roster with two radios on one DMR ID - the single failure this
  * whole feature exists to prevent - sat there with no complaint and started the

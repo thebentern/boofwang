@@ -40,7 +40,7 @@ Confirmed by this session:
   test, because the fakes computed a checksum the radio does not. It now accepts
   `0xFFFF` as "none supplied" and verifies only a real value.
 - **The radio has no skip flag.** CHIRP declares `rf.valid_skips = []`; scan
-  behaviour is scanlist membership alone. Deriving a skip from "in neither
+  behavior is scanlist membership alone. Deriving a skip from "in neither
   scanlist" put `S` on all 31 rows of an exported CSV, which would mark every
   channel scan-skipped on whatever radio imported it.
 
@@ -99,7 +99,7 @@ where egzumer gathers them into one window:
 |---|---|
 | `0x0E70` | squelch, VOX, mic gain, battery save, dual watch, backlight, cross-band, call channel |
 | `0x0E90` | beep, the four side-key actions, scan resume, auto keypad lock, power-on screen |
-| `0x0E98` | the eight password bytes, **not modelled** |
+| `0x0E98` | the eight password bytes, **not modeled** |
 | `0x0EA0` | voice prompts, menu language |
 | `0x0EA8` | alarm mode, end-of-talk tone, repeater tail elimination |
 | `0x0EB0` | the two 16-character welcome lines |
@@ -113,7 +113,7 @@ CHIRP's own `bitwise` engine reads from the same image, plus both welcome lines.
 
 Two things are decoded and never offered. `killed` is the DTMF remote-kill flag,
 and the only thing setting it does is stop the radio working. The eight password
-bytes at `0x0E98` are not modelled at all, so they round-trip because nothing
+bytes at `0x0E98` are not modeled at all, so they round-trip because nothing
 names them - a test asserts that range is neither claimed nor rewritten.
 
 On the radio, firmware `2.01.32`:

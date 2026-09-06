@@ -68,8 +68,8 @@ function toRecord(raw: RawDevice): RepeaterRecord | SourceIssue {
   }
   const repeaterInput = parseMHzField(raw.rx)
 
-  // A colour code that cannot be stored is fatal to the record rather than a
-  // field to drop: a DMR channel without the right colour code does not work,
+  // A color code that cannot be stored is fatal to the record rather than a
+  // field to drop: a DMR channel without the right color code does not work,
   // and one silently truncated into four bits is worse than one that is absent.
   const cc = raw.colorcode
   if (!isStorableColorCode(cc)) {
@@ -94,7 +94,7 @@ function toRecord(raw: RawDevice): RepeaterRecord | SourceIssue {
     city: asText(raw.city),
     rxFreq,
     tx: txSpecFor(rxFreq, repeaterInput),
-    // DMR carries no CTCSS. The colour code is the access control, and it lives
+    // DMR carries no CTCSS. The color code is the access control, and it lives
     // on `dmr` rather than being forced into a tone field it does not fit.
     tone: NO_TONE,
     modulation: 'DMR',

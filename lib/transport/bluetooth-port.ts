@@ -29,7 +29,7 @@ import { delay, type SerialOpenOptions, type SerialPortLike, type TransportKind 
  *    rather than stubbed, because `SerialPortLike` makes both optional and a
  *    stub that quietly does nothing is worse than a method that is not there:
  *    `SerialTransport` checks for them and skips them, which is the correct
- *    behaviour and is expressible only by omission.
+ *    behavior and is expressible only by omission.
  *
  * ## What has and has not been exercised
  *
@@ -339,7 +339,7 @@ export class BluetoothPort implements SerialPortLike {
   /**
    * Tear down, and by default drop the GATT link with it.
    *
-   * Called by `SerialTransport.close()` after it has cancelled the reader and
+   * Called by `SerialTransport.close()` after it has canceled the reader and
    * closed the writer, so the streams are already unlocked by the time this
    * runs. Everything here is best-effort: a radio that has walked out of range
    * fails all of it, and there is nothing useful to do about that.

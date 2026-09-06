@@ -238,7 +238,7 @@ export const BASETYPE_UV82HP: readonly string[] = ['N82-3', 'N823', 'N5R2']
  * A bare `null` used to be the whole answer, and the driver turned every one
  * of them into the same sentence: "not one this build recognizes". That is
  * true of a string matching no family at all, and false of the case that
- * actually reaches people - the UV-5R's `N5RV`, which this build recognises
+ * actually reaches people - the UV-5R's `N5RV`, which this build recognizes
  * perfectly well and which names both a 4 W UV-5R and an 8 W BF-F8HP. Sending
  * someone to look for a missing table entry when the real answer is "your
  * radio is one of two radios" costs them the afternoon.

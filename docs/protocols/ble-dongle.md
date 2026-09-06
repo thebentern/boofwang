@@ -330,7 +330,7 @@ UUID FFE0 alone does not.
    pointed at a loopback sees its own frames and reports the echoing-adapter
    fault. A dongle is at least as likely to expose one.
 3. **Send a real radio its own identify magic through the dongle** on each
-   surviving characteristic and watch for the acknowledgement - the method
+   surviving characteristic and watch for the acknowledgment - the method
    that settled the Mini's profile. A UV-82 or UV-5G behind the dongle
    answers `06` to its seven-byte magic if the pipe and the rate are right.
 4. **Capture the vendor app doing real work - this is the step that is now

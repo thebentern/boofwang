@@ -187,7 +187,7 @@ describe.skipIf(!HW_WRITE)('UV-5R write cycle on the bench', () => {
     const backup = { id: 'bench', identHash: ident0.identHash, createdAt: new Date().toISOString() }
 
     // A rename is the smallest edit that exercises the whole path: diff, block
-    // write, acknowledgement, read-back.
+    // write, acknowledgment, read-back.
     const doc = writable.decode(baseline)
     const slot = [...doc.channels.keys()].sort((a, b) => a - b)[0]!
     const ch = doc.channels.get(slot)!

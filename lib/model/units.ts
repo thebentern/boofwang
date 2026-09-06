@@ -29,7 +29,7 @@ export const toWatts = (p: Milliwatts): number => p / 1000
 /**
  * Frequency as CHIRP writes it: MHz with exactly six decimals, e.g.
  * `146.010000`. Formatted by integer arithmetic rather than `toFixed`, so a
- * float rounding artefact can never appear in an exported file.
+ * float rounding artifact can never appear in an exported file.
  */
 export function formatFreq(f: Hz): string {
   const neg = f < 0

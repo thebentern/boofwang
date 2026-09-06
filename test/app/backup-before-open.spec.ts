@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 /**
  * A read must persist its backup before it opens the codeplug.
  *
- * This is a source-order check rather than a behavioural one, and deliberately
+ * This is a source-order check rather than a behavioral one, and deliberately
  * so: there is no Vue or Pinia harness in this suite, and the defect it guards
  * is precisely that two statements were the wrong way round.
  *

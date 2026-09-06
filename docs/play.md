@@ -121,7 +121,7 @@ hard to reach by accident:
   channel, with a channel gaining transmit and a slot being erased called out
   by name. Confirming takes a deliberate action rather than a tap.
   Every block written is read back off the radio and compared, because an
-  acknowledgement says a frame arrived and not that it landed where it was
+  acknowledgment says a frame arrived and not that it landed where it was
   meant to.
   Bytes boofwang does not understand are carried through untouched rather
   than regenerated, and a change landing outside the region a driver claims
@@ -173,7 +173,7 @@ built app still asked for something it does not use.
 
 `AndroidManifest.xml` caps every legacy Bluetooth permission at API 30 and
 flags the scan `neverForLocation`, which is accurate: `app/mobile/bluetooth.ts`
-initialises the plugin with `androidNeverForLocation: true`, and on that path
+initializes the plugin with `androidNeverForLocation: true`, and on that path
 `BluetoothLe.kt` requests only BLUETOOTH_SCAN and BLUETOOTH_CONNECT from
 Android 12 onwards. So boofwang never asks where you are.
 

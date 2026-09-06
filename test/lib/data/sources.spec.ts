@@ -43,7 +43,7 @@ describe('hearham', () => {
     expect(records[0]!.tone.rx).toBeNull()
   })
 
-  it('recovers a colour code from the field that should hold a tone', async () => {
+  it('recovers a color code from the field that should hold a tone', async () => {
     const { records } = await hearham.fetchRepeaters(
       stub([{ ...VE7RHS, mode: 'DMR', encode: 'CC1' }]),
       {},

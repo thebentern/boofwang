@@ -76,7 +76,7 @@ export interface PresetChannel {
  * The DMR settings a preset can carry.
  *
  * Deliberately a small subset of what the DM-32UV stores per channel. A
- * repeater directory knows the colour code and the timeslot because they are
+ * repeater directory knows the color code and the timeslot because they are
  * properties of the repeater; it does not know your radio ID, your encryption
  * key or whether you work alone, and a preset has no business setting those.
  */
@@ -100,7 +100,7 @@ export interface PresetDmr {
  *
  * Keys and encoding transcribed from `decodeChannel` in
  * `lib/radios/dm32uv/driver.ts` - `timeSlot` is 1-based there, and everything
- * in `extras.vendor` is a stringified number. A driver that does not recognise
+ * in `extras.vendor` is a stringified number. A driver that does not recognize
  * these ignores them, which is what makes this safe to set for any radio.
  */
 function dmrExtras(dmr: PresetDmr | undefined): ChannelExtras {
@@ -136,7 +136,7 @@ export interface PresetSet {
   readonly license: string
   /** Channel spacing the plan uses; the driver picks the nearest step it actually has. */
   readonly stepHz: Hz
-  /** Why transmit is off, when it is. Shown by the channel editor instead of a bare grey field. */
+  /** Why transmit is off, when it is. Shown by the channel editor instead of a bare gray field. */
   readonly receiveOnlyReason?: string
   readonly channels: readonly PresetChannel[]
 }

@@ -486,7 +486,7 @@ export const lbcdFreq = bcdFreqLE
 /**
  * Integer field surfaced as a string when the value is known, and left as the
  * raw number when it is not. Unknown values must survive: a radio firmware we
- * have not seen may use an encoding we have not catalogued, and turning that
+ * have not seen may use an encoding we have not cataloged, and turning that
  * into `undefined` would lose it on write-back.
  */
 export function enumOf<T extends string>(base: Field<number>, table: Readonly<Record<number, T>>): Field<T | number> {

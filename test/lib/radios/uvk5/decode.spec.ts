@@ -54,7 +54,7 @@ describe('decoding records CHIRP itself encoded', () => {
     expect(ch.tuningStep).toBe(12_500)
   })
 
-  it('recognises CHIRP’s transmit-disable encoding', () => {
+  it('recognizes CHIRP’s transmit-disable encoding', () => {
     // The UV-K5 has no TX-inhibit bit. CHIRP parks transmit at 0 MHz using a
     // minus shift whose offset equals the receive frequency. Failing to notice
     // that would turn a NOAA weather channel into a transmit-capable one.

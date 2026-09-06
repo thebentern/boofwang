@@ -159,7 +159,7 @@ themselves.
 
 ## First bench session, 2026-09-05: read only
 
-A **Baofeng UV-5R**, labelled as such on the case - which matters, because the
+A **Baofeng UV-5R**, labeled as such on the case - which matters, because the
 firmware string cannot say so. Read over an FTDI cable through the development
 bridge by `test/hardware/uv5r.spec.ts`. Nothing was written.
 
@@ -191,7 +191,7 @@ What it settles:
   written before any UV-5R had been plugged in. A sample of one, and it landed
   on the expensive case.
 
-What it does not settle: which magic actually drew the acknowledgement - that
+What it does not settle: which magic actually drew the acknowledgment - that
 is derived from the firmware not being pre-BFB291, because `identify` returns
 the ident block and not the magic that fetched it. No independent reader
 outside the app has taken the same bytes off the wire. And the band plan and
@@ -217,7 +217,7 @@ same address. Then 0x00 was tried, and the answer arrived in one frame:
 
 The three bytes still holding 0xFF took the 0x00. The four already holding `BOOF`
 did not, though 0x42 to 0x00 only clears bits. So this is not "cleared bits only"
-- it is one program per erase, and an acknowledgement says nothing about it.
+- it is one program per erase, and an acknowledgment says nothing about it.
 
 The consequence is not a failed restore, it is silent corruption: shorten a name
 on a diff-driven write and the tail of the old one stays. Rename `GMRS1` to
@@ -281,7 +281,7 @@ correct rather than lucky.
 Everything that needs a radio:
 
 - **Only one UV-5R has answered, and only one magic.** The session above drew
-  an acknowledgement without ever needing `UV5R_MODEL_ORIG`, so the fallback to
+  an acknowledgment without ever needing `UV5R_MODEL_ORIG`, so the fallback to
   it is still exercised only by a scripted fake port - as is every path for a
   pre-BFB291 radio.
 - **One firmware string has been read off one radio.** Every other classifier

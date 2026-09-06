@@ -35,7 +35,7 @@ const fixture = (name: string) =>
 type Responder = (written: Uint8Array) => Uint8Array | null
 
 /**
- * Generous on purpose: these exercise protocol behaviour, not latency, and a
+ * Generous on purpose: these exercise protocol behavior, not latency, and a
  * busy CI runner is the only way a timeout fires against a fake that replies
  * immediately.
  */

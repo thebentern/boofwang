@@ -141,7 +141,7 @@ export interface Uv5rFamilyModel {
   readonly magics: readonly Uint8Array[]
   readonly schema: RadioSchema
   /**
-   * Sort a firmware version string into a recognised model, or null.
+   * Sort a firmware version string into a recognized model, or null.
    *
    * Null means the memory layout cannot be assumed and the radio is offered
    * read-only. `triPower` refuses writing on members whose third power level
@@ -216,7 +216,7 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
         caps: {
           read: true,
           /*
-           * Writable only on a firmware the member's classifier recognises,
+           * Writable only on a firmware the member's classifier recognizes,
            * and never on a tri-power radio.
            *
            * The UV-82HP is the reason the flag exists: it shares the plain
@@ -329,7 +329,7 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
        * one-channel edit to a handful of frames instead of rewriting six
        * kilobytes, and it is also what keeps the write inside the ranges this
        * driver understands - a block with no change in it is never a candidate,
-       * so the parts of memory nobody has modelled are never touched.
+       * so the parts of memory nobody has modeled are never touched.
        */
       /*
        * What to diff against.
@@ -419,14 +419,14 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
        * A diff-driven write is the better shape and it is what this family has
        * always used: a one-channel edit costs one block instead of six
        * kilobytes, and a block with no change in it is never a candidate, so
-       * memory nobody has modelled is never touched.
+       * memory nobody has modeled is never touched.
        *
        * The bench UV-5R will not have it. Writing `BOOF` over a name field that
        * held 0xFF landed and verified; writing 0xFF back over `BOOF` was
        * acknowledged and silently ignored, twice, and so was 0x00 - but only in
        * the bytes that already held a character. The three bytes still at 0xFF
        * took 0x00 in the same frame. So a byte in this region programs once and
-       * will not reprogram, and an acknowledgement says nothing about it. A
+       * will not reprogram, and an acknowledgment says nothing about it. A
        * sparse write on such a radio leaves the tail of a shortened name in
        * place - rename `GMRS1` to `BOOF` and the radio reads `BOOF1` - which is
        * silent corruption of a field the user was editing.
@@ -529,7 +529,7 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       /*
        * Read every block back before calling the write done.
        *
-       * The radio acknowledges each frame, but an acknowledgement only says it
+       * The radio acknowledges each frame, but an acknowledgment only says it
        * arrived - not that it landed where it was meant to or survived being
        * written to flash. Reading back is the only thing that distinguishes
        * those, and it is cheap next to the cost of being wrong.
@@ -794,7 +794,7 @@ export function encodeChannel(
    * Receive-only is written as four 0xFF bytes on every record this driver
    * changes.
    *
-   * CHIRP's `_is_txinh` for this family (reference/uv5r.py) recognises exactly
+   * CHIRP's `_is_txinh` for this family (reference/uv5r.py) recognizes exactly
    * one marker - `FF FF FF FF`. A zero filling is not an inhibit to it: it
    * computes the distance from the receive frequency, calls the channel a
    * split, and reports transmit as *enabled*. An earlier version of this

@@ -63,7 +63,7 @@ describe.skipIf(!HW)('UV-5G on the bench', () => {
 
     // Rename the first named channel. The name table is one of the three
     // ranges the driver owns, and a rename is the smallest edit that proves
-    // the whole path: diff, block write, acknowledgement, read-back.
+    // the whole path: diff, block write, acknowledgment, read-back.
     const doc = driver.decode(baseline)
     const slot = [...doc.channels.keys()].sort((a, b) => a - b)[0]!
     const ch = doc.channels.get(slot)!

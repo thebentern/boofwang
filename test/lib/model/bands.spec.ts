@@ -9,7 +9,7 @@ import { encryptionLegality } from '#core/model/encryption.js'
  * The band table, and the thing it exists to prevent.
  *
  * These ranges lived inside `encryptionLegality` until the channel list needed
- * them to colour a row edge. The whole point of moving them is that one table
+ * them to color a row edge. The whole point of moving them is that one table
  * cannot drift from itself, so the assertions that matter here are the ones
  * tying the two readers together rather than the ones restating the numbers.
  */
@@ -31,7 +31,7 @@ describe('serviceFor', () => {
   it('puts GMRS before land mobile, because the ranges overlap', () => {
     /*
      * 462.5625 is inside the 450-470 land-mobile block as well as GMRS. Match
-     * order is what decides, and getting it backwards would have coloured every
+     * order is what decides, and getting it backwards would have colored every
      * GMRS row as Part 90 and told the user encryption was permitted there.
      */
     expect(serviceFor(mhz(462.5625)).service).toBe('GMRS/FRS')

@@ -24,7 +24,7 @@ const props = defineProps<{ diff: ChannelDiff; blocks?: number; bytes?: number }
  * consent to a byte count.
  *
  * The estimate is deliberately coarse. Timing a write means knowing the
- * carrier's throughput, the radio's per-block acknowledgement and how many
+ * carrier's throughput, the radio's per-block acknowledgment and how many
  * pages relocate, and a number that pretends to that precision would be wrong
  * more often than "a few seconds" is.
  */

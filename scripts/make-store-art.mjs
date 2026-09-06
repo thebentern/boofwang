@@ -21,7 +21,7 @@ import sharp from 'sharp'
  * is regenerated in a second and it is nobody's input.
  *
  * Play flattens nothing and draws its own rounded corners over the icon, so the
- * alpha in `public/icon-512.png` is composited onto the ground colour here
+ * alpha in `public/icon-512.png` is composited onto the ground color here
  * rather than shipped. A transparent icon on Play renders on white, which is
  * the one background this drawing was not designed for.
  */

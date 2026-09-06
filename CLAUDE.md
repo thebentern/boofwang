@@ -17,7 +17,7 @@ registry.
 documented by their manufacturers. They are worked out by reading other people's
 implementations and watching real radios. A wrong byte can leave someone's radio
 unable to boot or unable to transmit, and a wrong frequency can put them outside
-their licence. Everything below exists because of that.
+their license. Everything below exists because of that.
 
 ## Rules that prevent damage
 
@@ -29,7 +29,7 @@ codebase has never decoded survive because they are carried through, never
 fabricated. On the DM-32UV that is 22 of 59 allocated blocks. The invariant is
 `encode(decode(img), img) === img`, byte for byte, asserted against real hardware
 captures. If you add a field, that test is what proves you did not disturb its
-neighbours.
+neighbors.
 
 **`ownedRanges()` is a claim, and the gate checks it.** It returns the byte ranges
 a driver says it understands. A change landing outside them is a *blocker*, not a
@@ -49,7 +49,7 @@ must — the DM-32UV compares the calibration block, because `identHash` covers 
 model, firmware and build date and two identical radios are indistinguishable by it.
 
 **Every block written is read back and compared before the write is called done,
-and the read-back uses the block size the *read* path uses.** An acknowledgement
+and the read-back uses the block size the *read* path uses.** An acknowledgment
 says a frame arrived, not that it landed where it was meant to. Not all of these
 drivers verify between blocks - the UV-5R family and the UV-5R Mini send
 everything and then verify, so the guarantee is the read-back and not the
@@ -142,7 +142,7 @@ session.
 
 1. **Probe before you transcribe.** The name on the box does not pick the
    reference class: four radios answer to "UV-5G" across two incompatible
-   protocols, and that radio's first artefact was a probe rather than a driver -
+   protocols, and that radio's first artifact was a probe rather than a driver -
    the bench unit ignored every UV-17 Pro ident and acknowledged the classic
    magic, which is what chose the driver. Transcribing from the wrong class
    yields something internally consistent that passes its own tests. Settle two
@@ -190,7 +190,7 @@ session.
 6. **Write it on hardware, and expect the session to discover the write shape.**
    A diff-driven write is this codebase's default and it is not universal. The
    UV-5R Mini erases a flash page and writes back only the block it was handed,
-   so a sparse write wipes its neighbours. The UV-5R is the opposite: a byte
+   so a sparse write wipes its neighbors. The UV-5R is the opposite: a byte
    programs once and will not reprogram, so a sparse write cannot shorten a name
    and leaves the tail of the old one behind. Both need `writesWholeImage`, and
    both were found by writing, which is why this cannot be settled beforehand.
@@ -214,7 +214,7 @@ session.
    that stops a driver built for a test or a file import from reaching a radio.
    Writing is not one switch: it is per carrier - `writeTransports`, and
    omitting it means *every* carrier in `transports` - and per firmware variant.
-   Reading is still offered for firmware nobody recognises, because a backup is
+   Reading is still offered for firmware nobody recognizes, because a backup is
    exactly what an unsupported radio needs, but "the driver is shared with a
    radio that works" is not evidence, and neither is "the cable works" for
    Bluetooth. Two radios in this family share every byte of their memory map and
@@ -256,12 +256,12 @@ written to.
 ## Interface
 
 The design system is one file: `app/assets/css/main.css`. Tokens are CSS custom
-properties, also exposed as Tailwind colours, with both themes first-class — radios
+properties, also exposed as Tailwind colors, with both themes first-class — radios
 get programmed in dim rooms and in daylight. Read the file for current values rather
 than hardcoding hexes.
 
 **The risk register is the spine.** Every action belongs to exactly one level, and the
-level decides icon, colour, button weight and what the confirmation costs:
+level decides icon, color, button weight and what the confirmation costs:
 
 | Level | Means | Confirmation |
 |---|---|---|
@@ -269,7 +269,7 @@ level decides icon, colour, button weight and what the confirmation costs:
 | caution | Changes the radio, recoverably | diff, then a typed token |
 | destructive | Discards something with no way back | names what is lost, then a typed token |
 
-`RiskAction` holds it so it cannot drift per screen. Colour is never the only
+`RiskAction` holds it so it cannot drift per screen. Color is never the only
 carrier — the icon and the verb change too.
 
 Icons are `<UIcon name="i-lucide-…" />` and every name must be in `SCHEMA_ICONS` in

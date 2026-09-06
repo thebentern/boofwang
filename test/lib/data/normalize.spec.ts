@@ -35,14 +35,14 @@ describe('parseAccess', () => {
     }
   })
 
-  it('does not read a colour code as a tone', () => {
-    // 5,600+ records put a DMR colour code in the field named `encode`.
+  it('does not read a color code as a tone', () => {
+    // 5,600+ records put a DMR color code in the field named `encode`.
     const got = parseAccess('CC1')
     expect(got.tone).toBeNull()
     expect(got.colorCode).toBe(1)
   })
 
-  it('recovers both a tone and a colour code from a compound field', () => {
+  it('recovers both a tone and a color code from a compound field', () => {
     const got = parseAccess('100.0/CC7/NAC 293')
     expect(got.tone).toEqual({ kind: 'ctcss', deciHz: 1000 })
     expect(got.colorCode).toBe(7)

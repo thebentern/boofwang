@@ -26,7 +26,7 @@ import { formatFreq, formatPower } from '../model/units.js'
  * codeplug: `Codeplug.encryptionKeys` is never read here, and neither is
  * `Channel.extras`, which on the DM-32UV carries the key slot a channel uses.
  *
- * The second is that receive-only is carried as **words**, never as a colour.
+ * The second is that receive-only is carried as **words**, never as a color.
  * The output is meant to be printed, and a tint is the first thing a printer
  * loses - so a channel that must not be transmitted on says so where its
  * transmit frequency would otherwise be.

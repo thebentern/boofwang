@@ -32,7 +32,7 @@ export const MAGIC_UV5G = Uint8Array.from([0x50, 0xbb, 0xff, 0x20, 0x12, 0x06, 0
 export const BASETYPE_UV5G: readonly string[] = BASETYPE_UV5R
 
 /**
- * Sort a firmware version string into a recognised model, or null.
+ * Sort a firmware version string into a recognized model, or null.
  *
  * Never tri-power: no tri-power radio answers this magic, and the strings that
  * would mean tri-power behind other magics (`N5RV` is also `BASETYPE_F8HP`,

@@ -380,7 +380,7 @@ describe('preconditions', () => {
 
   it('refuses when the driver as a whole is not cleared to write', async () => {
     // The schema is the build's own statement that the write path is unproven,
-    // and the driver honours it rather than leaving it to the UI.
+    // and the driver honors it rather than leaving it to the UI.
     const { port, eeprom } = radioPort(RAW.slice())
     const t = await connect(port)
     const backup = await backupFor(eeprom)

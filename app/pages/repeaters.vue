@@ -61,7 +61,7 @@ const near = computed(() => {
  *
  * Three quarters of BrandMeister's device list transmits and receives on one
  * frequency. Those are overwhelmingly personal hotspots - a board on somebody's
- * desk with a range measured in metres - and putting one in your radio achieves
+ * desk with a range measured in meters - and putting one in your radio achieves
  * nothing. They cannot be told apart with certainty, so this is a default and
  * not a claim, and the switch says what it is doing.
  */

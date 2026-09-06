@@ -32,7 +32,7 @@ const pbxproj = read('mobile/ios/App/App.xcodeproj/project.pbxproj')
 const nuxtConfig = read('nuxt.config.ts')
 
 describe('the Android USB device filter', () => {
-  it('lists exactly the vendors the drivers recognise', () => {
+  it('lists exactly the vendors the drivers recognize', () => {
     const listed = [...deviceFilter.matchAll(/vendor-id="(\d+)"/g)].map((m) => Number(m[1])).sort((a, b) => a - b)
     const known = Object.keys(KNOWN_BRIDGE_VENDORS)
       .map(Number)

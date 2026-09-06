@@ -26,8 +26,8 @@ const codeplug = useCodeplugStore()
  * watches for.
  *
  * Disabled-and-present is right in a toolbar, where the gap would otherwise
- * shift every neighbouring control as history changes. It is wrong in a panel
- * that is already a tap away: half a row held to be grey is half a row of a
+ * shift every neighboring control as history changes. It is wrong in a panel
+ * that is already a tap away: half a row held to be gray is half a row of a
  * phone.
  */
 const props = withDefaults(defineProps<{ roomy?: boolean }>(), { roomy: false })

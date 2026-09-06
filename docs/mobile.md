@@ -169,7 +169,7 @@ background mode is deliberately not claimed, because it would not either.
 
 What the app does instead: keeps the screen on while a transfer runs, holds
 the Android back button, and when the app is backgrounded anyway marks the
-transfer interrupted rather than cancelling it (a cancel poisons the
+transfer interrupted rather than canceling it (a cancel poisons the
 transport; a notification shade pulled down may have cost nothing). A failure
 that follows is then blamed on the interruption, not on the radio. The
 reading card says to keep boofwang in front until it finishes.
@@ -342,7 +342,7 @@ xcrun devicectl device process launch --device <device-uuid> \
 Note that the device UUID `devicectl` wants is its own identifier, not the
 hardware UDID in the profile. Both appear in `devicectl list devices`.
 
-## The licence question
+## The license question
 
 boofwang is GPL-3.0-or-later and its drivers transcribe offsets from CHIRP,
 whose authors have not agreed to Apple's App Store terms. Those terms have
@@ -452,7 +452,7 @@ One caveat that has to travel with this: the presses were `adb shell input
 keyevent 4`, and a synthesised key is not a swipe. Predictive back is gesture
 driven and the two paths are not identical, so **this needs one confirmation
 by hand** - swipe back in the app on a real phone - before it is treated as a
-defect rather than as an artefact of how it was tested.
+defect rather than as an artifact of how it was tested.
 
 Not run on either device: external links opening in the system browser,
 opening a `.bwp` through the file picker, saving one to Documents, and on iOS
@@ -512,7 +512,7 @@ anything. The iOS app does not. Worth deciding whether that is wanted.
 2 September 2026. Pixel 8 Pro, Android 17, boofwang `b588ca9` installed as the
 debug app. The radio reached the phone through an FTDI FT232R (`0403:6001`) on
 the OTG port, which Android had already granted; the connect card named the
-adapter and waited for a radio to be chosen, which is the intended behaviour
+adapter and waited for a radio to be chosen, which is the intended behavior
 and not a defect to work around.
 
 The read: a 200-entry block scan, then 59 blocks, 262,144 bytes, about 35
@@ -604,7 +604,7 @@ none of those: nought gaining transmit, nought receive-only lost.
 
 The read-back is the part worth having. A whole 4,096-byte page went to the
 radio and exactly 14 bytes came back different - the rest of channel 45's
-record, both neighbouring records, and all 58 other blocks were untouched. That
+record, both neighboring records, and all 58 other blocks were untouched. That
 is `encode(doc, base)` on real hardware over the Android plugin: the page was
 patched from the image that was read, not rebuilt, so bytes this codebase has
 never decoded survived because they were carried through.
@@ -619,7 +619,7 @@ before  54 65 73 74 20 44 4d 52  00 00 ff ff ff ff ff ff   "Test DMR" 00 00 then
 after   42 4f 4f 46 54 45 53 54  00 00 00 00 00 00 00 00   "BOOFTEST" then eight 00
 ```
 
-Eight name bytes, and six padding bytes normalised from `0xFF` to `0x00`. The
+Eight name bytes, and six padding bytes normalized from `0xFF` to `0x00`. The
 field is declared `ascii(16, { pad: 0x00, terminators: [0x00, 0xff] })`, so the
 encoder pads the whole field with its own filler while the radio had left
 erased flash in the tail. Nothing decodes differently - the first terminator is
@@ -633,7 +633,7 @@ the next person diffing two images does not spend an evening on it.
 
 The restore put them back. The final image holds `00 00 ff ff ff ff ff ff`
 again, because a restore writes the bytes the backup holds rather than
-re-encoding a document, which is the behaviour that makes it a way back.
+re-encoding a document, which is the behavior that makes it a way back.
 
 #### The count of 42, resolved
 
@@ -780,7 +780,7 @@ Backgrounding - B1 through B4, and the whole of the Backgrounding section above
 - needs a transfer to interrupt, and the radio was unplugged from the phone
 before it could be tried. Nothing in that section has been run. It is the
 largest untested claim in this file: `markInterrupted`, the keep-awake hold,
-the held back button and the "interrupted rather than cancelled" message are
+the held back button and the "interrupted rather than canceled" message are
 all argued from source.
 
 ## B1: backgrounding did not break a USB read

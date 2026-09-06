@@ -369,7 +369,7 @@ export async function enterProgrammingMode(t: Transport, opts?: ReadOpts): Promi
  * Read memory: `52 <addr:3 LE> <len:2 LE>` out, `57 <addr> <len> <data>` back.
  *
  * Addresses are 24-bit little-endian, so 0x001000 goes on the wire as
- * `00 10 00`. There is no host-side acknowledgement in the read path.
+ * `00 10 00`. There is no host-side acknowledgment in the read path.
  */
 export async function readMemory(t: Transport, addr: number, length: number, opts?: ReadOpts): Promise<Uint8Array> {
   const cmd = Uint8Array.from([
@@ -410,7 +410,7 @@ export async function readMemory(t: Transport, addr: number, length: number, opt
  * a trailer.
  */
 /**
- * How long to wait for a write acknowledgement.
+ * How long to wait for a write acknowledgment.
  *
  * The specification allows 5000 ms, and the wait is a flash page programming
  * rather than a round trip. Giving up early would close the port mid-program,

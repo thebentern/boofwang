@@ -124,7 +124,7 @@ async function confirmRestore() {
     <!--
       The card only wears the destructive tone when the action is actually on
       offer. A red frame and "overwrites the radio" above a refusal would spend
-      the strongest colour in the system on something that cannot happen, which
+      the strongest color in the system on something that cannot happen, which
       is how a warning stops being read.
     -->
     <div

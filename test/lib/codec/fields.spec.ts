@@ -134,7 +134,7 @@ describe('bits', () => {
     expect(f.get(buf(0b10111010), 0)).toEqual({ low: 0b010, mid: 0b11, high: 0b101 })
   })
 
-  it('leaves neighbouring bits alone when setting one slice', () => {
+  it('leaves neighboring bits alone when setting one slice', () => {
     const b = buf(0b10111010)
     f.set(b, 0, { mid: 0b00 })
     expect(b[0]).toBe(0b10100010)
@@ -313,7 +313,7 @@ describe('enumOf', () => {
 })
 
 describe('array', () => {
-  it('honours a stride larger than the element', () => {
+  it('honors a stride larger than the element', () => {
     const f = array(3, u8, 4)
     expect(f.size).toBe(9)
     expect(f.get(buf(1, 0, 0, 0, 2, 0, 0, 0, 3), 0)).toEqual([1, 2, 3])

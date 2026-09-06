@@ -81,7 +81,7 @@ function toRecord(raw: RawRepeater): RepeaterRecord | SourceIssue {
   // `encode` is what the repeater expects to hear, so it is what this radio
   // transmits; `decode` is what the repeater sends, so it is what opens this
   // radio's squelch. Both are free text and neither is reliably a tone - see
-  // `parseAccess`, and note that 5,836 records put a DMR colour code in
+  // `parseAccess`, and note that 5,836 records put a DMR color code in
   // `encode`.
   const enc = parseAccess(raw.encode)
   const dec = parseAccess(raw.decode)

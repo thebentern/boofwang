@@ -129,7 +129,7 @@ describe('zones', () => {
 
   it('reads the count as a single byte, not a word', () => {
     // The specification's header layout gives 1796 here. This radio has four
-    // zones, and the neighbouring byte is something else entirely.
+    // zones, and the neighboring byte is something else entirely.
     const zoneBlock = image().regions.find((r) => r.start === logicalAddress(0x5c))!.data
     expect(zoneBlock[0]).toBe(4)
     expect(zoneBlock[0]! | (zoneBlock[1]! << 8)).toBe(1796)

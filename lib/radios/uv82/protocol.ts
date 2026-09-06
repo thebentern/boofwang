@@ -95,7 +95,7 @@ export interface IdentResult {
  * `magics` is a list because some members of the family answer more than one.
  * The plain UV-5R is the reason: CHIRP's `_idents` for it is
  * `[UV5R_MODEL_291, UV5R_MODEL_ORIG]`, the second being what the pre-BFB291
- * radios of 2012 answer. They are tried in order and the first acknowledgement
+ * radios of 2012 answer. They are tried in order and the first acknowledgment
  * wins, which is `_ident_radio`'s own structure. Members with one magic pass a
  * one-element list and behave exactly as before.
  */
@@ -121,7 +121,7 @@ export async function identify(t: Transport, magics: readonly Uint8Array[], opts
   identified: for (let m = 0; m < magics.length; m++) {
     const magic = magics[m]!
     // A pause before moving on to the next magic, as CHIRP does between its
-    // own idents. The radio has just been sent something it did not recognise
+    // own idents. The radio has just been sent something it did not recognize
     // and the next thing it hears should not arrive in the same breath.
     if (m > 0) await delay(1000, opts?.signal)
     for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
@@ -159,7 +159,7 @@ export async function identify(t: Transport, magics: readonly Uint8Array[], opts
     throw new ProtocolError('Unexpected identification reply from the radio', '8 or 12 bytes', hexDump(raw))
   }
 
-  // The radio wants one more acknowledgement before it will clone.
+  // The radio wants one more acknowledgment before it will clone.
   await t.write(Uint8Array.from([ACK]), opts)
   const ack2 = await t.readExactly(1, opts)
   if (ack2[0] !== ACK) {
@@ -173,7 +173,7 @@ export async function identify(t: Transport, magics: readonly Uint8Array[], opts
  * Read one block.
  *
  * `S <addr:u16be> <len:u8>` out; the radio replies `X <addr> <len>` followed by
- * the data. Every block after the first is preceded by an acknowledgement,
+ * the data. Every block after the first is preceded by an acknowledgment,
  * which is why `first` exists - asking for it on the first block hangs.
  *
  * The echoed address and length are checked rather than assumed: a mismatch

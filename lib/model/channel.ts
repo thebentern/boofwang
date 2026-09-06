@@ -46,7 +46,7 @@ export interface UvK5Extras {
   dtmfPttId: number
   /** Which of the radio's seven sub-bands the attribute byte records. */
   band: number
-  /** Raw step index, so an index this build does not recognise still round-trips. */
+  /** Raw step index, so an index this build does not recognize still round-trips. */
   stepIndex: number
 }
 
@@ -72,7 +72,7 @@ export interface Channel {
    * public-safety or weather frequency into a radio someone can key up.
    */
   txAllowed: boolean
-  /** Why transmit is disabled, for the UI to explain rather than just grey out. */
+  /** Why transmit is disabled, for the UI to explain rather than just gray out. */
   txInhibitReason?: string
   tone: TonePair
   modulation: Modulation

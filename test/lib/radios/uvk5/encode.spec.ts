@@ -57,7 +57,7 @@ describe('the round-trip invariant', () => {
    * The property the entire write path rests on, asserted against an EEPROM a
    * real radio produced. Nothing is written to hardware unless this holds:
    * decoding an image and encoding it straight back must not move a single
-   * byte, including every byte this driver has never modelled.
+   * byte, including every byte this driver has never modeled.
    */
   it('encode(decode(image), image) is byte-identical', () => {
     const image = realImage()
@@ -75,7 +75,7 @@ describe('the round-trip invariant', () => {
 
   it('leaves everything outside the tables it owns untouched', () => {
     // Settings at 0x0E70, DTMF contacts at 0x1C00, the boot logo at 0x0EB0 -
-    // all read, none modelled, and all of it has to survive.
+    // all read, none modeled, and all of it has to survive.
     const image = realImage()
     const round = flat(driver.encode(driver.decode(image), image))
     const owned = driver.ownedRanges(0)
@@ -168,7 +168,7 @@ describe('deleting a channel', () => {
     expect(attr).toMatchObject({ isFree: 1, band: 7, isScanlist1: 0, isScanlist2: 0, compander: 0 })
   })
 
-  it('leaves neighbouring channels alone', () => {
+  it('leaves neighboring channels alone', () => {
     const image = realImage()
     const cp = driver.decode(image)
     cp.channels.delete(5)
@@ -308,7 +308,7 @@ describe('tones', () => {
   })
 })
 
-describe('encode rejects what it cannot honour', () => {
+describe('encode rejects what it cannot honor', () => {
   it('refuses a codeplug for a different radio', () => {
     const image = realImage()
     const cp = driver.decode(image)

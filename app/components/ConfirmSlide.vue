@@ -140,7 +140,7 @@ defineExpose({ reset: () => ((progress.value = 0), (sent.value = false), (draggi
       }"
       @keydown="key"
     >
-      <!-- The fill trails the handle so the distance travelled is visible, not just implied. -->
+      <!-- The fill trails the handle so the distance traveled is visible, not just implied. -->
       <div
         class="absolute inset-y-0 left-0"
         :style="{

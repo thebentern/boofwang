@@ -626,7 +626,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
    *
    * The verb bulk placement needs and `updateChannel` cannot express: that one
    * patches a channel that is already there and refuses an empty slot, while
-   * staging a preset both moves channels between slots and programmes slots
+   * staging a preset both moves channels between slots and programs slots
    * that held nothing. Wrap a run of these in `transact` and they take back as
    * the single action they were.
    */

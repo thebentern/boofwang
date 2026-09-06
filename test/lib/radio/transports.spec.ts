@@ -59,7 +59,7 @@ describe('transport declarations', () => {
      * A Baofeng BT-A1D carried a UV-5R Mini codeplug on 2026-09-01 and drew
      * nothing at all from a UV-82 the same day. `dongle` says the jack fits;
      * this says a codeplug has come off. Keeping them apart is what stops one
-     * radio's success labelling every other radio's button "connect".
+     * radio's success labeling every other radio's button "connect".
      */
     const proven = RADIO_IDS.filter((id) => SCHEMAS[id]?.capabilities.dongleProven === true)
     expect(proven).toEqual(['uv5rmini'])

@@ -58,8 +58,8 @@ describe('the print stylesheet', () => {
     const print = CSS.slice(CSS.indexOf('@media print'))
     expect(print).toMatch(/--bg:\s*#ffffff/)
     expect(print).toMatch(/--tx:\s*#000000/)
-    // The row tints are the marking that colour cannot carry onto paper, so
-    // they are dropped rather than approximated in grey.
+    // The row tints are the marking that color cannot carry onto paper, so
+    // they are dropped rather than approximated in gray.
     for (const tint of ['--okB', '--cnB', '--dgB', '--inB']) {
       expect(print).toMatch(new RegExp(`${tint}:\\s*transparent`))
     }
@@ -116,7 +116,7 @@ describe('printing bypasses the virtualiser', () => {
   })
 })
 
-describe('receive-only survives losing colour', () => {
+describe('receive-only survives losing color', () => {
   it('has a printed marking that is a character, not a mask-image', () => {
     // A `UIcon` is a CSS mask, and a printer drops it with the rest of the
     // background graphics unless someone went looking for the setting.

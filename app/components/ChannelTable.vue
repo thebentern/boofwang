@@ -18,7 +18,7 @@ import { exportChirpCsv } from '#core/io/chirp-csv.js'
  * transmit carry full contrast; tone, mode, step and power sit a step back so
  * the eye can skip them. The 20px status gutter is what makes the table
  * answerable before a single word is read: an error, a receive-only channel, an
- * unwritten edit and an empty slot each have their own glyph and colour, and
+ * unwritten edit and an empty slot each have their own glyph and color, and
  * the two that carry consequence also tint the row.
  */
 const emit = defineEmits<{ edit: [Channel]; create: [number] }>()
@@ -331,7 +331,7 @@ const groups = computed<DiagGroup[]>(() => {
  *
  * `quiet` is the one asymmetry worth keeping. An error already tints its whole
  * row, so its button is plain; the other two levels need the button to carry
- * the colour.
+ * the color.
  */
 const SEVERITY_TONE = {
   error: { icon: 'i-lucide-circle-alert', fg: '--dg', bg: '--dgB', line: '--dgL', quiet: true },
@@ -624,7 +624,7 @@ const totalHeight = computed(() => virtualizer.value.getTotalSize())
  * kind one - a DM-32UV holds 4,000 slots and a club plan fills two hundred, so
  * printing the memory map rather than the plan would turn eight pages into a
  * hundred and thirty of dashes. The one filter that means the empties *are* the
- * subject is honoured, because a person who ticked "Empty" and pressed print
+ * subject is honored, because a person who ticked "Empty" and pressed print
  * asked for exactly that.
  */
 const printRows = computed<SlotRow[]>(() =>
@@ -673,7 +673,7 @@ const PHONE_CHIP = {
 /**
  * The phone row: band edge, gutter, content, slot number.
  *
- * `align-items: start` rather than centre because the content column is three
+ * `align-items: start` rather than center because the content column is three
  * stacked lines of different heights and centring it would float the name away
  * from the top of the card. The right padding is on the row and the left is
  * not, so the band edge can sit flush against the container's own border.
@@ -937,7 +937,7 @@ suppressUndoShortcut(() => editing.value !== null)
  *
  * Kept where it is by a shift-click rather than moved to it, so a range can be
  * adjusted by shift-clicking again somewhere else instead of having to start
- * over. That is what every file manager does, and it is the behaviour people
+ * over. That is what every file manager does, and it is the behavior people
  * arrive with.
  */
 const anchor = ref<number | null>(null)
@@ -1352,7 +1352,7 @@ const printedFacts = computed(() => {
               type="button"
               class="inline-flex items-center"
               style="height: 32px; padding: 0 9px; gap: 5px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13px"
-              title="What the coloured edge on each row means"
+              title="What the colored edge on each row means"
             >
               <span class="inline-flex" style="gap: 1.5px">
                 <span
@@ -1533,7 +1533,7 @@ const printedFacts = computed(() => {
             type="button"
             class="inline-flex items-center"
             style="height: 31px; padding: 0 9px; gap: 5px; border: 1px solid var(--ln); background: transparent; color: var(--mu); border-radius: 5px; font-size: 13.5px"
-            title="What the coloured edge on each row means"
+            title="What the colored edge on each row means"
           >
             <span class="inline-flex" style="gap: 1.5px">
               <span
@@ -2393,7 +2393,7 @@ const printedFacts = computed(() => {
         </p>
       </div>
 
-      <!-- Footer: an editing hint and a legend of colours, neither of which survives the trip to paper. -->
+      <!-- Footer: an editing hint and a legend of colors, neither of which survives the trip to paper. -->
       <div
         class="flex items-center flex-wrap print-hide"
         style="border-top: 1px solid var(--ln); background: var(--pn2); padding: 7px 12px; gap: 14px"

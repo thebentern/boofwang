@@ -25,12 +25,12 @@ export const BLOCK_SIZE = 0x40
  *
  * This is the only thing about this radio's protocol that BLE changes.
  * Everything else - the handshake, the frame layout, the obfuscation, the
- * single-byte acknowledgement - is identical, which is why there is no separate
+ * single-byte acknowledgment - is identical, which is why there is no separate
  * BLE driver and should never be one. CHIRP's `UV5RMini.BLE_UP_BLOCK_SIZE`
  * (`baofeng_uv17Pro.py:2391`) is the same constant.
  *
  * Why it exists at all is throughput. Every block costs a round trip for its
- * acknowledgement, and a BLE round trip is an order of magnitude dearer than a
+ * acknowledgment, and a BLE round trip is an order of magnitude dearer than a
  * 115200-baud one; halving the number of them halves the wait. Reads are
  * untouched and stay at 0x40 in both cases, because CHIRP only ever changed the
  * upload - a 0x80 read has never been sent to one of these radios by anything.
@@ -51,7 +51,7 @@ export const BLE_UPLOAD_BLOCK_SIZE = 0x80
  * here the port knows what it is and says so on the right axis.
  *
  * Tolerates `undefined` so that a fake transport in a test, which has no
- * reason to declare a link, gets the cable behaviour it is asking for.
+ * reason to declare a link, gets the cable behavior it is asking for.
  */
 export function uploadBlockSize(kind: TransportKind | undefined): number {
   return kind === 'bluetooth' ? BLE_UPLOAD_BLOCK_SIZE : BLOCK_SIZE
@@ -264,7 +264,7 @@ export async function handshake(t: Transport, opts?: ReadOpts): Promise<IdentRes
  *
  * The reply repeats the four-byte request header before the payload. CHIRP
  * discards it; comparing it instead is what catches a read that has slipped a
- * frame, which would otherwise return a neighbouring block's bytes and store
+ * frame, which would otherwise return a neighboring block's bytes and store
  * them under the wrong address.
  */
 export async function readBlock(
@@ -290,14 +290,14 @@ export async function readBlock(
 }
 
 /**
- * Write one block and wait for the acknowledgement.
+ * Write one block and wait for the acknowledgment.
  *
  * Kept beside the reader so the two cannot drift.
  *
  * Either legal size is accepted rather than the caller's choice being trusted,
  * because the length also goes into the frame header as a single byte: a block
- * of some third size would be sent with a header the radio cannot honour, and
- * the acknowledgement would arrive anyway.
+ * of some third size would be sent with a header the radio cannot honor, and
+ * the acknowledgment would arrive anyway.
  */
 export async function writeBlock(
   t: Transport,

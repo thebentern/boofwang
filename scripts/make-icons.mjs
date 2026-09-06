@@ -137,7 +137,7 @@ function smallVariant(tileRadius) {
  *
  * Same rule the repo already applies between 32 and 1024: redraw, do not scale.
  * One arc pair rather than two, and the OUTER one - a wide arc survives a small
- * render where a narrow one closes onto its neighbour. Stroke 34 to 64, dot r74
+ * render where a narrow one closes onto its neighbor. Stroke 34 to 64, dot r74
  * to r104, and a flat ground because a gradient across 48px is a flat color
  * with extra file size.
  */

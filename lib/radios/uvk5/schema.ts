@@ -420,7 +420,7 @@ const STOCK_OFF_ON = listed(['Off', 'On'])
  *
  * Two fields are decoded and deliberately not offered. `killed` is the DTMF
  * remote-kill flag, and the only thing setting it does is stop the radio
- * working. The eight password bytes at 0xE98 are not even modelled, so they
+ * working. The eight password bytes at 0xE98 are not even modeled, so they
  * round-trip without boofwang ever showing or rewriting them.
  */
 export const STOCK_SETTINGS_GROUPS = [

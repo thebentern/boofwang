@@ -32,7 +32,7 @@ function git(...args) {
 /**
  * The commit, and whether the tree it was built from matched it.
  *
- * A dirty build is labelled `abc1234-dirty`. It is the common case locally and
+ * A dirty build is labeled `abc1234-dirty`. It is the common case locally and
  * the label is what stops somebody reporting a bug against a commit hash that
  * describes code they had already changed. `commitUrl` in `lib/version/build.ts`
  * declines to link it, because there is nothing on GitHub to link to.

@@ -23,7 +23,7 @@ export interface RawLayout {
 }
 
 /**
- * Every fixed-size raw layout boofwang can recognise from a file's length alone.
+ * Every fixed-size raw layout boofwang can recognize from a file's length alone.
  *
  * A bare `.bin` carries no identity, so its size is the only clue. Every entry
  * here has a distinct total, which is what makes the guess safe; the DM-32UV is
@@ -34,7 +34,7 @@ export const RAW_LAYOUTS: readonly RawLayout[] = [
   // The UV-5G and the UV-5R are deliberately absent: their images are the same
   // 6,472 bytes as the UV-82's, so a bare .bin cannot say which of the three it
   // came from. A file that size opens as the UV-82, and those codeplugs keep
-  // their identity by travelling as .bwp or CHIRP .img, both of which carry it.
+  // their identity by traveling as .bwp or CHIRP .img, both of which carry it.
   { radioId: 'uv82', layout: 'uv82', regions: UV82_REGIONS },
   ...UV5R_VARIANTS.map((v) => ({
     radioId: 'uv5rmini' as const,
@@ -56,7 +56,7 @@ const totalOf = (l: RawLayout) => l.regions.reduce((n, r) => n + r.length, 0)
  * gives an imported file the same layout a direct read would have given it.
  *
  * Null for anything else, including a firmware string this build does not
- * recognise: guessing a layout from an unknown firmware is exactly what the
+ * recognize: guessing a layout from an unknown firmware is exactly what the
  * variant table exists to refuse.
  */
 function uvk5LayoutFor(metadata: ChirpMetadata): RawLayout | null {

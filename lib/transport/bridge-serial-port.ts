@@ -26,7 +26,7 @@ export interface BridgePortInfo {
    * What the far end of the bridge actually is.
    *
    * Absent from the serial bridge, which predates the distinction, so it falls
-   * back to `'serial'`. It matters because a driver may change behaviour on it:
+   * back to `'serial'`. It matters because a driver may change behavior on it:
    * the UV-5R Mini sends 0x80 upload blocks over Bluetooth where the cable
    * takes 0x40, and a Bluetooth bridge reporting itself as serial would write
    * the wrong size while looking entirely healthy.

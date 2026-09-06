@@ -11,7 +11,7 @@ import { serviceFor } from '#core/model/bands.js'
  * said a variation of "yes", so the one column meant to carry a warning became
  * furniture - the reader learned to skim a grid of confident ticks and the
  * caveat went with it. One chip per driver instead, so a narrowed or untested
- * driver is the only thing on the screen spending colour.
+ * driver is the only thing on the screen spending color.
  *
  * The chip is computed from `SCHEMAS[id].capabilities` and nothing else, which
  * is the point: a driver that stops writing stops being described as writing on

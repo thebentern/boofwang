@@ -181,7 +181,7 @@ export function defineStruct<const S extends Layout>(size: number, layout: S): S
  * This is the read-modify-write primitive behind every upload: the live bytes
  * from the radio are the base, and only the ranges a driver declares it
  * understands are overwritten. Even if our in-memory image is stale in bytes we
- * never modelled, those bytes are carried through from the device.
+ * never modeled, those bytes are carried through from the device.
  */
 export function applyRanges(
   dst: Uint8Array,

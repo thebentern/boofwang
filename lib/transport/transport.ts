@@ -145,15 +145,15 @@ export function setSleepImplementation(fn: SleepFn): void {
 export function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason as Error)
-    let cancelled = false
+    let canceled = false
     const onAbort = () => {
-      cancelled = true
+      canceled = true
       reject(signal!.reason as Error)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
     void sleepImpl(ms).then(() => {
       signal?.removeEventListener('abort', onAbort)
-      if (!cancelled) resolve()
+      if (!canceled) resolve()
     })
   })
 }

@@ -33,7 +33,7 @@ onMounted(async () => {
  * Where a stored image came from, in the user's words.
  *
  * A pre-write backup is the one taken because something was about to change,
- * so it is the only origin that spends colour: it marks the point a radio was
+ * so it is the only origin that spends color: it marks the point a radio was
  * last altered, which is exactly what someone hunting for a way back is after.
  */
 const ORIGIN = {

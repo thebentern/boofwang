@@ -518,7 +518,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
             }
             // Not readOnly. That flag means "never send this", which is right
             // for calibration and was right for this region until it became
-            // writable - and `diffImages` honours it by routing every change
+            // writable - and `diffImages` honors it by routing every change
             // into `unowned`, so leaving it set made the write gate refuse
             // every contact edit as an encoder defect while reporting it as no
             // change at all.
@@ -605,7 +605,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       // already-handshaken port is answered with silence.
       const ident = ctx.ident ?? (await driver.identify(t, ctx))
 
-      // Honour the per-firmware refusal channel. `caps.write` is how a driver
+      // Honor the per-firmware refusal channel. `caps.write` is how a driver
       // says "this particular firmware must not be written" - the UV-K5 uses it
       // for layouts it does not understand - and it was inert here because
       // nothing below the UI read it. A future DM-32UV firmware marked
@@ -896,7 +896,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
        * Channels, zone names and talk groups, each patched in place.
        *
        * Every one of these writes only the fields the decoder reads. The bytes
-       * nobody has modelled - and on this radio that is most of them, 22 of 59
+       * nobody has modeled - and on this radio that is most of them, 22 of 59
        * allocated blocks having no documented meaning - survive because they
        * are never assigned, not because they are copied somewhere safe.
        */
@@ -1169,7 +1169,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         ]
       }
       // Settings are scattered through a 4 KiB page, most of which has no
-      // established meaning. The claim is exactly the fields that are modelled,
+      // established meaning. The claim is exactly the fields that are modeled,
       // taken from the struct rather than restated here.
       if (blockId === SETTINGS_BLOCK) return DM32_SETTINGS.ranges()
 
@@ -1774,7 +1774,7 @@ export function encodeKeys(block: Uint8Array, keys: Codeplug['encryptionKeys']):
 
       // A slot the decoder could not interpret is left alone too.
       //
-      // `decodeKeys` skips a record whose type byte is not one it recognises,
+      // `decodeKeys` skips a record whose type byte is not one it recognizes,
       // so such a slot never reaches the document - and "absent from the
       // document" is indistinguishable here from "deleted by the user". Erasing
       // on that basis would destroy a working key on any radio or firmware that
@@ -2626,7 +2626,7 @@ export function decodeEmergency(image: RadioImage): Codeplug['emergency'] {
   return out
 }
 
-/** DTMF signalling and the analog contact lists, block 0x06. Read only. */
+/** DTMF signaling and the analog contact lists, block 0x06. Read only. */
 export function decodeAnalog(image: RadioImage): Codeplug['analog'] {
   const data = blockData(image, ANALOG_BLOCK)
   if (!data) return null

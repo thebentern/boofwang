@@ -160,7 +160,7 @@ describe('view', () => {
     expect(v.keyId).toBe(4)
   })
 
-  it('honours a non-zero base offset', () => {
+  it('honors a non-zero base offset', () => {
     const buf = new Uint8Array(32).fill(0)
     const v = PARTIAL.view(buf, 16)
     v.keyId = 9
@@ -235,7 +235,7 @@ describe('rangesContain', () => {
   it('detects a change that falls outside what a driver claims to own', () => {
     const owned = PARTIAL.ranges()
     expect(rangesContain(owned, [4, 8])).toBe(true)
-    // A write landing at 0x0c is a driver bug: nothing there is modelled.
+    // A write landing at 0x0c is a driver bug: nothing there is modeled.
     expect(rangesContain(owned, [12, 13])).toBe(false)
   })
 })

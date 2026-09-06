@@ -77,7 +77,7 @@ const hint = computed(() => {
 })
 
 /**
- * Three forms of one bar, because four labelled segments do not fit a phone.
+ * Three forms of one bar, because four labeled segments do not fit a phone.
  *
  * At 375px the segments plus undo/redo plus the write button measured 659px and
  * wrapped to two rows. Wrapping was the stopgap; this is the fix. Below 640 the
@@ -122,7 +122,7 @@ const shortName = computed(() => codeplug.schema?.model ?? radioName.value)
   <!--
     The phone form: one line that opens.
 
-    A status bar earns its height by being glanceable, and four labelled
+    A status bar earns its height by being glanceable, and four labeled
     segments are not glanceable on a 375px screen - they are a paragraph. So
     the line carries the model, whether there are unwritten edits, whether a
     way back exists, and the one button that acts. Everything else is behind a
