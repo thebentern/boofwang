@@ -35,7 +35,7 @@ export async function loadSource(id: string, host: HostKind): Promise<SourceImpl
     throw new SourceUnavailableError(id, `There is no data source called ${JSON.stringify(id)}.`)
   }
   if (!meta.enabled) {
-    throw new SourceUnavailableError(id, `${meta.name} is switched off in this build.`)
+    throw new SourceUnavailableError(id, `${meta.name} is turned off in this build.`)
   }
   if (!hostSupports(host, meta.needs)) {
     throw new SourceUnavailableError(

@@ -27,6 +27,13 @@ export const STOCK_LAYOUT = 'stock'
 const listed = (labels: readonly string[]) => labels.map((label, value) => ({ value, label }))
 
 /**
+ * One sentence for both layouts' lock groups, so the two cannot drift into
+ * two wordings of the same warning.
+ */
+const TRANSMIT_LOCKS_HELP =
+  'These are the firmware\u2019s limits. What you may transmit on is decided by your license, not by the radio.'
+
+/**
  * `KEYACTIONS_LIST` in uvk5_egzumer.py, unabridged.
  *
  * CHIRP hides the entries whose feature the firmware was not built with, which
@@ -356,9 +363,7 @@ export const EGZUMER_SETTINGS_GROUPS = [
     id: 'egzumer-unlock',
     label: 'Transmit locks',
     layouts: [EGZUMER_LAYOUT],
-    description:
-      'What the firmware will let the radio transmit on. Transmitting outside the allocations your ' +
-      'license covers is illegal wherever you are, whatever the radio permits.',
+    description: TRANSMIT_LOCKS_HELP,
     fields: [
       {
         key: 'intFlock',
@@ -516,10 +521,7 @@ export const STOCK_SETTINGS_GROUPS = [
     id: 'stock-locks',
     label: 'Transmit locks',
     layouts: [STOCK_LAYOUT],
-    description:
-      'What the radio will let you transmit on. These are the firmware\u2019s own limits, and widening ' +
-      'them does not widen your license: what you may transmit is decided by the license you hold and ' +
-      'the rules where you are, not by this radio.',
+    description: TRANSMIT_LOCKS_HELP,
     fields: [
       { key: 'flock', label: 'Frequency lock', type: 'enum', options: listed(['Off', 'FCC', 'CE', 'GB', '430 MHz', '438 MHz']) },
       { key: 'tx200', label: 'Transmit on 200 MHz', type: 'enum', options: STOCK_OFF_ON },

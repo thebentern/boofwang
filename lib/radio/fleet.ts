@@ -268,8 +268,8 @@ export function validateFleetRoster(
       unit: units[1]!.id,
       message:
         `${units.length} radios in this roster are set to DMR ID ${dmrId} ` +
-        `(${units.map((u) => describe(u)).join(', ')}). Radios sharing an ID share one identity on every ` +
-        'repeater they touch, and none of them can tell - the people listening find out first.',
+        `(${units.map((u) => describe(u)).join(', ')}). Two radios with one DMR ID are one identity on ` +
+        'every repeater they use.',
     })
   }
 

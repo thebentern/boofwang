@@ -154,7 +154,7 @@ describe('inside the mobile shell', () => {
     const r = evaluateBluetoothSupport(nav(IOS_CHROME, false), true, { adapterAvailable: false }, 'ios')
     expect(r.blocker).toBe('bluetooth-off')
     expect(r.supported).toBe(false)
-    expect(r.advice).toMatch(/switched off/)
+    expect(r.advice).toMatch(/turned off/)
     expect(r.advice).not.toMatch(/adapter/)
   })
 

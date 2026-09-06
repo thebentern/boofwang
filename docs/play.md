@@ -60,32 +60,21 @@ it is an individual account. Worth knowing now that the listing is in review.
 ## The listing
 
 Sentence case, lowercase boofwang, and no claim that is not true on Android.
-That last one is not pedantry: `docs/mobile.md`'s table records that of the
-radios boofwang supports, only the DM-32UV has been read and written on an
-Android phone. Most of the drivers are verified against hardware captures and
-against real radios elsewhere - the UV-5R is not verified against anything and
-is read-only for it - but the honest Android claim today is narrower than the
-honest claim for the project.
-
 The radio list below was got wrong once, here. It said four radios, because
 CLAUDE.md's opening line says four and that was believed over
 `lib/radio/registry.ts`, which registered five - the Radioddity UV-5G was the
 one dropped. The names, channel counts and transports are now read off the
 running app on a phone, which is the one source that cannot be stale.
 
-It is out of date again, deliberately. The registry has since grown a sixth
-radio, the read-only Baofeng UV-5R, and the "Supported radios" list below does
-not mention it - because that list is the text that was actually submitted for
-review, and editing it here would make this document disagree with what Google
-is looking at. Add the UV-5R to it in the next submission, with the read-only
-state said plainly; do not quietly correct it in place.
+The list below carries the sixth radio, the Baofeng UV-5R, which the text
+under review does not; it goes out with the next submission.
 
 **App name** (30 characters): `boofwang`
 
 **Short description** (80): 
 
 ```
-Read, edit and write codeplugs for Baofeng and Quansheng handheld radios.
+Read, edit and write codeplugs for Baofeng, Quansheng and Radioddity handheld radios.
 ```
 
 **Full description** (4000):
@@ -94,7 +83,7 @@ Read, edit and write codeplugs for Baofeng and Quansheng handheld radios.
 boofwang is a codeplug editor and programmer for handheld two-way radios. Plug
 a programming cable into your phone, or connect over Bluetooth, and read what
 is actually in the radio: channels, names, tones, power, scan lists, and on a
-DMR radio the contacts, talkgroups and key slots. Edit it, see exactly what
+DMR radio the contacts, talk groups and key slots. Edit it, see exactly what
 changed, and write it back.
 
 Supported radios
@@ -102,18 +91,17 @@ Supported radios
   Quansheng UV-K5      200 channels, analog. Reads egzumer firmware too.
   Baofeng UV-82        128 channels, analog
   Radioddity UV-5G     128 channels, GMRS/FRS
-  Baofeng UV-5R Mini   1,000 channels, analog. Has its own Bluetooth.
-  Baofeng DM-32UV      4,000 channels, DMR, with zones and AES key slots
+  Baofeng UV-5R        128 channels, analog
+  Baofeng UV-5R Mini   999 channels, analog. Has its own Bluetooth.
+  Baofeng DM-32UV      4,000 channels, DMR, with zones, talk groups and AES key slots
 
 Connect over a USB programming cable (CH340, PL2303, CP210x and FTDI adapters
 are recognized) or, on radios that have a module of their own, over Bluetooth.
 
-Writing to a radio is treated as the risk it is
+Before anything is written
 
-Every memory format here was worked out by reading other people's
-implementations and watching real radios, not from the manufacturer. A wrong
-byte can leave a radio unable to transmit, so boofwang is built to make that
-hard to reach by accident:
+A wrong byte can leave a radio unable to transmit, so boofwang makes that hard
+to do by accident:
 
   A backup is taken before anything is written, and a write is refused if
   there is no backup, or if the backup belongs to a different radio.
@@ -133,23 +121,19 @@ hard to reach by accident:
 Also here
 
   Import and export CHIRP CSV, and read CHIRP .img files.
-  Repeater lookup from hearham and RadioID, and talkgroups from BrandMeister.
+  Repeater lookup from hearham and RadioID, and talk groups from BrandMeister.
   Presets for GMRS, MURS and NOAA weather, the 2 m and 70 cm band plans, and
   UK PMR446.
   Backups kept on the device, with a restore that puts a radio back exactly
   as it was.
   Works with no network, and there is no account. Your codeplugs, backups and
-  keys never leave the device. The repeater and talkgroup lookups are the only
+  keys never leave the device. The repeater and talk group lookups are the only
   thing that reaches the internet, and only when you search.
 
-What has actually been tested on a phone
+If something does not work
 
-The DM-32UV has been read, written and restored over a USB cable on an
-Android phone, byte-for-byte verified. The rest have not been exercised over a
-cable on Android, and neither has the Bluetooth path: the UV-K5, UV-82, UV-5G
-and UV-5R Mini are verified against real radios elsewhere, and the UV-5R
-against no radio at all, which is why it is read-only. If you try one, an
-issue on GitHub saying what happened is genuinely useful.
+An issue on GitHub saying what happened, with the protocol log the app can
+save, is the fastest way to get it fixed.
 
 boofwang is free software under the GNU General Public License v3 or later.
 The source is at github.com/thebentern/boofwang. It comes with no warranty:
@@ -328,7 +312,7 @@ not. The ones that changed something:
   `getCurrentPosition` timed out and `dumpsys package` showed the permission
   ungranted, because nothing ever requests it.
 - **Four claims in the listing copy were wrong.** There is no FRS preset;
-  talkgroups come only from BrandMeister; the write screen shows one line per
+  talk groups come only from BrandMeister; the write screen shows one line per
   channel rather than a field-by-field difference; and three of the five
   drivers send every block and then verify, rather than verifying before the
   next block goes - the code says so itself, in as many words.

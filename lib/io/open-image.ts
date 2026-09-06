@@ -2,6 +2,7 @@
 import { sha256Hex } from '../codec/checksum.js'
 import type { RadioId } from '../model/codeplug.js'
 import type { ImageRegion, RadioImage } from '../radio/image.js'
+import { modelName } from '../radio/model-name.js'
 import { isImplemented } from '../radio/registry.js'
 import { decodeBwp, looksLikeBwp, peekBwpHeader } from './bwp.js'
 import { imgToImage, looksLikeChirpImg, splitChirpImg, type ChirpMetadata } from './chirp-img.js'
@@ -180,7 +181,7 @@ export async function openImageFile(bytes: Uint8Array): Promise<OpenedImage> {
     if (!header) throw new OpenImageError('This .bwp file is damaged: its header will not parse.')
     if (!isImplemented(header.radioId)) {
       throw new OpenImageError(
-        `This codeplug is for a ${header.radioId}, which boofwang cannot decode yet.`,
+        `This codeplug is for a ${modelName(header.radioId)}, which boofwang cannot decode yet.`,
       )
     }
     return { image: await decodeBwp(bytes), note: { kind: 'bwp' } }
@@ -201,7 +202,7 @@ export async function openImageFile(bytes: Uint8Array): Promise<OpenedImage> {
     }
     if (!isImplemented(layout.radioId)) {
       throw new OpenImageError(
-        `This is a CHIRP image for a ${layout.radioId}, which boofwang cannot decode yet.`,
+        `This is a CHIRP image for a ${modelName(layout.radioId)}, which boofwang cannot decode yet.`,
       )
     }
     return {
@@ -223,7 +224,7 @@ export async function openImageFile(bytes: Uint8Array): Promise<OpenedImage> {
     )
   }
   if (!isImplemented(layout.radioId)) {
-    throw new OpenImageError(`This looks like a ${layout.radioId} image, which boofwang cannot decode yet.`)
+    throw new OpenImageError(`This looks like a ${modelName(layout.radioId)} image, which boofwang cannot decode yet.`)
   }
 
   let off = 0

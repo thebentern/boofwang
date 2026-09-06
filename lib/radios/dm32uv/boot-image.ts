@@ -306,7 +306,7 @@ export async function writeBootImageRegion(
   }
   if (held.length !== expected) {
     throw new ProtocolError(
-      'The startup picture held as the way back does not match the region the radio reports',
+      'The startup picture held as the backup does not match the region the radio reports',
       `${expected} bytes`,
       `${held.length} bytes`,
     )

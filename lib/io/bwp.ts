@@ -2,6 +2,7 @@
 import { fromHex, sha256Hex, toHex } from '../codec/checksum.js'
 import type { RadioId } from '../model/codeplug.js'
 import type { ImageRegion, RadioImage } from '../radio/image.js'
+import { modelName } from '../radio/model-name.js'
 
 /**
  * `.bwp` — a radio image with its identity attached.
@@ -138,7 +139,7 @@ export async function decodeBwp(data: Uint8Array): Promise<RadioImage> {
   const actual = await sha256Hex(payload)
   if (header.sha256 && actual !== header.sha256) {
     throw new BwpFormatError(
-      `This file failed its checksum, so its contents have changed since it was saved. Do not write it to a radio.`,
+      'This file\u2019s checksum does not match its contents, so they have changed since it was saved. Do not write it to a radio.',
     )
   }
 
@@ -211,7 +212,7 @@ export async function decodeRawBin(data: Uint8Array, expect: RawBinLayout): Prom
   const total = expect.regions.reduce((n, r) => n + r.length, 0)
   if (data.length !== total) {
     throw new BwpFormatError(
-      `This file is ${data.length} bytes; a ${expect.radioId} image is ${total}. It is probably from a different radio.`,
+      `This file is ${data.length} bytes; a ${modelName(expect.radioId)} image is ${total}. It is probably from a different radio.`,
     )
   }
   let off = 0

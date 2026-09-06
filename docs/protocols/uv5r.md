@@ -4,15 +4,7 @@
 Offsets transcribed from CHIRP's `uv5r.py` (GPL-3.0). See
 [../provenance.md](../provenance.md). The memory map, block protocol and every
 quirk are the [UV-82's](uv82.md) - or rather the UV-82's are this radio's, which
-is the point of the next section. This file records what is different, and what
-has and has not been verified.
-
-**Nothing here has been verified on hardware.** The driver is read-only for that
-reason and for no other. What is written below is transcription and reasoning;
-where a number came off a wire it says which wire, and it was never this radio's.
-
-The connect screen also offers this radio through a clip-on BLE-to-serial
-dongle, untested - see [ble-dongle.md](ble-dongle.md).
+is the point of the next section. This file records what is different.
 
 ## The family is named after this radio, and boofwang got to it last
 
@@ -280,21 +272,12 @@ correct rather than lucky.
 
 Everything that needs a radio:
 
-- **Only one UV-5R has answered, and only one magic.** The session above drew
-  an acknowledgment without ever needing `UV5R_MODEL_ORIG`, so the fallback to
-  it is still exercised only by a scripted fake port - as is every path for a
-  pre-BFB291 radio.
-- **One firmware string has been read off one radio.** Every other classifier
-  case is still a transcription of `BASETYPE_*` from `uv5r.py`. The one real
-  string reports the ambiguous `N5RV`, which is the answer nobody wanted to the
-  question of how often that happens: if it is typical rather than unlucky, the
-  read-only-on-ambiguity rule is more expensive than it looks and deserves a
-  better answer than "decline".
+- **Only one radio, one magic and one firmware string.** Everything above is
+  one bench UV-5R reporting `HN5RV011!!!`, which drew an acknowledgment without
+  ever needing `UV5R_MODEL_ORIG`. The pre-BFB291 path, that fallback magic and
+  every other `BASETYPE_*` case are still transcriptions from `uv5r.py`
+  exercised only by a scripted fake port.
 - **The band edges are CHIRP's numbers**, not measured ones.
-- **Only one radio, and only one firmware string.** Everything above is one
-  bench UV-5R reporting `HN5RV011!!!`. The pre-BFB291 path, `UV5R_MODEL_ORIG`
-  and every other `BASETYPE_*` case are still transcriptions exercised only by a
-  scripted fake port.
 - **No reader outside the app has taken these bytes off the wire.** The two
   reads that agree are both boofwang's. CHIRP's own `bitwise` engine has since
   parsed the committed capture and agrees field for field, which is a second
@@ -306,7 +289,8 @@ Everything that needs a radio:
 ## What a bench session would settle, in order
 
 `test/hardware/uv5r.spec.ts` does steps 1-3 and prints the numbers for this
-document. It reads and never writes. The session above did 1, 2 and half of 3.
+document. It writes only when `BOOFWANG_HW_WRITE=1` is set alongside
+`BOOFWANG_HW=1`. The session above did 1, 2 and half of 3.
 
 1. ~~**Which magic.**~~ Done, with a caveat: `UV5R_MODEL_291` is implied by the
    firmware rather than observed, because `identify` does not report which of

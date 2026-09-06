@@ -3,6 +3,8 @@ import type { Transport, SerialOpenOptions } from '../transport/transport.js'
 import type { Codeplug, RadioId } from '../model/index.js'
 import type { RadioImage } from './image.js'
 import type { RadioSchema } from './schema.js'
+import { modelName } from './model-name.js'
+import { plural } from '../text/plural.js'
 
 export interface Progress {
   readonly phase: 'handshake' | 'scan' | 'read' | 'encode' | 'write' | 'verify'
@@ -282,7 +284,7 @@ export class LoopbackDetectedError extends DriverError {
       `The USB-serial adapter is returning boofwang's own data instead of the radio replying (${what}). ` +
         'The radio is not responding.' +
         (adapter ? ` The adapter reports itself as ${adapter}.` : '') +
-        ' Check the radio is switched on and the plug is fully seated; if it still fails, suspect the adapter. ' +
+        ' Check the radio is turned on and the plug is pushed all the way in; if that does not help, suspect the adapter. ' +
         'Counterfeit USB-serial chips are common and often behave exactly like this - a CH340-based cable is the ' +
         'usual remedy.',
     )
@@ -293,8 +295,8 @@ export class NoRadioResponseError extends DriverError {
   override readonly name = 'NoRadioResponseError'
   constructor(what: string) {
     super(
-      `The radio did not respond (${what}). Check that it is switched on, that the programming cable is fully ` +
-        'seated, and that no other program is using the port.',
+      `The radio did not respond (${what}). Check that it is turned on, that the programming cable is pushed ` +
+        'all the way in, and that no other program is using the port.',
     )
   }
 }
@@ -311,8 +313,13 @@ export class ImageRadioMismatchError extends DriverError {
 
 export class BackupRequiredError extends DriverError {
   override readonly name = 'BackupRequiredError'
-  constructor(radioId: string) {
-    super(`Refusing to write to the ${radioId}: no verified backup of this radio exists for this session.`)
+  /**
+   * `reason` replaces the sentence when a driver can say more than "none was
+   * taken" - the DM-32UV, which fingerprints the physical radio, can tell a backup of
+   * a different radio from no backup at all.
+   */
+  constructor(radioId: string, reason?: string) {
+    super(reason ?? `No backup of the ${modelName(radioId)} was taken in this session, so it will not be written.`)
   }
 }
 
@@ -360,9 +367,10 @@ export class WriteVerifyError extends DriverError {
     super(
       `The radio did not store what was sent at 0x${addr.toString(16).padStart(4, '0')}. ` +
         (verifiedAfterSending
-          ? `The whole image had already been sent when this was found, and ${blocksCommitted} block(s) ` +
-            'verified before it.'
-          : `Writing stopped there: ${blocksCommitted} block(s) were written and verified before it, and ` +
+          ? `The whole image had already been sent when this was found, and ${blocksCommitted} ` +
+            `${plural(blocksCommitted, 'block')} verified before it.`
+          : `Writing stopped there: ${blocksCommitted} ${plural(blocksCommitted, 'block')} ` +
+            `${plural(blocksCommitted, 'was', 'were')} written and verified before it, and ` +
             'nothing after it was sent.') +
         ' The radio now holds a partly-updated codeplug, so restore your backup before using it.\n' +
         `  sent:      ${expected}\n  read back: ${received}`,
@@ -395,7 +403,7 @@ export class TxInhibitUnsupportedError extends DriverError {
   override readonly name = 'TxInhibitUnsupportedError'
   constructor(radioId: string, channel: number) {
     super(
-      `Channel ${channel} is marked receive-only, but the ${radioId} cannot enforce that per channel. ` +
+      `Channel ${channel} is marked receive-only, but the ${modelName(radioId)} cannot enforce that per channel. ` +
         'Programming it would produce a channel that can transmit.',
     )
   }

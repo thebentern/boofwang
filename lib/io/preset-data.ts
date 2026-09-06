@@ -298,8 +298,7 @@ const BAND_2M: PresetSet = {
   icon: 'i-lucide-antenna',
   source: 'Bundled',
   description:
-    'Calling and simplex frequencies from the ARRL band plan. Repeater pairs are not included: those are local, '
-    + 'and RepeaterBook import is the honest way to get them.',
+    'Calling and simplex frequencies from the ARRL band plan. Repeater pairs are local; import them from a CHIRP CSV.',
   attribution: 'ARRL 2 m band plan',
   stepHz: kHz(5),
   channels: [
@@ -347,8 +346,7 @@ const UK_PMR446: PresetSet = {
   icon: 'i-lucide-globe',
   source: 'Non-US',
   description:
-    'The sixteen analogue PMR446 channels used in the UK and EU, at the 0.5 W ERP limit. Offered alongside the '
-    + 'US sets rather than chosen for you: nothing here reads your locale yet.',
+    'The sixteen analog PMR446 channels used in the UK and EU, at the 0.5 W ERP limit.',
   attribution: 'ECC Decision (15)05 / UK Interface Requirement 2030',
   stepHz: kHz(12.5),
   channels: [

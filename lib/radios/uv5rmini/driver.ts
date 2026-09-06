@@ -226,7 +226,7 @@ export function createUv5rMiniDriver(options: Uv5rMiniOptions = {}): RadioDriver
       const variant = variantOf(image.layout)
       if (variant.id !== variantOf(ident.layout).id) {
         throw new DriverError(
-          `This image came from a ${variant.label} and the radio on the cable is a ` +
+          `This image came from a ${variant.label} and the connected radio is a ` +
             `${variantOf(ident.layout).label}. They differ in region map, channel count and power table.`,
         )
       }

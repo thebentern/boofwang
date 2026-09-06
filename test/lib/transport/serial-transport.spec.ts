@@ -131,7 +131,7 @@ describe('timeouts poison the stream', () => {
     const te = err as TransportTimeoutError
     expect(te.bufferedLength).toBe(2)
     expect(te.buffered).toBe('06 44')
-    expect(te.message).toContain('read 8 byte(s)')
+    expect(te.message).toContain('read 8 bytes')
     await t.close()
   })
 

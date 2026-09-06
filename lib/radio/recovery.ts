@@ -52,9 +52,9 @@ export function recoveryAdvice(error: unknown, driver: Pick<RadioDriver, 'abortP
     return stranded
       ? 'Nothing came back. If an earlier attempt got as far as talking to the radio, it is probably still '
         + 'in programming mode, which it only leaves when the cable is pulled. Unplug the cable, plug it '
-        + 'back in, and read the radio again. Otherwise check the radio is switched on and the plug is '
+        + 'back in, and read the radio again. Otherwise check the radio is turned on and the plug is '
         + 'pushed all the way in.'
-      : 'Nothing came back. Check the radio is switched on and the plug is pushed all the way in, then '
+      : 'Nothing came back. Check the radio is turned on and the plug is pushed all the way in, then '
         + 'try again.'
   }
 

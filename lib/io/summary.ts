@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { modelName } from '../radio/model-name.js'
 import { chirpMode, txFrequency, type Channel } from '../model/channel.js'
 import { sortedChannels, type Codeplug } from '../model/codeplug.js'
 import { describeTone } from '../model/tones.js'
@@ -33,7 +34,7 @@ import { formatFreq, formatPower } from '../model/units.js'
  */
 
 /** What a receive-only channel says in the transmit column. */
-export const RECEIVE_ONLY = 'receive only'
+export const RECEIVE_ONLY = 'RX only'
 
 /**
  * Stated in the file itself, not only in this comment.
@@ -116,7 +117,7 @@ export function buildSummary(cp: Codeplug, opts: SummaryOptions = {}): CodeplugS
   const channels = sortedChannels(cp)
   const rows = channels.map(toRow)
   const showNotes = rows.some((r) => r.notes !== '')
-  const radio = opts.radio ?? cp.radio ?? 'an unknown radio'
+  const radio = opts.radio ?? (cp.radio ? modelName(cp.radio) : 'an unknown radio')
 
   return {
     title: opts.title ?? `${radio} channel plan`,

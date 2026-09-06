@@ -354,14 +354,14 @@ export async function enterProgrammingMode(t: Transport, opts?: ReadOpts): Promi
   await delay(STEP_DELAY_MS, opts?.signal)
   const b = await readSkippingHeartbeats(t, 8, opts)
   if (!b.every((x) => x === 0xff)) {
-    throw new ProtocolError('Mode 02 failed', 'eight 0xFF bytes', hexDump(b))
+    throw new ProtocolError('The radio did not acknowledge mode 02', 'eight 0xFF bytes', hexDump(b))
   }
 
   await delay(10, opts?.signal)
   await t.write(Uint8Array.from([ACK]), opts)
   await delay(STEP_DELAY_MS, opts?.signal)
   const c = await readSkippingHeartbeats(t, 1, opts)
-  if (c[0] !== ACK) throw new ProtocolError('The final programming-mode ACK failed', '06', hexDump(c))
+  if (c[0] !== ACK) throw new ProtocolError('The radio did not send the final programming-mode acknowledgment', '06', hexDump(c))
   await delay(10, opts?.signal)
 }
 

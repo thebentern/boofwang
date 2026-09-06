@@ -2,6 +2,7 @@
 import { sha256Hex } from '../codec/checksum.js'
 import type { RadioId } from '../model/codeplug.js'
 import type { ImageRegion, RadioImage } from '../radio/image.js'
+import { modelName } from '../radio/model-name.js'
 
 /**
  * CHIRP's `.img` container.
@@ -136,7 +137,7 @@ export async function encodeChirpImg(
   const identity = CHIRP_IDENTITY[image.radioId]
   if (!identity) {
     throw new ChirpImgError(
-      `CHIRP has no driver for the ${image.radioId}, so a .img file would not open in it. ` +
+      `CHIRP has no driver for the ${modelName(image.radioId)}, so a .img file would not open in it. ` +
         'Save a boofwang codeplug (.bwp) instead.',
     )
   }
@@ -182,7 +183,7 @@ export async function imgToImage(
   const total = expect.regions.reduce((n, r) => n + r.length, 0)
   if (memory.length !== total) {
     throw new ChirpImgError(
-      `The memory in this file is ${memory.length} bytes; a ${expect.radioId} image is ${total}.`,
+      `The memory in this file is ${memory.length} bytes; a ${modelName(expect.radioId)} image is ${total}.`,
     )
   }
 

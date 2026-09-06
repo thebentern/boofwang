@@ -70,7 +70,7 @@ describe('.bwp refuses damaged files', () => {
     // transit must never reach a radio.
     const bytes = await encodeBwp(image)
     bytes[bytes.length - 1] = bytes[bytes.length - 1]! ^ 0xff
-    await expect(decodeBwp(bytes)).rejects.toThrow(/failed its checksum/)
+    await expect(decodeBwp(bytes)).rejects.toThrow(/checksum does not match/)
   })
 
   it('rejects a truncated payload', async () => {

@@ -35,12 +35,12 @@ describe('recoveryAdvice', () => {
   })
 
   it('says something useful about a timeout and a disconnect', () => {
-    const timeout = new TransportTimeoutError('read 3 byte(s)', 3000, '(nothing)', 0)
+    const timeout = new TransportTimeoutError('read 3 bytes', 3000, '(nothing)', 0)
     // Silence on a stranded radio usually means it is still in programming
     // mode from an earlier attempt, which reads like a dead cable and is not.
     expect(recoveryAdvice(timeout, stranded)).toMatch(/still\s+in programming mode/i)
     expect(recoveryAdvice(timeout, stranded)).toMatch(/unplug the cable/i)
-    expect(recoveryAdvice(timeout, resettable)).toMatch(/switched on/i)
+    expect(recoveryAdvice(timeout, resettable)).toMatch(/turned on/i)
     expect(recoveryAdvice(new DeviceDisconnectedError(), stranded)).toMatch(/plug it back in/i)
   })
 

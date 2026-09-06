@@ -184,10 +184,10 @@ describe('the summary itself', () => {
     expect(summaryMarkdown(withNotes)).toContain('net Tuesdays 1900')
   })
 
-  it('falls back to the radio id when nothing better is offered', () => {
+  it('falls back to the model name when nothing better is offered', () => {
     const bare = buildSummary(decode(), { generatedAt: AT })
-    expect(bare.radio).toBe('uvk5')
-    expect(bare.title).toBe('uvk5 channel plan')
+    expect(bare.radio).toBe('UV-K5')
+    expect(bare.title).toBe('UV-K5 channel plan')
   })
 })
 

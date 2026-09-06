@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { plural } from '../text/plural.js'
 import { hexDump } from '../codec/checksum.js'
 import { ByteQueue } from './byte-queue.js'
 import {
@@ -265,7 +266,7 @@ export class SerialTransport implements Transport {
   }
 
   readExactly(n: number, opts?: ReadOpts): Promise<Uint8Array> {
-    return this.#await((q) => q.take(n), `read ${n} byte(s)`, opts)
+    return this.#await((q) => q.take(n), `read ${n} ${plural(n, 'byte')}`, opts)
   }
 
   readUntil(delim: Uint8Array, opts?: ReadOpts & { max?: number }): Promise<Uint8Array> {

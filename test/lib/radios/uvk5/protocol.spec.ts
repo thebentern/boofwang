@@ -349,7 +349,7 @@ describe('a cable that echoes instead of a radio that answers', () => {
     await t.open(OPEN)
     const err = (await sayHello(t, 2, { timeoutMs: 200 }).catch((e: unknown) => e)) as Error
     expect(err.message).toMatch(/returning boofwang's own data/)
-    expect(err.message).toMatch(/switched on/)
+    expect(err.message).toMatch(/turned on/)
     expect(err.message).toMatch(/CH340/)
     // And it must not blame the firmware, which is what the old code did.
     expect(err.message).not.toMatch(/firmware/i)

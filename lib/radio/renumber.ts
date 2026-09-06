@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { plural } from '../text/plural.js'
 import type { Channel } from '../model/channel.js'
 import type { Codeplug, ScanList, Zone } from '../model/codeplug.js'
 import type { RadioSchema } from './schema.js'
@@ -358,7 +359,7 @@ function remap<T extends Zone | ScanList>(list: T, mapping: ReadonlyMap<number, 
 export function applyRenumber(cp: Codeplug, plan: RenumberPlan): Codeplug {
   if (plan.unplaced.length > 0) {
     const names = plan.unplaced.map((u) => u.channel).join(', ')
-    throw new Error(`This ordering leaves ${plan.unplaced.length} channel(s) with no slot: ${names}.`)
+    throw new Error(`This ordering leaves ${plan.unplaced.length} ${plural(plan.unplaced.length, 'channel')} with no slot: ${names}.`)
   }
   if (!planFitsDocument(cp, plan)) {
     throw new Error('The channels changed after this ordering was worked out. Nothing has been moved.')

@@ -379,13 +379,13 @@ describe('preconditions', () => {
   })
 
   it('refuses when the driver as a whole is not cleared to write', async () => {
-    // The schema is the build's own statement that the write path is unproven,
+    // The schema is the build's own statement of whether writing is offered,
     // and the driver honors it rather than leaving it to the UI.
     const { port, eeprom } = radioPort(RAW.slice())
     const t = await connect(port)
     const backup = await backupFor(eeprom)
     await expect(driver.writeImage(t, imageOf(eeprom), { backup, readTimeoutMs: 1000 })).rejects.toThrow(
-      /has not been verified against hardware/,
+      /is not enabled in this build/,
     )
     await t.close()
   })

@@ -52,8 +52,8 @@ export function evaluateSerialSupport(
       secureContext: true,
       browser,
       advice:
-        'An iPhone or iPad cannot drive a USB programming cable. Bluetooth is the way in on this device: ' +
-        'the UV-5R Mini has a wireless mode of its own, and a clip-on dongle fits radios with the two-pin port.',
+        'An iPhone or iPad cannot drive a USB programming cable. Bluetooth is the way in: ' +
+        'the UV-5R Mini in wireless CPS mode, or a Bluetooth dongle on the radios that take one.',
     }
   }
 

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { plural } from '../../text/plural.js'
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
 import { diffRanges, equalBytes } from '../../codec/struct.js'
 import { emptyCodeplug, type Channel, type Codeplug, type TxSpec } from '../../model/index.js'
@@ -302,8 +303,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
 
       if (!schema.capabilities.write && !ctx.dryRun) {
         throw new WriteBlockedError(
-          `Writing the ${schema.model} is not enabled in this build: the write path has not been ` +
-            'verified against hardware.',
+          `Writing the ${schema.model} is not enabled in this build.`,
         )
       }
       if (!ctx.dryRun && !ctx.backup) throw new BackupRequiredError('uvk5')
@@ -390,7 +390,7 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
             .filter((d) => d.severity === 'error' && d.channel !== undefined && changed.has(d.channel))
           if (errors.length > 0) {
             throw new DriverError(
-              `Refusing to write: ${errors.length} channel(s) you have changed would be programmed incorrectly. ` +
+              `Refusing to write: ${errors.length} ${plural(errors.length, 'channel')} you have changed would be programmed incorrectly. ` +
                 errors
                   .slice(0, 3)
                   .map((d) => `Channel ${d.channel}: ${d.message}`)

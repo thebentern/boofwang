@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { plural } from '../text/plural.js'
 
 /**
  * Transport errors are deliberately specific.
@@ -30,7 +31,7 @@ export class TransportTimeoutError extends TransportError {
   ) {
     super(
       `Timed out after ${timeoutMs}ms waiting for ${op}. ` +
-        `${bufferedLength} byte(s) buffered: ${buffered || '(nothing)'}`,
+        `${bufferedLength} ${plural(bufferedLength, 'byte')} buffered: ${buffered || '(nothing)'}`,
     )
   }
 }

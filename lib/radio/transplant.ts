@@ -91,11 +91,11 @@ const RADIO_IDS_REASON =
   'repeater they touch, and neither of them can tell - the people listening find out first.'
 
 const KEYS_REASON =
-  'Your radio keeps the key slots it already had. Keys are the one thing in a codeplug that is a secret ' +
-  'rather than a setting. Any channel that names a key slot will use whatever your radio holds in that slot.'
+  'Your radio keeps the key slots it already had. Keys are secrets, not settings, and stay with the radio ' +
+  'that holds them. Any channel that names a key slot will use whatever your radio holds in that slot.'
 
 const SETTINGS_REASON =
-  'Your radio keeps its own settings. Some radios file the DMR ID and the unit’s own name among them, ' +
+  'Your radio keeps its own settings. Some radios file the DMR ID and the radio’s own name among them, ' +
   'so copying settings wholesale would be a way around keeping the ID.'
 
 /**

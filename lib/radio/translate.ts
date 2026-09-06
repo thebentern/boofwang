@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { plural } from '../text/plural.js'
 import { txFrequency, type Channel } from '../model/channel.js'
 import { describeTone, nearestCtcss, type ToneSpec } from '../model/tones.js'
 import { hz, mW, type Hz } from '../model/units.js'
@@ -334,14 +335,17 @@ export function translateChannels(input: TranslateInput): TranslateResult {
   const rows = input.channels.map((ch) => clampChannel(ch, input.target, input.rf))
   const dropped: string[] = []
 
-  if (input.target.features.talkGroups === false && (input.carries?.talkGroups ?? 0) > 0) {
-    dropped.push(`${input.carries!.talkGroups} talk group(s), which this radio has no concept of`)
+  const talkGroups = input.carries?.talkGroups ?? 0
+  const contacts = input.carries?.contacts ?? 0
+  const radioIds = input.carries?.radioIds ?? 0
+  if (input.target.features.talkGroups === false && talkGroups > 0) {
+    dropped.push(`${talkGroups} talk ${plural(talkGroups, 'group')}, which this radio has no concept of`)
   }
-  if (input.target.features.contacts === false && (input.carries?.contacts ?? 0) > 0) {
-    dropped.push(`${input.carries!.contacts} DMR contact(s), which this radio has no concept of`)
+  if (input.target.features.contacts === false && contacts > 0) {
+    dropped.push(`${contacts} DMR ${plural(contacts, 'contact')}, which this radio has no concept of`)
   }
-  if (input.target.features.radioIds === false && (input.carries?.radioIds ?? 0) > 0) {
-    dropped.push(`${input.carries!.radioIds} DMR radio ID(s), which this radio has no concept of`)
+  if (input.target.features.radioIds === false && radioIds > 0) {
+    dropped.push(`${radioIds} DMR radio ${plural(radioIds, 'ID')}, which this radio has no concept of`)
   }
 
   return {

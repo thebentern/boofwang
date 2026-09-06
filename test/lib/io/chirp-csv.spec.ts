@@ -93,9 +93,9 @@ describe('exportChirpCsv', () => {
 
   it('writes header comments CHIRP will preserve on load', () => {
     const text = exportChirpCsv(cp, { header: defaultHeader(cp) })
-    expect(text.startsWith('# Exported by boofwang from uvk5\r\n')).toBe(true)
+    expect(text.startsWith('# Exported by boofwang from UV-K5\r\n')).toBe(true)
     expect(text).toContain('# Firmware: k5_2.01.26')
-    expect(text).toContain('# 1 channel(s) are receive-only')
+    expect(text).toContain('# 1 channel is receive-only')
   })
 })
 

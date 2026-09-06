@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { modelName } from '../radio/model-name.js'
+import { plural } from '../text/plural.js'
 import { chirpMode, txFrequency, type Channel } from '../model/channel.js'
 import { sortedChannels, type Codeplug } from '../model/codeplug.js'
 import { formatCtcss, formatDtcs, type ToneSpec } from '../model/tones.js'
@@ -200,11 +202,11 @@ export function exportChirpCsv(cp: Codeplug, opts: ExportOptions = {}): string {
  * round trip through CHIRP itself.
  */
 export function defaultHeader(cp: Codeplug): string[] {
-  const lines = [`Exported by boofwang from ${cp.radio ?? 'an unknown radio'}`]
+  const lines = [`Exported by boofwang from ${cp.radio ? modelName(cp.radio) : 'an unknown radio'}`]
   if (cp.meta.variant) lines.push(`Firmware: ${cp.meta.variant}`)
   const rxOnly = [...cp.channels.values()].filter((c) => !c.txAllowed).length
   if (rxOnly > 0) {
-    lines.push(`${rxOnly} channel(s) are receive-only and exported with Duplex=off`)
+    lines.push(`${rxOnly} ${plural(rxOnly, 'channel')} ${plural(rxOnly, 'is', 'are')} receive-only and exported with Duplex=off`)
   }
   return lines
 }

@@ -255,7 +255,7 @@ export async function handshake(t: Transport, opts?: ReadOpts): Promise<IdentRes
 
   if (sawEcho) throw new LoopbackDetectedError('while identifying the radio')
   throw new ProtocolError(
-    'No UV-5R Mini answered. Check the radio is switched on and the plug is pushed all the way in.',
+    'No UV-5R Mini answered. Check the radio is turned on and the plug is pushed all the way in.',
   )
 }
 

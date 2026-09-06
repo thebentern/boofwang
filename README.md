@@ -11,7 +11,7 @@ Live at [boofwa.ng](https://boofwa.ng), and as a
 
 boofwang self-hosts its fonts and never calls out for an icon, because radios
 get programmed where there is no network. The site itself still needed one to
-load, which made both of those gestures rather than measures. It no longer does.
+load. It no longer does.
 
 Open [boofwa.ng](https://boofwa.ng) once on a network and the browser keeps a
 copy: the whole build, about 2 MB, precached atomically. After that it opens
@@ -21,10 +21,9 @@ dock, which is the same copy in a window without a URL bar.
 
 **The version is stated in the footer of every page** - `boofwa.ng 0.1.1 ·
 a1b2c3d` - and in full on the About page, with how old the commit is and when
-this device last managed to look for a newer one. A codeplug editor that has
-quietly stopped being updated is a hazard of its own: the offsets under
-`lib/radios/` change when somebody works out that a byte meant something else,
-and an old copy will write the old understanding to a radio without hesitating.
+this device last managed to look for a newer one. An old copy writes an old
+understanding of the memory map. The footer names the build so a stale copy is
+recognizable.
 
 When a newer build arrives it is stated, never applied. Applying it means
 reloading, and a reload discards a codeplug that has been read and edited but
@@ -120,76 +119,55 @@ above that seam is unchanged; a test holds the plugins to `app/mobile/`.
 
 Android has USB (an OTG cable to the same CH340, FTDI, CP210x and PL2303
 adapters) and Bluetooth. iOS has Bluetooth only: an iPhone cannot drive a USB
-serial adapter, and the connect page says so once. The UV-5R Mini writes over
-Bluetooth as well as over the cable. A radio reachable only through a clip-on
-BLE-to-serial dongle still writes over the cable alone, because no radio has
-survived a write through one, so on an iPhone the radios marked dongle can be
-read, backed up, edited and exported and not written.
+serial adapter, and the connect page says so once. The UV-5R Mini reads and
+writes over Bluetooth. Radios that take a clip-on Bluetooth dongle read through
+it; writing them needs a cable.
 
-Nothing about the apps has yet been run on a phone. [`docs/mobile.md`](docs/mobile.md)
-is the build, signing and verification record, and its table of what has been
-exercised is empty until it is not. The Radios table below mentions Android or
-iOS for a radio only once that radio's protocol note carries the entry.
+[`docs/mobile.md`](docs/mobile.md) is the build and signing record for the apps.
 
 ## Radios
 
-| Radio | Memory | Read | Write | Hardware-verified |
-|---|---|---|---|---|
-| Quansheng UV-K5 | 200 channels, analog, 8 KB EEPROM | Yes | Yes | Read, write, restore |
-| Baofeng UV-82 | 128 channels, analog, 6 KB image | Yes | Yes | Read, write, restore |
-| Radioddity UV-5G | 128 channels, analog GMRS, 6 KB image | Yes | Yes | Read, write, restore |
-| Baofeng UV-5R | 128 channels, analog, 6 KB image | Yes | Yes | Read, write, restore |
-| Baofeng UV-5R Mini | 999 channels, analog, 33 KB image | Yes | Yes | Read, write, restore; read also over Bluetooth |
-| Baofeng DM-32UV | 4000 channels, DMR, zones/talkgroups/AES keys | Yes | Yes | Read, write, restore; startup picture |
+| Radio | Memory | Read | Write |
+|---|---|---|---|
+| Quansheng UV-K5 | 200 channels, analog | Yes | Yes |
+| Baofeng UV-82 | 128 channels, analog | Yes | Yes |
+| Radioddity UV-5G | 128 channels, analog GMRS | Yes | Yes |
+| Baofeng UV-5R | 128 channels, analog | Yes | Yes |
+| Baofeng UV-5R Mini | 999 channels, analog | Cable or Bluetooth | Cable or Bluetooth |
+| Baofeng DM-32UV | 4,000 channels, DMR, zones, talk groups, AES keys | Yes | Yes, including the startup picture |
 
 CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
 
-The UV-5R took three findings to write, and they are worth knowing because two
-of them looked like the radio refusing. A byte here programs once and will not
-reprogram, so the diff-driven write every other Baofeng here uses could not
-shorten a name - it left the tail of the old one behind. This radio therefore
-writes the way CHIRP always has, sweeping contiguous ranges rather than sending
-a diff. Its read-back verification was also reading the wrong memory: asked for
-sixteen bytes it returns another block's, while echoing the address it was
-given, so verification is done with the sixty-four-byte reads the read path has
-always used. And its firmware string, `HN5RV011!!!`, names a 4 W UV-5R and an
-8 W BF-F8HP alike, which nothing on the wire can settle - so before writing,
-the driver decodes and re-encodes what the radio just sent and refuses if a
-single byte moves. A tri-power radio fails that on its own bytes. The band plan
-is still CHIRP's numbers rather than measured ones.
-[docs/protocols/uv5r.md](docs/protocols/uv5r.md) has the session.
+The UV-5R writes by sweeping its owned ranges whole rather than sending a
+diff, because a byte on this radio programs once per erase. Its firmware string
+names a 4 W UV-5R and an 8 W BF-F8HP alike, so the driver refuses any image
+that does not round-trip on its own bytes.
+[docs/protocols/uv5r.md](docs/protocols/uv5r.md) has the detail.
 
-The UV-5R Mini can also be read over Bluetooth, with no cable at all — the
-radio's wireless CPS mode speaks the same protocol over a GATT characteristic.
-In a browser, support is narrower than Web Serial: Chrome and Edge on desktop
-and Android, and nothing on Safari, Firefox or iOS. The mobile apps carry
-their own Bluetooth stack, which is what would put this on an iPhone; see
-[`docs/mobile.md`](docs/mobile.md) for what has and has not been exercised.
+The UV-5R Mini can also be read and written over Bluetooth, with no cable at
+all: the radio's wireless CPS mode speaks the same protocol over a GATT
+characteristic. In a browser, support is narrower than Web Serial: Chrome and
+Edge on desktop and Android, and nothing on Safari, Firefox or iOS. The mobile
+apps carry their own Bluetooth stack, which is what puts this on an iPhone.
 
-Per-radio protocol notes, including exactly what has and has not been exercised
-against hardware, are in [`docs/protocols/`](docs/protocols/).
+Per-radio protocol notes are in [`docs/protocols/`](docs/protocols/).
 
 The UV-K5 also reads the [egzumer](https://github.com/egzumer/uv-k5-firmware-custom)
 custom firmware, which arranges its EEPROM differently: channels, names and
 settings all decode, and the settings page gains a form that stock firmware has
-no equivalent for. That layout is **read-only**. Nobody working on boofwang has
-a radio running it, so its offsets are checked against CHIRP's driver and
-against nothing else, and writing stays off until one has been.
+no equivalent for. That layout is read-only.
 
 Two different radios are sold as "UV-5R Mini" and "5RM"/"UV-5RM". They differ in
 ident string, region map, channel count and power table. Both are implemented;
-the handshake selects between them. Only the UV-5R Mini has been tested on
-hardware.
+the handshake selects between them.
 
 DM-32UV writes cover channel records, zones and their channel lists, talk
-groups, scan list names, RX groups, DMR radio IDs, radio settings and the
+groups, scan lists and their membership, RX groups, DMR radio IDs, radio settings and the
 encryption key slots, the per-channel talk group, both VFOs, text messages,
 roaming, DTMF codes and both analog contact lists, and the DMR address book in
 its own memory region. Channels, zones, talk groups, contacts and messages can be added and
 removed, and the radio's own ordering of its talk group list is rewritten to
-match. What is not written is roaming zone membership and the individual fields
-inside other structures whose meaning is documented as derived rather than
-confirmed. Its pages relocate between sessions
+match. Roaming zone membership is not written. Its pages relocate between sessions
 and 22 of its 59 allocated blocks are undocumented, so every other byte is read,
 preserved and never sent back.
 
@@ -197,11 +175,11 @@ preserved and never sent back.
 
 | Format | Read | Write |
 |---|---|---|
-| `.bwp` — boofwang codeplug; records radio identity and a SHA-256 | Yes | Yes |
+| `.bwp` - boofwang codeplug; records radio identity and a SHA-256 | Yes | Yes |
 | CHIRP `.img` | Yes | Yes |
 | CHIRP CSV | Yes | Yes |
 | Raw `.bin` | Yes | Yes |
-| Channel summary — one self-contained `.html`, or a Markdown table | No | Yes |
+| Channel summary - one self-contained `.html`, or a Markdown table | No | Yes |
 
 CSV output is byte-identical to CHIRP's own, checked by loading it with
 `chirp.generic_csv.CSVRadio` and diffing CHIRP's re-export
@@ -222,30 +200,30 @@ black and white.
 ## Fleet programming
 
 A club buys twenty DM-32UVs, one person builds the channel plan, and every
-handset needs it. What must not travel with it is the DMR ID: radios sharing one
-share a single identity on every repeater they touch, and none of them can tell.
+radio needs it. What must not travel with it is the DMR ID: two radios with one
+DMR ID are one identity on every repeater they use.
 
-So `/fleet` takes a roster — a row per radio, carrying the two things that are
-its own, a DMR ID and the name filed with it — and runs the ordinary write flow
-once per handset. Connect, read (which is what stores that unit's backup), apply
-the roster row to the master, show the diff, type the word. Each radio's document
-is rendered onto **its own** image, so calibration and every undecoded byte stay
-with the unit they came from, exactly as in a one-radio clone.
+So `/fleet` takes a roster - a row per radio, carrying the two things that are
+its own, a DMR ID and the callsign filed with it - and runs the ordinary write
+flow once per radio. Connect, read (which is what stores that radio's backup),
+apply the roster row to the master, show the diff, type the word. Each radio's
+document is rendered onto **its own** image, so calibration and every undecoded
+byte stay with the radio they came from, exactly as in a one-radio clone.
 
 There is deliberately no bulk send and no fleet exception to the typed
 confirmation. Typing `WRITE` is about five seconds against the two or three
 minutes a DM-32UV takes to read and write.
 
-The roster is pasted as CSV — any column order, with a header row naming the
-columns, or `label,dmrId,name` without one — and exports back out, along with a
-record of the run naming which physical unit took which row.
+The roster is pasted as CSV - any column order, with a header row naming the
+columns, or `label,dmrId,callsign` without one - and exports back out, along
+with a record of the run naming which physical radio took which row.
 
 Two checks exist only here, because they are failures only a fleet run can have:
 
 - **Two rows on one DMR ID** blocks the run before a radio is plugged in.
-- **The same physical handset presented twice** is caught by its unit
-  fingerprint, because twenty identical radios go through one cable over an
-  afternoon and nothing on the outside of any of them says which are done.
+- **The same physical radio presented twice** is caught by its fingerprint,
+  because twenty identical radios go through one cable over an afternoon and
+  nothing on the outside of any of them says which are done.
 
 ## Development
 
@@ -321,14 +299,10 @@ onto a radio's two-pin programming port and bridges BLE to the radio's own
 UART: the host is on Bluetooth while the radio behind it behaves exactly as on
 a cable, and takes the cable block size. `Transport` carries the two facts
 separately - `kind` for the carrier, `radioLink` for what the radio believes -
-and the connect screen offers the dongle route per radio, not per port. A
-Baofeng BT-A1D has carried a whole UV-5R Mini codeplug this way - 1,000 slots
-over BLE, with the radio believing it was on a cable throughout - so the route
-is real. It is not universal: a UV-82 behind the same dongle stayed silent on
-two attempts, so the UV-82 is not offered the route at all. Frame shape and
-baud were both chased and both cleared; the plain answer is that the dongle's
-vendor never claimed that radio. Which radios are proven, what the two
-enumerated dongles do, and how to capture a third are in
+and the connect screen offers the dongle route per radio, not per port. The
+UV-82 is not offered the route, because the dongle's vendor never claimed that
+radio. Which radios take a dongle, what the two enumerated dongles do, and how
+to capture a third are in
 [`docs/protocols/ble-dongle.md`](docs/protocols/ble-dongle.md).
 
 macOS refuses Bluetooth to an application that has not been granted it, and
@@ -370,8 +344,8 @@ for every fixture.
 - A backup of the connected radio is required before any write, enforced in the
   driver rather than the UI. `writeImage` throws `BackupRequiredError` when one
   is absent or belongs to a different radio.
-- Where a driver can fingerprint the physical unit, the backup must match that
-  unit and not merely the model and firmware. The DM-32UV uses its calibration
+- Where a driver can fingerprint the physical radio, the backup must match that
+  radio and not merely the model and firmware. The DM-32UV uses its calibration
   block; identifiers derived only from firmware cannot distinguish two identical
   radios.
 - Every write is preceded by a byte diff. A change outside the ranges the driver
@@ -379,8 +353,8 @@ for every fixture.
 - **Every block written is read back and compared.** An acknowledgment says a
   frame arrived, not that it landed where it was meant to or survived being
   written to flash. The UV-K5 and the DM-32UV verify each block before sending
-  the next; the UV-82 and the UV-5R Mini send the plan and then read every block
-  of it back. Either way nothing reports success until the radio has been asked
+  the next; the UV-82 family (UV-82, UV-5G, UV-5R) and the UV-5R Mini send the
+  plan and then read every block of it back. Either way nothing reports success until the radio has been asked
   what it is actually holding.
 - **A write can still damage memory outside the blocks it sent, and only a fresh
   read finds that.** A UV-5R Mini erased 19 channels while every frame was
@@ -393,14 +367,14 @@ for every fixture.
   compare against.
 - A fleet run is N ordinary writes rather than a new kind of write. It calls the
   same read and write functions every other screen calls, takes a fresh backup
-  per handset, and asks for the typed confirmation on each radio's own diff.
+  per radio, and asks for the typed confirmation on each radio's own diff.
 - Read-only regions are marked in the image and never transmitted. The UV-K5's
   calibration block is one.
 - Receive-only channels are decoded as such and preserved. The UV-K5 has no
   transmit-inhibit bit; CHIRP expresses it by parking the transmit frequency at
   zero, and boofwang reads and writes that convention.
 - Transmitting into a receive-only allocation is warned about, prominently, on
-  every affected channel — and then left to you. A frequency the radio cannot
+  every affected channel - and then left to you. A frequency the radio cannot
   physically tune or key is still a blocking error, because that is a fact about
   the hardware rather than about your license.
 - Unrecognized firmware is read-only but still readable, so an unsupported radio

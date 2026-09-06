@@ -108,7 +108,7 @@ export function evaluateBluetoothSupport(
         secureContext: true,
         browser,
         anotherBrowserWouldHelp: false,
-        advice: 'Bluetooth is switched off on this device. Turn it on and try again.',
+        advice: 'Bluetooth is turned off. Turn it on and try again.',
       }
     }
     return { supported: true, blocker: 'none', secureContext: true, browser, anotherBrowserWouldHelp: false, advice: '' }

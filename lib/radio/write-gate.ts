@@ -2,6 +2,8 @@
 import type { Diagnostic, IdentifyResult } from './driver.js'
 import type { RadioSchema } from './schema.js'
 import type { TransportKind } from '../transport/transport.js'
+import { modelName } from './model-name.js'
+import { plural } from '../text/plural.js'
 
 /**
  * Everything that must be true before bytes go to a radio, decided in one pure
@@ -121,8 +123,8 @@ export function evaluateWriteGate(input: GateInput): GateResult {
     blockers.push({
       code: 'transport-write-unverified',
       message:
-        `Writing to the ${input.schema.model} over ${input.transport === 'bluetooth' ? 'Bluetooth' : input.transport} ` +
-        'has not been verified on a radio, so this build will not do it.',
+        `Writing to the ${input.schema.model} over ` +
+        `${input.transport === 'bluetooth' ? 'Bluetooth' : input.transport} is not offered.`,
       remedy: `Connect over ${other === 'serial' ? 'the cable' : other} to write.`,
     })
   }
@@ -138,7 +140,7 @@ export function evaluateWriteGate(input: GateInput): GateResult {
   if (input.imageRadioId !== null && input.imageRadioId !== input.schema.id) {
     blockers.push({
       code: 'image-radio-mismatch',
-      message: `This codeplug came from a ${input.imageRadioId}, not a ${input.schema.model}.`,
+      message: `This codeplug came from a ${modelName(input.imageRadioId)}, not a ${input.schema.model}.`,
     })
   }
 
@@ -185,9 +187,10 @@ export function evaluateWriteGate(input: GateInput): GateResult {
     blockers.push({
       code: 'unowned-bytes-changed',
       message:
-        `This edit would change ${input.unownedRanges.length} region(s) of memory that boofwang does not ` +
+        `This edit would change ${input.unownedRanges.length} ` +
+        `${plural(input.unownedRanges.length, 'region')} of memory that boofwang does not ` +
         `claim to understand (${where}). That is a defect in boofwang, not in your codeplug.`,
-      remedy: 'Please report this, with the protocol log if you have one.',
+      remedy: 'Report this as a boofwang issue, with the protocol log if you have one.',
     })
   }
 
@@ -195,7 +198,7 @@ export function evaluateWriteGate(input: GateInput): GateResult {
   if (errors.length > 0) {
     blockers.push({
       code: 'validation-errors',
-      message: `${errors.length} channel${errors.length === 1 ? '' : 's'} would be programmed incorrectly.`,
+      message: `${errors.length} ${plural(errors.length, 'channel')} would be programmed incorrectly.`,
       remedy: 'Fix the errors listed below, or remove those channels.',
     })
   }
@@ -214,7 +217,7 @@ export function evaluateWriteGate(input: GateInput): GateResult {
       blockers.push({
         code: 'edits-not-writable',
         message: `Your edits encode to no change on the ${input.schema.model}, so there is nothing to send.`,
-        remedy: 'This may mean the change is not one this build knows how to store. Please report it.',
+        remedy: 'The change is not one this build stores. Report it as a boofwang issue.',
       })
     } else {
       blockers.push({

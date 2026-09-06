@@ -3,6 +3,7 @@ import type { Channel } from '../model/channel.js'
 import type { Codeplug } from '../model/codeplug.js'
 import type { Diagnostic } from '../radio/driver.js'
 import type { RadioSchema } from '../radio/schema.js'
+import { plural } from '../text/plural.js'
 
 /**
  * The codeplug checked against itself, and against what the radio can hold.
@@ -48,8 +49,6 @@ function slotList(list: readonly number[]): string {
   const shown = list.slice(0, 8).join(', ')
   return list.length > 8 ? `${shown} and ${list.length - 8} more` : shown
 }
-
-const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many)
 
 /**
  * Everything about a channel except its name and its slot.

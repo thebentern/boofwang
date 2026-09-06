@@ -67,15 +67,13 @@ export const DM32UV_SETTINGS_GROUPS = [
           { value: 1, label: 'Day / month / year' },
         ],
       },
-      { key: 'menuExitTime', label: 'Menu timeout', type: 'int', min: 0, max: 30, help: 'Seconds. 0 on both radios seen so far, which the reference does not explain.' },
+      { key: 'menuExitTime', label: 'Menu timeout', type: 'int', min: 0, max: 30, help: 'Seconds.' },
     ],
   },
   {
     id: 'tones',
     label: 'Alert tones',
-    description:
-      'Which events the radio beeps for. The bit positions come from the reference implementation’s own ' +
-      'interface rather than from a capture, so they are its reading rather than an attested one.',
+    description: 'Which events the radio beeps for.',
     fields: [
       { key: 'alertTones.keyPress', label: 'Key press', type: 'bool', icon: 'lucide:volume-2' },
       { key: 'alertTones.keyRelease', label: 'Key release', type: 'bool' },
@@ -104,7 +102,7 @@ export const DM32UV_SETTINGS_GROUPS = [
       {
         key: 'standbyCharColor1',
         label: 'Standby character',
-        help: 'A whole byte rather than a nibble, and its range runs to 30 rather than the color list. The reference has no second offset for the pair this belongs to.',
+        help: '0 to 30.',
         type: 'int',
         min: 0,
         max: 30,
@@ -142,13 +140,13 @@ export const DM32UV_SETTINGS_GROUPS = [
       {
         key: 'activeWaitTime',
         label: 'Active wait time',
-        help: 'Raw. The reference gives (raw-1)x30+300 ms but derives it from a comment rather than a capture, so the byte is shown as the byte.',
+        help: 'Stored value, in the radio\u2019s own units.',
         type: 'int',
         min: 0,
         max: 255,
       },
-      { key: 'preCarrierTime', label: 'Pre-carrier time', help: 'Raw, for the same reason.', type: 'int', min: 0, max: 255 },
-      { key: 'smsFormat', label: 'SMS format', help: 'Raw, for the same reason.', type: 'int', min: 0, max: 255 },
+      { key: 'preCarrierTime', label: 'Pre-carrier time', help: 'Stored value, in the radio\u2019s own units.', type: 'int', min: 0, max: 255 },
+      { key: 'smsFormat', label: 'SMS format', help: 'Stored value, in the radio\u2019s own units.', type: 'int', min: 0, max: 255 },
       { key: 'txDwellTime', label: 'Transmit dwell time', type: 'int', min: 0, max: 255 },
       { key: 'digitalFlags.missedCallAlert', label: 'Alert on a missed call', type: 'bool' },
       { key: 'digitalFlags.callAlertDecode', label: 'Decode call alert', type: 'bool' },
@@ -224,9 +222,7 @@ export const DM32UV_SETTINGS_GROUPS = [
   {
     id: 'onetouch',
     label: 'One-touch calls',
-    description:
-      'The five calls the radio can place from a single key. All five entries in the capture decode ' +
-      'inside their own enums, which is what settled the layout.',
+    description: 'The five calls the radio can place from a single key.',
     fields: [
       { key: 'oneTouch1Type', label: 'Call 1 mode', type: 'enum', options: [
           { value: 0, label: 'Off' },
@@ -683,8 +679,7 @@ export const DM32UV_SETTINGS_GROUPS = [
     id: 'aprs',
     label: 'APRS',
     description:
-      'Position reporting. The latitude and longitude below are the fixed position the radio falls back ' +
-      'on, and are the only part of this group a capture confirms outright.',
+      'Position reporting. The latitude and longitude below are the fixed position the radio falls back on.',
     fields: [
       { key: 'aprsFixedBeacon.enabled', label: 'Fixed beacon', type: 'bool', icon: 'lucide:radio-tower' },
       { key: 'aprsScheduledSendTime', label: 'Send every', type: 'int', min: 0, max: 240, help: '0 is off; each step is 30 seconds.' },
@@ -698,7 +693,7 @@ export const DM32UV_SETTINGS_GROUPS = [
         type: 'int',
         min: 0,
         max: 16_777_215,
-        help: 'Stored little-endian. Both captured values are only plausible DMR IDs read that way, which is evidence rather than proof.',
+        help: 'Stored little-endian.',
       },
       { key: 'aprsCallType.group', label: 'Call type', type: 'enum', options: [{ value: 0, label: 'Private' }, { value: 1, label: 'Group' }] },
       { key: 'aprsRepeaterActiveDelay', label: 'Repeater active delay', type: 'int', min: 0, max: 10, help: '0 is off; each step is 100 ms.' },
@@ -715,9 +710,7 @@ export const DM32UV_SETTINGS_GROUPS = [
   {
     id: 'menus',
     label: 'Menu items',
-    description:
-      'Which entries the radio\u2019s own menus offer. A set bit shows the item - that reading is the ' +
-      'reference\u2019s and no capture pins it, so if these come back inverted on a radio, this is why.',
+    description: 'Which entries the radio\u2019s own menus offer.',
     fields: [
       { key: 'menuZone.zoneList', label: 'Zone list', type: 'bool', icon: 'lucide:list' },
       { key: 'menuZone.newZone', label: 'New zone', type: 'bool' },

@@ -132,7 +132,7 @@ export default defineNuxtConfig({
         {
           name: 'description',
           content:
-            'Browser-based codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-82, Baofeng UV-5R Mini and Baofeng DM-32UV. Runs entirely in your browser over Web Serial.',
+            'Codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-82, Radioddity UV-5G, Baofeng UV-5R, Baofeng UV-5R Mini and Baofeng DM-32UV. Runs entirely on your device.',
         },
         /*
          * Tints the browser chrome on mobile to match the app's own surface.

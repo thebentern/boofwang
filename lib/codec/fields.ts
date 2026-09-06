@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { plural } from '../text/plural.js'
 
 /**
  * Primitive field codecs.
@@ -43,7 +44,7 @@ function checkUnsigned(value: number, size: number, name: string): number {
   if (!Number.isFinite(value)) throw new RangeError(`${name}: ${value} is not a finite number`)
   const v = Math.trunc(value)
   const max = 2 ** (size * 8) - 1
-  if (v < 0 || v > max) throw new RangeError(`${name}: ${value} does not fit in ${size} byte(s) (0..${max})`)
+  if (v < 0 || v > max) throw new RangeError(`${name}: ${value} does not fit in ${size} ${plural(size, 'byte')} (0..${max})`)
   return v
 }
 
@@ -311,7 +312,7 @@ export function bits<M extends BitMap>(
         // whole thing is written as zero, wiping the very bits this field
         // promises to leave alone.
         if (!Number.isFinite(next) || next < 0 || next >= span) {
-          throw new RangeError(`bits: ${String(name)} = ${next} does not fit in ${width} bit(s)`)
+          throw new RangeError(`bits: ${String(name)} = ${next} does not fit in ${width} ${plural(width, 'bit')}`)
         }
         const scale = 2 ** lsb
         const current = Math.floor(w / scale) % span
@@ -339,7 +340,7 @@ export function chirpBits<const D extends readonly (readonly [string, number])[]
   const total = byteLen * 8
   const declared = decls.reduce((n, [, w]) => n + w, 0)
   if (declared !== total) {
-    throw new RangeError(`chirpBits: declarations cover ${declared} bit(s), expected exactly ${total}`)
+    throw new RangeError(`chirpBits: declarations cover ${declared} ${plural(declared, 'bit')}, expected exactly ${total}`)
   }
   const map: Record<string, readonly [number, number]> = {}
   let cursor = total

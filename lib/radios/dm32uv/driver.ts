@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { plural } from '../../text/plural.js'
 import { hexDump, sha256Hex } from '../../codec/checksum.js'
 import { validateCodeplug } from '../../validate/rules.js'
 import { equalBytes } from '../../codec/struct.js'
@@ -639,7 +640,7 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
       const calPhysical = map.physOf.get(CALIBRATION_BLOCK)
       if (calPhysical === undefined) {
         throw new DriverError(
-          'The radio did not report a calibration block, so there is no way to tell which unit this is. ' +
+          'The radio did not report a calibration block, so there is no way to tell which radio this is. ' +
             'Read the radio again before writing.',
         )
       }
@@ -671,13 +672,15 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
         const backupUnit = ctx.backup.unitHash
         if (backupUnit == null) {
           throw new BackupRequiredError(
-            'dm32uv: the stored backup predates per-unit checking, so it cannot be shown to belong to ' +
-              'this radio. Read this radio again to take a fresh one.',
+            'dm32uv',
+            'The stored backup predates per-radio checking, so it cannot be shown to belong to this ' +
+              'DM-32UV. Read this radio again to take a fresh one.',
           )
         }
         if (backupUnit !== (await sha256Hex(calLive))) {
           throw new BackupRequiredError(
-            'dm32uv: the stored backup came from a different DM-32UV. Read this one before writing to it.',
+            'dm32uv',
+            'The stored backup came from a different DM-32UV. Read this one before writing to it.',
           )
         }
       }
@@ -2247,8 +2250,8 @@ export function encodeContacts(image: RadioImage, contacts: Codeplug['contacts']
   if (pages.length === 0) {
     if (contacts.length === 0) return
     throw new DriverError(
-      `This radio did not report an address book when it was read, so there is nowhere to put the ` +
-        `${contacts.length} contact(s) in this codeplug. Everything else can still be written; the ` +
+      `This radio did not report a contact list when it was read, so there is nowhere to put the ` +
+        `${contacts.length} ${plural(contacts.length, 'contact')} in this codeplug. Everything else can still be written; the ` +
         `contacts cannot.`,
     )
   }
@@ -2260,7 +2263,7 @@ export function encodeContacts(image: RadioImage, contacts: Codeplug['contacts']
     // number and the advice was a loop. What actually changes it is your
     // radio holding more contacts, or the file holding fewer.
     throw new DriverError(
-      `Your radio's address book was read as ${pages.length} page(s), room for ${capacity} contacts, ` +
+      `Your radio's contact list was read as ${pages.length} ${plural(pages.length, 'page')}, room for ${capacity} contacts, ` +
         `and this codeplug has ${contacts.length}. A read brings back the pages your own contacts fill ` +
         `plus one spare, so reading again will not make room: the file needs to carry ${capacity} or fewer.`,
     )

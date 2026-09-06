@@ -129,7 +129,7 @@ export async function readFrame(t: Transport, opts: FramingOpts = {}): Promise<U
       const want = crc16Xmodem(payload)
       if (got !== want) {
         throw new ProtocolError(
-          'UV-K5 reply failed its checksum',
+          'UV-K5 reply checksum does not match',
           `crc16 ${want.toString(16).padStart(4, '0')}`,
           `crc16 ${got.toString(16).padStart(4, '0')} for payload ${hexDump(payload, 16)}`,
         )
