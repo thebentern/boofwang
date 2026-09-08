@@ -400,10 +400,17 @@ function withoutARadio(): boolean {
 }
 
 /**
- * Ask for a port.
+ * Ask for a port, then read the radio on it.
  *
  * `requestPort` needs transient activation, so this is the first thing the
  * click handler does and nothing is awaited before it.
+ *
+ * The read follows without a second click. The radio has already been chosen
+ * (`withoutARadio` refuses to open the chooser otherwise), reading is the safe
+ * action on the risk register, and the only thing the old "connected, now
+ * read" card could add was a button whose answer was already yes. The card
+ * still exists for the return visit, where a granted port is known before
+ * anything has been clicked and a transfer must not start on its own.
  *
  * What that raises depends on the host, and the two dialogs are not the same
  * shape. In a browser it is `navigator.serial`'s own chooser, which belongs to
@@ -426,8 +433,9 @@ async function pickPort() {
   fault.value = null
   via.value = 'adapter'
   picking.value = true
+  let choice: PortChoice | null = null
   try {
-    const choice = await acquirePort()
+    choice = await acquirePort()
     await refreshAdapters()
     // A dismissed chooser and an empty one both resolve to null and the browser
     // will not say which. With still nothing granted, the empty list is the case
@@ -454,6 +462,9 @@ async function pickPort() {
   } finally {
     picking.value = false
   }
+  // Outside the try: a read that fails is reported by `readRadio` through the
+  // fault card, and must not be dressed up as a chooser that would not open.
+  if (choice) await readRadio(choice)
 }
 
 /**
@@ -492,11 +503,11 @@ async function readRadio(acquired?: PortChoice | null) {
 /**
  * Ask for a radio over Bluetooth, then read it.
  *
- * One click for both, unlike the serial path, and for a reason rather than out
- * of inconsistency: a granted Bluetooth device cannot be re-acquired without a
- * fresh gesture the way `getPorts()` re-offers a granted serial port, so there
- * is no "connected, now read" state to sit in between. The chooser and the read
- * are one action because they cannot be two.
+ * One click for both, as the serial path now is too, but here out of necessity:
+ * a granted Bluetooth device cannot be re-acquired without a fresh gesture the
+ * way `getPorts()` re-offers a granted serial port, so there is no "connected,
+ * now read" state to sit in between even on a return visit. The chooser and the
+ * read are one action because they cannot be two.
  *
  * `requestDevice` needs transient activation, so nothing is awaited before it.
  */

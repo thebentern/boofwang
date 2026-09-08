@@ -68,6 +68,16 @@ describe('the connect page', () => {
     expect(fn.slice(0, 500)).toContain('await acquirePort()')
   })
 
+  it('reads the radio on the port it just picked, without a second click', () => {
+    // The chooser closing with a port in hand is the whole of the user's
+    // intent; the read is what they opened it for. The choice is handed over
+    // rather than re-acquired, because a second `requestPort` would raise the
+    // chooser again.
+    const start = page.indexOf('async function pickPort')
+    const fn = page.slice(start, page.indexOf('\n}\n', start))
+    expect(fn).toContain('if (choice) await readRadio(choice)')
+  })
+
   it('asks for the capability rather than for the shell', () => {
     // An iPhone is in a shell too and has no USB host at all. It stays on the
     // browser path here, fails there for a different reason, and its advice is
