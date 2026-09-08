@@ -92,6 +92,7 @@ const SCHEMA_ICONS = [
   'lucide:type',
   'lucide:unlock',
   'lucide:upload',
+  'lucide:chevrons-right',
   'lucide:usb',
   'lucide:users',
   'lucide:volume-2',

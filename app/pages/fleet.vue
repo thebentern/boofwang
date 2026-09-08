@@ -15,10 +15,10 @@ import type { FleetUnit } from '#core/radio/fleet.js'
  *
  * The run itself is deliberately unremarkable. Each radio is read, which is
  * what stores its backup; the roster row is applied to the master; the diff is
- * shown; the word is typed. That is the ordinary write flow, once per radio,
- * and this page adds a record of which radios have been done rather than a
- * faster way to write to one. There is no bulk send and there is no fleet
- * exception to the typed confirmation.
+ * shown; the handle is dragged across. That is the ordinary write flow, once
+ * per radio, and this page adds a record of which radios have been done rather
+ * than a faster way to write to one. There is no bulk send and there is no
+ * fleet exception to the confirmation.
  */
 useSeoMeta({ title: 'Fleet programming' })
 
@@ -142,7 +142,7 @@ async function program(unit: FleetUnit) {
 }
 
 /**
- * The typed confirmation, held so a failed attempt can clear it.
+ * The slide confirmation, held so a failed attempt can put the handle back.
  *
  * The write page gets this for nothing - it swaps to a different view and back,
  * which remounts the field. This card stays on screen through a failure, so
@@ -645,10 +645,9 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
       </div>
 
       <div v-else style="border-top: 1px solid var(--ln); padding: 17px 19px">
-        <ConfirmTyped
+        <ConfirmSlide
           ref="confirm"
-          token="WRITE"
-          :label="`Send ${blocks} block${blocks === 1 ? '' : 's'} to ${fleet.current.label}`"
+          :label="`Slide to send ${blocks} block${blocks === 1 ? '' : 's'} to ${fleet.current.label}`"
           risk="caution"
           icon="i-lucide-upload"
           :disabled="!ready"
@@ -666,7 +665,7 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
               @click="program(fleet.current)"
             />
           </template>
-        </ConfirmTyped>
+        </ConfirmSlide>
       </div>
     </div>
 
@@ -793,11 +792,11 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
         }} were written and which physical radio took each row. The radios keep what they were given and
         every backup stays under Backups, but this list is not stored anywhere and cannot be rebuilt.
       </p>
-      <ConfirmTyped token="END" label="End the run" risk="destructive" icon="i-lucide-x" @confirm="finish">
+      <ConfirmSlide label="Slide to end the run" risk="destructive" icon="i-lucide-x" busy-label="Ending" @confirm="finish">
         <template #secondary>
           <RiskAction risk="neutral" ghost label="Keep going" @click="ending = false" />
         </template>
-      </ConfirmTyped>
+      </ConfirmSlide>
     </div>
 
     <p v-if="fleet.sawRead" class="note">

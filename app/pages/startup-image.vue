@@ -149,10 +149,9 @@ async function send() {
                 label="Save it"
                 @click="downloadCurrent"
               />
-              <ConfirmTyped
+              <ConfirmSlide
                 v-if="boot.backup.value"
-                token="RESTORE"
-                label="Put it back on the radio"
+                label="Slide to put it back on the radio"
                 risk="caution"
                 icon="i-lucide-undo-2"
                 :disabled="boot.busy.value"
@@ -213,10 +212,9 @@ async function send() {
           <p v-if="staged && boot.backup.value" style="margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--mu); max-width: 70ch">
             This replaces the picture the radio shows when it starts.
           </p>
-          <ConfirmTyped
+          <ConfirmSlide
             v-if="staged && boot.backup.value"
-            token="REPLACE"
-            label="Write it to the radio"
+            label="Slide to write it to the radio"
             risk="destructive"
             icon="i-lucide-upload"
             :disabled="boot.busy.value"

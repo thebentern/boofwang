@@ -223,24 +223,17 @@ async function confirmRestore() {
           </p>
         </div>
 
-        <!--
-          The typed word stays on restore at every width, unlike the write
-          screen. There is no diff here to keep on screen - a restore expects
-          the radio to differ, and says so - so a keyboard covers nothing worth
-          reading, and this is the more destructive of the two actions.
-        -->
-        <ConfirmTyped
+        <ConfirmSlide
           v-if="canWrite"
-          token="RESTORE"
+          label="Slide to restore"
           risk="destructive"
           icon="i-lucide-upload"
-          label="Restore now"
           @confirm="confirmRestore()"
         >
           <template #secondary>
             <RiskAction risk="neutral" ghost label="Cancel" @click="navigateTo('/backups')" />
           </template>
-        </ConfirmTyped>
+        </ConfirmSlide>
 
         <!--
           The same legal line the write page carries, for the same reason: this

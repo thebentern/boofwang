@@ -42,8 +42,8 @@ The other direction - a range claimed and not actually understood - is the silen
 one, because nothing fails. Only the DM-32UV audits it
 (`test/lib/radios/dm32uv/write-audit.spec.ts`). A new radio should.
 
-**A write is never one click from idle.** Backup, then diff, then a typed
-confirmation. `writeImage` throws `BackupRequiredError` when there is no backup or
+**A write is never one click from idle.** Backup, then diff, then a slide to
+confirm. `writeImage` throws `BackupRequiredError` when there is no backup or
 it belongs to another radio. Where a driver can fingerprint the physical unit it
 must — the DM-32UV compares the calibration block, because `identHash` covers only
 model, firmware and build date and two identical radios are indistinguishable by it.
@@ -266,11 +266,15 @@ level decides icon, color, button weight and what the confirmation costs:
 | Level | Means | Confirmation |
 |---|---|---|
 | safe | Changes nothing on the radio | none, one click |
-| caution | Changes the radio, recoverably | diff, then a typed token |
-| destructive | Discards something with no way back | names what is lost, then a typed token |
+| caution | Changes the radio, recoverably | diff, then a slide across the whole track |
+| destructive | Discards something with no way back | names what is lost, then a slide across the whole track |
 
-`RiskAction` holds it so it cannot drift per screen. Color is never the only
-carrier — the icon and the verb change too.
+`RiskAction` holds it so it cannot drift per screen, and `ConfirmSlide` is the
+one confirmation control: the hand travels the whole track and stays down, a
+tap or a flick does nothing, and a keyboard reaches it through End. It replaced
+a typed word on 2026-09-08 because one gate that behaves the same on every
+screen is easier to trust than two. Color is never the only carrier — the icon
+and the verb change too.
 
 Icons are `<UIcon name="i-lucide-…" />` and every name must be in `SCHEMA_ICONS` in
 `nuxt.config.ts`. `fallbackToApi` is `false`, so an undeclared icon renders as

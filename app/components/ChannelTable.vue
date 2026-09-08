@@ -1711,8 +1711,8 @@ const printedFacts = computed(() => {
     <!--
       Names what is lost before it is lost, which is the whole job here.
 
-      No typed word: this is an edit to the document, not a write, and undo
-      takes it back in full. The typed word is reserved for the two things that
+      No slide to confirm: this is an edit to the document, not a write, and undo
+      takes it back in full. The slide is reserved for the two things that
       cannot be undone from inside the app - writing to a radio and restoring
       over one - and spending it on something reversible is how it stops
       meaning anything on the two that need it.

@@ -36,7 +36,7 @@ const running = useBuildInfo()
  */
 const dismissed = ref(false)
 
-/** The typed confirmation is opened deliberately, not shown by default. */
+/** The confirmation is opened deliberately, not shown by default. */
 const confirming = ref(false)
 
 const waitingLabel = computed(() => {
@@ -75,7 +75,7 @@ watch([blocked, costly], () => (confirming.value = false))
 
       <!--
         The live region is the sentence, not the bar. On the bar it would be
-        re-announced every time the typed confirmation opens or a button
+        re-announced every time the confirmation opens or a button
         changes, which is how a screen reader user learns to tune it out.
       -->
       <div class="flex items-baseline flex-wrap gap-x-2 gap-y-0.5">
@@ -133,7 +133,7 @@ watch([blocked, costly], () => (confirming.value = false))
       </div>
 
       <!--
-        The destructive tier in full: what is lost, named, then a word typed.
+        The destructive tier in full: what is lost, named, then a slide.
         On its own row so the diff-sized explanation is not squeezed into a bar,
         and only once the person has asked for it.
       -->
@@ -142,18 +142,18 @@ watch([blocked, costly], () => (confirming.value = false))
           Updating reloads the page and discards your unwritten edits to the {{ radioName }} codeplug. To keep
           them, write them to the radio or save a copy first.
         </p>
-        <ConfirmTyped
-          token="update"
-          label="Discard edits and update"
+        <ConfirmSlide
+          label="Slide to discard edits and update"
           risk="destructive"
           icon="i-lucide-refresh-cw"
+          busy-label="Updating"
           :loading="state.applying"
           @confirm="apply()"
         >
           <template #secondary>
             <RiskAction risk="neutral" ghost label="Keep editing" size="md" @click="confirming = false" />
           </template>
-        </ConfirmTyped>
+        </ConfirmSlide>
       </div>
     </div>
   </div>

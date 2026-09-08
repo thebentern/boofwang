@@ -1,14 +1,13 @@
 <script setup lang="ts">
 /**
- * A confirmation you have to drag, for the screens with no keyboard.
+ * A confirmation you have to drag.
  *
- * `ConfirmTyped` is the desktop form and stays there. Typing a word is the best
- * friction there is - the hand stops, the eye reads what it is agreeing to -
- * but on a phone it summons a keyboard over the diff that justifies the
- * action, which is the one thing that should stay on screen. The design asked
- * for the typed step to come off the mobile write screen entirely; this is what
- * went in instead, and the reason is that the friction is the point rather than
- * the typing.
+ * This is the one confirmation control, on every screen and at every width.
+ * It began as the phone form only: typing a word was kept on the desktop as the
+ * better friction, and the drag went in where a keyboard would cover the diff
+ * that justifies the action. The typed form was then retired everywhere, on the
+ * grounds that the friction is the point rather than the typing, and one gate
+ * that behaves the same on every screen is easier to trust than two.
  *
  * What it keeps, and why each part matters:
  *
@@ -32,8 +31,10 @@ const props = withDefaults(
     disabled?: boolean
     loading?: boolean
     icon?: string
+    /** What the track says while `loading`. "Sending" fits a write; an update is not sent. */
+    busyLabel?: string
   }>(),
-  { risk: 'caution', icon: 'i-lucide-upload' },
+  { risk: 'caution', icon: 'i-lucide-upload', busyLabel: 'Sending' },
 )
 
 const emit = defineEmits<{ confirm: [] }>()
@@ -121,7 +122,13 @@ defineExpose({ reset: () => ((progress.value = 0), (sent.value = false), (draggi
 </script>
 
 <template>
-  <div>
+  <!--
+    Capped in width. On a phone the card is narrower than this and the track
+    fills it; on a desktop a track the width of the page would be a very long
+    drag for the same decision, and the cap keeps the handle's travel within
+    one comfortable sweep of a mouse.
+  -->
+  <div style="max-width: 480px">
     <div
       ref="track"
       role="slider"
@@ -154,7 +161,7 @@ defineExpose({ reset: () => ((progress.value = 0), (sent.value = false), (draggi
         class="absolute inset-0 flex items-center justify-center pointer-events-none text-center px-12"
         style="font-size: 15px; font-weight: 500"
         :style="{ color: live ? `var(--${tone})` : 'var(--fn)', opacity: 1 - progress * 0.85 }"
-      >{{ loading ? 'Sending' : label }}</span>
+      >{{ loading ? busyLabel : label }}</span>
 
       <div
         class="absolute top-1/2 flex items-center justify-center"
@@ -183,7 +190,12 @@ defineExpose({ reset: () => ((progress.value = 0), (sent.value = false), (draggi
     </div>
 
     <p class="mt-2 text-[12px]" style="color: var(--fn)">
-      <slot name="hint">Drag the handle all the way across. Let go early and nothing is sent.</slot>
+      <slot name="hint">Drag the handle all the way across. Let go early and nothing happens.</slot>
     </p>
+
+    <!-- The way out, below the track so it can never be mistaken for the way in. -->
+    <div v-if="$slots.secondary" class="flex items-center gap-2 flex-wrap mt-3">
+      <slot name="secondary" />
+    </div>
   </div>
 </template>

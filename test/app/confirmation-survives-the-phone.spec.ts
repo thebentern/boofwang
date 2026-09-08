@@ -4,13 +4,15 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
- * That a write still costs something on a phone.
+ * That a write still costs something, on every screen.
  *
  * The design asked for the typed confirmation to come off the mobile write
  * screen and be replaced by one full-width button. The risk register says a
  * write is never one click from idle, and the rule wins - so what went in is a
  * drag: the hand still has to travel the width of the control and stay down
- * for the whole trip, and letting go early sends nothing.
+ * for the whole trip, and letting go early sends nothing. It then replaced the
+ * typed word everywhere, so there is one gate and it behaves the same on a
+ * phone and at a desk.
  *
  * These assertions exist because that is a substitution somebody could later
  * "simplify" into a button without noticing what it cost. What they hold is
@@ -21,7 +23,9 @@ const read = (p: string) => readFileSync(fileURLToPath(new URL(p, import.meta.ur
 const SLIDE = read('../../app/components/ConfirmSlide.vue')
 const WRITE = read('../../app/pages/write.vue')
 const RESTORE = read('../../app/pages/restore.vue')
-const TYPED = read('../../app/components/ConfirmTyped.vue')
+const FLEET = read('../../app/pages/fleet.vue')
+const BOOT = read('../../app/pages/startup-image.vue')
+const UPDATE = read('../../app/components/AppUpdateNotice.vue')
 
 describe('the slide confirmation', () => {
   it('will not commit on a tap, only on travel', () => {
@@ -64,29 +68,35 @@ describe('the slide confirmation', () => {
 })
 
 describe('which confirmation each screen asks for', () => {
-  it('offers the drag only where a keyboard would cover the diff', () => {
-    /*
-     * Keyed on viewport width, not on host: an Android tablet in landscape has
-     * room for the typed field and a desktop window dragged narrow does not.
-     */
-    expect(WRITE).toMatch(/ConfirmSlide/)
-    // The size rule moved into useFormFactor, which keys on the shorter edge in
-    // a shell so a phone in landscape is still a phone. See
-    // test/app/three-forms-one-breakpoint.spec.ts.
-    expect(WRITE).toMatch(/useFormFactor\(\)/)
-    expect(WRITE).toMatch(/v-if="narrow"/)
+  it('is the slide, on every screen that changes or discards something', () => {
+    for (const [name, src] of [
+      ['write', WRITE],
+      ['restore', RESTORE],
+      ['fleet', FLEET],
+      ['startup picture', BOOT],
+      ['update notice', UPDATE],
+    ] as const) {
+      expect(src, `${name} does not use the slide`).toMatch(/<ConfirmSlide/)
+      expect(src, `${name} still has a typed form`).not.toMatch(/ConfirmTyped/)
+    }
   })
 
-  it('keeps the typed word on the write screen at desktop width', () => {
-    expect(WRITE).toMatch(/<ConfirmTyped[\s\S]*?token="WRITE"/)
-    expect(WRITE).toMatch(/v-else/)
+  it('offers it at every width, not only where a keyboard would cover the diff', () => {
+    // The slide used to sit behind `v-if="narrow"` with the typed word as the
+    // desktop branch. The phone strip still keys on width; the gate does not.
+    const gate = WRITE.slice(WRITE.indexOf('<ConfirmSlide'), WRITE.indexOf('</ConfirmSlide>'))
+    expect(gate).not.toMatch(/v-if="narrow"/)
+    expect(WRITE).not.toMatch(/token=/)
   })
 
-  it('keeps the typed word on restore at every width', () => {
-    // A restore has no diff to keep on screen, so a keyboard covers nothing
-    // worth reading, and it is the more destructive of the two actions.
-    expect(RESTORE).toMatch(/token="RESTORE"/)
-    expect(RESTORE).not.toMatch(/ConfirmSlide/)
+  it('names the verb in every label, so what is agreed to is under the thumb', () => {
+    for (const src of [WRITE, RESTORE, FLEET, BOOT, UPDATE]) {
+      const labels = [...src.matchAll(/<ConfirmSlide[\s\S]*?:?label="([^"]+)"/g)].map((m) => m[1] ?? "")
+      expect(labels.length).toBeGreaterThan(0)
+      // The write page binds a computed, whose every branch starts the same way.
+      for (const l of labels) expect(l === 'slideLabel' || /Slide to /.test(l), l).toBe(true)
+    }
+    expect(WRITE).toMatch(/'Slide to send the changes'/)
   })
 
   it('never reduces either action to a bare RiskAction that sends', () => {
@@ -97,10 +107,6 @@ describe('which confirmation each screen asks for', () => {
      */
     expect(WRITE).not.toMatch(/<RiskAction[^>]*@click="send"/)
     expect(RESTORE).not.toMatch(/<RiskAction[^>]*@click="confirmRestore/)
-  })
-
-  it('leaves ConfirmTyped intact for the screens that use it', () => {
-    expect(TYPED).toMatch(/matches\.value && !props\.disabled/)
   })
 })
 

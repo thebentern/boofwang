@@ -265,7 +265,7 @@ async function askPersist() {
     </div>
 
     <p v-if="backups.length" style="margin-top: 11px; font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 78ch">
-      Restore replaces everything on the radio with the backup, and asks for a typed confirmation like a write does.
+      Restore replaces everything on the radio with the backup, and asks you to slide to confirm, like a write does.
     </p>
   </div>
 </template>

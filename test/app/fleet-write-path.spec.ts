@@ -53,16 +53,16 @@ describe('the fleet run sends nothing of its own', () => {
 
   it('hands the plan over as an unsaved edit, as a one-radio clone does', () => {
     // `replaceDocument` marks the document dirty and leaves the diff, the gate
-    // and the typed word to happen afterwards, against the image just read off
-    // this handset.
+    // and the slide to happen afterwards, against the image just read off this
+    // radio.
     expect(SESSION).toMatch(/codeplug\.replaceDocument\(/)
   })
 })
 
 describe('every radio in the run is confirmed on its own diff', () => {
-  it('asks for the typed word before each write', () => {
-    const confirm = PAGE.slice(PAGE.indexOf('<ConfirmTyped'))
-    expect(confirm).toMatch(/token="WRITE"/)
+  it('asks for the slide before each write', () => {
+    const confirm = PAGE.slice(PAGE.indexOf('<ConfirmSlide'))
+    expect(confirm).toMatch(/:label="`Slide to send \$\{blocks\}/)
     // The send handler is reachable only from that confirmation.
     expect(PAGE).toMatch(/@confirm="send"/)
     expect(PAGE).not.toMatch(/@click="send"/)

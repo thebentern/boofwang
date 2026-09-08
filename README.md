@@ -29,7 +29,7 @@ When a newer build arrives it is stated, never applied. Applying it means
 reloading, and a reload discards a codeplug that has been read and edited but
 not yet written, so the offer follows the risk register: one click when nothing
 is open, nothing at all while a transfer is running, and the destructive tier -
-what is lost, named, then a typed word - when there are unwritten edits.
+what is lost, named, then a slide across the whole track - when there are unwritten edits.
 
 The cache is narrow on purpose. It holds exactly what the build emitted, adds
 nothing opportunistically, and never touches a cross-origin request: the
@@ -206,13 +206,13 @@ DMR ID are one identity on every repeater they use.
 So `/fleet` takes a roster - a row per radio, carrying the two things that are
 its own, a DMR ID and the callsign filed with it - and runs the ordinary write
 flow once per radio. Connect, read (which is what stores that radio's backup),
-apply the roster row to the master, show the diff, type the word. Each radio's
+apply the roster row to the master, show the diff, slide to confirm. Each radio's
 document is rendered onto **its own** image, so calibration and every undecoded
 byte stay with the radio they came from, exactly as in a one-radio clone.
 
-There is deliberately no bulk send and no fleet exception to the typed
-confirmation. Typing `WRITE` is about five seconds against the two or three
-minutes a DM-32UV takes to read and write.
+There is deliberately no bulk send and no fleet exception to the slide
+confirmation. The slide is about two seconds against the two or three minutes
+a DM-32UV takes to read and write.
 
 The roster is pasted as CSV - any column order, with a header row naming the
 columns, or `label,dmrId,callsign` without one - and exports back out, along
@@ -367,7 +367,7 @@ for every fixture.
   compare against.
 - A fleet run is N ordinary writes rather than a new kind of write. It calls the
   same read and write functions every other screen calls, takes a fresh backup
-  per radio, and asks for the typed confirmation on each radio's own diff.
+  per radio, and asks for the slide on each radio's own diff.
 - Read-only regions are marked in the image and never transmitted. The UV-K5's
   calibration block is one.
 - Receive-only channels are decoded as such and preserved. The UV-K5 has no
