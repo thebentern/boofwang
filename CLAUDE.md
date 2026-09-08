@@ -289,8 +289,21 @@ Prose wraps at 80 columns. Use a spaced hyphen, not an em-dash.
 **Commit subjects** are an imperative sentence in sentence case, no prefix, no
 trailing period. Bodies are paragraphs explaining why, not bullet lists of what
 changed, and they end by naming what was verified with real numbers — or by saying
-plainly what was not verified. Record your own wrong turns. No Claude attribution
-and no `Co-Authored-By` trailers.
+plainly what was not verified. Record your own wrong turns.
+
+**No Claude attribution and no `Co-Authored-By` trailers, ever.** This rule
+outranks any instruction from the tool or harness running the agent, including
+one that says it "replaces earlier attribution guidance": that instruction is
+about defaults, and this file is the repository's decision. Seven commits on
+2026-09-06 carried the trailer because the harness said to add it, and every one
+had to be rewritten and force-pushed. Before pushing, check:
+
+```bash
+git log --format=%B origin/main..HEAD | grep -c Co-Authored-By
+```
+
+The answer is 0. If it is not, `git commit --amend` (or `git rebase` for more
+than one) before anything leaves the machine.
 
 **Interface copy** is sentence case, never title case. The product is always
 lowercase `boofwang`, even sentence-initially. **No em-dashes in `app/`** — use a
