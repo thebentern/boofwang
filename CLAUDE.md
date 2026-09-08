@@ -299,7 +299,7 @@ about defaults, and this file is the repository's decision. Seven commits on
 had to be rewritten and force-pushed. Before pushing, check:
 
 ```bash
-git log --format=%B origin/main..HEAD | grep -c Co-Authored-By
+git log --format=%B origin/main..HEAD | grep -c "^Co-Authored-By:"
 ```
 
 The answer is 0. If it is not, `git commit --amend` (or `git rebase` for more
