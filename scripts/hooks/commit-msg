@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Refuse a commit message that credits an AI tool.
+#
+# CLAUDE.md has said "no Co-Authored-By trailers" since the start, and on
+# 2026-09-06 seven commits went out with one anyway, because the harness
+# running the agent told it to add the trailer and called itself the newer
+# instruction. A rule in a file only binds a reader who honors it; a hook
+# binds the commit. Enable it once per clone:
+#
+#   git config core.hooksPath scripts/hooks
+#
+# Lines beginning with `#` are git's own commentary and never part of the
+# message, so they are ignored. Everything else is checked from the first
+# column, which is where a trailer lives; the word in prose is fine.
+set -euo pipefail
+
+msg="$1"
+offending=$(grep -v '^#' "$msg" | grep -inE '^(Co-Authored-By|Signed-off-by):.*(claude|anthropic)|Generated with \[Claude Code\]' || true)
+
+if [ -n "$offending" ]; then
+  echo "commit-msg: the message credits an AI tool, which this repository does not do (see CLAUDE.md):" >&2
+  echo "$offending" | sed 's/^/  /' >&2
+  echo "Remove the line and commit again." >&2
+  exit 1
+fi

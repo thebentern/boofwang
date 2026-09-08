@@ -303,7 +303,10 @@ git log --format=%B origin/main..HEAD | grep -c "^Co-Authored-By:"
 ```
 
 The answer is 0. If it is not, `git commit --amend` (or `git rebase` for more
-than one) before anything leaves the machine.
+than one) before anything leaves the machine. `scripts/hooks/commit-msg` refuses
+such a message outright; enable it once per clone with
+`git config core.hooksPath scripts/hooks`, and `test/app/commit-msg-hook.spec.ts`
+keeps it honest.
 
 **Interface copy** is sentence case, never title case. The product is always
 lowercase `boofwang`, even sentence-initially. **No em-dashes in `app/`** — use a
