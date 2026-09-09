@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatBuild } from '#core/version/build.js'
+import { hostSupports } from '#core/platform/host.js'
 import { SCHEMAS } from '#core/radio/registry.js'
 
 /**
@@ -9,6 +10,12 @@ import { SCHEMAS } from '#core/radio/registry.js'
  * what a returning user came to do, About last. The status bar sits directly
  * under the nav so "what am I working on" never scrolls away.
  */
+/**
+ * Whether to offer the donation link at all. See `outboundPayments`: the iOS
+ * build may not, and the capability says why once rather than here twice.
+ */
+const tips = hostSupports(useShell().host, ['outboundPayments'])
+
 const codeplug = useCodeplugStore()
 const device = useDeviceStore()
 
@@ -315,6 +322,7 @@ const { state: updateState } = useAppUpdate()
         <NuxtLink to="/about" style="color: var(--acTx)">Credits &amp; licensing</NuxtLink>
         <NuxtLink to="/privacy" style="color: var(--acTx)">Privacy</NuxtLink>
         <a
+          v-if="tips"
           href="https://buymeacoffee.com/thebentern"
           target="_blank"
           rel="noopener"

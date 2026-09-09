@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { commitUrl, describeAge, formatBuild } from '#core/version/build.js'
+import { hostSupports } from '#core/platform/host.js'
 
 /**
  * The page that answers "who wrote this and what does it do with my data",
@@ -12,6 +13,12 @@ import { commitUrl, describeAge, formatBuild } from '#core/version/build.js'
  * is the long form of this section.
  */
 useSeoMeta({ title: 'About' })
+
+/**
+ * Whether to offer the donation link at all. See `outboundPayments`: the iOS
+ * build may not, and the capability says why once rather than here twice.
+ */
+const tips = hostSupports(useShell().host, ['outboundPayments'])
 
 /**
  * The section heading and body styles are named once because five headings that
@@ -302,6 +309,7 @@ const credits = [
         </a>
 
         <a
+          v-if="tips"
           href="https://buymeacoffee.com/thebentern"
           target="_blank"
           rel="noopener"

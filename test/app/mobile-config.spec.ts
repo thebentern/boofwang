@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { KNOWN_BRIDGE_VENDORS } from '#core/transport/usb-bridges.js'
+import { capabilitiesFor } from '#core/platform/host.js'
 
 /**
  * The mobile shell's native configuration, checked against the code it serves.
@@ -31,6 +32,8 @@ const bluetooth = read('app/mobile/bluetooth.ts')
 const pbxproj = read('mobile/ios/App/App.xcodeproj/project.pbxproj')
 const nuxtConfig = read('nuxt.config.ts')
 const openCodeplug = read('app/components/OpenCodeplugButton.vue')
+const aboutPage = read('app/pages/about.vue')
+const defaultLayout = read('app/layouts/default.vue')
 
 describe('the Android USB device filter', () => {
   it('lists exactly the vendors the drivers recognize', () => {
@@ -233,6 +236,35 @@ describe('the shell code in app/', () => {
     // gated by the bridge; a second copy would not be.
     const anchors = appFiles('app/').filter((f) => /a\.download\s*=/.test(read(f)))
     expect(anchors).toEqual(['app/composables/useFileSave.ts'])
+  })
+})
+
+/**
+ * The donation link, which iOS will not have.
+ *
+ * App Review reads it as a tip for digital content under 3.1.1 and requires
+ * In-App Purchase everywhere except the United States storefront. 0.1.5 was
+ * rejected for it. Both places that render the link ask the capability first,
+ * so a third one added later without asking is what this catches.
+ */
+describe('the donation link', () => {
+  it('is offered by every host except iOS', () => {
+    expect(capabilitiesFor('browser').outboundPayments).toBe(true)
+    expect(capabilitiesFor('desktop').outboundPayments).toBe(true)
+    expect(capabilitiesFor('android').outboundPayments).toBe(true)
+    expect(capabilitiesFor('ios').outboundPayments).toBe(false)
+  })
+
+  it('is never rendered without asking the host first', () => {
+    for (const [name, source] of [
+      ['app/pages/about.vue', aboutPage],
+      ['app/layouts/default.vue', defaultLayout],
+    ] as const) {
+      expect(source, name).toContain("hostSupports(useShell().host, ['outboundPayments'])")
+      for (const [before] of source.matchAll(/<a[^>]*buymeacoffee/gs)) {
+        expect(before, name).toMatch(/v-if="tips"/)
+      }
+    }
   })
 })
 

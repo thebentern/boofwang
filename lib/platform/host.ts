@@ -106,6 +106,21 @@ export interface HostCapabilities {
    * only decides whether a button appears.
    */
   readonly geolocation: boolean
+  /**
+   * Whether the host may send somebody to a payment page it does not control.
+   *
+   * False on iOS, and only there. App Review reads the donation link as a tip
+   * for digital content under guideline 3.1.1, which has to go through In-App
+   * Purchase. The United States storefront may link out to a browser; the
+   * other 174 boofwang is available in may not. Taking Apple's cut of a
+   * donation to a GPL project is the wrong trade, and a link that works in one
+   * country is worse than none, so the iOS build offers no link at all.
+   *
+   * Android is unaffected: Play does not treat a donation to a free app this
+   * way. Recorded here rather than in a component because it is a fact about
+   * the host, and because 0.1.5 was rejected for it on 8 September 2026.
+   */
+  readonly outboundPayments: boolean
 }
 
 export type HostCapability = keyof HostCapabilities
@@ -120,6 +135,7 @@ const BROWSER: HostCapabilities = {
   print: true,
   shareSheet: false,
   geolocation: true,
+  outboundPayments: true,
 }
 
 const DESKTOP: HostCapabilities = {
@@ -132,6 +148,7 @@ const DESKTOP: HostCapabilities = {
   print: true,
   shareSheet: false,
   geolocation: true,
+  outboundPayments: true,
 }
 
 const ANDROID: HostCapabilities = {
@@ -144,6 +161,7 @@ const ANDROID: HostCapabilities = {
   print: false,
   shareSheet: true,
   geolocation: false,
+  outboundPayments: true,
 }
 
 const IOS: HostCapabilities = {
@@ -156,6 +174,7 @@ const IOS: HostCapabilities = {
   print: false,
   shareSheet: true,
   geolocation: false,
+  outboundPayments: false,
 }
 
 export function capabilitiesFor(host: HostKind): HostCapabilities {
