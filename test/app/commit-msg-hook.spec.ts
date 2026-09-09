@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -30,7 +30,18 @@ function run(message: string): { status: number | null, stderr: string } {
 
 describe('scripts/hooks/commit-msg', () => {
   it('is executable, or git would skip it without a word', () => {
-    expect(statSync(hook).mode & 0o111).not.toBe(0)
+    /*
+     * The index mode, not the filesystem's. Windows has no executable bit for
+     * node to read - `statSync().mode & 0o111` is 0 there for every file in
+     * the tree - so asking the filesystem failed the Windows desktop build on
+     * v0.1.6 while saying nothing about the hook. The bit that actually
+     * decides whether git runs it is the one recorded in the index, which is
+     * what a POSIX checkout restores, and git reports that identically
+     * everywhere.
+     */
+    const root = fileURLToPath(new URL('../../', import.meta.url))
+    const r = spawnSync('git', ['ls-files', '-s', '--', 'scripts/hooks/commit-msg'], { cwd: root, encoding: 'utf8' })
+    expect(r.stdout).toMatch(/^100755 /)
   })
 
   it('lets an ordinary message through', () => {
