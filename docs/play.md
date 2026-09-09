@@ -22,10 +22,10 @@ only covers the store.
 | Content rating | Submitted. Lowest rating in every region: ESRB Everyone, PEGI 3, USK 0, ClassInd L. |
 | Upload key | Generated 2026-09-04, RSA 4096, valid to 2054. SHA-256 `04:92:1F:AC:...:D9:B1`. Kept at `~/boofwang-release.keystore` with its password in `~/.boofwang-upload-key.pw`, both 0600. |
 | CI secrets | All four `ANDROID_*` secrets set, so a tag now signs. |
-| Internal testing release | `1002 (0.1.2)` **live** on the internal track since 2026-09-04 07:36. Track active, 4.17 MB install, 19,276 supported devices. Not yet reviewed, so testers see the temporary name `ng.boofwa.app (unreviewed)`. |
+| Internal testing release | `1010 (0.1.10)`, uploaded 2026-09-09 11:40 UTC by the Mobile job in that release's run and set to completed. Every build from `1006 (0.1.6)` has arrived that way. `1002 (0.1.2)` was the one manual upload, on 2026-09-04 07:36; 1003 to 1005 were built before `PLAY_SERVICE_ACCOUNT_JSON` was set and never left their runs. Read off the console at 1002 and not rechecked since: track active, 4.17 MB install, 19,276 supported devices, and testers seeing the temporary name `ng.boofwa.app (unreviewed)` until the listing is reviewed. |
 | Internal testers | One list, `boofwang internal`, fourteen addresses as of 2026-09-05. Opt-in at <https://play.google.com/apps/internaltest/4700406117493732747>, then the Play listing appears for that account. Play stores a Gmail address without its dots, so adding the dotted form of an address already on the list folded into it and the count did not move. |
 | `targetSdk` | 36. Play's floor for new submissions is 35, so this is current. |
-| `versionCode` | Derived from the version: 0.1.2 is 1002. Play accepted it. |
+| `versionCode` | Derived from the version, three digits each for minor and patch: 0.1.10 is 1010. Play has accepted every code sent to it. |
 | `applicationId` | `ng.boofwa.app`, matching the iOS bundle id and the App ID already registered. |
 | Permissions | Four, and none of them location. The Bluetooth plugin's uncapped coarse-location grant is capped in the app manifest; see below. |
 | Icon, feature graphic | `node scripts/make-store-art.mjs` writes both to `build/play/`. |

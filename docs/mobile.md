@@ -197,9 +197,13 @@ signed `.apk` attached to the release and an `.aab` on the run for Play;
 without them the run says so and produces a debug APK only.
 
 The version comes from the build, never from a literal in Gradle:
-`versionName` is `package.json`'s version and `versionCode` is the run
-number, both passed in by the workflow. That is the same rule `release.yml`
-applies to artifact names.
+`versionName` is `package.json`'s version and `versionCode` is derived from
+it, three digits each for minor and patch, so 0.1.10 is 1010. Not the run
+number: a run reached through `workflow_call` reports the CALLER's number, so
+a tag that starts Mobile directly and a tag that reaches it through Release
+count on two separate meters, and Play accepts a versionCode exactly once and
+never forgets it. Artifact names come from the same version, which is the
+rule `release.yml` applies.
 
 ### iOS
 
