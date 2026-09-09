@@ -42,6 +42,30 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<!--
+		Not because boofwang wants a camera or a photo library. Opening a
+		codeplug uses a plain file input, and app/components/OpenCodeplugButton
+		drops its `accept` list inside a phone shell - iOS maps the list to
+		document types and greys out every .bwp, which is the file this app
+		exists to open. With no list, iOS offers Photo Library and Take Photo
+		or Video alongside Choose File, and touching either without a usage
+		string is not an error the app can catch: TCC terminates the process.
+
+		That is what App Review hit on an iPad Air on 8 September 2026 -
+		"the app crashed when we attempted to take a photo" - and it is the
+		crash the automated pass had reported four days earlier without
+		saying how.
+
+		A photo is not a codeplug and boofwang will say so. The better fix is
+		to declare .bwp as an exported UTI so the `accept` list can come back
+		and the media sources never appear; that is a change to the one path
+		that opens files, and it wants its own testing rather than being
+		bundled into a rejection fix.
+	-->
+	<key>NSCameraUsageDescription</key>
+	<string>iOS offers the camera when you open a codeplug file. boofwang cannot read a photograph, and does not use the camera for anything else.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>iOS offers your photo library when you open a codeplug file. boofwang cannot read a photograph, and does not read your library for anything else.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>boofwang reads and programs radios over Bluetooth.</string>
 	<key>UIFileSharingEnabled</key>

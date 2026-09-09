@@ -30,6 +30,7 @@ const pkg = JSON.parse(read('package.json'))
 const bluetooth = read('app/mobile/bluetooth.ts')
 const pbxproj = read('mobile/ios/App/App.xcodeproj/project.pbxproj')
 const nuxtConfig = read('nuxt.config.ts')
+const openCodeplug = read('app/components/OpenCodeplugButton.vue')
 
 describe('the Android USB device filter', () => {
   it('lists exactly the vendors the drivers recognize', () => {
@@ -232,6 +233,24 @@ describe('the shell code in app/', () => {
     // gated by the bridge; a second copy would not be.
     const anchors = appFiles('app/').filter((f) => /a\.download\s*=/.test(read(f)))
     expect(anchors).toEqual(['app/composables/useFileSave.ts'])
+  })
+})
+
+/**
+ * The picker offers a camera, so the bundle has to admit it.
+ *
+ * OpenCodeplugButton drops its `accept` list inside a phone shell, because
+ * iOS maps the list to document types and greys out every .bwp. The cost is
+ * that iOS then offers Photo Library and Take Photo or Video beside Choose
+ * File, and reaching either without a usage string is not catchable: TCC
+ * terminates the process. App Review found that on an iPad before anyone
+ * here did. So while the list is dropped, the two strings are mandatory.
+ */
+describe('the iOS media usage strings', () => {
+  it('are present for as long as the file input drops its accept list', () => {
+    expect(openCodeplug).toMatch(/looseAccept \? undefined :/)
+    expect(plist).toContain('NSCameraUsageDescription')
+    expect(plist).toContain('NSPhotoLibraryUsageDescription')
   })
 })
 
