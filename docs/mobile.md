@@ -194,7 +194,10 @@ base64 -i boofwang-release.keystore | pbcopy
 Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
 `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. With them a tag produces a
 signed `.apk` attached to the release and an `.aab` on the run for Play;
-without them the run says so and produces a debug APK only.
+without them the run says so and produces a debug APK only. Which track the
+`.aab` lands on is a choice on the Release dispatch, `internal` or `alpha`,
+defaulting to `internal`; `docs/play.md` says why it is a choice and not a
+constant.
 
 The version comes from the build, never from a literal in Gradle:
 `versionName` is `package.json`'s version and `versionCode` is derived from

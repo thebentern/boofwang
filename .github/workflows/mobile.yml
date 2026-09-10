@@ -22,6 +22,11 @@ on:
         description: Tag to build from and attach the APK to
         type: string
         required: true
+      track:
+        description: Play track for the .aab. internal or alpha; anything else is refused.
+        type: string
+        required: false
+        default: internal
 
 permissions:
   contents: write
@@ -152,8 +157,21 @@ jobs:
         id: play
         env:
           SERVICE_ACCOUNT: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          TRACK: ${{ inputs.track || 'internal' }}
         run: |
           set -euo pipefail
+
+          # An unrecognized track is refused rather than handed on. Play would
+          # take `beta` or `production` from a typo as readily as from a
+          # decision, and a build cannot be taken back off a track once
+          # testers have it. A tag pushed on its own carries no input at all,
+          # which is why this defaults rather than requiring.
+          case "$TRACK" in
+            internal|alpha) ;;
+            *) echo "::error::not a track this workflow publishes to: $TRACK"; exit 1 ;;
+          esac
+          echo "track=$TRACK" >> "$GITHUB_OUTPUT"
+
           bundle=$(find dist-mobile -name '*-android.aab' | head -1)
           if [ -z "$bundle" ]; then
             echo "no signed bundle: nothing to upload"
@@ -165,15 +183,18 @@ jobs:
             echo "go=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "uploading $bundle"
+          echo "uploading $bundle to the $TRACK track"
           echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
           echo "go=1" >> "$GITHUB_OUTPUT"
 
-      # Internal track, never further. Promoting a build to open testing or to
-      # production is a decision about who is now trusting it with a radio,
-      # and a decision belongs to a person rather than to a tag. Play also
-      # refuses the API entirely until one build for this package has been
-      # through the Console by hand, which is why docs/play.md puts that first.
+      # The track is picked per run and defaults to internal, so a tag pushed
+      # on its own still goes no further than internal. Reaching closed
+      # testing takes a person dispatching Release and choosing `alpha`; open
+      # testing and production are not on offer here at all. Who is now
+      # trusting a build with a radio is a decision, and a decision belongs to
+      # a person rather than to a tag. Play also refuses the API entirely
+      # until one build for this package has been through the Console by hand,
+      # which is why docs/play.md puts that first.
       # Before the Play upload, not after. This is the only copy of a signed
       # bundle that took the whole gate to produce, and a step that fails
       # ends the job - so uploading to Play first meant a rejected bundle
@@ -185,14 +206,14 @@ jobs:
           path: dist-mobile/*
           if-no-files-found: error
 
-      - name: Send it to the internal track
+      - name: Send it to the track this run chose
         if: steps.play.outputs.go == '1'
         uses: r0adkll/upload-google-play@v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: ng.boofwa.app
           releaseFiles: ${{ steps.play.outputs.bundle }}
-          track: internal
+          track: ${{ steps.play.outputs.track }}
           status: completed
 
   ios:

@@ -337,12 +337,20 @@ rule itself is not this file's to rewrite.
 
 ## Automated upload
 
-`mobile.yml` has a step that uploads the `.aab` to Play's **internal** track
-when `PLAY_SERVICE_ACCOUNT_JSON` is set, and says so and does nothing when it
-is not, which is the same shape as every other signing step in this
-repository. It never promotes to production: moving a build from internal to
-open or production is a decision, and a decision belongs to a person and not
-to a tag.
+`mobile.yml` has a step that uploads the `.aab` to Play when
+`PLAY_SERVICE_ACCOUNT_JSON` is set, and says so and does nothing when it is
+not, which is the same shape as every other signing step in this repository.
+
+The track is chosen on the run rather than written into the workflow. The
+Release dispatch offers `internal` and `alpha`, defaults to `internal`, and
+hands the choice to `mobile.yml`, which refuses anything else - including a
+`beta` or `production` arriving from a typo, which cannot be taken back once
+testers have the build. A tag that reaches Mobile without going through
+Release carries no choice at all and goes to `internal`. Open testing and
+production are not reachable from here by any input. That is the same rule as
+before, moved one level up rather than dropped: who is now trusting a build
+with a radio is a decision, and a decision belongs to a person and not to a
+tag.
 
 To set it up, after the first manual upload:
 

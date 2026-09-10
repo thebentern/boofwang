@@ -25,6 +25,11 @@ on:
         description: An exact version instead, without the v. Overrides the choice above.
         type: string
         required: false
+      track:
+        description: Play track for the Android build. alpha is closed testing.
+        type: choice
+        options: [internal, alpha]
+        default: internal
 
 permissions:
   contents: write
@@ -167,6 +172,10 @@ jobs:
     uses: ./.github/workflows/mobile.yml
     with:
       tag: ${{ needs.prepare.outputs.tag }}
+      # The one place the track is decided. mobile.yml defaults to internal
+      # and refuses anything but internal or alpha, so a tag that never came
+      # through here cannot reach testers by itself.
+      track: ${{ inputs.track }}
     # Not inherited by default either. The note on `build` above says what
     # that cost v0.1.2 and v0.1.3.
     secrets: inherit
@@ -183,6 +192,7 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
           RESULT: ${{ needs.build.result }}
           MOBILE: ${{ needs.mobile.result }}
+          TRACK: ${{ inputs.track }}
         run: |
           {
             echo "## $TAG"
@@ -193,7 +203,7 @@ jobs:
               echo "The desktop build finished as \`$RESULT\`. Re-run the Desktop workflow against \`$TAG\`."
             fi
             if [ "$MOBILE" = "success" ]; then
-              echo "Mobile built. The APK is attached when a keystore was configured; the .aab and .ipa stay on the Mobile run."
+              echo "Mobile built, and the .aab went to the \`$TRACK\` track when a Play key was configured. The APK is attached when a keystore was configured; the .aab and .ipa stay on the Mobile run."
             else
               echo "The mobile build finished as \`$MOBILE\`. Re-run the Mobile workflow against \`$TAG\`."
             fi
