@@ -49,7 +49,15 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      # platform-tools alone. v3's default list also names the legacy `tools`
+      # package, which the SDK repository no longer has: sdkmanager answers
+      # "Failed to find package 'tools'" and exits 1, and on 2026-11-08 that
+      # failed this job before anything was built. v4.0.2 made the same change
+      # to its own default, but v4 also moves cmdline-tools off the 16.0 that
+      # every passing build used, so this stays on v3 and changes one thing.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - run: pnpm install --frozen-lockfile
 
