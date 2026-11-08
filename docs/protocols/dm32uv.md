@@ -1234,6 +1234,128 @@ settled. It had - by the write recorded under "Scan list membership — settled
 list 1 at `+0x18` and read them back off the radio. The driver has written scan
 list membership since. The stale paragraph is corrected in place.
 
+## Fresh channels and the fill under them - 2026-11-08
+
+Found while building the monitor export, and not a corner: a channel boofwang
+created anywhere but the tail of the first channel block came back from its
+own bytes with encryption on.
+
+`encodeChannel` patches a record rather than writing one, so every field a
+channel did not carry fell back to the bits the slot already held. A channel
+decoded from the radio carries all of them in `extras.vendor`. One made by
+`createChannel`, staged from a preset, imported from a CSV or taken from a
+repeater directory carries none. Over a record boofwang had erased - every
+deletion writes 0xFF - the decoder then read:
+
+| Field | Read from 0xFF |
+|---|---|
+| Encryption | on, key 255 - `0x1F` bit 6 and `0x1E` since 2026-11-08; the decoder then read `0x1D` bit 7 and `0x2A`, which say the same of 0xFF |
+| Color code, time slot | 15, TS2 |
+| Lone worker, scan add, scan list | on, on, 15 |
+| Mode nibble, on an FM channel | 15, which the reference does not define |
+
+It did not take a deletion. The never-used records past the count on this
+unit come in four shapes:
+
+| Records | Slots | Hold |
+|---|---|---|
+| 27 | 46-71, 76 | the blank record below |
+| 4 | 72-75 | stale DMR channels from an older codeplug |
+| 14 | 77-84, 3995-4000 | all `0x00` |
+| 1,445 | 85-3994, in all 17 allocated blocks between `0x13` and `0x3D` | all `0xFF` |
+
+So any channel created from slot 85 up got the erased reading. The one
+creation a session had verified - channel 46, 2026-08-20 - went over the blank
+record, whose fields all read as zero, which is why nothing looked wrong.
+
+### What changed
+
+The blank record is now `BLANK_CHANNEL` in `layout.ts`, and a test pins it to
+those 27 slots of the capture rather than restating it:
+
+```
+ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff   0x00 no name
+00 00 00 40 00 00 00 40                           0x10 400.00000 MHz, both ways
+00 00 00 00 30 00 00 00 00                        0x18 squelch 3 at 0x1C
+ff ff ff ff                                       0x21 no tones
+00 00 00 00 00 00 00 00 00 00 00                  0x25
+```
+
+The reference says the virgin radio it read holds `0x00` wherever nobody has
+explained a byte, which agrees.
+
+Two rules use it:
+
+- **A modeled field the channel does not carry gets the blank record's value**,
+  not the slot's - the rule `encodeTxContacts` already applied to the talk
+  group. A decoded channel carries every one, so `encode(decode(image), image)`
+  is untouched.
+- **A slot past the count, or holding only fill, is rebuilt from the blank
+  record before the channel goes in.** "Only fill" is the reference's own
+  empty-slot rule: every byte `0x00` or `0xFF`. Over the blank record that is a
+  no-op, so creating a channel anywhere is now byte for byte the channel 46
+  case. A slot inside the count that held a real channel is not rebuilt: its
+  undecoded bytes - squelch, PTT ID, the RX group list - are that radio's and
+  are carried through, while its modeled fields follow the first rule.
+
+The first rule also closes a quieter case. A preset or CSV channel staged over
+an encrypted one used to inherit the enable bit and the key: on an amateur or
+GMRS frequency, an encrypted channel as far as its bytes go, with no
+validation rule and no diff line to say so, because the staged channel carries
+no encryption fields for either to compare.
+
+### Not verified
+
+None of this has been written to a radio. It rests on the 2026-08-20 session,
+which added channel 46 over the blank record and read it back, and on tests
+showing that a channel created over erased fill, in block `0x13`, or over the
+residue at 72 produces exactly the bytes that session sent. One write settles
+it: create a channel at slot 85 or above, write, read back in a fresh session,
+and check `0x1E` and `0x1F`.
+
+## Channel encryption bytes
+
+Corrected 2026-11-08. A digital channel's key slot is byte `0x1E` and its
+encryption-on bit is `0x1F` bit 6. The reference puts them at `0x2A` and `0x1D`
+bit 7, both marked DERIVED, and NeonPlug reads them there; so did this driver.
+
+| Byte | Now | Was |
+|---|---|---|
+| `0x1D` bit 7 | private-call acknowledge, not written | encryption on |
+| `0x1E` | key slot, 1-based, 0 for none | unknown, carried through |
+| `0x1F` bit 6 | encryption on | not modeled ("private call confirm" in the reference) |
+| `0x2A` | not modeled, carried through | key slot |
+
+The evidence:
+
+- **Two radios.** Firmware `DM32.01.01.040` and `.047`, read on 2026-11-08,
+  whose owner programmed encryption onto them in the OEM CPS. On both, TAC 1-14
+  hold 1-14 in `0x1E` and `0x40` in `0x1F`; every other channel holds `0x00` in
+  `0x1E` with `0x1F` bit 6 clear; `0x2A` is `0x00` on every channel and `0x1D`
+  bit 7 is clear on every TAC channel. All fourteen transmit to the same
+  contact, so `0x1E` is not a contact index. The committed capture, firmware
+  `.040` read on 2026-08-19, shows the same.
+- **qdmr.** Its DM-32UV codeplug (`lib/dm32uv_codeplug.hh`) defines
+  `keyIndex()` at `0x1E`, `encryptionEnable()` at `0x1F` bit 6 and
+  `privateCallACK` at `0x1D` bit 7, and names nothing at `0x2A`. The key index
+  arrived in its PR #955 (May 2026), which fixed its issue #947.
+
+What the driver does with them:
+
+- A digital channel reads and writes both. An analog channel reads as
+  unencrypted and keeps both bytes as they are, because there `0x1F` is the
+  PTT ID settings - unless its record held a digital channel, in which case it
+  takes the blank record's zeros rather than carry a key it cannot use.
+- The channel editor sets the enable bit with the key: picking a slot turns
+  encryption on and picking None turns it off, as qdmr's encoder pairs them.
+
+Not verified: no channel has been written with these bytes and then heard on
+the air. One public report - dsd-fme issue #349, firmware `DM32.NRF.01.049` -
+shows a DM-32UV AES-256 call as ALG ID `0x25` with KEY ID `01`; nobody here has
+heard one. On the two radios above the encrypted channels are all on GMRS
+frequencies, where encryption is not permitted, so they are not the place to
+try.
+
 ## Not verified
 - **The 2,048-byte write, `57 <addr:3 LE> 00 08 <2048 bytes>`.** Still `DERIVED`
   and still untried, because it turned out to be avoidable: the boot image
@@ -1271,3 +1393,6 @@ list membership since. The stale paragraph is corrected in place.
   Only AES-256 has been written to the radio itself.
 - The bandwidth polarity at `0x19` bit 7 is still `DERIVED` in the reference.
   Every channel on this radio holds `0x19 = 0x00`, so it cannot settle it.
+- **A channel created over erased fill, on the radio.** The tests show it now
+  matches channel 46 over the blank record byte for byte; no session has
+  written one. See "Fresh channels and the fill under them" above.

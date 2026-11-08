@@ -129,23 +129,100 @@ export const DM32_CHANNEL = defineStruct(CHANNEL_SIZE, {
    * Declaring the color code as three bits put the timeslot on bit 3, so
    * switching a channel to TS2 wrote `0x0a` - which the radio reads as color
    * code 10, still on TS1.
+   *
+   * Bit 7 is private-call acknowledge, not encryption. The reference marks it
+   * "Encryption enable" (DERIVED) and NeonPlug reads it that way; qdmr's
+   * DM-32UV codeplug calls it `privateCallACK`, and on both radios read on
+   * 2026-11-08 it is clear on every channel the OEM CPS encrypted - see
+   * `encryption` below. Nothing here writes it, so it keeps what the radio had.
    */
   digital: at(
     0x1d,
     chirpBits(1, [
-      ['encryptEnable', 1],
+      ['privateCallAck', 1],
       ['shortDataConfirm', 1],
       ['tdmaDirect', 1],
       ['timeSlot', 1],
       ['colorCode', 4],
     ]),
   ),
+  /**
+   * The key slot a digital channel encrypts with: 0 for none, otherwise a slot
+   * in block 0x10's table, which runs 1-22 on the radios read here. The byte is
+   * carried whole and never clamped, so 9-22 travel exactly as 1-8 do.
+   *
+   * The reference calls 0x1E unknown and puts the key at 0x2A, and NeonPlug
+   * follows it. qdmr's DM-32UV codeplug has it here - `keyIndex()`, 1-based,
+   * 0 for none - since its PR #955, and two radios agree: firmware .040 and
+   * .047, read on 2026-11-08, whose CPS-programmed TAC 1-14 hold 1-14 in this
+   * byte and 0 at 0x2A, while every other channel holds 0 in both. It is not
+   * the transmit contact: all fourteen send to the same one.
+   *
+   * What is still not established is the air - no channel has been heard
+   * encrypting with the slot this byte names. On an analog channel the byte is
+   * unexplained, and the driver neither reads nor writes it there.
+   */
+  encryptionKeyId: at(0x1e, u8),
+  /**
+   * Byte 0x1F, bit 6 on a digital channel: encryption on. A channel encrypts
+   * with this set and a key slot in `encryptionKeyId`; qdmr links a channel's
+   * key only when both are present, and sets both when it writes one.
+   *
+   * The reference calls the bit "private call confirm" (DERIVED), the role qdmr
+   * gives 0x1D bit 7. The CPS-encrypted TAC channels on both radios have it
+   * set and no other channel does. The low six bits are the RX group list and
+   * bit 7 is unexplained; neither is modeled, so both keep whatever the radio
+   * had. On an analog channel the reference makes this byte the PTT ID
+   * settings, and the driver leaves all of it alone.
+   */
+  encryption: at(0x1f, bits(1, { enable: [6, 1] })),
   rxTone: at(0x21, u16le),
   txTone: at(0x23, u16le),
-  /** 0 = no encryption, 1-8 = a key slot. Marked DERIVED in the spec. */
-  encryptionKeyId: at(0x2a, u8),
+  /*
+   * 0x2A is not the key slot, whatever the reference says - see
+   * `encryptionKeyId`. It reads 0 on every channel of both radios, encrypted or
+   * not, and is carried through untouched like every byte nobody has explained.
+   */
   radioIdIndex: at(0x2b, u8),
 })
+
+/**
+ * A channel record as this radio holds one it has never used.
+ *
+ * Twenty-seven of the records past the count in the capture's first channel
+ * block hold exactly these bytes - slots 46 to 71, and 76 - and the test that
+ * pins this constant reads them off the capture rather than restating them.
+ * The reference says the same of the virgin radio it read: 0x00 wherever
+ * nobody has explained a byte.
+ *
+ * It is what a channel is built on when its slot holds nothing worth keeping,
+ * which reduces creating a channel anywhere to the one case a session has put
+ * on a radio and read back: channel 46, added over exactly this record on
+ * 2026-08-20. Building on whatever fill the slot held instead read erased
+ * 0xFF as settings - encryption on, key 255, color code 15, time slot 2.
+ */
+export const BLANK_CHANNEL: Uint8Array = (() => {
+  const r = new Uint8Array(CHANNEL_SIZE)
+  r.fill(0xff, 0x00, 0x10) // no name
+  r.set([0x00, 0x00, 0x00, 0x40], 0x10) // 400.00000 MHz, packed BCD
+  r.set([0x00, 0x00, 0x00, 0x40], 0x14)
+  r[0x1c] = 0x30 // squelch 3, in the high nibble
+  r.fill(0xff, 0x21, 0x25) // no tone either way
+  return r
+})()
+
+/**
+ * Whether a channel record holds nothing but fill.
+ *
+ * The reference's own definition of an empty slot - every byte 0xFF or 0x00,
+ * in any mix - and the same rule `isKeySlotEmpty` applies to key slots. An
+ * erased record is all 0xFF, which is what every deletion here writes and
+ * what most of this radio's channel blocks hold; the 14 zeroed records at the
+ * end of its first block are the other kind.
+ */
+export function isChannelRecordEmpty(rec: Uint8Array): boolean {
+  return rec.every((b) => b === 0x00 || b === 0xff)
+}
 
 /**
  * A zone.
@@ -198,7 +275,7 @@ export const ENCRYPTION_TYPES: Readonly<Record<number, string>> = {
  *
  * The specification says a 32-byte key field at +0x0C in which AES-256 is
  * "right-aligned at +0x24", derived from two samples. On the test radio all
- * eight slots hold AES-256 keys occupying the **entire** 32-byte field from
+ * 22 slots hold AES-256 keys occupying the **entire** 32-byte field from
  * +0x0C. The spec's sample almost certainly had a short key entered, which the
  * vendor software right-aligns; that is not where a full AES-256 key lives.
  *

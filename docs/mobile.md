@@ -669,6 +669,12 @@ sample almost certainly had a short key that the vendor software right-aligned.
 references together suggest factory defaults rather than anything operational,
 which is what made a write test on slot 22 reasonable.
 
+> **Corrected 2026-11-08.** A channel's key slot is byte `0x1E`, not `+0x2A`,
+> and its enable bit is `0x1F` bit 6 - see "Channel encryption bytes" in
+> `docs/protocols/dm32uv.md`. A zero at `+0x2A` says nothing about whether a
+> channel uses a slot, so the conclusion above does not follow from it. Two
+> radios read on 2026-11-08 have TAC 1-14 naming slots 1-14.
+
 ### What held
 
 - **Masked by default.** All 22 render as bullets with four hex characters at
