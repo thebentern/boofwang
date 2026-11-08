@@ -35,6 +35,7 @@ import {
   BDC_BASE,
   BDC_COUNT_AT,
   BDC_SIZE,
+  BLANK_CHANNEL,
   CALL_TYPE_ALL,
   CALL_TYPE_GROUP,
   CALL_TYPE_PRIVATE,
@@ -134,6 +135,7 @@ import {
   decodeTxContact,
   encodeToneWord,
   encodeTxContact,
+  isChannelRecordEmpty,
   isKeySlotEmpty,
   keySlotOffset,
   messageOffset,
@@ -168,8 +170,24 @@ import { DM32UV_SCHEMA, DM32UV_SERIAL } from './schema.js'
  * Its own unused slots are 0xFF, and the reference calls an empty slot "all
  * 0xFF and/or all 0x00" - so this is what the radio itself writes, not a
  * convention invented here.
+ *
+ * It is a slot with nothing in it, not a channel with nothing set. Read as a
+ * channel's fields it is encryption on with key 255, color code 15 and time
+ * slot 2, which is why a channel created over it is built on `BLANK_CHANNEL`.
  */
 const ERASED = 0xff
+
+/**
+ * The value of every field a channel can leave unsaid, from the radio's own
+ * blank record.
+ *
+ * A channel decoded from this radio names all of them in `extras.vendor`, so
+ * it never falls back to these. One made by `createChannel`, staged from a
+ * preset, imported from a CSV or taken from a repeater directory names none,
+ * and it gets these rather than whatever the slot's last occupant had - the
+ * rule `encodeTxContacts` already applies to the talk group.
+ */
+const BLANK = DM32_CHANNEL.read(BLANK_CHANNEL, 0)
 
 const CALIBRATION_BLOCK = 0x02
 
@@ -940,6 +958,24 @@ export function createDm32uvDriver(options: Dm32uvDriverOptions = {}): RadioDriv
           if (!data) continue
           const ch = doc.channels.get(n)
           if (ch) {
+            /*
+             * A slot that holds no channel gives a new one nothing to keep.
+             * Past the count the radio does not treat a record as a channel at
+             * all - on this unit some of those are stale records from an
+             * older codeplug - and an empty one is only fill. Either way the
+             * bytes nobody has decoded would otherwise be erase fill or a dead
+             * channel's settings, so the record is rebuilt from the radio's
+             * own blank one first. Over the blank record itself, which is what
+             * slot 46 held when a session added it on the radio, this changes
+             * nothing.
+             *
+             * A slot inside the count that held a real channel is not
+             * touched: its unexplained bytes are that radio's, and are carried
+             * through like every other byte this build does not model.
+             */
+            if (n > total || isChannelRecordEmpty(data.subarray(slot.offset, slot.offset + CHANNEL_SIZE))) {
+              data.set(BLANK_CHANNEL, slot.offset)
+            }
             encodeChannel(data, slot.offset, ch, doc.radioIds.length)
             continue
           }
@@ -1280,8 +1316,10 @@ export function decodeChannel(data: Uint8Array, offset: number, index: number): 
       vendor: {
         colorCode: String(raw.digital.colorCode),
         timeSlot: String(raw.digital.timeSlot + 1),
-        encryptionKeyId: String(raw.encryptionKeyId),
-        encryptEnabled: String(raw.digital.encryptEnable),
+        // Encryption is a digital channel's. On an analog one 0x1F is PTT ID
+        // settings and 0x1E is unexplained, so neither is read as a key there.
+        encryptionKeyId: digital ? String(raw.encryptionKeyId) : '0',
+        encryptEnabled: digital ? String(raw.encryption.enable) : '0',
         radioIdIndex: String(raw.radioIdIndex),
         loneWorker: String(raw.mode.loneWorker),
         scanAdd: String(raw.scan.scanAdd),
@@ -1295,12 +1333,19 @@ export function decodeChannel(data: Uint8Array, offset: number, index: number): 
 /**
  * Write one channel record back, in place.
  *
- * The exact inverse of {@link decodeChannel}, and a partial patch: the four
- * unknown bits in the mode byte, the three in the digital byte, the contact
- * index, the scan-list membership and everything else this build does not model
- * keep whatever the radio had. That is what makes `encode(decode(image), image)`
+ * The exact inverse of {@link decodeChannel}, and a partial patch: the bits
+ * nobody has explained, and every byte this build does not model, keep
+ * whatever the radio had. That is what makes `encode(decode(image), image)`
  * byte-identical, and it is the only honest way to write to a radio where 22 of
  * 59 allocated blocks have no documented meaning.
+ *
+ * The fields this build *does* model are another matter when the channel does
+ * not carry them. Those used to fall back to the record's own bits as well,
+ * which is right for a byte nobody understands and wrong for a color code: a
+ * channel created where one was deleted read the erased 0xFF as encryption on
+ * with key 255, color code 15 and time slot 2, and one staged over an
+ * encrypted channel inherited its key. A channel that does not say gets the
+ * radio's blank value instead - see `BLANK`.
  */
 /**
  * How many DMR radio IDs the document holds, for clamping the channel's pick.
@@ -1356,27 +1401,39 @@ export function encodeChannel(data: Uint8Array, offset: number, ch: Channel, rad
       channelMode,
       txForbid: ch.txAllowed ? 0 : 1,
       power,
-      loneWorker: num('loneWorker', current.mode.loneWorker) & 0x01,
+      loneWorker: num('loneWorker', BLANK.mode.loneWorker) & 0x01,
     },
     scan: {
       bandwidth: ch.bandwidthHz >= 25_000 ? 1 : 0,
-      scanAdd: num('scanAdd', current.scan.scanAdd) & 0x01,
-      scanList: num('scanList', current.scan.scanList) & 0x0f,
+      scanAdd: num('scanAdd', BLANK.scan.scanAdd) & 0x01,
+      scanList: num('scanList', BLANK.scan.scanList) & 0x0f,
     },
     digital: {
-      encryptEnable: num('encryptEnabled', current.digital.encryptEnable) ? 1 : 0,
-      timeSlot: Math.max(0, num('timeSlot', current.digital.timeSlot + 1) - 1) & 0x01,
-      colorCode: num('colorCode', current.digital.colorCode) & 0x0f,
+      timeSlot: Math.max(0, num('timeSlot', BLANK.digital.timeSlot + 1) - 1) & 0x01,
+      colorCode: num('colorCode', BLANK.digital.colorCode) & 0x0f,
     },
     // A digital channel has no analog tones; leaving the words alone keeps a
     // channel that was switched to DMR from losing what it had if it is
     // switched back.
     ...(digital ? {} : { rxTone: encodeToneWord(ch.tone.rx), txTone: encodeToneWord(ch.tone.tx) }),
-    encryptionKeyId: num('encryptionKeyId', current.encryptionKeyId) & 0xff,
+    // Encryption - the key slot at 0x1E and the enable bit at 0x1F bit 6 - is
+    // written on a digital channel only. An analog one keeps those bytes as
+    // they are, because 0x1F is its PTT ID settings, unless the record held a
+    // digital channel: then they are that channel's encryption, and an FM
+    // channel switched from it or staged over it starts from the blank record
+    // rather than carrying a key it cannot use.
+    ...(digital
+      ? {
+          encryptionKeyId: num('encryptionKeyId', BLANK.encryptionKeyId) & 0xff,
+          encryption: { enable: num('encryptEnabled', BLANK.encryption.enable) ? 1 : 0 },
+        }
+      : wasDigital
+        ? { encryptionKeyId: BLANK.encryptionKeyId, encryption: { enable: BLANK.encryption.enable } }
+        : {}),
     // Clamped to the bank that is actually going onto the radio. `validate`
     // says so in words; this is what stops the bytes being wrong regardless of
     // whether anybody read it.
-    radioIdIndex: clampRadioIdIndex(num('radioIdIndex', current.radioIdIndex) & 0xff, radioIdCount),
+    radioIdIndex: clampRadioIdIndex(num('radioIdIndex', BLANK.radioIdIndex) & 0xff, radioIdCount),
   })
 }
 

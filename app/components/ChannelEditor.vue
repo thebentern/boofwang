@@ -122,7 +122,8 @@ const triple = computed(() => (phone.value ? '' : 'grid grid-cols-3 gap-3'))
  */
 const supportsEncryption = computed(() => schema.value.features.encryption !== false)
 const availableKeys = computed(() => codeplug.doc?.encryptionKeys ?? [])
-const encKeyId = ref(Number(props.channel.extras.vendor?.encryptionKeyId ?? '0'))
+const savedKeyId = Number(props.channel.extras.vendor?.encryptionKeyId ?? '0')
+const encKeyId = ref(savedKeyId)
 
 /**
  * Which talk group this channel transmits to.
@@ -198,6 +199,10 @@ function save() {
             vendor: {
               ...props.channel.extras.vendor,
               encryptionKeyId: String(encKeyId.value),
+              // A channel encrypts only with a key slot and the enable bit both
+              // set, so picking a key turns encryption on and picking None
+              // turns it off. Leaving the picker alone leaves the bit as read.
+              ...(encKeyId.value !== savedKeyId ? { encryptEnabled: encKeyId.value !== 0 ? '1' : '0' } : {}),
               ...(supportsTalkGroups.value ? { txContact: String(txContact.value) } : {}),
             },
           },
