@@ -5,6 +5,7 @@ import { encodeBwp, encodeRawBin } from '#core/io/bwp.js'
 import { encodeChirpImg } from '#core/io/chirp-img.js'
 import { exportChirpCsv, defaultHeader } from '#core/io/chirp-csv.js'
 import { buildSummary, summaryHtml, summaryMarkdown } from '#core/io/summary.js'
+import { buildMonitorKeys, buildMonitorProfile } from '#core/io/monitor-profile.js'
 import type { RadioId } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { evaluateWriteGate } from '#core/radio/write-gate.js'
@@ -637,6 +638,30 @@ export function useRadioSession() {
     await saveFile(summaryMarkdown(summary), `${baseName()}-summary.md`, 'text/markdown')
   }
 
+  /**
+   * The two files for SDR receive testing.
+   *
+   * Built from the edited document, like the summary, so they describe the
+   * codeplug as it stands here rather than the radio as it was read - which
+   * the keys page says beside the buttons, because a profile taken before the
+   * write describes a radio that does not exist yet.
+   *
+   * The profile carries no key material at all - see `monitor-profile.ts`.
+   * The keys file is nothing but, and the keys page offers it only behind a
+   * slide. Both are built and saved on this device and sent nowhere.
+   */
+  async function downloadMonitorProfile() {
+    const doc = codeplug.doc
+    if (!doc) return
+    await saveFile(buildMonitorProfile(doc), `${baseName()}-monitor-profile.json`, 'application/json')
+  }
+
+  async function downloadMonitorKeys(): Promise<boolean> {
+    const doc = codeplug.doc
+    if (!doc) return false
+    return saveFile(buildMonitorKeys(doc), `${baseName()}-monitor-keys.json`, 'application/json')
+  }
+
   async function downloadTrace() {
     const json = device.traceJson()
     if (!json) return
@@ -655,6 +680,8 @@ export function useRadioSession() {
     downloadCsv,
     downloadSummaryHtml,
     downloadSummaryMarkdown,
+    downloadMonitorProfile,
+    downloadMonitorKeys,
     downloadTrace,
   }
 }

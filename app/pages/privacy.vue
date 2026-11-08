@@ -116,9 +116,10 @@ const DIRECTORIES = [
       <p :style="BODY">
         Keys you type into a radio's key slots are stored the same way as everything else: on the
         device, unencrypted, in the app's own storage. boofwang masks them on screen and keeps them out
-        of summaries and every export that is not a full codeplug, but that is protection against a
-        glance over your shoulder, not against someone with access to your unlocked device or to a
-        codeplug file you exported. Treat an exported codeplug as key material.
+        of summaries and every export that is not a full codeplug, except the monitor keys file, which
+        holds them on purpose and is saved only after a slide that says so. That is protection against
+        a glance over your shoulder, not against someone with access to your unlocked device or to a
+        file you exported. Treat an exported codeplug or monitor keys file as key material.
       </p>
     </section>
 

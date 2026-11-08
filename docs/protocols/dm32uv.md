@@ -1356,6 +1356,55 @@ heard one. On the two radios above the encrypted channels are all on GMRS
 frequencies, where encryption is not permitted, so they are not the place to
 try.
 
+## Over-the-air key IDs
+
+Not settled. The monitor export is built around the gap rather than over it.
+
+**A key slot's number is not known to be the key ID the radio sends.** An
+encrypted DMR call names its key with a key ID (KID) and its cipher with an
+algorithm ID (ALGID), in signaling a decoder can read. What this build knows is
+the codeplug's side: a channel names a slot in byte `0x1E`, with the enable bit
+at `0x1F` bit 6 (see "Channel encryption bytes" above), and each key record
+begins with an id byte at `+0x00` that reads 1-22 here and equals the slot on
+both units anyone has looked at. Neither the reference nor any capture says
+what goes on the air. The radio could send the slot, the slot minus one, the
+id byte, or a number of its own, and which ALGID it sends for each of the four
+key types is not documented anywhere this project has looked.
+
+So the monitor profile (`lib/io/monitor-profile.ts`) names a channel's **slot**,
+which is a fact about the codeplug, and writes `airKid` and `airAlgId` as
+`null`. They come from `AIR_KEY_IDS` in the same file, and that table is filled
+from the one below and from nothing else - a test fails when a row there has no
+matching row here. A pattern that holds for three slots is a hypothesis about
+the fourth, so each row is one observation, never an extrapolation.
+
+What a row takes:
+
+1. A test key in one slot, of one type, and one land-mobile channel that names
+   that slot with encryption on. Only on a frequency where a license covers
+   encryption, into a dummy load, at the lowest power. The profile leaves out
+   every encrypted channel where encryption is prohibited, so a profile that
+   lists the channel is the first check. Picking the slot in boofwang's
+   channel editor turns the enable bit on with it.
+2. The radio written and read back, and both files exported from that read.
+   They describe the codeplug open in boofwang, unwritten edits included, so
+   an export taken before the write describes a radio that does not exist.
+3. One transmission: the KID and ALGID as the decoder reports them, and
+   whether the key from the keys file decrypted the voice.
+4. A second slot of the same type, because one point is not a relation, and
+   each type that is going to be used.
+
+KID and ALGID are written in hex, `0x..`. The type is spelled the way the keys
+screen spells it - AES-256, AES-128, ARC4, Custom. Name the firmware beside the
+date when it is not `DM32.01.01.040`.
+
+| Slot | Type | Observed ALGID | Observed KID | Decrypts in dsd-fme | Date |
+|---|---|---|---|---|---|
+
+No rows yet. Until there is one, a decoder is told the key by trying it: the
+keys file holds the key for every slot an exported channel uses, and the slot
+is all anybody can say about where it goes.
+
 ## Not verified
 - **The 2,048-byte write, `57 <addr:3 LE> 00 08 <2048 bytes>`.** Still `DERIVED`
   and still untried, because it turned out to be avoidable: the boot image
@@ -1396,3 +1445,9 @@ try.
 - **A channel created over erased fill, on the radio.** The tests show it now
   matches channel 46 over the blank record byte for byte; no session has
   written one. See "Fresh channels and the fill under them" above.
+- **Whether a channel encrypts with the slot it names, and what that slot is
+  called on the air.** Two radios carry channels the OEM CPS encrypted - TAC
+  1-14 naming slots 1-14 in `0x1E`, with `0x1F` bit 6 set - but no session has
+  written such a channel or heard one, and neither the KID nor the ALGID the
+  radio sends is known here. See "Channel encryption bytes" and "Over-the-air
+  key IDs" above.
