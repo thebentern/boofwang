@@ -8,8 +8,8 @@ import {
   type RadioId,
   type TalkGroup,
 } from '../model/codeplug.js'
-import { encryptionLegality, isBlankKey } from '../model/encryption.js'
-import { formatFreq } from '../model/units.js'
+import { encryptionLegality, isBlankKey, type EncryptionLegality } from '../model/encryption.js'
+import { formatFreq, type Hz } from '../model/units.js'
 
 /**
  * A codeplug described for a receiver rather than for a radio.
@@ -170,12 +170,27 @@ export interface MonitorKeys {
 }
 
 /** An encrypted channel left out because encryption is unlawful where it is. */
-export interface MonitorWarning {
+export interface MonitorWithheldChannel {
   readonly index: number
   readonly name: string
-  readonly rxHz: number
+  readonly rxHz: Hz
+}
+
+/**
+ * Every channel left out under one rule, said once.
+ *
+ * One notice per rule rather than per channel. The DM-32UV this was built
+ * against holds fourteen encrypted GMRS channels, and a notice each made
+ * fourteen that differed only in channel and frequency. A rule stated fourteen
+ * times is one nobody reads: the rule is the news, and which channels it
+ * caught is a list.
+ */
+export interface MonitorWarning {
+  /** The service whose rule this is, as `encryptionLegality` names it. */
   readonly service: string
-  /** One sentence or two, for a person. */
+  /** In slot order. */
+  readonly channels: readonly MonitorWithheldChannel[]
+  /** For a person: which channels, then the rule, once. */
   readonly message: string
 }
 
@@ -315,17 +330,20 @@ function toMonitorChannel(c: Channel, keySlot: number | null, talkGroups: Readon
  *
  * An encrypted channel where encryption is not lawful - amateur, GMRS, MURS,
  * and the receive-only weather and air channels - is left out of both files
- * and reported instead. The channel editor refuses to give such a channel a
- * key, but a radio programmed by anything else can arrive holding one, and the
- * radio encrypts there regardless. A monitor profile would be a working set of
- * instructions for decrypting that traffic, and on those bands that is not a
- * test of a license anybody holds. Whether a key reaches the keys file follows
- * from this, because the keys come only from the channels that stay.
+ * and reported instead, in one notice per rule. The channel editor refuses to
+ * give such a channel a key, but a radio programmed by anything else can
+ * arrive holding one, and the radio encrypts there regardless. A monitor
+ * profile would be a working set of instructions for decrypting that traffic,
+ * and on those bands that is not a test of a license anybody holds. Whether a
+ * key reaches the keys file follows from this, because the keys come only from
+ * the channels that stay.
  */
 export function planMonitorExport(cp: Codeplug, opts: MonitorOptions = {}): MonitorPlan {
   const talkGroups = talkGroupsBySlot(cp)
   const channels: MonitorChannel[] = []
-  const warnings: MonitorWarning[] = []
+  // By service, which is one rule each. A Map keeps the order the rules were
+  // first met in, so the notices follow the channel list.
+  const withheld = new Map<string, { legality: EncryptionLegality; channels: MonitorWithheldChannel[] }>()
 
   for (const c of sortedChannels(cp)) {
     const wanted = c.modulation === 'DMR' || (opts.includeAnalog === true && ANALOG.has(c.modulation))
@@ -335,25 +353,58 @@ export function planMonitorExport(cp: Codeplug, opts: MonitorOptions = {}): Moni
     if (keySlot !== null) {
       const legality = encryptionLegality(c.rxFreq)
       if (!legality.allowed) {
-        const who = c.name ? `Channel ${c.index}, ${c.name},` : `Channel ${c.index}`
-        warnings.push({
-          index: c.index,
-          name: c.name,
-          rxHz: c.rxFreq,
-          service: legality.service,
-          message:
-            `${who} is encrypted on ${formatFreq(c.rxFreq)} MHz and is left out of the monitor files. ` +
-            legality.reason +
-            (legality.cfr === undefined ? '' : ` ${legality.cfr}.`),
-        })
+        const group = withheld.get(legality.service) ?? { legality, channels: [] }
+        group.channels.push({ index: c.index, name: c.name, rxHz: c.rxFreq })
+        withheld.set(legality.service, group)
         continue
       }
     }
     channels.push(toMonitorChannel(c, keySlot, talkGroups))
   }
 
+  const warnings = [...withheld.values()].map(
+    ({ legality, channels: left }): MonitorWarning => ({
+      service: legality.service,
+      channels: left,
+      message: withheldMessage(legality, left),
+    }),
+  )
   const keySlots = [...new Set(channels.flatMap((c) => (c.keySlot === null ? [] : [c.keySlot])))]
   return { channels, warnings, keySlots: keySlots.sort((a, b) => a - b) }
+}
+
+/**
+ * The notice for the channels one rule left out.
+ *
+ * A single channel is named, with its frequency, because that much fits in a
+ * sentence. Several are given by number only - the channel list is where their
+ * names and frequencies are, and fourteen of each would bury the rule again.
+ */
+function withheldMessage(legality: EncryptionLegality, left: readonly MonitorWithheldChannel[]): string {
+  const rule = legality.reason + (legality.cfr === undefined ? '' : ` ${legality.cfr}.`)
+  if (left.length === 1) {
+    const c = left[0]!
+    const who = c.name ? `Channel ${c.index}, ${c.name},` : `Channel ${c.index}`
+    return `${who} is encrypted on ${formatFreq(c.rxHz)} MHz and is left out of the monitor files. ${rule}`
+  }
+  const which = channelRanges(left.map((c) => c.index))
+  return `Channels ${which} are encrypted and are left out of the monitor files. ${rule}`
+}
+
+/**
+ * Ascending channel numbers as a person would write them: a run of three or
+ * more as "28 to 41", anything shorter one by one, so "12, 15, and 20 to 22".
+ */
+function channelRanges(indices: readonly number[]): string {
+  const parts: string[] = []
+  for (let i = 0; i < indices.length; ) {
+    let j = i
+    while (j + 1 < indices.length && indices[j + 1] === indices[j]! + 1) j++
+    if (j - i >= 2) parts.push(`${indices[i]} to ${indices[j]}`)
+    else for (let k = i; k <= j; k++) parts.push(String(indices[k]))
+    i = j + 1
+  }
+  return new Intl.ListFormat('en', { type: 'conjunction' }).format(parts)
 }
 
 /**

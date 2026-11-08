@@ -30,9 +30,10 @@ import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
 /**
  * The committed DM-32UV capture: 45 channels, 18 of them DMR, and 22 AES-256
  * key slots named `Encrypt 1` to `Encrypt 22` whose key material is redacted
- * to zeros. Nothing on it encrypts, so the tests that need encryption arm it
- * by hand - and one arms it in the raw bytes, so that the names the profile
- * reads are checked against the names the real decoder writes.
+ * to zeros. Its own encryption - TAC 1-14 on slots 1-14, all on GMRS - is
+ * withheld from every export, so the tests that need encryption clear it and
+ * arm their own by hand - and one arms it in the raw bytes, so that the names
+ * the profile reads are checked against the names the real decoder writes.
  */
 const fixture = (name: string) => fileURLToPath(new URL(`../../fixtures/images/${name}`, import.meta.url))
 const BLOB = new Uint8Array(readFileSync(fixture('dm32uv-DM32.01.01.040.blocks.bin')))
@@ -167,6 +168,10 @@ const CHANNEL_FIELDS = [
 
 const parseProfile = (json: string) => JSON.parse(json) as MonitorProfile
 const parseKeys = (json: string) => JSON.parse(json) as MonitorKeys
+
+/** Every channel a plan left out, with the service whose rule caught it, in notice order. */
+const withheld = (plan: ReturnType<typeof planMonitorExport>) =>
+  plan.warnings.flatMap((w) => w.channels.map((c): [number, string] => [c.index, w.service]))
 
 describe('a monitor profile cannot carry key material', () => {
   const cp = armed()
@@ -361,12 +366,13 @@ describe('which channels a profile carries', () => {
     // neither.
     const plan = planMonitorExport(cp, { includeAnalog: true })
     expect(plan.channels.find((c) => c.index === 1)?.keySlot).toBeNull()
-    expect(plan.warnings.map((w) => w.index)).not.toContain(1)
+    expect(withheld(plan).map(([index]) => index)).not.toContain(1)
   })
 
   it('leaves out an encrypted channel where encryption is prohibited, and says why', () => {
-    const { channels, warnings } = planMonitorExport(cp)
-    expect(warnings.map((w) => [w.index, w.service])).toEqual([[32, 'GMRS/FRS'], [42, 'amateur']])
+    const plan = planMonitorExport(cp)
+    const { channels, warnings } = plan
+    expect(withheld(plan)).toEqual([[32, 'GMRS/FRS'], [42, 'amateur']])
     expect(channels.some((c) => c.index === 32 || c.index === 42)).toBe(false)
     expect(warnings[0]!.message).toContain('47 CFR 95.1731 / 95.587')
     expect(warnings[1]!.message).toBe(
@@ -374,6 +380,41 @@ describe('which channels a profile carries', () => {
         'prohibited on the amateur bands: transmissions may not be encoded to obscure their meaning. ' +
         '47 CFR 97.113(a)(4).',
     )
+  })
+
+  it('says each rule once, however many channels it leaves out', () => {
+    // Beside 32 on GMRS: a run of three and a stray, each on its own GMRS
+    // frequency. Beside 42 on amateur: one more, which makes a pair.
+    const many = armed()
+    for (const index of [34, 35, 36, 38, 44]) many.channels.set(index, encrypt(many.channels.get(index)!, 4))
+    const plan = planMonitorExport(many)
+    expect(plan.warnings.map((w) => w.service)).toEqual(['GMRS/FRS', 'amateur'])
+    expect(withheld(plan)).toEqual([
+      [32, 'GMRS/FRS'],
+      [34, 'GMRS/FRS'],
+      [35, 'GMRS/FRS'],
+      [36, 'GMRS/FRS'],
+      [38, 'GMRS/FRS'],
+      [42, 'amateur'],
+      [44, 'amateur'],
+    ])
+    expect(plan.warnings.map((w) => w.message)).toEqual([
+      'Channels 32, 34 to 36, and 38 are encrypted and are left out of the monitor files. Encryption is ' +
+        'prohibited on GMRS and FRS: messages may not be encoded to obscure their meaning. 47 CFR 95.1731 / 95.587.',
+      'Channels 42 and 44 are encrypted and are left out of the monitor files. Encryption is prohibited on the ' +
+        'amateur bands: transmissions may not be encoded to obscure their meaning. 47 CFR 97.113(a)(4).',
+    ])
+  })
+
+  it('reads in the plural for a rule said of a band', () => {
+    // The receive-only rules carry no citation, and used to say "This is a
+    // receive-only weather channel" - wrong after a list of two.
+    const weather = withoutEncryption(decode())
+    weather.channels.set(43, encrypt(weather.channels.get(43)!, 4, hz(162_400_000)))
+    weather.channels.set(45, encrypt(weather.channels.get(45)!, 4, hz(162_550_000)))
+    expect(planMonitorExport(weather).warnings.map((w) => w.message)).toEqual([
+      'Channels 43 and 45 are encrypted and are left out of the monitor files. Weather channels are receive-only.',
+    ])
   })
 
   it('keeps an unencrypted channel on the same band', () => {
@@ -451,14 +492,15 @@ describe('the committed capture, described for a receiver', () => {
     expect(profile.rxGroups.find((g) => g.name === 'AR')?.members).toEqual([3105, 310501, 3100])
   })
 
-  it('withholds the fourteen channels the CPS encrypted on GMRS, and says why', () => {
+  it('withholds the fourteen channels the CPS encrypted on GMRS, and says why once', () => {
     // TAC 1-14 name slots 1-14 in their own bytes. None of those slots is
     // listed, because no channel that uses one is exported.
-    const { warnings } = planMonitorExport(cp)
-    expect(warnings.map((w) => [w.index, w.service])).toEqual(
-      Array.from({ length: 14 }, (_, i) => [28 + i, 'GMRS/FRS']),
-    )
-    for (const w of warnings) expect(w.message).toContain('47 CFR 95.1731 / 95.587')
+    const plan = planMonitorExport(cp)
+    expect(withheld(plan)).toEqual(Array.from({ length: 14 }, (_, i) => [28 + i, 'GMRS/FRS']))
+    expect(plan.warnings.map((w) => w.message)).toEqual([
+      'Channels 28 to 41 are encrypted and are left out of the monitor files. Encryption is prohibited on ' +
+        'GMRS and FRS: messages may not be encoded to obscure their meaning. 47 CFR 95.1731 / 95.587.',
+    ])
     expect(profile.keySlots).toEqual([])
   })
 
@@ -481,7 +523,7 @@ describe('the committed capture, described for a receiver', () => {
 
     // Where the capture has it, on the amateur band, it is left out and said so.
     const onAmateur = planMonitorExport(armedBytes)
-    expect(onAmateur.warnings.find((w) => w.index === 42)?.service).toBe('amateur')
+    expect(withheld(onAmateur)).toContainEqual([42, 'amateur'])
     expect(onAmateur.channels.some((c) => c.index === 42)).toBe(false)
 
     // Moved to land mobile, the same bytes name slot 12 - a slot past eight.
@@ -502,7 +544,7 @@ describe('the committed capture, described for a receiver', () => {
     page[at.offset + 0x2a] = 12
     const plan = planMonitorExport(decode(img))
     expect(plan.channels.find((c) => c.index === 43)?.keySlot).toBeNull()
-    expect(plan.warnings.map((w) => w.index)).not.toContain(43)
+    expect(withheld(plan).map(([index]) => index)).not.toContain(43)
   })
 })
 

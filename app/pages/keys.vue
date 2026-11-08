@@ -135,7 +135,7 @@ async function exportKeys() {
         >
           <li
             v-for="w in monitor.profile.warnings"
-            :key="w.index"
+            :key="w.service"
             class="flex items-start gap-2"
             style="font-size: 13px; line-height: 1.55; color: var(--mu)"
           >

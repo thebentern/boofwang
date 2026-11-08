@@ -178,8 +178,13 @@ export function encryptionLegality(rxHz: number): EncryptionLegality {
       }
     case 'MURS':
       return { allowed: false, service: 'MURS', reason: 'Encryption is prohibited on MURS.', cfr: '47 CFR 95.2731' }
+    /*
+     * Weather and air are said of the band rather than of "this channel": the
+     * monitor export states one rule for several channels at once, and "This
+     * is a receive-only weather channel" read wrongly after a list of them.
+     */
     case 'NOAA weather':
-      return { allowed: false, service: 'NOAA weather', reason: 'This is a receive-only weather channel.' }
+      return { allowed: false, service: 'NOAA weather', reason: 'Weather channels are receive-only.' }
     /*
      * The air band is new to this decision and answers the same way weather
      * does. It used to fall through to land mobile, which said encryption was
@@ -187,7 +192,7 @@ export function encryptionLegality(rxHz: number): EncryptionLegality {
      * useless about 121.5 MHz, where nobody is transmitting at all.
      */
     case 'air':
-      return { allowed: false, service: 'air', reason: 'This is a receive-only aeronautical channel.' }
+      return { allowed: false, service: 'air', reason: 'Aeronautical channels are receive-only.' }
     case 'land mobile':
       return {
         allowed: true,
