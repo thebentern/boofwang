@@ -614,6 +614,23 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     revision.value++
   }
 
+  /**
+   * Whether the open codeplug can be replaced without losing work nobody agreed
+   * to lose.
+   *
+   * Unwritten edits are on no radio and in no backup, so whatever replaces the
+   * document takes them with it. A read did exactly that, unasked, and the
+   * write gate's own remedy for a missing backup sent people to it.
+   *
+   * `agreed` is the revision the person was shown when they agreed, not a
+   * flag. Agreement covers the edits they saw: a read can take three minutes,
+   * nothing stops the channel page being edited meanwhile, and those edits
+   * were never part of what was agreed to.
+   */
+  function canReplace(agreed: number | null = null): boolean {
+    return !dirty.value || agreed === revision.value
+  }
+
   /** Copy-on-write at one index, so only that row's identity changes. */
   function updateChannel(index: number, patch: Partial<Channel>) {
     const current = doc.value?.channels.get(index)
@@ -1283,6 +1300,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     load,
     replaceDocument,
     close,
+    canReplace,
     updateChannel,
   }
 })

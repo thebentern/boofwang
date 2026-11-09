@@ -72,10 +72,11 @@ describe('the connect page', () => {
     // The chooser closing with a port in hand is the whole of the user's
     // intent; the read is what they opened it for. The choice is handed over
     // rather than re-acquired, because a second `requestPort` would raise the
-    // chooser again.
+    // chooser again. So is the agreement to discard unwritten edits, which was
+    // given before the chooser opened and is not asked for twice.
     const start = page.indexOf('async function pickPort')
     const fn = page.slice(start, page.indexOf('\n}\n', start))
-    expect(fn).toContain('if (choice) await readRadio(choice)')
+    expect(fn).toContain('if (choice) await readRadio(choice, consent)')
   })
 
   it('asks for the capability rather than for the shell', () => {

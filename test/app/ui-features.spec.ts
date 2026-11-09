@@ -282,7 +282,7 @@ describe('the connect screen does not guess the radio', () => {
      * "found" - in `readRadio` underneath it. The count assertion below is the
      * belt: three routes, three guards, no borrowing.
      */
-    const NAMES = ['async function pickPort()', 'async function readRadio(', 'async function connectBluetooth(']
+    const NAMES = ['async function pickPort(', 'async function readRadio(', 'async function connectBluetooth(']
     for (const fn of NAMES) {
       const at = PAGE.indexOf(fn)
       expect(at, `${fn} is gone`).toBeGreaterThan(-1)

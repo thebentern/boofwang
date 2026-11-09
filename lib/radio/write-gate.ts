@@ -94,6 +94,25 @@ export interface GateResult {
   warnings: Warning[]
 }
 
+/**
+ * What to do about a missing backup, said so that doing it loses nothing.
+ *
+ * This read "Read the radio first. The backup is saved automatically." That
+ * was the whole of it, and reading replaces the open codeplug: following the
+ * remedy threw away the codeplug it was given for, edits and all, to get the
+ * backup. A file opened from a radio with no backup stored is exactly where
+ * this blocker appears. The read now asks before discarding edits, but a
+ * remedy that walks someone into a destructive confirmation should say first
+ * how to keep what they have, and the way that keeps it is to save it, read,
+ * and apply the file to what was read.
+ *
+ * Exported because the write path says it again when it finds no backup at
+ * the last moment, and two wordings of one instruction drift.
+ */
+export const NO_BACKUP_REMEDY =
+  'Reading the radio saves one, and replaces the codeplug open here. To keep it, save it as a codeplug ' +
+  '(.bwp) first, then open that file after the read and apply it to what was read.'
+
 export function evaluateWriteGate(input: GateInput): GateResult {
   const blockers: Blocker[] = []
   const warnings: Warning[] = []
@@ -159,7 +178,7 @@ export function evaluateWriteGate(input: GateInput): GateResult {
     blockers.push({
       code: 'no-backup',
       message: 'There is no backup of this radio.',
-      remedy: 'Read the radio first. The backup is saved automatically.',
+      remedy: NO_BACKUP_REMEDY,
     })
   } else if (input.ident && input.backup.identHash !== input.ident.identHash) {
     blockers.push({

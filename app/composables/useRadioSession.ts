@@ -8,7 +8,7 @@ import { buildSummary, summaryHtml, summaryMarkdown } from '#core/io/summary.js'
 import { buildMonitorKeys, buildMonitorProfile } from '#core/io/monitor-profile.js'
 import type { RadioId } from '#core/model/codeplug.js'
 import type { RadioImage } from '#core/radio/image.js'
-import { evaluateWriteGate } from '#core/radio/write-gate.js'
+import { NO_BACKUP_REMEDY, evaluateWriteGate } from '#core/radio/write-gate.js'
 import type { PortChoice } from '~/composables/useWebSerial'
 import type { TransportKind } from '#core/transport/transport.js'
 import { forgetBluetoothGrant,
@@ -107,6 +107,16 @@ function acquireFailure(kind: TransportKind) {
   return kind === 'bluetooth'
     ? { title: 'Could not reach the radio over Bluetooth', icon: 'i-lucide-signal' }
     : { title: 'Could not open a serial port', icon: 'i-lucide-cable' }
+}
+
+/** What a read may do to the codeplug it replaces. */
+export interface ReadOptions {
+  /**
+   * The open codeplug's `revision` when the person agreed to discard its
+   * unwritten edits, or null when nobody was asked. `canReplace` on the
+   * codeplug store says what it covers.
+   */
+  readonly discarding?: number | null
 }
 
 /**
@@ -209,7 +219,7 @@ export function useRadioSession() {
     if (!backup) {
       toast.add({
         title: 'No backup of this radio',
-        description: 'Read the radio before writing to it, so there is a backup.',
+        description: NO_BACKUP_REMEDY,
         icon: 'i-lucide-shield-alert',
         color: 'error',
         duration: 0,
@@ -412,10 +422,33 @@ export function useRadioSession() {
    * click handler and hand the result here, rather than this function deciding
    * after the fact which chooser to open. When it is absent the serial path is
    * unchanged.
+   *
+   * A read replaces the open codeplug, so it will not replace unwritten edits
+   * unless `options.discarding` says the person agreed to lose them. Asking is
+   * the page's job, because only the page can put the question before the
+   * chooser - see the connect page's `unlessItDiscards`. This is the refusal
+   * that holds when a caller does not ask, the way `writeImage` holds whatever
+   * the write gate said.
    */
-  async function connectAndRead(id: RadioId, acquired?: PortChoice | null) {
+  async function connectAndRead(id: RadioId, acquired?: PortChoice | null, options: ReadOptions = {}) {
     if (!isImplemented(id)) {
       toast.add({ title: 'Not implemented yet', description: `There is no driver for this radio yet.`, color: 'neutral' })
+      return
+    }
+
+    // Before the chooser: it is synchronous, so it spends none of the click's
+    // activation, and refusing after somebody has picked a port wastes the
+    // pick.
+    if (!codeplug.canReplace(options.discarding ?? null)) {
+      toast.add({
+        title: 'The read did not start',
+        description:
+          'The codeplug open here has unwritten edits, and reading the radio would have replaced them without ' +
+          'asking. Nothing was read, and the edits are still open.',
+        icon: 'i-lucide-shield-alert',
+        color: 'error',
+        duration: 0,
+      })
       return
     }
 
@@ -481,6 +514,23 @@ export function useRadioSession() {
             label: `${image.variant} · read ${new Date().toLocaleString()}`,
           }),
         )
+
+        // Asked again, because the answer can change while the radio is read.
+        // Nothing locks the channel page during a transfer, and edits made
+        // there meanwhile were never part of what anyone agreed to discard.
+        // The backup above is what the read was for, so it stands.
+        if (!codeplug.canReplace(options.discarding ?? null)) {
+          toast.add({
+            title: 'Backed up, not opened',
+            description:
+              'The codeplug open here was edited while the radio was being read, and opening what was read ' +
+              'would discard those edits. They are still open, and what the radio holds is saved under Backups.',
+            icon: 'i-lucide-info',
+            color: 'warning',
+            duration: 0,
+          })
+          return
+        }
 
         codeplug.load(image, device.currentDriver())
 

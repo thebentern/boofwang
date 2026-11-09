@@ -131,13 +131,54 @@ const backup = ref<{ identHash: string; createdAt?: string } | null>(null)
 
 const sent = ref<{ label: string; blocks: number } | null>(null)
 
-async function program(unit: FleetUnit) {
+/**
+ * A read held back because the editor holds edits this run did not make.
+ *
+ * A run's reads replace the editor's document by design, and `canRead` is
+ * true for everything the run put there itself. What it is false for is an
+ * edit made by hand since, on the master after the run took its copy or on a
+ * radio's plan before it was written. The read waits on the slide then, and
+ * the slide has to be what starts it: see `ReadOverEdits`.
+ */
+const heldUnit = shallowRef<FleetUnit | null>(null)
+const heldPanel = useTemplateRef<{ $el: HTMLElement }>('heldPanel')
+
+// Undo can take the edits back while the question is up. It is then dropped
+// rather than hidden, or the next edit would raise it again unasked.
+watch(
+  () => run.canRead(),
+  (ok) => {
+    if (ok) heldUnit.value = null
+  },
+)
+
+function program(unit: FleetUnit) {
+  if (busy.value) return
+  if (!run.canRead()) {
+    heldUnit.value = unit
+    // The panel sits at the top of the run, and "Read this radio" can be
+    // twenty rows below it. A question that appears off screen is a button
+    // that did nothing.
+    void nextTick(() => heldPanel.value?.$el.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }))
+    return
+  }
+  void readRadio(unit, null)
+}
+
+/** The slide's answer, starting the read inside the slide's own event. */
+function discardAndRead() {
+  const unit = heldUnit.value
+  heldUnit.value = null
+  if (unit) void readRadio(unit, codeplug.revision)
+}
+
+async function readRadio(unit: FleetUnit, consent: number | null) {
   if (busy.value) return
   busy.value = true
   backup.value = null
   sent.value = null
   try {
-    const ok = await run.readUnit(unit)
+    const ok = await run.readUnit(unit, consent)
     if (ok) backup.value = await session.latestBackupForOpenCodeplug()
   } finally {
     busy.value = false
@@ -507,6 +548,19 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
       {{ fleet.masterFacts?.title }} onto {{ fleet.roster.length }} {{ model }}s.
       {{ device.keepLinkUp }} while a radio is being read or written.
     </p>
+
+    <ReadOverEdits
+      v-if="heldUnit && !run.canRead()"
+      ref="heldPanel"
+      title="Reading this radio discards the edits in the editor"
+      style="margin-bottom: 12px"
+      @confirm="discardAndRead"
+      @cancel="heldUnit = null"
+    >
+      The editor holds edits made after this run last put a codeplug there, and the master the run sends does
+      not have them. Reading {{ heldUnit.label || 'this radio' }} replaces them with that radio's codeplug. The
+      edits are not on any radio or in any backup, so they are lost unless you save a copy first.
+    </ReadOverEdits>
 
     <!-- In flight. Nothing to click, by construction. -->
     <div

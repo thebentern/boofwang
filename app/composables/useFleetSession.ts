@@ -69,7 +69,23 @@ export function useFleetSession() {
       return false
     }
     fleet.startRun(doc, radio, facts())
+    // The editor still holds the master, unwritten edits and all, and the run
+    // now has its own copy. The first read may replace it on that account.
+    fleet.noteEditor(codeplug.revision)
     return true
+  }
+
+  /**
+   * Whether reading a radio now would lose work.
+   *
+   * Every read replaces the editor's document, which is safe while that is
+   * the master the run took or a plan it made, and not once somebody has
+   * edited it by hand. The run's master is the copy taken when it started, so
+   * an edit made since is not in it, not on a radio and not in a backup. The
+   * page asks before a read that would lose one, as the connect page does.
+   */
+  function canRead(): boolean {
+    return codeplug.canReplace(fleet.editorRevision)
   }
 
   /**
@@ -79,8 +95,12 @@ export function useFleetSession() {
    * the fingerprint of the unit it came from, and it is the thing the driver
    * demands before it will write - so the loop's second step needs no code of
    * its own, which is the best reason to have arranged it this way.
+   *
+   * `consent` is the revision somebody agreed to discard when `canRead` said
+   * no. Without it the run vouches for its own document and nothing else, so
+   * `connectAndRead` still refuses to replace an edit nobody was asked about.
    */
-  async function readUnit(unit: FleetUnit): Promise<boolean> {
+  async function readUnit(unit: FleetUnit, consent: number | null = null): Promise<boolean> {
     const master = fleet.master
     const radio = fleet.radio
     if (!master || !radio) return false
@@ -91,7 +111,7 @@ export function useFleetSession() {
     // the one reliable signal that a radio was read is the image being
     // replaced. It calls `codeplug.load` on no other path.
     const before = codeplug.image
-    await session.connectAndRead(radio)
+    await session.connectAndRead(radio, null, { discarding: consent ?? fleet.editorRevision })
     if (codeplug.image === before) {
       fleet.clearCurrent()
       return false
@@ -141,6 +161,9 @@ export function useFleetSession() {
       // afterwards against it.
       codeplug.replaceDocument(plan.codeplug)
       fleet.setPlan(plan, unitHash)
+      // Unwritten, and still the run's own: reading this radio again makes it
+      // again, so the next read may replace it without asking.
+      fleet.noteEditor(codeplug.revision)
       return true
     } catch (e) {
       toast.add({
@@ -213,5 +236,5 @@ export function useFleetSession() {
     fleet.clearCurrent()
   }
 
-  return { startRun, readUnit, writeCurrent, skipCurrent, pendingBlocks }
+  return { startRun, canRead, readUnit, writeCurrent, skipCurrent, pendingBlocks }
 }

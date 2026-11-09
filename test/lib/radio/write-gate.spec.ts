@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
-import { evaluateWriteGate, type GateInput } from '#core/radio/write-gate.js'
+import { NO_BACKUP_REMEDY, evaluateWriteGate, type GateInput } from '#core/radio/write-gate.js'
 import { UVK5_SCHEMA } from '#core/radios/uvk5/schema.js'
 import type { IdentifyResult } from '#core/radio/driver.js'
 
@@ -41,7 +41,19 @@ describe('evaluateWriteGate', () => {
   it('refuses without a backup, and says how to get one', () => {
     const r = evaluateWriteGate(ok({ backup: null }))
     expect(r.allowed).toBe(false)
-    expect(r.blockers.find((b) => b.code === 'no-backup')?.remedy).toMatch(/Read the radio/)
+    expect(r.blockers.find((b) => b.code === 'no-backup')?.remedy).toMatch(/^Reading the radio saves one/)
+  })
+
+  it('says how to get a backup without losing what is open', () => {
+    // "Read the radio first" was the whole remedy, and a read replaces the
+    // open codeplug. This blocker is what somebody sees with a file open from
+    // a radio that has no backup, so following it threw the file's edits away
+    // to make one. The way that keeps them is to save, read, and apply.
+    const remedy = evaluateWriteGate(ok({ backup: null })).blockers.find((b) => b.code === 'no-backup')?.remedy
+    expect(remedy).toBe(NO_BACKUP_REMEDY)
+    expect(remedy).toMatch(/replaces the codeplug open here/)
+    expect(remedy).toMatch(/save it as a codeplug \(\.bwp\) first/)
+    expect(remedy).toMatch(/open that file after the read and apply it to what was read/)
   })
 
   it('refuses a backup taken from a different radio', () => {

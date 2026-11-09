@@ -391,10 +391,15 @@ async function send() {
 
             <p style="margin-top: 5px; font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 70ch">
               <template v-if="checking">Looking for a stored backup of this radio…</template>
+              <!--
+                The consequence before the remedy. The remedy for a missing
+                backup now says how to keep the open codeplug through the read
+                that makes one, and "without one" after it no longer had a
+                backup to point back to.
+              -->
               <template v-else-if="backupBlocker">
-                {{ backupBlocker.message }}
+                {{ backupBlocker.message }} A write cannot be offered without one.
                 <template v-if="backupBlocker.remedy"> {{ backupBlocker.remedy }}</template>
-                A write cannot be offered without one.
               </template>
               <template v-else>{{ backupBody }}</template>
             </p>

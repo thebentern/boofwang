@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RadioId } from '#core/model/codeplug.js'
+import { diffChannels } from '#core/radio/channel-diff.js'
 import { RADIO_IDS, SCHEMAS, isImplemented } from '#core/radio/registry.js'
 import { BL1_DONGLE_PROFILES, bluetoothProfile } from '#core/transport/bluetooth-uuids.js'
 import { hostSupports, shellProvidesTransports } from '#core/platform/host.js'
@@ -400,6 +401,80 @@ function withoutARadio(): boolean {
 }
 
 /**
+ * A read held back until somebody agrees to lose what it would replace.
+ *
+ * A read replaces the open codeplug, and unwritten edits are on no radio and
+ * in no backup. Reading used to replace them without a word, and the write
+ * gate's remedy for a missing backup sent people straight here to do it.
+ *
+ * Every way into a read on this screen comes through `unlessItDiscards`
+ * before it raises a chooser, because the chooser is what decides where the
+ * question can go. `requestPort` and `requestDevice` need transient
+ * activation, so the question cannot sit between the click and the chooser:
+ * an answer given seconds later has no activation left to open anything with.
+ * So the question takes the chooser's place, and the slide that answers it is
+ * the gesture that opens the chooser. `ConfirmSlide` emits from inside the
+ * pointer or key event that completes it, which the write page relies on in
+ * the same way when a write has to reconnect.
+ */
+const heldRead = shallowRef<((consent: number | null) => void) | null>(null)
+
+function unlessItDiscards(start: (consent: number | null) => void) {
+  // With no radio named there is no read either way, and `start` says so
+  // through `withoutARadio` before anything opens. Asking about the edits
+  // first would put a slide in front of a refusal.
+  if (needsChoice.value || codeplug.canReplace()) {
+    start(null)
+    return
+  }
+  heldRead.value = start
+}
+
+/**
+ * The slide's answer: the read starts here, inside the slide's own event.
+ *
+ * The revision is the agreement. It covers the edits on screen now, and
+ * `connectAndRead` refuses to discard any made after it.
+ */
+function discardAndRead() {
+  const start = heldRead.value
+  heldRead.value = null
+  start?.(codeplug.revision)
+}
+
+/**
+ * Undo can leave nothing to lose while the question is up, and then it is not
+ * asked. Dropped rather than hidden, or a redo would raise it again unasked.
+ */
+const askingToDiscard = computed(() => heldRead.value !== null && !codeplug.canReplace())
+watch(
+  () => codeplug.canReplace(),
+  (ok) => {
+    if (ok) heldRead.value = null
+  },
+)
+
+/** The open codeplug's radio, which need not be the radio about to be read. */
+const openName = computed(() => (codeplug.schema ? `${codeplug.schema.vendor} ${codeplug.schema.model}` : 'radio'))
+
+/**
+ * The part of the loss that can be counted.
+ *
+ * Channels are what boofwang can narrate, so they are the count, worked out
+ * the way the write page works out its diff. Edits elsewhere are real and
+ * uncounted, which is why the sentence says "including" rather than giving a
+ * total. Only while the question is up, because it decodes the whole image.
+ */
+const changedChannels = computed(() => {
+  void codeplug.revision
+  const driver = codeplug.driverRef
+  const image = codeplug.image
+  const doc = codeplug.doc
+  if (!askingToDiscard.value || !driver || !image || !doc) return 0
+  return diffChannels(driver.decode(image), doc).changed
+})
+
+/**
  * Ask for a port, then read the radio on it.
  *
  * `requestPort` needs transient activation, so this is the first thing the
@@ -427,8 +502,11 @@ function withoutARadio(): boolean {
  * Every other caller already went through `acquirePort` - `useRadioSession` and
  * `useBootImage` - and `grantedPorts` already routed natively, so reading a
  * radio the app had already been granted worked and the explicit pick did not.
+ *
+ * `consent` is carried to the read rather than asked for here: by the time
+ * this runs, `unlessItDiscards` has already asked.
  */
-async function pickPort() {
+async function pickPort(consent: number | null = null) {
   if (withoutARadio()) return
   fault.value = null
   via.value = 'adapter'
@@ -464,7 +542,7 @@ async function pickPort() {
   }
   // Outside the try: a read that fails is reported by `readRadio` through the
   // fault card, and must not be dressed up as a chooser that would not open.
-  if (choice) await readRadio(choice)
+  if (choice) await readRadio(choice, consent)
 }
 
 /**
@@ -476,7 +554,7 @@ async function pickPort() {
  * that, a chooser dismissed after an earlier failure would redraw the earlier
  * failure's card as though it had just happened again.
  */
-async function readRadio(acquired?: PortChoice | null) {
+async function readRadio(acquired: PortChoice | null = null, consent: number | null = null) {
   if (withoutARadio()) return
   fault.value = null
   device.error = null
@@ -487,7 +565,7 @@ async function readRadio(acquired?: PortChoice | null) {
   const before = codeplug.revision
 
   try {
-    await session.connectAndRead(radioId.value!, acquired)
+    await session.connectAndRead(radioId.value!, acquired, { discarding: consent })
     await refreshAdapters()
   } finally {
     connecting.value = false
@@ -511,7 +589,7 @@ async function readRadio(acquired?: PortChoice | null) {
  *
  * `requestDevice` needs transient activation, so nothing is awaited before it.
  */
-async function connectBluetooth(everyDevice = false) {
+async function connectBluetooth(everyDevice = false, consent: number | null = null) {
   if (withoutARadio()) return
   fault.value = null
   device.error = null
@@ -556,7 +634,7 @@ async function connectBluetooth(everyDevice = false) {
     return
   }
 
-  await readRadio(choice)
+  await readRadio(choice, consent)
 }
 
 /**
@@ -567,19 +645,25 @@ async function connectBluetooth(everyDevice = false) {
  * what the card reads its diagnosis from. Without clearing it the screen asks
  * about a USB adapter while still explaining a Bluetooth failure.
  */
-async function useCableInstead() {
+async function useCableInstead(consent: number | null = null) {
   device.error = null
   blePicking.value = false
-  await pickPort()
+  await pickPort(consent)
 }
 
+/**
+ * Every button on this screen that reads, and the ones that do not.
+ *
+ * The cards' own events come here too, rather than calling the functions
+ * above, so that no route to a read can miss `unlessItDiscards`.
+ */
 function onAction(key: string) {
-  if (key === 'pick') void pickPort()
-  else if (key === 'cable') void useCableInstead()
-  else if (key === 'read') void readRadio()
-  else if (key === 'bluetooth') void connectBluetooth()
+  if (key === 'pick') unlessItDiscards((c) => void pickPort(c))
+  else if (key === 'cable') unlessItDiscards((c) => void useCableInstead(c))
+  else if (key === 'read') unlessItDiscards((c) => void readRadio(null, c))
+  else if (key === 'bluetooth') unlessItDiscards((c) => void connectBluetooth(false, c))
   // The escape hatch from an empty chooser: no filters, every device in range.
-  else if (key === 'bluetooth-all') void connectBluetooth(true)
+  else if (key === 'bluetooth-all') unlessItDiscards((c) => void connectBluetooth(true, c))
   else if (key === 'cancel') transfer.cancel()
   else if (key === 'trace') void session.downloadTrace()
 }
@@ -768,8 +852,25 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
 
 <template>
   <div class="mx-auto" style="max-width: 1000px; padding: 26px 16px 48px">
+    <!--
+      In the place of the card whose button asked for the read, so the only
+      thing on screen is the decision. "Keep editing" puts the card back.
+    -->
+    <ReadOverEdits
+      v-if="askingToDiscard"
+      title="Reading the radio discards your unwritten edits"
+      @confirm="discardAndRead"
+      @cancel="heldRead = null"
+    >
+      The {{ openName }} codeplug open here has unwritten edits<template v-if="changedChannels > 0">,
+        including <span class="font-mono tabular">{{ changedChannels }}</span> changed
+        channel{{ changedChannels === 1 ? '' : 's' }}</template>. Reading the {{ radioName }} replaces it with
+      what that radio holds. The edits are not on any radio or in any backup, so they are lost unless you save
+      a copy first.
+    </ReadOverEdits>
+
     <ConnectConnectedCard
-      v-if="link === 'ready'"
+      v-else-if="link === 'ready'"
       :radio-id="radioId"
       :title="radioName"
       :detail="detail"
@@ -778,10 +879,10 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       :busy="connecting"
       :bluetooth="offerBluetooth"
       :bluetooth-label="dongleRoute ? 'Bluetooth dongle' : 'Bluetooth'"
-      @read="readRadio"
-      @other-port="pickPort"
+      @read="onAction('read')"
+      @other-port="onAction('pick')"
       @choose="chosen = $event"
-      @bluetooth="connectBluetooth()"
+      @bluetooth="onAction('bluetooth')"
     />
 
     <ConnectLinkFault
@@ -814,7 +915,7 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
           :label="bleLabel"
           icon="i-lucide-signal"
           :disabled="connecting"
-          @click="connectBluetooth()"
+          @click="onAction('bluetooth')"
         />
         <OpenCodeplugButton v-if="offerFile" />
       </template>

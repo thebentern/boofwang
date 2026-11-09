@@ -78,6 +78,18 @@ export const useFleetStore = defineStore('fleet', () => {
    */
   const sawRead = ref(false)
 
+  /**
+   * The codeplug store's revision when this run last knew what the editor
+   * held: the master as the run took it, then each radio's plan as it was
+   * handed over.
+   *
+   * Every read in a run replaces the editor's document, and that is safe
+   * while the editor holds one of those, because the run can make it again -
+   * it keeps the master, and a radio's plan comes back by reading that radio.
+   * A revision past this one is somebody's edit, which nothing can make again.
+   */
+  const editorRevision = ref<number | null>(null)
+
   const running = computed(() => master.value !== null)
   const schema = computed(() => (radio.value ? SCHEMAS[radio.value] : null))
 
@@ -154,12 +166,19 @@ export const useFleetStore = defineStore('fleet', () => {
     plan.value = null
     currentUnitHash.value = null
     sawRead.value = false
+    editorRevision.value = null
   }
 
   function endRun() {
     master.value = null
     masterFacts.value = null
+    editorRevision.value = null
     clearCurrent()
+  }
+
+  /** The editor holds, at `revision`, a document this run put there. */
+  function noteEditor(revision: number) {
+    editorRevision.value = revision
   }
 
   function beginUnit(id: string) {
@@ -209,6 +228,7 @@ export const useFleetStore = defineStore('fleet', () => {
     plan,
     currentUnitHash,
     sawRead,
+    editorRevision,
     running,
     schema,
     problems,
@@ -224,6 +244,7 @@ export const useFleetStore = defineStore('fleet', () => {
     removeRow,
     startRun,
     endRun,
+    noteEditor,
     beginUnit,
     setPlan,
     clearCurrent,
