@@ -25,7 +25,7 @@ const read = (rel: string) => readFileSync(join(root, rel), 'utf8')
 
 const SESSION = read('app/composables/useRadioSession.ts')
 const PAGE = read('app/pages/index.vue')
-const PANEL = read('app/components/ReadOverEdits.vue')
+const PANEL = read('app/components/DiscardEdits.vue')
 const FLEET_SESSION = read('app/composables/useFleetSession.ts')
 const FLEET_PAGE = read('app/pages/fleet.vue')
 
@@ -144,7 +144,7 @@ describe('the connect page', () => {
   })
 
   it('puts the question where the card was, not beside it', () => {
-    const panel = T.indexOf('<ReadOverEdits')
+    const panel = T.indexOf('<DiscardEdits')
     expect(panel, 'the connect page no longer asks').toBeGreaterThan(-1)
     expect(T.slice(panel, panel + 120)).toMatch(/v-if="askingToDiscard"/)
     expect(T).toMatch(/<ConnectConnectedCard\s+v-else-if="link === 'ready'"/)
@@ -156,7 +156,13 @@ describe('the question', () => {
   it('is the destructive slide, with the verb under the thumb', () => {
     const slide = PANEL.slice(PANEL.indexOf('<ConfirmSlide'), PANEL.indexOf('</ConfirmSlide>'))
     expect(slide).toMatch(/risk="destructive"/)
-    expect(slide).toMatch(/label="Slide to discard edits and read"/)
+    // The panel is shared with opening a file or a backup, so the verb is the
+    // caller's to name.
+    expect(slide).toMatch(/:label="label"/)
+    for (const page of [PAGE, FLEET_PAGE]) {
+      const ask = page.slice(page.indexOf('<DiscardEdits'))
+      expect(ask.slice(0, ask.indexOf('>'))).toMatch(/label="Slide to discard edits and read"/)
+    }
   })
 
   it('passes the slide’s answer straight through', () => {
@@ -190,6 +196,6 @@ describe('the fleet run', () => {
     const answer = body(S, 'function discardAndRead(')
     expect(answer).not.toMatch(/await /)
     expect(answer).toMatch(/readRadio\(unit, codeplug\.revision\)/)
-    expect(template(FLEET_PAGE)).toMatch(/<ReadOverEdits[\s\S]*?@confirm="discardAndRead"/)
+    expect(template(FLEET_PAGE)).toMatch(/<DiscardEdits[\s\S]*?@confirm="discardAndRead"/)
   })
 })

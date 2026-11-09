@@ -138,7 +138,7 @@ const sent = ref<{ label: string; blocks: number } | null>(null)
  * true for everything the run put there itself. What it is false for is an
  * edit made by hand since, on the master after the run took its copy or on a
  * radio's plan before it was written. The read waits on the slide then, and
- * the slide has to be what starts it: see `ReadOverEdits`.
+ * the slide has to be what starts it: see `DiscardEdits`.
  */
 const heldUnit = shallowRef<FleetUnit | null>(null)
 const heldPanel = useTemplateRef<{ $el: HTMLElement }>('heldPanel')
@@ -216,14 +216,28 @@ function skip() {
 }
 
 /**
- * Ending the run throws away the record of which radios were done.
+ * Ending the run throws away what it holds that nothing else does.
  *
- * That is the one thing a fleet session produces that is not on a radio and
- * not in a backup, so once anything has been written this asks for the slide -
- * with the CSV of the record offered beside it, which is what somebody
- * actually wants when they reach for this button.
+ * The record of which radios were done is the one thing a fleet session
+ * produces that is not on a radio and not in a backup. A master that had
+ * unwritten edits becomes the other once the editor has moved on from it,
+ * because the run's copy is then the only one, and ending the run used to
+ * drop it while the slide named only the record. Either makes ending
+ * destructive, so it asks for the slide - with the CSV of the record beside
+ * the button and the master beside the slide, which is what somebody
+ * actually wants when they reach for this.
  */
 const ending = ref(false)
+const endLoses = computed(() => ({
+  record: fleet.written.length > 0,
+  master: run.masterOnlyHere(),
+}))
+const endCostsNothing = computed(() => !endLoses.value.record && !endLoses.value.master)
+// "Do again" can empty the record while the question is up. It is dropped
+// then, rather than left to come back open on the next write.
+watch(endCostsNothing, (free) => {
+  if (free) ending.value = false
+})
 function finish() {
   fleet.endRun()
   ending.value = false
@@ -549,10 +563,12 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
       {{ device.keepLinkUp }} while a radio is being read or written.
     </p>
 
-    <ReadOverEdits
+    <DiscardEdits
       v-if="heldUnit && !run.canRead()"
       ref="heldPanel"
       title="Reading this radio discards the edits in the editor"
+      label="Slide to discard edits and read"
+      icon="i-lucide-download"
       style="margin-bottom: 12px"
       @confirm="discardAndRead"
       @cancel="heldUnit = null"
@@ -560,7 +576,7 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
       The editor holds edits made after this run last put a codeplug there, and the master the run sends does
       not have them. Reading {{ heldUnit.label || 'this radio' }} replaces them with that radio's codeplug. The
       edits are not on any radio or in any backup, so they are lost unless you save a copy first.
-    </ReadOverEdits>
+    </DiscardEdits>
 
     <!-- In flight. Nothing to click, by construction. -->
     <div
@@ -834,7 +850,7 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
         @click="saveRecord"
       />
       <RiskAction
-        v-if="fleet.written.length === 0"
+        v-if="endCostsNothing"
         risk="neutral"
         ghost
         icon="i-lucide-x"
@@ -854,18 +870,36 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
     </div>
 
     <div
-      v-if="ending"
+      v-if="ending && !endCostsNothing"
       class="rounded-[7px]"
       style="margin-top: 11px; padding: 15px 17px; border: 1px solid var(--dgL); background: var(--dgB)"
     >
-      <p style="font-size: 14px; line-height: 1.55; color: var(--tx); max-width: 76ch; margin-bottom: 10px">
+      <p
+        v-if="endLoses.record"
+        style="font-size: 14px; line-height: 1.55; color: var(--tx); max-width: 76ch; margin-bottom: 10px"
+      >
         Ending the run throws away the record of which {{ fleet.written.length }} radio{{
           fleet.written.length === 1 ? '' : 's'
         }} were written and which physical radio took each row. The radios keep what they were given and
         every backup stays under Backups, but this list is not stored anywhere and cannot be rebuilt.
       </p>
+      <p
+        v-if="endLoses.master"
+        style="font-size: 14px; line-height: 1.55; color: var(--tx); max-width: 76ch; margin-bottom: 10px"
+      >
+        The master had unwritten edits when this run took it, and the editor has held other codeplugs since.
+        Ending the run discards the master, which is in no backup, so save it first to keep it.
+      </p>
       <ConfirmSlide label="Slide to end the run" risk="destructive" icon="i-lucide-x" busy-label="Ending" @confirm="finish">
         <template #secondary>
+          <RiskAction
+            v-if="endLoses.master"
+            risk="neutral"
+            ghost
+            icon="i-lucide-save"
+            label="Save the master"
+            @click="run.saveMaster()"
+          />
           <RiskAction risk="neutral" ghost label="Keep going" @click="ending = false" />
         </template>
       </ConfirmSlide>

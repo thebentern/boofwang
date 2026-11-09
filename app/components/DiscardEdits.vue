@@ -1,13 +1,16 @@
 <script setup lang="ts">
 /**
- * What a read asks before it throws away unwritten edits.
+ * What an action asks before it throws away unwritten edits.
  *
- * Destructive on the risk register: the panel names what is lost, then the
- * hand travels the whole track. It is a panel rather than a dialog, like the
- * update notice and the end of a fleet run, and the page that shows it puts
- * it where the button that raised it was, so there is one decision on screen.
+ * Reading a radio, opening a file and opening a backup all replace the open
+ * codeplug, and its unwritten edits go with it: they are on no radio and in
+ * no backup. Destructive on the risk register, so this names what is lost,
+ * then the hand travels the whole track. A panel rather than a dialog where
+ * the page can put it where the button that raised it was, so there is one
+ * decision on screen; `bare` drops the frame for a dialog that already has
+ * one.
  *
- * The slide starts a read, and a read opens a chooser that needs transient
+ * The slide can start a read, and a read opens a chooser that needs transient
  * activation. `ConfirmSlide` emits from inside the pointer or key event that
  * completes it, which is what lets a page start the read from `confirm` - as
  * long as it awaits nothing first. An answer given any other way, a button in
@@ -18,9 +21,14 @@
  * keep them", and naming the remedy without the means would send somebody to
  * the channel table's Export menu and back.
  */
-defineProps<{
-  /** What the read discards, as a headline. The slot says the rest. */
+const { bare = false } = defineProps<{
+  /** What the action discards, as a headline. The slot says the rest. */
   title: string
+  /** The verb under the thumb, e.g. "Slide to discard edits and read". */
+  label: string
+  /** The action's own icon, so the slide says which verb it is besides its color. */
+  icon: string
+  bare?: boolean
 }>()
 
 const emit = defineEmits<{ confirm: []; cancel: [] }>()
@@ -30,12 +38,12 @@ const session = useRadioSession()
 
 <template>
   <div
-    class="rounded-[8px]"
-    style="border: 1px solid var(--dgL); background: var(--pn); padding: 17px 19px"
+    :class="bare ? undefined : 'rounded-[8px]'"
+    :style="bare ? undefined : 'border: 1px solid var(--dgL); background: var(--pn); padding: 17px 19px'"
     role="region"
     :aria-label="title"
   >
-    <div class="flex items-start" style="gap: 10px">
+    <div v-if="!bare" class="flex items-start" style="gap: 10px">
       <UIcon name="i-lucide-circle-x" class="size-4 shrink-0" style="color: var(--dg); margin-top: 2px" />
       <div class="min-w-0">
         <div style="font-size: 15px; font-weight: 600; color: var(--tx)">{{ title }}</div>
@@ -44,14 +52,12 @@ const session = useRadioSession()
         </p>
       </div>
     </div>
+    <p v-else style="font-size: 14px; line-height: 1.55; color: var(--mu); max-width: 72ch">
+      <slot />
+    </p>
 
     <div style="margin-top: 15px">
-      <ConfirmSlide
-        label="Slide to discard edits and read"
-        risk="destructive"
-        icon="i-lucide-download"
-        @confirm="emit('confirm')"
-      >
+      <ConfirmSlide :label="label" risk="destructive" :icon="icon" @confirm="emit('confirm')">
         <template #secondary>
           <RiskAction
             risk="neutral"

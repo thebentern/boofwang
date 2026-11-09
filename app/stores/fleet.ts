@@ -8,6 +8,7 @@ import { computed, markRaw, ref, shallowRef, toRaw } from 'vue'
 import { defineStore } from 'pinia'
 import { validateFleetRoster, type FleetOutcome, type FleetPlan, type FleetUnit } from '#core/radio/fleet.js'
 import type { Codeplug, RadioId } from '#core/model/codeplug.js'
+import type { RadioImage } from '#core/radio/image.js'
 import { SCHEMAS } from '#core/radio/registry.js'
 
 /**
@@ -37,6 +38,23 @@ export interface MasterFacts {
   readonly keys: number
 }
 
+/**
+ * A master that had unwritten edits when the run took it.
+ *
+ * Kept because the run's copy can become the only one. The first read
+ * replaces the editor's document, and the edits were on no radio and in no
+ * backup, so from then until the run ends they live here and nowhere else.
+ */
+export interface MasterEdits {
+  /**
+   * The master rendered onto the image it was opened from, which is what
+   * "Save a copy" would have saved, or null when it could not be encoded.
+   */
+  readonly image: RadioImage | null
+  /** The codeplug store's `generation` while the editor still held the master. */
+  readonly generation: number
+}
+
 export const useFleetStore = defineStore('fleet', () => {
   const roster = ref<FleetUnit[]>([])
 
@@ -61,6 +79,8 @@ export const useFleetStore = defineStore('fleet', () => {
    */
   const master = shallowRef<Codeplug | null>(null)
   const masterFacts = ref<MasterFacts | null>(null)
+  /** Null when the master had nothing unwritten. See `MasterEdits`. */
+  const masterEdits = shallowRef<MasterEdits | null>(null)
   const copyKeys = ref(false)
 
   const outcomes = ref<Record<string, FleetOutcome>>({})
@@ -157,10 +177,11 @@ export const useFleetStore = defineStore('fleet', () => {
    * been done is how two of them end up sharing one, and the duplicate check
    * that would have caught it ran before the run started.
    */
-  function startRun(doc: Codeplug, id: RadioId, facts: MasterFacts) {
+  function startRun(doc: Codeplug, id: RadioId, facts: MasterFacts, edits: MasterEdits | null = null) {
     master.value = markRaw(structuredClone(toRaw(doc)))
     radio.value = id
     masterFacts.value = facts
+    masterEdits.value = edits === null ? null : markRaw(edits)
     outcomes.value = {}
     currentId.value = null
     plan.value = null
@@ -172,6 +193,7 @@ export const useFleetStore = defineStore('fleet', () => {
   function endRun() {
     master.value = null
     masterFacts.value = null
+    masterEdits.value = null
     editorRevision.value = null
     clearCurrent()
   }
@@ -221,6 +243,7 @@ export const useFleetStore = defineStore('fleet', () => {
     radio,
     master,
     masterFacts,
+    masterEdits,
     copyKeys,
     outcomes,
     currentId,

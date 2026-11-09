@@ -171,6 +171,16 @@ export const useCodeplugStore = defineStore('codeplug', () => {
   const diagnostics = shallowRef<readonly Diagnostic[]>([])
   const revision = ref(0)
   const dirty = ref(false)
+  /**
+   * Which document is open, as opposed to which edit of it.
+   *
+   * Moved by `load`, `replaceDocument` and `close`, and never by an edit, so
+   * it answers "is this still the codeplug I saw" where `revision` answers "is
+   * it still as I saw it". A fleet run needs the first. An edited master is
+   * safe to drop while the editor still holds it, however far it has been
+   * edited since, and is the only copy once the editor holds anything else.
+   */
+  const generation = ref(0)
 
   const isOpen = computed(() => doc.value !== null)
   const channelCount = computed(() => channels.value.length)
@@ -522,6 +532,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     // precisely why it must not be possible.
     clearHistory()
     revision.value++
+    generation.value++
     dirty.value = false
   }
 
@@ -586,6 +597,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     publish(next)
     clearHistory()
     revision.value++
+    generation.value++
     dirty.value = true
   }
 
@@ -612,6 +624,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     clearHistory()
     dirty.value = false
     revision.value++
+    generation.value++
   }
 
   /**
@@ -1291,6 +1304,7 @@ export const useCodeplugStore = defineStore('codeplug', () => {
     diagnostics,
     diagnosticsByChannel,
     revision,
+    generation,
     dirty,
     isOpen,
     channelCount,

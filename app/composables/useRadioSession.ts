@@ -109,8 +109,8 @@ function acquireFailure(kind: TransportKind) {
     : { title: 'Could not open a serial port', icon: 'i-lucide-cable' }
 }
 
-/** What a read may do to the codeplug it replaces. */
-export interface ReadOptions {
+/** What a read or a restore may do to the codeplug it replaces. */
+export interface ReplaceOptions {
   /**
    * The open codeplug's `revision` when the person agreed to discard its
    * unwritten edits, or null when nobody was asked. `canReplace` on the
@@ -311,8 +311,13 @@ export function useRadioSession() {
    * is *expected* to differ, and making it match again is the entire request.
    * So no base image is supplied, and the driver writes whichever blocks differ from
    * what it reads off the radio.
+   *
+   * The editor follows the radio afterwards, which replaces the open codeplug,
+   * so `options.discarding` says what the restore screen's slide agreed to
+   * lose. The restore itself does not wait on it: the radio is what the slide
+   * was for, and edits nobody agreed to lose are simply left open.
    */
-  async function restoreToRadio(image: RadioImage) {
+  async function restoreToRadio(image: RadioImage, options: ReplaceOptions = {}) {
     if (!device.connected) {
       const kind = device.lastKind
       let choice: PortChoice | null
@@ -364,7 +369,11 @@ export function useRadioSession() {
         adapter: device.portLabel,
         progress: (p) => transfer.report(p),
       })
-      codeplug.load(image, device.currentDriver())
+
+      // Asked after the write rather than before it, because the answer can
+      // change while the radio is written: nothing locks the channel page.
+      const kept = !codeplug.canReplace(options.discarding ?? null)
+      if (!kept) codeplug.load(image, device.currentDriver())
 
       // Say what was actually restored, not what was asked for. Some drivers
       // write only part of an image on purpose - the DM-32UV cannot write
@@ -398,6 +407,21 @@ export function useRadioSession() {
         color: partial || (report.blocksWritten === 0 && scope) ? 'warning' : 'success',
         duration: 12_000,
       })
+      // Kept is not current: the radio has just changed under it. A driver
+      // that compares the radio with the base refuses the next write, and
+      // not every driver does, so on those this toast is the protection.
+      if (kept) {
+        toast.add({
+          title: 'The open codeplug was kept',
+          description:
+            'It has unwritten edits nobody agreed to discard, so it was not replaced with the backup, and it ' +
+            'does not match what the radio holds now. Open the backup under Backups, or read the radio again, ' +
+            'before writing to it.',
+          icon: 'i-lucide-info',
+          color: 'warning',
+          duration: 0,
+        })
+      }
     } catch (e) {
       device.captureFailure(e)
       toast.add({
@@ -430,7 +454,7 @@ export function useRadioSession() {
    * that holds when a caller does not ask, the way `writeImage` holds whatever
    * the write gate said.
    */
-  async function connectAndRead(id: RadioId, acquired?: PortChoice | null, options: ReadOptions = {}) {
+  async function connectAndRead(id: RadioId, acquired?: PortChoice | null, options: ReplaceOptions = {}) {
     if (!isImplemented(id)) {
       toast.add({ title: 'Not implemented yet', description: `There is no driver for this radio yet.`, color: 'neutral' })
       return

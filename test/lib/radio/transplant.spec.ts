@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
-import { settingsKeptByEachRadio, transplantCodeplug, TransplantError } from '#core/radio/transplant.js'
+import {
+  editsReplaced,
+  settingsKeptByEachRadio,
+  transplantCodeplug,
+  TransplantError,
+} from '#core/radio/transplant.js'
 import { SCHEMAS } from '#core/radio/registry.js'
 import type { RadioSchema } from '#core/radio/schema.js'
 import { emptyCodeplug, type Channel, type Codeplug } from '#core/model/index.js'
@@ -344,5 +349,81 @@ describe('transplanting settings', () => {
       .filter((s) => s?.features.settingsTransplant === true)
       .map((s) => s!.id)
     expect(opted).toEqual(['dm32uv'])
+  })
+})
+
+describe('editsReplaced', () => {
+  /*
+   * What decides whether applying a file asks first. The baseline is the
+   * recipient as its own image holds it; the recipient is what the editor
+   * holds now. Every case starts from a recipient equal to its baseline and
+   * makes one edit, so a feature reported is the edit and nothing else.
+   */
+  const edited = (edit: (cp: Codeplug) => void) => {
+    const baseline = ownRadio()
+    const recipient = ownRadio()
+    edit(recipient)
+    return editsReplaced(baseline, recipient, run({ recipient }))
+  }
+  const features = (edit: (cp: Codeplug) => void) => edited(edit).map((c) => c.feature)
+
+  it('reports nothing for a recipient with no edits', () => {
+    expect(features(() => {})).toEqual([])
+  })
+
+  it('reports a channel edit, which the donor’s bank replaces', () => {
+    const replaced = edited((cp) => cp.channels.set(7, channel({ index: 7, name: 'RENAMED' })))
+    expect(replaced.map((c) => c.feature)).toEqual(['channels'])
+    // The label is the plural noun the question puts in its sentence.
+    expect(replaced[0]!.label).toBe('channels')
+  })
+
+  it('reports a channel created or deleted as well as one edited', () => {
+    expect(features((cp) => cp.channels.set(8, channel({ index: 8 })))).toEqual(['channels'])
+    expect(features((cp) => cp.channels.delete(7))).toEqual(['channels'])
+  })
+
+  it('reports an edit to any list the merge replaces', () => {
+    expect(features((cp) => (cp.zones = [{ id: 'mz', name: 'RENAMED', channels: [7] }]))).toEqual(['zones'])
+    expect(features((cp) => (cp.messages = ['changed']))).toEqual(['messages'])
+  })
+
+  it('does not report an edit the merge leaves alone', () => {
+    // Settings stay with the recipient unless they are asked for, so a
+    // squelch level changed before opening the file survives the merge.
+    // Asking about it would put a slide in front of a merge that loses
+    // nothing.
+    expect(features((cp) => (cp.settings = { ...cp.settings, squelch: 9 }))).toEqual([])
+    // DMR IDs and keys stay too, unless their boxes are ticked.
+    expect(features((cp) => (cp.radioIds = [{ id: 'mrid', name: 'Mine', dmrId: 3_100_002 }]))).toEqual([])
+  })
+
+  it('reports an edit to a list the opt-in replaces after all', () => {
+    const baseline = ownRadio()
+    const recipient = ownRadio()
+    recipient.radioIds = [{ id: 'mrid', name: 'Mine', dmrId: 3_100_002 }]
+    const merge = run({ recipient, copyRadioIds: true })
+    expect(editsReplaced(baseline, recipient, merge).map((c) => c.feature)).toEqual(['radioIds'])
+  })
+
+  it('does not count an edit typed back to what the radio holds', () => {
+    // Compared by value, not through the history, so undoing by hand counts
+    // the same as undo. The record is rebuilt with its fields in another
+    // order, as an edit spread over a decoded record can leave them.
+    expect(
+      features((cp) => {
+        const was = cp.channels.get(7)!
+        const { name, ...rest } = was
+        cp.channels.set(7, { ...rest, name })
+      }),
+    ).toEqual([])
+  })
+
+  it('does not count an edit the donor makes the same way', () => {
+    // Nothing is lost when the file brings exactly what the edit made.
+    const baseline = ownRadio()
+    const recipient = ownRadio()
+    recipient.messages = ['on my way']
+    expect(editsReplaced(baseline, recipient, run({ recipient })).map((c) => c.feature)).toEqual([])
   })
 })

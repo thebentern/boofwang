@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { planFleetUnit, unitAlreadyProgrammed, type FleetUnit } from '#core/radio/fleet.js'
 import { blocksToSend } from '#core/radio/diff.js'
+import { encodeBwp } from '#core/io/bwp.js'
 import type { MasterFacts } from '~/stores/fleet'
 
 /**
@@ -68,11 +69,52 @@ export function useFleetSession() {
       })
       return false
     }
-    fleet.startRun(doc, radio, facts())
+    // Unwritten edits are on no radio and in no backup, so once the first read
+    // replaces the editor the run's copy is the only one, and ending the run
+    // has to say so. The rendered image is what saving it would need.
+    fleet.startRun(
+      doc,
+      radio,
+      facts(),
+      codeplug.dirty ? { image: codeplug.encoded, generation: codeplug.generation } : null,
+    )
     // The editor still holds the master, unwritten edits and all, and the run
     // now has its own copy. The first read may replace it on that account.
     fleet.noteEditor(codeplug.revision)
     return true
+  }
+
+  /**
+   * Whether ending the run would discard the only copy of the master.
+   *
+   * True once the master had unwritten edits and the editor has since been
+   * given a different document. While the editor still holds it, edited
+   * further or not, ending the run loses nothing of it.
+   */
+  function masterOnlyHere(): boolean {
+    const edits = fleet.masterEdits
+    return edits !== null && codeplug.generation !== edits.generation
+  }
+
+  /** Save the master as the run took it, as "Save a copy" would have then. */
+  async function saveMaster() {
+    const image = fleet.masterEdits?.image
+    if (!image) {
+      toast.add({
+        title: 'The master cannot be saved as a codeplug file',
+        description:
+          'Its edits could not be rendered onto the image it was opened from, so there is no image to save.',
+        icon: 'i-lucide-triangle-alert',
+        color: 'error',
+        duration: 0,
+      })
+      return
+    }
+    // A raw image carries no firmware name, and an empty one left the file
+    // named "dm32uv--master".
+    const variant = image.variant.replace(/[^\w.-]+/g, '_') || 'codeplug'
+    const stamp = new Date().toISOString().slice(0, 19).replaceAll(':', '-')
+    await saveFile(await encodeBwp(image), `${image.radioId}-${variant}-master-${stamp}.bwp`, 'application/octet-stream')
   }
 
   /**
@@ -236,5 +278,5 @@ export function useFleetSession() {
     fleet.clearCurrent()
   }
 
-  return { startRun, canRead, readUnit, writeCurrent, skipCurrent, pendingBlocks }
+  return { startRun, canRead, masterOnlyHere, saveMaster, readUnit, writeCurrent, skipCurrent, pendingBlocks }
 }

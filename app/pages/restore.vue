@@ -23,6 +23,16 @@ const db = useBoofwangDb()
 const session = useRadioSession()
 const transfer = useTransferStore()
 const device = useDeviceStore()
+const codeplug = useCodeplugStore()
+
+/**
+ * Whether the restore also costs the editor something.
+ *
+ * Once the radio holds the backup, the editor is made to hold it too, so the
+ * codeplug open here is replaced, unwritten edits and all. That loss is named
+ * beside the radio's, and the slide that agrees to one agrees to both.
+ */
+const discards = computed(() => !codeplug.canReplace())
 
 const backup = ref<StoredBackup | null>(null)
 const loading = ref(true)
@@ -75,8 +85,9 @@ async function confirmRestore() {
   try {
     // The composable owns the sequence - reconnect, write, verify - and reports
     // what was actually sent rather than what was asked for. This page's job
-    // ends at the decision.
-    await session.restoreToRadio(fromStoredBackup(b))
+    // ends at the decision, and the revision is the part of it about the
+    // editor: it covers the edits on screen when the slide completed.
+    await session.restoreToRadio(fromStoredBackup(b), { discarding: codeplug.revision })
   } finally {
     restoring.value = false
   }
@@ -170,6 +181,11 @@ async function confirmRestore() {
           by anything else, is gone.
         </p>
 
+        <p v-if="canWrite && discards" style="font-size: 14px; line-height: 1.6; color: var(--mu); margin-bottom: 13px">
+          <UnwrittenEdits /> Once the radio is restored, it is replaced with this backup. The edits are not on any
+          radio or in any backup, so they are lost unless you save a copy first.
+        </p>
+
         <!--
           A restore is reachable from Backups without ever passing the write
           flow, so the warning that lives there has to be said here too. Kept
@@ -225,12 +241,20 @@ async function confirmRestore() {
 
         <ConfirmSlide
           v-if="canWrite"
-          label="Slide to restore"
+          :label="discards ? 'Slide to discard edits and restore' : 'Slide to restore'"
           risk="destructive"
           icon="i-lucide-upload"
           @confirm="confirmRestore()"
         >
           <template #secondary>
+            <RiskAction
+              v-if="discards"
+              risk="neutral"
+              ghost
+              icon="i-lucide-save"
+              label="Save a copy"
+              @click="session.downloadBwp()"
+            />
             <RiskAction risk="neutral" ghost label="Cancel" @click="navigateTo('/backups')" />
           </template>
         </ConfirmSlide>

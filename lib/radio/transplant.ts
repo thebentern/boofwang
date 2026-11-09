@@ -307,3 +307,70 @@ export function settingsKeptByEachRadio(schema: RadioSchema): readonly string[] 
   }
   return out
 }
+
+/** The document field each copied feature comes from. */
+const FIELD: Readonly<Record<TransplantFeature, keyof Codeplug>> = {
+  channels: 'channels',
+  zones: 'zones',
+  scanLists: 'scanLists',
+  talkGroups: 'talkGroups',
+  rxGroups: 'rxGroups',
+  contacts: 'contacts',
+  messages: 'messages',
+  radioIds: 'radioIds',
+  encryptionKeys: 'encryptionKeys',
+  settings: 'settings',
+  unitSettings: 'settings',
+}
+
+/**
+ * The copied features in which applying a merge replaces an unwritten edit.
+ *
+ * Every collection a transplant copies comes wholly from the donor, so an edit
+ * made to one of them on the open codeplug is gone once the merge is applied,
+ * and undo cannot bring it back: the history goes with the document it
+ * described. An edit anywhere else survives the merge, and asking about it
+ * would put a slide in front of a merge that loses nothing.
+ *
+ * `baseline` is the recipient as its own image holds it, which is what an edit
+ * is measured from. Compared by value rather than through the history, so an
+ * edit taken back by undo or typed back by hand is not counted, and neither is
+ * one the donor happens to make the same way.
+ */
+export function editsReplaced(
+  baseline: Codeplug,
+  recipient: Codeplug,
+  merge: TransplantResult,
+): CopiedFeature[] {
+  return merge.copied.filter((c) => {
+    const field = FIELD[c.feature]
+    return !sameValue(baseline[field], recipient[field]) && !sameValue(merge.codeplug[field], recipient[field])
+  })
+}
+
+/**
+ * Equal by value, for the plain data a decoded document is made of.
+ *
+ * Key order is not compared. An edit is a spread over the decoded record, and
+ * a field the decoder left out and the editor added lands last, which a
+ * comparison by serialization would count as a change nobody made.
+ */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map) || !(b instanceof Map) || a.size !== b.size) return false
+    for (const [key, value] of a) if (!b.has(key) || !sameValue(value, b.get(key))) return false
+    return true
+  }
+  if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
+    if (!(a instanceof Uint8Array) || !(b instanceof Uint8Array) || a.length !== b.length) return false
+    return a.every((byte, i) => byte === b[i])
+  }
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const left = a as Record<string, unknown>
+  const right = b as Record<string, unknown>
+  const keys = Object.keys(left)
+  if (keys.length !== Object.keys(right).length) return false
+  return keys.every((key) => Object.hasOwn(right, key) && sameValue(left[key], right[key]))
+}

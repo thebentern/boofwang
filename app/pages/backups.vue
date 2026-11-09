@@ -58,11 +58,38 @@ function canRestore(b: StoredBackup) {
   return isImplemented(b.radioId) && SCHEMAS[b.radioId]?.capabilities.write === true
 }
 
-async function openBackup(b: StoredBackup) {
+/**
+ * The backup whose opening waits on the slide, because it would replace
+ * unwritten edits.
+ *
+ * Opening one replaced the open codeplug without looking at it. A backup is
+ * the way back for the radio it came from, not for edits nobody has written
+ * anywhere, and the baseline row is the sharpest case: "open now" invites a
+ * click that took the codeplug back to what was read, edits and all.
+ */
+const pendingOpen = ref<string | null>(null)
+
+// Undo can leave nothing to lose while the question is up. Dropped rather
+// than hidden, or the next edit would raise it again unasked.
+watch(
+  () => codeplug.canReplace(),
+  (ok) => {
+    if (ok) pendingOpen.value = null
+  },
+)
+
+/** `agreed` is the revision the slide agreed to discard; see `canReplace`. */
+async function openBackup(b: StoredBackup, agreed: number | null = null) {
   if (!isImplemented(b.radioId)) {
     toast.add({ title: 'No driver', description: `boofwang cannot decode ${b.radioId} codeplugs yet.`, color: 'warning' })
     return
   }
+  if (!codeplug.canReplace(agreed)) {
+    pendingDelete.value = null
+    pendingOpen.value = b.id
+    return
+  }
+  pendingOpen.value = null
   codeplug.load(fromStoredBackup(b), createDriver(b.radioId))
   await navigateTo('/channels')
 }
@@ -225,10 +252,30 @@ async function askPersist() {
               ghost
               icon="i-lucide-trash-2"
               :title="`Delete ${b.label}`"
-              @click="pendingDelete = pendingDelete === b.id ? null : b.id"
+              @click="pendingOpen = null; pendingDelete = pendingDelete === b.id ? null : b.id"
             />
           </div>
         </div>
+
+        <!--
+          On its own line under the row, as the delete confirmation is, and for
+          the same reason: the row has no width left for a decision.
+        -->
+        <DiscardEdits
+          v-if="pendingOpen === b.id && !codeplug.canReplace()"
+          title="Opening this backup discards your unwritten edits"
+          label="Slide to discard edits and open"
+          icon="i-lucide-pencil"
+          style="margin-top: 9px"
+          @confirm="openBackup(b, codeplug.revision)"
+          @cancel="pendingOpen = null"
+        >
+          <UnwrittenEdits />
+          {{ isBaseline(b)
+            ? 'This is the backup it came from, so opening it again takes it back to what was read.'
+            : 'Opening this backup replaces it with what the backup holds.' }}
+          The edits are not on any radio or in any backup, so they are lost unless you save a copy first.
+        </DiscardEdits>
 
         <!--
           The confirmation gets its own line rather than the row's spare width:

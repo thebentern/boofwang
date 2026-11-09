@@ -6,7 +6,13 @@ import {
   programmedOnly,
 } from '#core/radio/place.js'
 import { createDriver } from '#core/radio/registry.js'
-import { transplantCodeplug, type TransplantResult } from '#core/radio/transplant.js'
+import {
+  editsReplaced,
+  transplantCodeplug,
+  type CopiedFeature,
+  type TransplantResult,
+} from '#core/radio/transplant.js'
+import { andList } from '#core/text/list.js'
 import {
   acceptTranslation,
   translateChannels,
@@ -48,6 +54,25 @@ const donor = shallowRef<{ opened: OpenedImage; doc: Codeplug; driver: RadioDriv
 
 const copyRadioIds = ref(false)
 const copyKeys = ref(false)
+
+/**
+ * An open or an apply held back until somebody agrees to lose what it would
+ * replace.
+ *
+ * Both replace the open codeplug's contents, and unwritten edits are on no
+ * radio and in no backup. Opening a file used to take them without a word,
+ * and so did "Replace what's open" in the donor dialog, which is the
+ * neutral, ghost-weight button of the three.
+ *
+ * The check is inside `openInstead` and `applyToOpen` themselves, so every
+ * way to them asks: the direct open of a file from the same radio, and both
+ * verbs in the donor dialog. The file picker came first, so there is no
+ * activation to keep alive, and the question can be a dialog of its own.
+ */
+type HeldOpen =
+  | { readonly verb: 'open'; readonly opened: OpenedImage; readonly driver: RadioDriver }
+  | { readonly verb: 'apply' }
+const held = shallowRef<HeldOpen | null>(null)
 
 /**
  * A file from a *different* model, held while its channels are reviewed.
@@ -204,6 +229,67 @@ const firstFreeSlot = computed(() => {
 })
 
 /**
+ * The unwritten edits applying would replace, by the list they are in.
+ *
+ * Empty when nothing is unwritten, and empty too when every edit is somewhere
+ * the merge leaves alone: a squelch level changed before opening the club's
+ * file survives the merge, and a slide in front of it would ask about nothing.
+ * Decodes the whole image, so nothing reads it until Apply is clicked.
+ */
+const applyDiscards = computed<readonly CopiedFeature[]>(() => {
+  void codeplug.revision
+  const result = preview.value
+  const driver = codeplug.driverRef
+  const image = codeplug.image
+  const doc = codeplug.doc
+  if (!result || codeplug.canReplace() || !driver || !image || !doc) return []
+  return editsReplaced(driver.decode(image), doc, result)
+})
+
+/**
+ * Whether the held action still has something to ask about.
+ *
+ * Undo can take the edits back while the dialog is up. The file is then
+ * dropped with the question rather than opened on an answer nobody gave.
+ */
+const asking = computed(() => {
+  const h = held.value
+  if (!h) return false
+  return h.verb === 'open' ? !codeplug.canReplace() : applyDiscards.value.length > 0
+})
+watch(asking, (now) => {
+  if (!now && held.value) keepEditing()
+})
+
+const question = computed(() =>
+  held.value?.verb === 'apply'
+    ? {
+        title: 'Applying this file discards unwritten edits',
+        label: 'Slide to discard edits and apply',
+        icon: 'i-lucide-layers',
+      }
+    : {
+        title: 'Opening this file discards your unwritten edits',
+        label: 'Slide to discard edits and open',
+        icon: 'i-lucide-file-up',
+      },
+)
+
+/** The slide's answer. The revision is the agreement, and covers what was shown. */
+function discardAndContinue() {
+  const h = held.value
+  if (!h) return
+  const agreed = codeplug.revision
+  if (h.verb === 'open') void openInstead(h.opened, h.driver, agreed)
+  else void applyToOpen(agreed)
+}
+
+function keepEditing() {
+  held.value = null
+  donor.value = null
+}
+
+/**
  * The same merge with both opt-ins off.
  *
  * The reasons for holding something back come from the merge itself, so the
@@ -265,9 +351,20 @@ async function onPick(event: Event) {
   }
 }
 
-/** Open the file as the codeplug being edited, replacing whatever was open. */
-async function openInstead({ image, note }: OpenedImage, driver: RadioDriver) {
+/**
+ * Open the file as the codeplug being edited, replacing whatever was open.
+ *
+ * `agreed` is the revision somebody agreed to discard, given by the slide.
+ * Without it, unwritten edits hold the file for the question instead.
+ */
+async function openInstead(opened: OpenedImage, driver: RadioDriver, agreed: number | null = null) {
   donor.value = null
+  if (!codeplug.canReplace(agreed)) {
+    held.value = { verb: 'open', opened, driver }
+    return
+  }
+  held.value = null
+  const { image, note } = opened
   codeplug.load(image, driver)
 
   if (note.kind === 'bwp') {
@@ -353,10 +450,18 @@ async function copyForeignChannels() {
  * Nothing is sent here. The merge is an unsaved edit like any other, so it
  * reaches the radio through the one write path there is - which is what keeps
  * the backup check, the diff and the slide in front of a change this large.
+ *
+ * The merge replaces whole lists and takes the history with it, so an edit in
+ * one of those lists has no way back. Held for the slide then, as an open is.
  */
-async function applyToOpen() {
+async function applyToOpen(agreed: number | null = null) {
   const result = build(copyRadioIds.value, copyKeys.value)
   if (!result || cannotWrite.value !== null) return
+  if (applyDiscards.value.length > 0 && !codeplug.canReplace(agreed)) {
+    held.value = { verb: 'apply' }
+    return
+  }
+  held.value = null
 
   const moved = result.copied.map((c) => `${c.count} ${c.label}`).join(', ')
   const kept = result.skipped.map((s) => s.label).join(', ')
@@ -549,10 +654,10 @@ async function applyToOpen() {
       calibration, so it can be looked at but never written to your radio.
     -->
     <UModal
-      :open="donor !== null"
+      :open="donor !== null && held === null"
       :title="`This is a ${model} codeplug, like the one you have open`"
       :ui="{ content: 'max-w-2xl' }"
-      @update:open="(v: boolean) => { if (!v) donor = null }"
+      @update:open="(v: boolean) => { if (!v && held === null) donor = null }"
     >
       <template #body>
         <p style="font-size: 14px; line-height: 1.6; color: var(--mu); max-width: 70ch">
@@ -661,7 +766,7 @@ async function applyToOpen() {
             risk="caution"
             icon="i-lucide-layers"
             label="Apply to the open codeplug"
-            @click="applyToOpen"
+            @click="applyToOpen()"
           />
           <RiskAction
             v-if="donor"
@@ -673,6 +778,42 @@ async function applyToOpen() {
           />
           <RiskAction risk="neutral" ghost label="Cancel" @click="donor = null" />
         </div>
+      </template>
+    </UModal>
+
+    <!--
+      The question an open or an apply asks when it would discard unwritten
+      edits. It takes the donor dialog's place rather than stacking on it, so
+      the decision on screen is the one being asked. "Keep editing" drops the
+      file: the edits stay open, and the file can be picked again. The title
+      reserves the close button's corner: at phone width it wraps to two
+      lines, and the button sat on top of "unwritten".
+    -->
+    <UModal
+      :open="asking"
+      :title="question.title"
+      :ui="{ content: 'max-w-xl', title: 'pe-8' }"
+      @update:open="(v: boolean) => { if (!v) keepEditing() }"
+    >
+      <template #body>
+        <DiscardEdits
+          bare
+          :title="question.title"
+          :label="question.label"
+          :icon="question.icon"
+          @confirm="discardAndContinue"
+          @cancel="keepEditing"
+        >
+          <template v-if="held?.verb === 'apply'">
+            The codeplug open here has unwritten edits to its {{ andList(applyDiscards.map((c) => c.label)) }}.
+            Applying the file replaces them with the file's, and undo will not take that back, so the edits are lost
+            unless you save a copy first.
+          </template>
+          <template v-else>
+            <UnwrittenEdits /> Opening the file replaces it with the codeplug the file holds. The edits are not on any
+            radio or in any backup, so they are lost unless you save a copy first.
+          </template>
+        </DiscardEdits>
       </template>
     </UModal>
   </div>

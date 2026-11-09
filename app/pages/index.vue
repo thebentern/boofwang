@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { RadioId } from '#core/model/codeplug.js'
-import { diffChannels } from '#core/radio/channel-diff.js'
 import { RADIO_IDS, SCHEMAS, isImplemented } from '#core/radio/registry.js'
 import { BL1_DONGLE_PROFILES, bluetoothProfile } from '#core/transport/bluetooth-uuids.js'
 import { hostSupports, shellProvidesTransports } from '#core/platform/host.js'
@@ -454,26 +453,6 @@ watch(
   },
 )
 
-/** The open codeplug's radio, which need not be the radio about to be read. */
-const openName = computed(() => (codeplug.schema ? `${codeplug.schema.vendor} ${codeplug.schema.model}` : 'radio'))
-
-/**
- * The part of the loss that can be counted.
- *
- * Channels are what boofwang can narrate, so they are the count, worked out
- * the way the write page works out its diff. Edits elsewhere are real and
- * uncounted, which is why the sentence says "including" rather than giving a
- * total. Only while the question is up, because it decodes the whole image.
- */
-const changedChannels = computed(() => {
-  void codeplug.revision
-  const driver = codeplug.driverRef
-  const image = codeplug.image
-  const doc = codeplug.doc
-  if (!askingToDiscard.value || !driver || !image || !doc) return 0
-  return diffChannels(driver.decode(image), doc).changed
-})
-
 /**
  * Ask for a port, then read the radio on it.
  *
@@ -856,18 +835,17 @@ const activeRadio = computed<RadioId | null>(() => confirmed.value)
       In the place of the card whose button asked for the read, so the only
       thing on screen is the decision. "Keep editing" puts the card back.
     -->
-    <ReadOverEdits
+    <DiscardEdits
       v-if="askingToDiscard"
       title="Reading the radio discards your unwritten edits"
+      label="Slide to discard edits and read"
+      icon="i-lucide-download"
       @confirm="discardAndRead"
       @cancel="heldRead = null"
     >
-      The {{ openName }} codeplug open here has unwritten edits<template v-if="changedChannels > 0">,
-        including <span class="font-mono tabular">{{ changedChannels }}</span> changed
-        channel{{ changedChannels === 1 ? '' : 's' }}</template>. Reading the {{ radioName }} replaces it with
-      what that radio holds. The edits are not on any radio or in any backup, so they are lost unless you save
-      a copy first.
-    </ReadOverEdits>
+      <UnwrittenEdits /> Reading the {{ radioName }} replaces it with what that radio holds. The edits are not on
+      any radio or in any backup, so they are lost unless you save a copy first.
+    </DiscardEdits>
 
     <ConnectConnectedCard
       v-else-if="link === 'ready'"

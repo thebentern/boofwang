@@ -26,7 +26,7 @@ const RESTORE = read('../../app/pages/restore.vue')
 const FLEET = read('../../app/pages/fleet.vue')
 const BOOT = read('../../app/pages/startup-image.vue')
 const UPDATE = read('../../app/components/AppUpdateNotice.vue')
-const READ_OVER_EDITS = read('../../app/components/ReadOverEdits.vue')
+const DISCARD_EDITS = read('../../app/components/DiscardEdits.vue')
 
 describe('the slide confirmation', () => {
   it('will not commit on a tap, only on travel', () => {
@@ -76,7 +76,7 @@ describe('which confirmation each screen asks for', () => {
       ['fleet', FLEET],
       ['startup picture', BOOT],
       ['update notice', UPDATE],
-      ['read over unwritten edits', READ_OVER_EDITS],
+      ['discarding unwritten edits', DISCARD_EDITS],
     ] as const) {
       expect(src, `${name} does not use the slide`).toMatch(/<ConfirmSlide/)
       expect(src, `${name} still has a typed form`).not.toMatch(/ConfirmTyped/)
@@ -92,13 +92,16 @@ describe('which confirmation each screen asks for', () => {
   })
 
   it('names the verb in every label, so what is agreed to is under the thumb', () => {
-    for (const src of [WRITE, RESTORE, FLEET, BOOT, UPDATE, READ_OVER_EDITS]) {
+    for (const src of [WRITE, RESTORE, FLEET, BOOT, UPDATE]) {
       const labels = [...src.matchAll(/<ConfirmSlide[\s\S]*?:?label="([^"]+)"/g)].map((m) => m[1] ?? "")
       expect(labels.length).toBeGreaterThan(0)
       // The write page binds a computed, whose every branch starts the same way.
       for (const l of labels) expect(l === 'slideLabel' || /Slide to /.test(l), l).toBe(true)
     }
     expect(WRITE).toMatch(/'Slide to send the changes'/)
+    // The panel that asks about unwritten edits is shared, so its callers name
+    // the verb; test/app/open-over-edits checks that each of them does.
+    expect(DISCARD_EDITS).toMatch(/<ConfirmSlide :label="label"/)
   })
 
   it('never reduces either action to a bare RiskAction that sends', () => {
