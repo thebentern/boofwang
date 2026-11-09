@@ -1,0 +1,1171 @@
+{
+ "10": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 1,
+  "name": "GMRS9",
+  "power": "Med",
+  "pttid": "Off",
+  "rx": 467587500,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "9",
+  "skip": "none",
+  "tx": 467587500,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "11": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 1,
+  "name": "GMRS10",
+  "power": "Med",
+  "pttid": "Off",
+  "rx": 467612500,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "10",
+  "skip": "none",
+  "tx": 467612500,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "118": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA1",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162550000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "119": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA2",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162400000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "12": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 1,
+  "name": "GMRS11",
+  "power": "Med",
+  "pttid": "Off",
+  "rx": 467637500,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "11",
+  "skip": "none",
+  "tx": 467637500,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "120": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA3",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162475000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "121": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA4",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162425000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "122": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA5",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162450000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "123": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA6",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162500000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "124": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA7",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162525000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "125": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA8",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 161650000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "126": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA9",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 161775000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "127": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA10",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 161750000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "128": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA11",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162000000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "13": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 1,
+  "name": "GMRS12",
+  "power": "Med",
+  "pttid": "Off",
+  "rx": 467662500,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "12",
+  "skip": "none",
+  "tx": 467662500,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "14": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 1,
+  "name": "GMRS13",
+  "power": "Med",
+  "pttid": "Off",
+  "rx": 467687500,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "13",
+  "skip": "none",
+  "tx": 467687500,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "15": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 1,
+  "name": "GMRS14",
+  "power": "Med",
+  "pttid": "Off",
+  "rx": 467712500,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "14",
+  "skip": "none",
+  "tx": 467712500,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "16": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS15",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462550000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "15",
+  "skip": "none",
+  "tx": 462550000,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "17": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS16",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462575000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462575000,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "18": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS17",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462600000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462600000,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "19": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS18",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462625000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462625000,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "2": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS1",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462562500,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462562500,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "20": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS19",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462650000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462650000,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "21": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS20",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462675000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462675000,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "22": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS21",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462700000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462700000,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "23": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS22",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462725000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462725000,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "24": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "REPTR1",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462550000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 467550000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "25": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "REPTR2",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462575000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 467575000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "26": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "REPTR3",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462600000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 467600000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "27": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "REPTR4",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462625000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 467625000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "28": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "REPTR5",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462650000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 467650000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "29": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "REPTR6",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462675000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 467675000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "3": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS2",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462587500,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "2",
+  "skip": "none",
+  "tx": 462587500,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "30": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "REPTR7",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462700000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 467700000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "31": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "REPTR8",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462725000,
+  "rxtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 467725000,
+  "txtone": {
+   "deciHz": 1365,
+   "kind": "ctcss"
+  }
+ },
+ "32": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY1",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462550000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467550000,
+  "txtone": null
+ },
+ "33": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY2",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462575000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467575000,
+  "txtone": null
+ },
+ "34": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY3",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462600000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467600000,
+  "txtone": null
+ },
+ "35": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY4",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462625000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467625000,
+  "txtone": null
+ },
+ "36": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY5",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462650000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467650000,
+  "txtone": null
+ },
+ "37": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY6",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462675000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467675000,
+  "txtone": null
+ },
+ "38": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY7",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462700000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467700000,
+  "txtone": null
+ },
+ "39": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY8",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462725000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467725000,
+  "txtone": null
+ },
+ "4": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS3",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462612500,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "3",
+  "skip": "none",
+  "tx": 462612500,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "40": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY9",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462550000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467550000,
+  "txtone": null
+ },
+ "41": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY10",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462575000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467575000,
+  "txtone": null
+ },
+ "42": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY11",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462600000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467600000,
+  "txtone": null
+ },
+ "43": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY12",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462625000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467625000,
+  "txtone": null
+ },
+ "44": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY13",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462650000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467650000,
+  "txtone": null
+ },
+ "45": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY14",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462675000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467675000,
+  "txtone": null
+ },
+ "46": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY15",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462700000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467700000,
+  "txtone": null
+ },
+ "47": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY16",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462725000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467725000,
+  "txtone": null
+ },
+ "48": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY17",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462550000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467550000,
+  "txtone": null
+ },
+ "49": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY18",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462575000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467575000,
+  "txtone": null
+ },
+ "5": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS4",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462637500,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "4",
+  "skip": "none",
+  "tx": 462637500,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "50": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY19",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462600000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467600000,
+  "txtone": null
+ },
+ "51": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY20",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462625000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467625000,
+  "txtone": null
+ },
+ "52": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY21",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462650000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467650000,
+  "txtone": null
+ },
+ "53": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY22",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462675000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467675000,
+  "txtone": null
+ },
+ "54": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY23",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462700000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467700000,
+  "txtone": null
+ },
+ "55": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "DIY24",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462725000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 467725000,
+  "txtone": null
+ },
+ "6": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS5",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462662500,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "5",
+  "skip": "none",
+  "tx": 462662500,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "7": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS6",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462687500,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "6",
+  "skip": "none",
+  "tx": 462687500,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "8": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "GMRS7",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462712500,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "7",
+  "skip": "none",
+  "tx": 462712500,
+  "txtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  }
+ },
+ "9": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 1,
+  "name": "GMRS8",
+  "power": "Med",
+  "pttid": "Off",
+  "rx": 467562500,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "8",
+  "skip": "none",
+  "tx": 467562500,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ }
+}

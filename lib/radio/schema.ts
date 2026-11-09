@@ -183,8 +183,9 @@ export interface RadioSchema {
      *
      * Some radios erase a flash page before programming and write back only the
      * block they were handed, so a sparse write silently wipes everything
-     * sharing that page. Where this is set, the driver sends every block and
-     * the confirmation has to say so - telling someone "1 block" while sending
+     * sharing that page. Where this is set, the driver sends every block of
+     * its sweep - the whole image, or the ranges its `sweptRanges` names - and
+     * the confirmation has to say so: telling someone "1 block" while sending
      * the whole radio would be describing their edit rather than the write.
      */
     readonly writesWholeImage?: boolean

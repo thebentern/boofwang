@@ -1,6 +1,6 @@
 ---
 name: add-radio
-description: Add support for a new two-way radio to boofwang - a new driver under lib/radios/, its schema, protocol, layout, tests, fixtures and protocol notes. Use whenever someone wants boofwang to read or write a radio it does not yet support, names a model that is not one of the five implemented ones (UV-K5, UV-82, UV-5G, UV-5R Mini, DM-32UV), asks to enable writing on a read-only radio, asks what a new radio would take, or asks to add a firmware variant to an existing driver. Covers identifying which radio you actually have, the capability triage that decides scope, the codec and layout, the wiring checklist, the round-trip and fixture tests, hardware verification, and the adversarial review that must happen before the first write.
+description: Add support for a new two-way radio to boofwang - a new driver under lib/radios/, its schema, protocol, layout, tests, fixtures and protocol notes. Use whenever someone wants boofwang to read or write a radio it does not yet support, names a model that is not in `RADIO_IDS` in lib/radio/registry.ts, asks to enable writing on a read-only radio, asks what a new radio would take, or asks to add a firmware variant to an existing driver. Covers identifying which radio you actually have, the capability triage that decides scope, the codec and layout, the wiring checklist, the round-trip and fixture tests, hardware verification, and the adversarial review that must happen before the first write.
 ---
 
 # Adding a radio to boofwang
@@ -128,7 +128,7 @@ for each. The ones nobody remembers:
 
 ## Phase 4 - tests before hardware
 
-By analogy across the five radios, a new one needs at minimum:
+By analogy across the radios already registered, a new one needs at minimum:
 
 - `test/lib/radios/<id>/hardware-fixture.spec.ts` - the committed capture is the
   right shape, the ident is what the radio sent, and the decode agrees with the

@@ -10,6 +10,7 @@ import { REGIONS as UVK5_REGIONS } from '#core/radios/uvk5/layout.js'
 import { EGZUMER_REGIONS } from '#core/radios/uvk5/egzumer-layout.js'
 import { REGIONS as UV82_REGIONS } from '#core/radios/uv82/layout.js'
 import { VARIANTS as UV5RMINI_VARIANTS } from '#core/radios/uv5rmini/protocol.js'
+import { REGIONS as WP970I_REGIONS } from '#core/radios/uv9r/layout.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
 
@@ -109,6 +110,29 @@ const IMAGES: Record<string, () => RadioImage> = {
     meta: {},
     sha256: '',
   }),
+  // Synthetic, like the egzumer image: written by CHIRP's own UV9R class
+  // (scripts/gen-uv9r-fixture.py), because no UV-9R capture is this project's
+  // to commit. A fair test of the settings offsets against CHIRP's parser;
+  // no test of whether CHIRP's offsets match a radio.
+  uv9r: () => ({
+    radioId: 'uv9r',
+    variant: '',
+    layout: 'uv9r',
+    createdAt: '2026-11-09T00:00:00.000Z',
+    regions: flat(file('uv9r-chirp-synthetic.bin'), WP970I_REGIONS),
+    meta: {},
+    sha256: '',
+  }),
+  // A real UV-9G - CHIRP's own test image, not a boofwang read.
+  uv9g: () => ({
+    radioId: 'uv9g',
+    variant: '',
+    layout: 'uv9g',
+    createdAt: '2026-11-09T00:00:00.000Z',
+    regions: flat(file('uv9g-chirp-test.bin'), WP970I_REGIONS),
+    meta: {},
+    sha256: '',
+  }),
   uv5rmini: () => {
     const blob = file('uv5rmini-5RMINI.bin')
     let off = 0
@@ -159,6 +183,8 @@ const CASES: readonly Case[] = [
   { id: 'uv5g', layout: 'uv5g', image: IMAGES.uv5g! },
   { id: 'uv5r', layout: 'uv5r', image: IMAGES.uv5r! },
   { id: 'uv5rmini', layout: 'uv5rmini', image: IMAGES.uv5rmini! },
+  { id: 'uv9r', layout: 'uv9r', image: IMAGES.uv9r! },
+  { id: 'uv9g', layout: 'uv9g', image: IMAGES.uv9g! },
   { id: 'dm32uv', layout: 'DP570UV', image: IMAGES.dm32uv! },
 ]
 

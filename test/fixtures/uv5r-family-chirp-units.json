@@ -1,0 +1,29 @@
+{
+  "about": "Excerpts of four UV-5R-family test images in CHIRP (kk7ds/chirp, tests/images, GPL-3.0): the ident, the firmware window at image 0x1838, and the 160 bytes of the three aux spans uv5r.py compares before it uploads the whole aux area, at image 0x1848-0x18A8, 0x18B8-0x18C8 and 0x18D8-0x1908. Written by test/lib/radios/uv82/unit-fingerprint.spec.ts with BOOFWANG_FIXTURE=1, and checked against the images whenever ./scripts/fetch-reference.sh has fetched them.",
+  "images": {
+    "Radioddity_UV-5G.img": {
+      "sha256": "3fbd6e88643d0b4a0f70d2403308d4751f7dfa55c7e8b304770175d14577011d",
+      "ident": "aa 44 46 04 00 04 70 dd",
+      "firmwareWindow": "48 4e 35 52 56 30 31 31 ff ff ff ff ff ff",
+      "spans": "c0 c0 bf bf bf bf be be c0 c2 c2 c2 c0 bf be be b5 b5 b5 b6 b6 b6 b5 b4 b3 b3 b5 b3 b3 ff ff ff 65 65 65 65 65 65 65 65 65 65 65 65 65 65 65 65 69 69 69 69 69 69 69 69 69 69 69 69 69 ff ff ff 4c 4c 4c 4b 4b 4b 4b 4b 4b 4a 4a 4a 4a 4a 4a 4a 4d 4d 4d 4d 4d 4d 4d 4d 4d 4d 4d 4d 4d ff ff ff 07 06 06 06 05 04 03 02 01 01 03 03 03 03 03 03 06 05 04 03 02 02 02 01 01 01 00 00 00 00 00 00 30 11 0d 3c 8f ff 00 00 ff 04 70 73 76 7d 87 a2 00 00 00 00 00 00 00 00 00 00 31 0d 08 ff 03 80"
+    },
+    "Baofeng_UV-5G_Pro.img": {
+      "sha256": "c8abb64835c2099a8f4c71bc0c3ff5e34e0895750d0a345434f22ae269223f5d",
+      "ident": "aa 30 76 04 00 05 20 dd",
+      "firmwareWindow": "48 4e 35 52 56 30 31 31 00 00 00 00 00 00",
+      "spans": "dc dc d7 d7 d7 d7 d7 d7 d7 d7 d2 d2 d2 d2 d2 d2 dc d7 d7 d7 d2 d2 d2 d2 d2 d2 d2 d2 d2 ff ff ff 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01 ff ff ff 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 96 ff ff ff 05 05 05 05 05 05 05 05 0a 0a 0a 0a 0a 0a 14 14 00 00 05 05 05 07 07 07 07 07 01 01 01 01 01 01 7e 46 37 3c 6a 6a 00 00 ff 09 72 74 75 82 91 9b 00 00 00 00 00 00 00 00 00 00 ff ff ff ff ff ff"
+    },
+    "Baofeng_UV-5R.img": {
+      "sha256": "220d85a949bd3370377d411f34d20482ce1513cc0c6b6a632e3722f0db86431c",
+      "ident": "aa 42 46 42 32 33 31 dd",
+      "firmwareWindow": "20 20 56 65 72 20 20 42 46 42 32 33 31 20",
+      "spans": "da d4 d0 ca cb c5 ca cd d1 d4 d7 d8 d7 d8 00 78 ca ca ca c8 c9 c7 cb cf d0 d0 d0 d2 d5 d4 d4 78 86 82 7e 81 7d 7b 78 78 74 77 76 76 76 77 37 37 70 6f 6e 6e 6c 6d 68 66 67 66 67 68 69 69 69 37 1a 30 00 01 30 00 04 04 0f d0 0b 1a 10 2b 32 c8 2c 19 64 31 3f c0 32 62 7c 33 0a f2 47 2b ec 4f 1e 7f 00 01 05 00 1f 7f 00 00 3c 0a 78 3d 20 0b 00 00 00 00 00 00 00 00 00 00 0e 0f 10 11 15 00 00 23 24 25 26 27 28 29 2a 2b 44 12 0f ff 02 80 00 23 24 25 26 27 28 29 2a 2b 44 12 0f ff 03 80"
+    },
+    "Baofeng_F-11.img": {
+      "sha256": "4b2c8ca3a079cc6939a750ae49d3edfc2f9ed0764251dca86ca6075ee9638d20",
+      "ident": "aa 36 74 04 00 05 20 dd",
+      "firmwareWindow": "55 53 41 33 30 37 20 55 53 41 33 34 39 20",
+      "spans": "c4 c3 c4 c7 c8 ca cc ce d3 d5 d3 cf ce cd d7 d8 cd cd cd cd cd cd cd cd cd cd cf d1 d2 d2 d2 d2 d2 d2 cf cd cd cd cd cd cd ec ed ee ef f0 f1 f2 73 73 73 73 73 73 73 73 73 73 73 73 73 73 73 74 7d 7d 7d 7d 7b 79 78 78 78 75 74 73 73 73 73 75 77 78 78 78 78 78 78 78 78 88 89 8a 8b 8c 8d 8e 00 00 00 05 06 04 02 01 00 00 00 00 00 00 00 00 07 07 07 07 06 06 06 06 05 04 03 02 00 0d 00 00 00 00 00 00 00 00 00 00 00 00 44 12 0d bf 02 80 00 00 00 00 00 00 00 00 00 00 44 12 0d ff 03 80"
+    }
+  }
+}

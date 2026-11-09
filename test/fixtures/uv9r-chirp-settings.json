@@ -1,0 +1,432 @@
+{
+ "bytes": 8200,
+ "class": "UV9R",
+ "get_settings": {
+  "ani.aniid": {
+   "index": 3,
+   "options": 4,
+   "value": "Both"
+  },
+  "ani.code": {
+   "value": ""
+  },
+  "ani.dtmfoff": {
+   "index": 3,
+   "options": 196,
+   "value": "80 ms"
+  },
+  "ani.dtmfon": {
+   "index": 3,
+   "options": 196,
+   "value": "80 ms"
+  },
+  "firmware_msg.line1": {
+   "value": "       "
+  },
+  "firmware_msg.line2": {
+   "value": "       "
+  },
+  "limits.uhf.lower": {
+   "value": "400"
+  },
+  "limits.uhf.upper": {
+   "value": "520"
+  },
+  "limits.vhf.lower": {
+   "value": "136"
+  },
+  "limits.vhf.upper": {
+   "value": "174"
+  },
+  "poweron_msg.line1": {
+   "value": "CHIRP  "
+  },
+  "poweron_msg.line2": {
+   "value": "SYNTH  "
+  },
+  "pttid/0.code": {
+   "value": ""
+  },
+  "pttid/1.code": {
+   "value": ""
+  },
+  "pttid/10.code": {
+   "value": ""
+  },
+  "pttid/11.code": {
+   "value": ""
+  },
+  "pttid/12.code": {
+   "value": ""
+  },
+  "pttid/13.code": {
+   "value": ""
+  },
+  "pttid/14.code": {
+   "value": ""
+  },
+  "pttid/2.code": {
+   "value": ""
+  },
+  "pttid/3.code": {
+   "value": ""
+  },
+  "pttid/4.code": {
+   "value": ""
+  },
+  "pttid/5.code": {
+   "value": ""
+  },
+  "pttid/6.code": {
+   "value": ""
+  },
+  "pttid/7.code": {
+   "value": ""
+  },
+  "pttid/8.code": {
+   "value": ""
+  },
+  "pttid/9.code": {
+   "value": ""
+  },
+  "pttlt": {
+   "value": "12"
+  },
+  "settings.abr": {
+   "index": 5,
+   "options": 11,
+   "value": "5"
+  },
+  "settings.alarm": {
+   "value": "True"
+  },
+  "settings.almod": {
+   "index": 1,
+   "options": 3,
+   "value": "Tone"
+  },
+  "settings.autolk": {
+   "value": "True"
+  },
+  "settings.beep": {
+   "value": "False"
+  },
+  "settings.displayab": {
+   "index": 0,
+   "options": 2,
+   "value": "A"
+  },
+  "settings.dtmfst": {
+   "index": 3,
+   "options": 4,
+   "value": "DT+ANI"
+  },
+  "settings.fmradio": {
+   "value": "False"
+  },
+  "settings.keylock": {
+   "value": "True"
+  },
+  "settings.mdfa": {
+   "index": 2,
+   "options": 3,
+   "value": "Frequency"
+  },
+  "settings.mdfb": {
+   "index": 0,
+   "options": 3,
+   "value": "Channel"
+  },
+  "settings.menu": {
+   "value": "True"
+  },
+  "settings.ponmsg": {
+   "index": 1,
+   "options": 2,
+   "value": "Message"
+  },
+  "settings.pttid": {
+   "index": 1,
+   "options": 4,
+   "value": "BOT"
+  },
+  "settings.reset": {
+   "value": "False"
+  },
+  "settings.roger": {
+   "value": "True"
+  },
+  "settings.rpste": {
+   "index": 3,
+   "options": 11,
+   "value": "3"
+  },
+  "settings.rptrl": {
+   "index": 4,
+   "options": 11,
+   "value": "400 ms"
+  },
+  "settings.rxled": {
+   "index": 2,
+   "options": 4,
+   "value": "Orange"
+  },
+  "settings.save": {
+   "index": 2,
+   "options": 5,
+   "value": "1:2"
+  },
+  "settings.screv": {
+   "index": 2,
+   "options": 3,
+   "value": "SE"
+  },
+  "settings.squelch": {
+   "index": 4,
+   "options": 10,
+   "value": "4"
+  },
+  "settings.ste": {
+   "value": "False"
+  },
+  "settings.tdr": {
+   "value": "True"
+  },
+  "settings.tdrab": {
+   "index": 2,
+   "options": 3,
+   "value": "B"
+  },
+  "settings.timeout": {
+   "index": 7,
+   "options": 40,
+   "value": "120 sec"
+  },
+  "settings.txled": {
+   "index": 3,
+   "options": 4,
+   "value": "Purple"
+  },
+  "settings.voice": {
+   "index": 2,
+   "options": 3,
+   "value": "Chinese"
+  },
+  "settings.vox": {
+   "index": 3,
+   "options": 11,
+   "value": "3"
+  },
+  "settings.workmode": {
+   "index": 0,
+   "options": 2,
+   "value": "Frequency"
+  },
+  "settings.wtled": {
+   "index": 1,
+   "options": 4,
+   "value": "Blue"
+  },
+  "sixpoweron_msg.line1": {
+   "value": "       "
+  },
+  "sixpoweron_msg.line2": {
+   "value": "       "
+  },
+  "squelch.uhf.sql0": {
+   "value": "0"
+  },
+  "squelch.uhf.sql1": {
+   "value": "17"
+  },
+  "squelch.uhf.sql2": {
+   "value": "18"
+  },
+  "squelch.uhf.sql3": {
+   "value": "19"
+  },
+  "squelch.uhf.sql4": {
+   "value": "20"
+  },
+  "squelch.uhf.sql5": {
+   "value": "21"
+  },
+  "squelch.uhf.sql6": {
+   "value": "22"
+  },
+  "squelch.uhf.sql7": {
+   "value": "23"
+  },
+  "squelch.uhf.sql8": {
+   "value": "24"
+  },
+  "squelch.uhf.sql9": {
+   "value": "25"
+  },
+  "squelch.vhf.sql0": {
+   "value": "0"
+  },
+  "squelch.vhf.sql1": {
+   "value": "19"
+  },
+  "squelch.vhf.sql2": {
+   "value": "20"
+  },
+  "squelch.vhf.sql3": {
+   "value": "21"
+  },
+  "squelch.vhf.sql4": {
+   "value": "22"
+  },
+  "squelch.vhf.sql5": {
+   "value": "23"
+  },
+  "squelch.vhf.sql6": {
+   "value": "24"
+  },
+  "squelch.vhf.sql7": {
+   "value": "25"
+  },
+  "squelch.vhf.sql8": {
+   "value": "26"
+  },
+  "squelch.vhf.sql9": {
+   "value": "27"
+  },
+  "vfo.a.freq": {
+   "value": "146.520000"
+  },
+  "vfo.a.offset": {
+   "value": "0.600000  "
+  },
+  "vfo.a.scode": {
+   "index": 0,
+   "options": 15,
+   "value": "1"
+  },
+  "vfo.a.sftd": {
+   "index": 0,
+   "options": 3,
+   "value": "Off"
+  },
+  "vfo.a.step": {
+   "index": 2,
+   "options": 8,
+   "value": "6.25"
+  },
+  "vfo.a.txpower3": {
+   "index": 0,
+   "options": 3,
+   "value": "High"
+  },
+  "vfo.a.widenarr": {
+   "index": 0,
+   "options": 2,
+   "value": "Wide"
+  },
+  "vfo.b.freq": {
+   "value": "446.000000"
+  },
+  "vfo.b.offset": {
+   "value": "0.600000  "
+  },
+  "vfo.b.scode": {
+   "index": 0,
+   "options": 15,
+   "value": "1"
+  },
+  "vfo.b.sftd": {
+   "index": 0,
+   "options": 3,
+   "value": "Off"
+  },
+  "vfo.b.step": {
+   "index": 2,
+   "options": 8,
+   "value": "6.25"
+  },
+  "vfo.b.txpower3": {
+   "index": 0,
+   "options": 3,
+   "value": "High"
+  },
+  "vfo.b.widenarr": {
+   "index": 0,
+   "options": 2,
+   "value": "Wide"
+  },
+  "wmchannel.mrcha": {
+   "value": "127"
+  },
+  "wmchannel.mrchb": {
+   "value": "127"
+  }
+ },
+ "poweron_msg": {
+  "line1": "CHIRP  ",
+  "line2": "SYNTH  "
+ },
+ "settings": {
+  "abr": 5,
+  "alarm": 1,
+  "almod": 1,
+  "autolk": 1,
+  "band": 0,
+  "bcl": 1,
+  "beep": 0,
+  "displayab": 0,
+  "dtmfst": 3,
+  "fmradio": 0,
+  "keylock": 1,
+  "mdfa": 2,
+  "mdfb": 0,
+  "menu": 1,
+  "ponmsg": 1,
+  "pttid": 1,
+  "pttlt": 12,
+  "reset": 0,
+  "roger": 1,
+  "rogerrx": 2,
+  "rpste": 3,
+  "rptrl": 4,
+  "rxled": 2,
+  "save": 2,
+  "screv": 2,
+  "sftd": 0,
+  "singleptt": 0,
+  "squelch": 4,
+  "ste": 0,
+  "step": 2,
+  "tdr": 1,
+  "tdrab": 2,
+  "tdrch": 0,
+  "timeout": 7,
+  "txled": 3,
+  "unknown_e22": 255,
+  "unknown_e25": 255,
+  "unknown_e2a": [
+   255,
+   255,
+   255,
+   255
+  ],
+  "unknown_e2f": 255,
+  "unknown_e31": 255,
+  "unknown_e32": 63,
+  "unknown_e3a": [
+   255,
+   255,
+   255
+  ],
+  "unknown_e4a1": 3,
+  "unknown_e4a2": 1,
+  "unknown_e4b": 63,
+  "vfomrlock": 1,
+  "voice": 2,
+  "vox": 3,
+  "workmode": 0,
+  "wtled": 1
+ },
+ "sha256": "d3bfca915eff4c8b1a64e97a41fbd5f281249f46166b0c96a11b1c757d154b5b",
+ "source": "uv9r-chirp-synthetic.bin"
+}

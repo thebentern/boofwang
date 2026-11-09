@@ -1,13 +1,14 @@
 # Capability triage - what your radio needs, and what each thing costs
 
-Answer these before estimating. The five implemented radios span the whole
+Answer these before estimating. The implemented radios span the whole
 range: `lib/radios/uv5g/driver.ts` is 25 lines,
 `lib/radios/dm32uv/driver.ts` is about 2,900.
 
-## The five, side by side
+## Five of them, side by side
 
 Values below are the base schema. Read them from the files rather than trusting
-this table if they disagree.
+this table if they disagree. The table predates the UV-5R and the WP970I
+family (UV-9R, UV-9G); `RADIO_IDS` in `lib/radio/registry.ts` is the roster.
 
 | | UV-K5 | UV-82 | UV-5G | UV-5R Mini | DM-32UV |
 |---|---|---|---|---|---|
@@ -50,6 +51,15 @@ firmware classifier. If your radio differs on the wire, that difference belongs
 in the shared model type, not in a forked driver.
 
 Adds: `driver.ts`, `protocol.ts`, `schema.ts`. Nothing else.
+
+Check which CHIRP module the radio is in before deciding it is a sibling. The
+UV-9R has the UV-5R's memory map byte for byte in radio addresses, but CHIRP
+carries it in `baofeng_wp970i.py` on `baofeng_common.py`, not in `uv5r.py`: a
+whole-write magic, an exact eight-byte ident, a host acknowledgment after every
+block, and an image that is one flat 0x2000 with the ident at the end rather
+than the start. That made it a family of its own in `lib/radios/uv9r/` which
+imports the UV-82's structs and tone codec, rather than an image arrangement
+threaded through a driver that three verified radios depend on.
 
 ### Cable only
 
@@ -178,6 +188,14 @@ because `identHash` covers only model, firmware and build date.
 
 Return `null` only when there is genuinely nothing unit-specific, and remember
 callers must read `null` as "cannot tell", never as "matches".
+
+Before deciding there is nothing, read what the reference compares before it
+uploads. The UV-5R family's driver returned `null` because its calibration is
+not a separate readable region. Meanwhile CHIRP's `_do_upload` had always told
+one unit from another by three aux spans that were in every image boofwang
+read. Then find two radios `identHash` cannot separate and confirm the bytes
+differ. CHIRP's `tests/images` held a second UV-5G with the bench unit's ident
+and firmware, and it was the cheapest evidence there was.
 
 ### Read-only regions
 

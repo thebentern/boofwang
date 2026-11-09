@@ -1,0 +1,127 @@
+[
+ {
+  "label": "shorter name",
+  "index": 1,
+  "change": {
+   "name": "BOOF"
+  },
+  "record": "00206514002065140000000000000044",
+  "name": "424f4f46ffffffffffffffffffffffff"
+ },
+ {
+  "label": "Med to Low",
+  "index": 2,
+  "change": {
+   "power": "Low"
+  },
+  "record": "00007014000064140000e80300000204",
+  "name": "5250542dffffffffffffffffffffffff"
+ },
+ {
+  "label": "repeater to receive-only",
+  "index": 3,
+  "change": {
+   "txAllowed": false
+  },
+  "record": "00002044ffffffffce04ce0400000244",
+  "name": "5250542bffffffffffffffffffffffff"
+ },
+ {
+  "label": "DTCS to plain tone",
+  "index": 4,
+  "change": {
+   "tone": {
+    "tx": {
+     "kind": "ctcss",
+     "deciHz": 885
+    },
+    "rx": null
+   }
+  },
+  "record": "00006044000060440000750300000044",
+  "name": "445443534effffffffffffffffffffff"
+ },
+ {
+  "label": "skip off",
+  "index": 15,
+  "change": {
+   "skip": "none"
+  },
+  "record": "00005514000055140000000000000044",
+  "name": "534b49504d45ffffffffffffffffffff"
+ },
+ {
+  "label": "split to simplex",
+  "index": 13,
+  "change": {
+   "tx": {
+    "kind": "simplex"
+   }
+  },
+  "record": "00006014000060140000000000000044",
+  "name": "5842414e44ffffffffffffffffffffff"
+ },
+ {
+  "label": "wide to narrow",
+  "index": 5,
+  "change": {
+   "bandwidthHz": 12500
+  },
+  "record": "00006544000065446900d20000000004",
+  "name": "44544353524effffffffffffffffffff"
+ },
+ {
+  "label": "zero-filled receive-only, power changed",
+  "index": 19,
+  "change": {
+   "power": "Low"
+  },
+  "record": "00557514ffffffff0000000000000244",
+  "name": "5a45524f5458ffffffffffffffffffff"
+ },
+ {
+  "label": "extras changed",
+  "index": 16,
+  "change": {
+   "busyChannelLockout": "0",
+   "pttId": "1",
+   "scode": "3"
+  },
+  "record": "00005614000056140000000003000045",
+  "name": "42434cffffffffffffffffffffffffff"
+ },
+ {
+  "label": "a High channel on erased flash",
+  "index": 31,
+  "create": {
+   "name": "NEW",
+   "rx": 146940000,
+   "power": "High",
+   "bandwidthHz": 25000
+  },
+  "record": "00406914004069140000000000000044",
+  "name": "4e4557ffffffffffffffffffffffffff"
+ },
+ {
+  "label": "a toned Low channel over a stale record",
+  "index": 23,
+  "create": {
+   "name": "OVER",
+   "rx": 446100000,
+   "power": "Low",
+   "bandwidthHz": 12500,
+   "tone": {
+    "tx": {
+     "kind": "ctcss",
+     "deciHz": 1000
+    },
+    "rx": {
+     "kind": "ctcss",
+     "deciHz": 1000
+    }
+   }
+  },
+  "record": "0000614400006144e803e80300000204",
+  "name": "4f564552ffffffffffffffffffffffff"
+ }
+]

@@ -64,7 +64,7 @@ const credits = [
     name: 'CHIRP',
     license: 'GPL-3.0',
     url: 'https://chirpmyradio.com/',
-    what: 'Memory layouts and protocol details for the UV-K5, UV-82, UV-5G, UV-5R and UV-5R Mini were transcribed from its drivers, and its stock channel configurations are the source of the bundled FRS, GMRS, MURS and weather presets.',
+    what: 'Memory layouts and protocol details for the UV-K5, UV-82, UV-5G, UV-5R, UV-5R Mini, UV-9R and UV-9G were transcribed from its drivers, and its stock channel configurations are the source of the bundled FRS, GMRS, MURS and weather presets.',
   },
   {
     name: 'DM-32UV Protocol Specification',

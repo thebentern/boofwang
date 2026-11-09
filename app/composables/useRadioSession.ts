@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { SCHEMAS, createDriver, isImplemented } from '#core/radio/registry.js'
-import { toStoredBackup } from '#core/storage/db.js'
+import { fromStoredBackup, toStoredBackup } from '#core/storage/db.js'
+import { chooseBackup } from '#core/storage/choose-backup.js'
 import { encodeBwp, encodeRawBin } from '#core/io/bwp.js'
 import { encodeChirpImg } from '#core/io/chirp-img.js'
 import { exportChirpCsv, defaultHeader } from '#core/io/chirp-csv.js'
@@ -133,11 +134,13 @@ export function useRadioSession() {
   const toast = useToast()
 
   /**
-   * The most recent backup matching the radio this codeplug came from.
+   * The most recent backup of the radio this codeplug came from.
    *
-   * Matched on the connected radio when there is one, and otherwise on the
-   * open codeplug's own variant - enough for the dialog to say whether a way
-   * back exists. The binding check that matters happens in `writeImage`, which
+   * Matched on the connected radio when there is one, otherwise on the open
+   * codeplug's own radio, and then on the physical unit wherever the driver
+   * can fingerprint one - `chooseBackup` says why the newest match alone was
+   * not enough. That is enough for the dialog to say whether a way back
+   * exists. The binding check that matters happens in `writeImage`, which
    * compares the backup's fingerprint against the radio on the cable.
    */
   async function latestBackupForOpenCodeplug(): Promise<{
@@ -146,15 +149,17 @@ export function useRadioSession() {
     unitHash?: string | null
     createdAt: string
   } | null> {
-    const all = await db.listBackups()
-    const hash = device.ident?.identHash
-    const candidates = (hash ? all.filter((b) => b.identHash === hash) : all.filter((b) => b.radioId === codeplug.doc?.radio))
-      .slice()
-      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-    const best = candidates[0]
-    return best
-      ? { identHash: best.identHash, id: best.id, unitHash: best.unitHash ?? null, createdAt: best.createdAt }
-      : null
+    const image = codeplug.image
+    const driver = codeplug.driverRef
+    const chosen = await chooseBackup(await db.listBackups(), {
+      identHash: device.ident?.identHash ?? null,
+      radioId: codeplug.doc?.radio ?? null,
+      unit: image && driver ? await driver.unitFingerprint(image).catch(() => null) : null,
+      fingerprint: (b) => createDriver(b.radioId).unitFingerprint(fromStoredBackup(b)),
+    })
+    if (!chosen) return null
+    const best = chosen.backup
+    return { identHash: best.identHash, id: best.id, unitHash: chosen.unitHash, createdAt: best.createdAt }
   }
 
   /**

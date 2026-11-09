@@ -150,6 +150,10 @@ describe('the connect screen chip', () => {
      * the marker it drives is still worth keeping, because the sibling test
      * above proves the screen says nothing at all when the list is empty. A
      * new radio arriving read-only puts a name back here.
+     *
+     * The UV-9R and UV-9G arrived writable without a bench session, at the
+     * owner's request; lib/radio/registry.ts says what that rests on, and
+     * docs/protocols/uv9r.md what it does not.
      */
     const readOnly = RADIO_IDS.filter(
       (id) => SCHEMAS[id]?.capabilities.read === true && SCHEMAS[id]?.capabilities.write !== true,
@@ -256,7 +260,7 @@ describe('the connect screen does not guess the radio', () => {
 
   it('falls back to nothing rather than to a radio', () => {
     // Any bare radio id on the end of that chain is a guess.
-    for (const id of ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv']) {
+    for (const id of ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv', 'uv9r', 'uv9g']) {
       expect(radioId, `radioId falls back to '${id}'`).not.toContain(`'${id}'`)
     }
     expect(radioId).toContain('null')

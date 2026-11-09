@@ -135,8 +135,23 @@ it; writing them needs a cable.
 | Baofeng UV-5R | 128 channels, analog | Yes | Yes |
 | Baofeng UV-5R Mini | 999 channels, analog | Cable or Bluetooth | Cable or Bluetooth |
 | Baofeng DM-32UV | 4,000 channels, DMR, zones, talk groups, AES keys | Yes | Yes, including the startup picture |
+| Baofeng UV-9R | 128 channels, analog | Yes, not yet tried on a radio | Yes, not yet tried on a radio |
+| Baofeng UV-9G | 128 channels, analog GMRS | Yes, not yet tried on a radio | Yes, not yet tried on a radio |
 
 CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
+
+The UV-9R and UV-9G have never been connected to boofwang, and they are the
+only radios here written without a bench session of our own. Their driver is
+CHIRP's WP970I family: the UV-5R's memory map in a different image
+arrangement, behind a slightly different handshake. Its decode agrees with
+CHIRP's own driver field for field on CHIRP's UV-9G test image and on two
+UV-9R captures posted to CHIRP's tracker. Reading and writing follow CHIRP's
+protocol, which CHIRP's maintainer reports working on both radios: a write
+sweeps the channel records, names and settings block the way CHIRP's upload
+does, after a backup of that same radio, and reads every block back. Take the
+backup seriously on these two.
+[docs/protocols/uv9r.md](docs/protocols/uv9r.md) says what is established and
+what is not.
 
 The UV-5R writes by sweeping its owned ranges whole rather than sending a
 diff, because a byte on this radio programs once per erase. Its firmware string
@@ -355,8 +370,10 @@ for every fixture.
   is absent or belongs to a different radio.
 - Where a driver can fingerprint the physical radio, the backup must match that
   radio and not merely the model and firmware. The DM-32UV uses its calibration
-  block; identifiers derived only from firmware cannot distinguish two identical
-  radios.
+  block. The UV-82, UV-5G, UV-5R, UV-9R and UV-9G use the three aux spans CHIRP
+  compares before it will upload the whole aux area, read off the radio before
+  anything is sent. Identifiers derived only from firmware cannot distinguish
+  two identical radios.
 - Every write is preceded by a byte diff. A change outside the ranges the driver
   claims to own blocks the write; it indicates a defect in the encoder.
 - **Every block written is read back and compared.** An acknowledgment says a

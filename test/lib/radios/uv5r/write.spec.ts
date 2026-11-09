@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
-import { BackupRequiredError, DriverError, type BackupRef } from '#core/radio/driver.js'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { BackupRequiredError, DriverError, RadioChangedError, type BackupRef } from '#core/radio/driver.js'
+import { blocksToSend } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
+import { unitHashOf } from '#core/radios/uv82/driver.js'
 import { createUv5rDriver } from '#core/radios/uv5r/driver.js'
 import { MAGIC_UV5R_291, MAGIC_UV5R_ORIG } from '#core/radios/uv5r/protocol.js'
-import { REGIONS, ownedRanges } from '#core/radios/uv82/layout.js'
-import { AUX_START, IDENT_SIZE, MAIN_SIZE, NEVER_WRITE } from '#core/radios/uv82/protocol.js'
+import { REGIONS, SETTINGS_BASE, channelAddr, nameAddr, ownedRanges } from '#core/radios/uv82/layout.js'
+import { AUX_START, IDENT_SIZE, MAIN_SIZE, NEVER_WRITE, WRITE_BLOCK_SIZE } from '#core/radios/uv82/protocol.js'
 
 /**
  * The handshake and the gate, for a radio nobody has plugged in.
@@ -52,12 +54,12 @@ function image(): RadioImage {
 
 const driver = createUv5rDriver()
 /**
- * A build with writing forced on.
+ * The build the registry creates, with writing on.
  *
- * The registry does not create one of these - the UV-5R ships read-only. It
- * exists so that the refusals which would guard a future write can be tested
- * now, rather than being written for the first time on the day someone flips
- * the flag with a radio on the bench.
+ * This comment used to call the UV-5R read-only and this build a forced one,
+ * which stopped being true when the registry enabled writing after the
+ * 2026-09-05 bench session. `driver` above is the read-only build a schema
+ * ships as before the registry says otherwise.
  */
 const writable = createUv5rDriver({ enableWrite: true })
 
@@ -75,8 +77,12 @@ function radio(contents: Uint8Array, opts: { answers?: Uint8Array } = {}) {
   let magicBuf: number[] = []
   let identified = false
   const sent: { addr: number; data: Uint8Array }[] = []
+  // Every block asked for and every block sent, in the order the radio saw
+  // them, so a test can hold the whole conversation to what it should be.
+  const wire: string[] = []
   return {
     sent,
+    wire,
     async write(cmd: Uint8Array) {
       if (cmd.length === 1) {
         const b = cmd[0]!
@@ -98,6 +104,7 @@ function radio(contents: Uint8Array, opts: { answers?: Uint8Array } = {}) {
       if (cmd[0] === 0x53) {
         const addr = (cmd[1]! << 8) | cmd[2]!
         const size = cmd[3]!
+        wire.push(`read ${addr.toString(16)}/${size.toString(16)}`)
         // The 0x1E80 warm-up block is the only one requested with the leading
         // acknowledgment skipped, so it is the only one that must not send it.
         if (addr !== 0x1e80) out.push(0x06)
@@ -111,6 +118,7 @@ function radio(contents: Uint8Array, opts: { answers?: Uint8Array } = {}) {
       }
       if (cmd[0] === 0x58) {
         const addr = (cmd[1]! << 8) | cmd[2]!
+        wire.push(`write ${addr.toString(16)}/${cmd[3]!.toString(16)}`)
         sent.push({ addr, data: cmd.slice(4) })
         contents.set(cmd.slice(4), IDENT_SIZE + addr)
         out.push(0x06)
@@ -157,7 +165,7 @@ describe('identify, over the wire', () => {
   })
 })
 
-describe('what identify will let a write reach, if writing is ever enabled', () => {
+describe('what identify will let a write reach', () => {
   it('clears a firmware it can vouch for', async () => {
     const ident = await writable.identify(radio(withFirmware('BFB297')), {})
     expect(ident.caps).toEqual({ read: true, write: true })
@@ -199,9 +207,8 @@ describe('the write gate', () => {
   const transport = {} as never
 
   it('refuses because this build does not write this radio, and says which radio', async () => {
-    // The state the UV-5R actually ships in. Not a placeholder: one has been
-    // read on a cable now, and nothing has ever been sent to one, so there is
-    // still no evidence a write would land correctly.
+    // The read-only build: what a driver built for a test or a file import
+    // gets, and what the registry's line is the only way out of.
     await expect(driver.writeImage(transport, image(), { backup })).rejects.toThrow(/UV-5R/)
   })
 
@@ -215,7 +222,10 @@ describe('the write gate', () => {
     ).rejects.toThrow(DriverError)
   })
 
-  it('refuses a backup taken from a different unit', async () => {
+  it('refuses a backup whose identify hash is another radio\'s', async () => {
+    // The firmware-level check. Telling two units on the same firmware apart
+    // is the aux-span fingerprint's job, tested in uv5g/write.spec.ts on the
+    // code this driver shares.
     const ident = {
       radioId: 'uv5r' as const,
       variant: 'BFB297',
@@ -249,7 +259,7 @@ describe('the write gate', () => {
       identHash: 'match',
     }
     const report = await writable.writeImage(radio(RAW.slice()), image(), {
-      backup: { ...backup, identHash: 'match' },
+      backup: { ...backup, identHash: 'match', unitHash: await unitHashOf(RAW) },
       ident,
     })
     expect(writable.schema.capabilities.writesWholeImage).toBe(true)
@@ -265,5 +275,145 @@ describe('the write gate', () => {
       expect(owned.some(([s, e]) => from >= s && to <= e), `0x${op.addr.toString(16)} is unowned`).toBe(true)
       expect(NEVER_WRITE.some(([s, e]) => from < e && to > s), `0x${op.addr.toString(16)} is skipped`).toBe(false)
     }
+
+    // And the confirmation counts this sweep rather than the image, which
+    // carries an aux block the sweep never sends. `sweptRanges` is the claim
+    // that makes the count right, and these frames are what it is held to.
+    const sent = report.operations.reduce((n, op) => n + op.length, 0)
+    const swept = (writable.sweptRanges?.(0) ?? []).reduce((n, [s, e]) => n + e - s, 0)
+    expect(swept).toBe(sent)
+    expect(blocksToSend({ diff: null, image: image(), driver: writable, wholeImage: true })).toBe(
+      Math.ceil(sent / writable.writeBlockBytes),
+    )
+  })
+})
+
+describe('a sweep built on a codeplug the radio no longer holds', () => {
+  /*
+   * A sweep cannot leave a mixture of two codeplugs, because every owned
+   * block goes. What it did instead, before the check, was revert: an edit
+   * built on an old file put the whole file back over everything the radio
+   * had been changed to since, and the diff behind the confirmation showed
+   * only the edit. These pin the check on the sweeping member, under the
+   * same rule as the members that send a diff, and the restore beside it.
+   */
+  const ident = {
+    radioId: 'uv5r' as const,
+    variant: 'BFB297',
+    layout: 'uv5r',
+    raw: new Uint8Array(0),
+    caps: { read: true, write: true },
+    identHash: 'match',
+  }
+  let backup: BackupRef
+  beforeAll(async () => {
+    backup = { id: 'b', identHash: 'match', unitHash: await unitHashOf(RAW), createdAt: '2026-09-04T00:00:00.000Z' }
+  })
+  const wireOf = (port: unknown) => (port as { wire: string[] }).wire
+  const sentOf = (port: unknown) => (port as { sent: unknown[] }).sent
+  const memOf = (img: RadioImage) => img.regions[0]!.data
+  const UNIT_READS = ['read 0/40', 'read 1f00/40', 'read 1f40/40', 'read 1f80/40']
+  const OWNED_WINDOW_READS = [
+    ...Array.from({ length: 32 }, (_, i) => i * 0x40),
+    0x0e00,
+    0x0e40,
+    ...Array.from({ length: 32 }, (_, i) => 0x1000 + i * 0x40),
+  ].map((a) => `read ${a.toString(16)}/40`)
+
+  /** Squelch moved on by one, which is a single block of the settings range. */
+  function edited(): RadioImage {
+    const next = image()
+    const mem = memOf(next)
+    mem[SETTINGS_BASE] = mem[SETTINGS_BASE]! ^ 0x01
+    return next
+  }
+
+  it('refuses a sweep over a radio that has moved on from its base, and counts what moved', async () => {
+    // Slot 1 programmed on the radio since the file was saved, record and
+    // name: two blocks. The sweep would have emptied it again.
+    const held = RAW.slice()
+    held.set(RAW.subarray(channelAddr(1), channelAddr(2)), channelAddr(0))
+    held.set(new TextEncoder().encode('KEYPAD'), nameAddr(0))
+    const port = radio(held)
+    const write = writable.writeImage(port, edited(), { backup, baseImage: image(), ident })
+    await expect(write).rejects.toThrow(RadioChangedError)
+    await expect(write).rejects.toThrow(/\(2 blocks differ; the first difference is in channel 1, at 0x0000\)/)
+    // The edit does not touch those bytes, so there is no edit line.
+    await expect(write).rejects.toThrow(/radio holds: 50 62 25 46 50 62 25 46\n {2}base: {8}ff ff ff ff ff ff ff ff$/)
+    expect(sentOf(port)).toEqual([])
+  })
+
+  it('sends a sweep again to a radio that took part of it before it was cut off', async () => {
+    /*
+     * The radio holds the edited squelch, as a sweep stopped after the
+     * settings block would leave it. A sweep rewrites every owned byte, so a
+     * byte already holding the edit has nothing to revert, and the same write
+     * goes again. An earlier draft held a sweep to the base exactly, which
+     * refused this and protected nothing.
+     */
+    const next = edited()
+    const held = RAW.slice()
+    held[SETTINGS_BASE] = memOf(next)[SETTINGS_BASE]!
+    const port = radio(held)
+    const report = await writable.writeImage(port, next, { backup, baseImage: image(), ident })
+    expect(report.verified).toBe(true)
+    expect(report.blocksWritten).toBe(259)
+    for (const [s, e] of ownedRanges()) {
+      expect([...held.subarray(s, e)], `0x${s.toString(16)}`).toEqual([...memOf(next).subarray(s, e)])
+    }
+  })
+
+  it('restores over a radio whose VFOs and memory channel have moved since the backup', async () => {
+    /*
+     * A restore has no base, and its image is a backup rather than the
+     * encoder's output, so a radio that differs from it outside the owned
+     * ranges is expected. Turning to another VFO frequency or channel used to
+     * make the restore refuse, calling it a defect in boofwang. It puts back
+     * what it owns and leaves those bytes as the radio has them.
+     */
+    const VFO_A = 0x0f10
+    const WMCHANNEL = 0x0e7e
+    const held = RAW.slice()
+    held[VFO_A] = held[VFO_A]! ^ 0x01
+    held[WMCHANNEL] = held[WMCHANNEL]! ^ 0x01
+    held[SETTINGS_BASE] = 0xaa
+    const port = radio(held)
+    const report = await writable.writeImage(port, image(), { backup, ident })
+    expect(report.verified).toBe(true)
+    const owned = ownedRanges()
+    for (const { addr } of (port as { sent: { addr: number }[] }).sent) {
+      const from = addr + IDENT_SIZE
+      expect(owned.some(([s, e]) => from >= s && from + WRITE_BLOCK_SIZE <= e), `0x${addr.toString(16)}`).toBe(true)
+    }
+    expect(held[SETTINGS_BASE]).toBe(RAW[SETTINGS_BASE])
+    expect(held[VFO_A]).toBe(RAW[VFO_A]! ^ 0x01)
+    expect(held[WMCHANNEL]).toBe(RAW[WMCHANNEL]! ^ 0x01)
+  })
+
+  it('reads the owned windows, then sweeps, when the radio holds its base', async () => {
+    // The restore's shape - main-area reads, then the sweep - which passed on
+    // the bench on 2026-09-05, with the unit check's four reads in front and
+    // 66 of the restore's 96 main-area reads.
+    const port = radio(RAW.slice())
+    const report = await writable.writeImage(port, edited(), { backup, baseImage: image(), ident })
+    expect(report.verified).toBe(true)
+    const sweep: string[] = []
+    for (const [s, e] of ownedRanges()) {
+      for (let off = s; off < e; off += WRITE_BLOCK_SIZE) sweep.push(`write ${(off - IDENT_SIZE).toString(16)}/10`)
+    }
+    expect(sweep).toHaveLength(259)
+    expect(report.blocksWritten).toBe(259)
+    // The read-back after the sweep is the same 66 windows again.
+    expect(wireOf(port)).toEqual([...UNIT_READS, ...OWNED_WINDOW_READS, ...sweep, ...OWNED_WINDOW_READS])
+  })
+
+  it('adds nothing to a restore, which has no base to check', async () => {
+    const drifted = RAW.slice()
+    drifted[SETTINGS_BASE] = 0xaa
+    const port = radio(drifted)
+    await writable.writeImage(port, image(), { backup, ident })
+    const main = Array.from({ length: MAIN_SIZE / 0x40 }, (_, i) => `read ${(i * 0x40).toString(16)}/40`)
+    expect(wireOf(port).slice(0, UNIT_READS.length + main.length)).toEqual([...UNIT_READS, ...main])
+    expect(wireOf(port)[UNIT_READS.length + main.length]).toMatch(/^write /)
   })
 })

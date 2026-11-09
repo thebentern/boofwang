@@ -6,6 +6,8 @@ import { createUv5gDriver } from '../radios/uv5g/driver.js'
 import { createUv5rDriver } from '../radios/uv5r/driver.js'
 import { createUv5rMiniDriver } from '../radios/uv5rmini/driver.js'
 import { createUvk5Driver } from '../radios/uvk5/driver.js'
+import { createUv9rDriver } from '../radios/uv9r/driver.js'
+import { createUv9gDriver } from '../radios/uv9g/driver.js'
 import type { RadioDriver } from './driver.js'
 import type { RadioSchema } from './schema.js'
 
@@ -24,16 +26,21 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // docs/protocols/uvk5.md for exactly which parts have been exercised against
   // hardware and which have not.
   uvk5: () => createUvk5Driver({ enableWrite: true }),
-  // Writing is enabled and deliberately narrow: only the channel records and
-  // the name table, sent as the 16-byte blocks that differ from the image the
-  // radio was read from. The two windows CHIRP has always skipped fall outside
-  // both, so a diff-driven write cannot reach them. See docs/protocols/uv82.md.
+  // Writing is enabled and deliberately narrow: the channel records, the
+  // settings block and the name table, sent as the 16-byte blocks that differ
+  // from the base, once the radio has been read and found still to hold it.
+  // The two windows CHIRP has always skipped fall outside all three, so a
+  // diff-driven write cannot reach them. The unit and base checks that came
+  // after the bench session (2026-11-09) add four reads to every write and 66
+  // to an edit, none of which that session sent. See docs/protocols/uv82.md.
   uv82: () => createUv82Driver({ enableWrite: true }),
   // The UV-82's driver behind a different ident magic: CHIRP's
   // RadioddityUV5GRadio is a bare subclass of BaofengUV5R and this mirrors it.
   // Writing is enabled after a verified session on the bench radio (firmware
   // HN5RV011): rename, write, independent read showing exactly five bytes
-  // moved, restore to the original sha256. See docs/protocols/uv5g.md.
+  // moved, restore to the original sha256. The unit and base checks added
+  // since (2026-11-09) read four blocks on every write and 66 more on an edit,
+  // none of which that session sent. See docs/protocols/uv5g.md.
   uv5g: () => createUv5gDriver({ enableWrite: true }),
   // Writing is enabled, and deliberately scoped: channel records, zone names,
   // talk groups and the key slots, sent as whole 4 KiB pages. This radio's
@@ -52,7 +59,9 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // and a tri-power BF-F8HP alike, so `writeImage` decodes and re-encodes what
   // the radio sent and refuses if a byte moves rather than trusting the string.
   // Rename, sweep, verify, fresh read and restore to the original sha256 all
-  // pass on the bench unit. See docs/protocols/uv5r.md.
+  // passed on the bench unit. The unit and base checks added since
+  // (2026-11-09) read four blocks on every write and 66 more before an edit's
+  // sweep, none of which that session sent. See docs/protocols/uv5r.md.
   uv5r: () => createUv5rDriver({ enableWrite: true }),
   // A UV-17 Pro family radio despite the name: 115200 baud, obfuscated 64-byte
   // blocks. Writing sends the WHOLE image every time - this radio erases a
@@ -60,6 +69,28 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // so a sparse write wipes everything sharing that page. It erased 19 channels
   // on a real radio before that was understood. See docs/protocols/uv5rmini.md.
   uv5rmini: () => createUv5rMiniDriver({ enableWrite: true }),
+  // Writing is enabled WITHOUT a boofwang bench session, and this family is the
+  // only one in the registry where that is true. The project owner asked for
+  // full support with no UV-9R to test on, so the evidence is CHIRP's instead
+  // of ours: CHIRP's maintainer reports CHIRP downloading and uploading a
+  // UV-9R, a UV-9G and a UV-9R Pro (CHIRP issue 10270, 2023-11-30), and this
+  // driver sends what CHIRP's upload sends - the same frames, the same 50 ms
+  // pacing, a contiguous sweep of the owned ranges rather than a diff - inside
+  // spans CHIRP itself writes. It reads more first: 73 blocks before an edit's
+  // first frame where CHIRP reads six, to hold the backup, the image and the
+  // base to the radio (2026-11-09). It reaches channel records, names and the
+  // settings block, nothing else; only on an ident a captured UV-9R has sent
+  // with an empty firmware window; only with a backup of this physical unit;
+  // and every block is read back at the read path's block size before the write
+  // is called done. The decoder agrees with CHIRP's own classes field for field
+  // on four real images of the family. What no one has done is run
+  // test/hardware/uv9r.spec.ts on a radio - see docs/protocols/uv9r.md.
+  uv9r: () => createUv9rDriver({ enableWrite: true }),
+  // The UV-9G: the same family behind its own magic, enabled on the same
+  // terms - CHIRP's maintainer's report covers it too - with its decode
+  // checked against CHIRP on CHIRP's own UV-9G test image. See
+  // docs/protocols/uv9g.md.
+  uv9g: () => createUv9gDriver({ enableWrite: true }),
 }
 
 export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
@@ -70,9 +101,11 @@ export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
   uv5r: createUv5rDriver({ enableWrite: true }).schema,
   dm32uv: createDm32uvDriver({ enableWrite: true }).schema,
   uv5rmini: createUv5rMiniDriver({ enableWrite: true }).schema,
+  uv9r: createUv9rDriver({ enableWrite: true }).schema,
+  uv9g: createUv9gDriver({ enableWrite: true }).schema,
 }
 
-export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv']
+export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv', 'uv9r', 'uv9g']
 
 export function createDriver(id: RadioId): RadioDriver {
   const factory = DRIVER_FACTORIES[id]

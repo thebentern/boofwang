@@ -69,6 +69,12 @@ running app on a phone, which is the one source that cannot be stale.
 The list below carries the sixth radio, the Baofeng UV-5R, which the text
 under review does not; it goes out with the next submission.
 
+It deliberately does not carry the seventh and eighth, the Baofeng UV-9R and
+UV-9G. Both are registered and writable on CHIRP's evidence, and neither has
+ever been connected to boofwang, on a phone or anywhere else - so by this
+section's own rule the listing cannot claim them yet. Add them when one has
+been read on a phone, from what the running app says about it.
+
 **App name** (30 characters): `boofwang`
 
 **Short description** (80): 

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { equalBytes } from '../codec/struct.js'
 import type { Codeplug } from '../model/codeplug.js'
 import { andList } from '../text/list.js'
+import type { RadioDriver } from './driver.js'
+import type { RadioImage } from './image.js'
 import type { RadioSchema } from './schema.js'
 
 /**
@@ -288,6 +291,43 @@ export function transplantCodeplug(input: TransplantInput): TransplantResult {
   }
 
   return { codeplug: merged, copied, skipped }
+}
+
+/**
+ * Whether a file of the open codeplug's model has nothing to transplant onto
+ * it, so opening it need not ask whether to apply it instead.
+ *
+ * Only when the file holds the open codeplug's own bytes and comes from the
+ * same physical radio. The question used to be skipped for any file from the
+ * same radio, on the reasoning that applying it and opening it come to the
+ * same thing, and when the bytes differ they do not. Opening makes the file's
+ * image the base a write is worked out against. A file older than what the
+ * radio holds, opened, edited and written, used to leave the UV-82 and UV-5G
+ * their own blocks wherever the two disagreed and nothing was edited, while
+ * the screen showed the file's; the driver now reads the radio first and
+ * refuses instead. Applying keeps the open codeplug's image as the base, so
+ * the edit can be written rather than refused. The adversarial review of the
+ * UV-5R family's fingerprint found this, when that fingerprint started
+ * skipping the question on those two radios.
+ *
+ * A driver with nothing per-unit to hash returns null, and that means "cannot
+ * tell", never "matches", so the question is asked.
+ */
+export async function nothingToTransplant(
+  file: RadioImage,
+  open: RadioImage,
+  driver: Pick<RadioDriver, 'unitFingerprint'>,
+): Promise<boolean> {
+  if (file.radioId !== open.radioId) return false
+  const [theirs, ours] = await Promise.all([driver.unitFingerprint(file), driver.unitFingerprint(open)])
+  if (theirs === null || ours === null || theirs !== ours) return false
+  return (
+    file.regions.length === open.regions.length &&
+    file.regions.every((r) => {
+      const o = open.regions.find((x) => x.start === r.start)
+      return o !== undefined && equalBytes(r.data, o.data)
+    })
+  )
 }
 
 /**

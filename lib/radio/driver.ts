@@ -222,6 +222,20 @@ export interface RadioDriver {
   ownedRanges(regionStart: number, image?: RadioImage): readonly (readonly [number, number])[]
 
   /**
+   * What a whole-image write sends from a region, where that is less than the
+   * region.
+   *
+   * Optional, and read only where `writesWholeImage` is set: it exists so the
+   * confirmation counts what goes down the wire. A sweep is not one shape. The
+   * UV-5R Mini sends every byte of every region, while the UV-5R, UV-9R and
+   * UV-9G sweep their owned ranges end to end and send nothing else, so
+   * counting the image told a UV-9R user that 513 blocks were going to the
+   * radio when 259 were, and told them so again afterwards as what had been
+   * sent. Without it, the whole image is the count.
+   */
+  sweptRanges?(regionStart: number, image?: RadioImage): readonly (readonly [number, number])[]
+
+  /**
    * Whether this image has somewhere to put channel `slot`.
    *
    * Optional, and about the unit rather than the model. A radio whose channel
@@ -386,15 +400,48 @@ export class WriteVerifyError extends DriverError {
  * saved file from another session was opened, or because this is a different
  * radio. Deciding which blocks to leave alone from a stale base is how a radio
  * ends up holding a mixture of two codeplugs while the write reports success.
+ *
+ * `firstDifference` is the radio's own address, never an offset into an image
+ * that prefixes its memory with something else, as the UV-5R family's images
+ * prefix theirs with the ident. The address alone tells the person who changed
+ * the radio nothing, so a driver that can name the place does, and one that
+ * counted the blocks says how many, which is what tells a knob turned once
+ * from a backup a month old. The bytes are for whoever reads the report.
  */
+export interface RadioChangedDetail {
+  /** The driver's name for the place, such as "channel 30". */
+  readonly where?: string | undefined
+  /** How many write blocks hold something other than what the write expects. */
+  readonly blocks?: number | undefined
+  /** What the radio holds from `firstDifference`, as hex. */
+  readonly held?: string | undefined
+  /** What the codeplug was read from - the base - holds there, as hex. */
+  readonly base?: string | undefined
+  /** What the edit writes there, as hex, where that is not the base's. */
+  readonly edit?: string | undefined
+}
+
 export class RadioChangedError extends DriverError {
   override readonly name = 'RadioChangedError'
-  constructor(readonly firstDifference: number) {
+  constructor(
+    readonly firstDifference: number,
+    detail: RadioChangedDetail = {},
+  ) {
+    const { where, blocks, held, base, edit } = detail
+    const count =
+      blocks === undefined ? '' : `${blocks} ${plural(blocks, 'block')} ${plural(blocks, 'differs', 'differ')}; `
+    const bytes =
+      held === undefined || base === undefined
+        ? ''
+        : `\n  radio holds: ${held}\n  base:        ${base}` + (edit === undefined ? '' : `\n  edit:        ${edit}`)
     super(
-      'The radio no longer holds what it did when this codeplug was read ' +
-        `(the first difference is at 0x${firstDifference.toString(16).padStart(4, '0')}). ` +
-        'It may have been edited from its keypad, or this may be a different radio. ' +
-        'Read it again before writing, so nothing is lost.',
+      'The radio no longer holds what this codeplug was read from ' +
+        `(${count}the first difference is ${where === undefined ? '' : `in ${where}, `}` +
+        `at 0x${firstDifference.toString(16).padStart(4, '0')}). ` +
+        'It may have been changed from its keypad or by a write that stopped part way, the codeplug may ' +
+        'have been opened from a file or backup it does not match, or it may be a different radio. ' +
+        'Nothing was written. Read it again before writing, so the edit is made on what it holds.' +
+        bytes,
     )
   }
 }

@@ -12,6 +12,8 @@ import { UV5RMINI_SERIAL } from '#core/radios/uv5rmini/schema.js'
 import { DM32UV_SERIAL } from '#core/radios/dm32uv/schema.js'
 import { createUv5gDriver } from '#core/radios/uv5g/driver.js'
 import { createUv5rDriver } from '#core/radios/uv5r/driver.js'
+import { createUv9rDriver } from '#core/radios/uv9r/driver.js'
+import { createUv9gDriver } from '#core/radios/uv9g/driver.js'
 
 const b = (...xs: number[]) => Uint8Array.from(xs)
 const OPEN = { baudRate: 115_200 }
@@ -95,6 +97,10 @@ describe('what each driver asks for lands on the device', () => {
     // asked directly.
     ['uv5g', createUv5gDriver().serial],
     ['uv5r', createUv5rDriver().serial],
+    // The WP970I family keeps the convention although CHIRP raises both lines
+    // on these radios; nobody has tried either level on their cable.
+    ['uv9r', createUv9rDriver().serial],
+    ['uv9g', createUv9gDriver().serial],
   ]
 
   for (const [id, serial] of radios) {

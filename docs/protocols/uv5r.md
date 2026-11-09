@@ -285,6 +285,27 @@ Everything that needs a radio:
   is still the missing step.
 - **The dongle route is offered and untested**, as it is for every radio that
   offers it.
+- **The unit fingerprint's reads have not been sent to this radio.** Since
+  2026-11-09 a write reads radio `0x0000`, then `0x1F00`, `0x1F40` and
+  `0x1F80`, before sending anything, and refuses a backup or an image of
+  another unit. The write session above predates that, and this unit drops the
+  byte at `0x1FCF`, which is why `0x0000` comes first: nothing had read the aux
+  area straight after the handshake's `0x1FC0`. `test/hardware/uv5r.spec.ts`
+  now exercises it and has not been run since. This radio and CHIRP's UV-5G Pro
+  test image send the same ident and firmware and differ in 22 of the 160
+  bytes; see [uv82.md](uv82.md#which-radio-is-on-the-cable).
+- **Nor have the base check's.** Since 2026-11-09 an edit write also reads the
+  66 windows of the owned ranges before the sweep, and refuses if any owned
+  byte is neither the base's nor the edit's. Before that, an edit built on an
+  old file swept the file back over everything changed on the radio since,
+  with only the edit in the diff. The sequence is the restore's above -
+  main-area reads, then the sweep - with the aux reads in front and 66 of the
+  96 main-area reads, and it has not been sent to this radio as a whole.
+  `test/hardware/uv5r.spec.ts` now sends an edit built on a stale base to see
+  it refused, and has not been run since. The same change stopped a restore
+  refusing when this radio's VFOs or memory channel have moved since the
+  backup; see [what opening a file does to a
+  write](uv82.md#what-opening-a-file-does-to-a-write).
 
 ## What a bench session would settle, in order
 

@@ -27,6 +27,8 @@ export interface ImageDiff {
 
 export interface DiffDriver {
   ownedRanges(regionStart: number, image?: RadioImage): ReadonlyArray<readonly [number, number]>
+  /** See `RadioDriver.sweptRanges`. */
+  sweptRanges?(regionStart: number, image?: RadioImage): ReadonlyArray<readonly [number, number]>
   readonly writeBlockBytes: number
 }
 
@@ -100,17 +102,35 @@ export function diffImages(base: RadioImage, next: RadioImage, driver: DiffDrive
  * image every time - so counting the diff there would promise one block and
  * then send five hundred.
  *
+ * A whole-image radio's write is its sweep, which is the whole image only
+ * where the driver names no `sweptRanges`. The UV-5R and the UV-9R sweep their
+ * owned ranges and nothing else, and counting the image for them promised
+ * twice what was sent.
+ *
  * Shared because two screens have to agree on it: the write page's
  * confirmation, which is what the user consents to, and the fleet run's record
  * of what each radio received.
  */
 export function blocksToSend(input: {
   readonly diff: ImageDiff | null
-  readonly imageBytes: number
-  readonly blockBytes: number
+  readonly image: RadioImage | null
+  readonly driver: DiffDriver | null
   readonly wholeImage: boolean
 }): number {
-  if (input.blockBytes <= 0) return 0
-  if (input.wholeImage) return Math.ceil(input.imageBytes / input.blockBytes)
-  return input.diff?.changedBlocks.length ?? 0
+  const { image, driver } = input
+  const unit = driver?.writeBlockBytes ?? 0
+  if (!driver || unit <= 0) return 0
+  if (!input.wholeImage) return input.diff?.changedBlocks.length ?? 0
+  if (!image) return 0
+
+  let bytes = 0
+  for (const region of image.regions) {
+    const swept = driver.sweptRanges?.(region.start, image)
+    if (!swept) {
+      bytes += region.data.length
+      continue
+    }
+    for (const [from, to] of swept) bytes += to - from
+  }
+  return Math.ceil(bytes / unit)
 }

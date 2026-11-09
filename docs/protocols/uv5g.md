@@ -119,6 +119,20 @@ the app:
 The committed bench spec, `test/hardware/uv5g.spec.ts`, runs the same cycle
 end to end against whatever the radio holds, and passed in 64 seconds.
 
+That run predates the unit fingerprint. Since 2026-11-09 every write first
+reads a main-area block and three aux blocks to check that the backup and the
+image are this unit's, and the spec now sends a backup of some other unit to see
+it refused. It has not been run since. This radio and the UV-5G in CHIRP's test
+images are why the check exists: same ident, same firmware, and 34 of the 160
+bytes CHIRP compares between units different. See
+[uv82.md](uv82.md#which-radio-is-on-the-cable).
+
+It also predates the base check. A write with a base now reads the owned
+ranges as well and refuses if the radio holds anything there that is neither
+the base's nor the edit's, and the spec sends an edit built on a base with its
+squelch moved to see that refused too - see [What opening a file does to a
+write](uv82.md#what-opening-a-file-does-to-a-write).
+
 ## First contact can be refused
 
 The one defect this radio surfaced was in boofwang, not in it. After the unit

@@ -6,12 +6,17 @@ Web Bluetooth, edit it, write it back. Nuxt 4 + Vue 3 + Tailwind 4 + Nuxt UI v4,
 
 The radios are whatever `lib/radio/registry.ts` registers - read `RADIO_IDS`
 rather than a count written here. Today: Quansheng UV-K5, Baofeng UV-82,
-Radioddity UV-5G, Baofeng UV-5R, Baofeng UV-5R Mini, Baofeng DM-32UV. Which of
-them can be written, and what has been verified against hardware, is the
-README's radio table. This line said "Four radios" long after the UV-5G was
-registered, and `docs/play.md` records what that cost: a Play Store listing
-submitted with the UV-5G missing, because this line was believed over the
-registry.
+Radioddity UV-5G, Baofeng UV-5R, Baofeng UV-5R Mini, Baofeng DM-32UV, Baofeng
+UV-9R, Baofeng UV-9G. Which of them can be written, and what has been verified
+against hardware, is the README's radio table. This line said "Four radios"
+long after the UV-5G was registered, and `docs/play.md` records what that
+cost: a Play Store listing submitted with the UV-5G missing, because this line
+was believed over the registry.
+
+The UV-9R and UV-9G are the one exception to step 8 below: the owner had
+writing enabled with no radio to test, on CHIRP's evidence, and their bench
+session (`test/hardware/uv9r.spec.ts`) is still owed. Do not mistake that for
+the rule.
 
 **The thing to understand before changing anything:** these memory formats are not
 documented by their manufacturers. They are worked out by reading other people's

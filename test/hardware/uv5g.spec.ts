@@ -4,7 +4,7 @@ import { equalBytes } from '#core/codec/struct.js'
 import type { IdentifyResult } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createUv5gDriver } from '#core/radios/uv5g/driver.js'
-import { NAME_LENGTH, nameAddr } from '#core/radios/uv82/layout.js'
+import { NAME_LENGTH, SETTINGS_BASE, nameAddr } from '#core/radios/uv82/layout.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial-port.js'
 
@@ -59,7 +59,14 @@ describe.skipIf(!HW)('UV-5G on the bench', () => {
       expect(ident.caps.write, ident.caps.reason ?? '').toBe(true)
       return { baseline: await driver.readImage(t, ident, {}), ident0: ident }
     })
-    const backup = { id: 'bench', identHash: ident0.identHash, createdAt: new Date().toISOString() }
+    // With the fingerprint a read stores, which the driver now holds against
+    // three aux blocks it reads off the radio before sending anything.
+    const backup = {
+      id: 'bench',
+      identHash: ident0.identHash,
+      unitHash: await driver.unitFingerprint(baseline),
+      createdAt: new Date().toISOString(),
+    }
 
     // Rename the first named channel. The name table is one of the three
     // ranges the driver owns, and a rename is the smallest edit that proves
@@ -70,6 +77,37 @@ describe.skipIf(!HW)('UV-5G on the bench', () => {
     expect(ch.name).not.toBe('BOOF')
     doc.channels.set(slot, { ...ch, name: 'BOOF' })
     const edited = driver.encode(doc, baseline)
+
+    // A backup of some other UV-5G is refused once those three blocks are in.
+    // That nothing is sent first is held to the driver in uv5g/write.spec.ts;
+    // what only a radio can show is the write after it, which is refused too
+    // unless the blocks come back in a write session as they did in the read.
+    await expect(
+      session((t, ident) =>
+        driver.writeImage(t, edited, { backup: { ...backup, unitHash: '0'.repeat(64) }, baseImage: baseline, ident }),
+      ),
+    ).rejects.toThrow(/different UV-5G/)
+
+    // An edit built on a base the radio does not hold - squelch one step off,
+    // which the edit leaves alone - is refused once the owned ranges are read,
+    // and refused for that byte, not for some other drift. It renames the
+    // second channel, a block the real write below never sends, so a frame
+    // that leaked would show in the fresh read, which allows the first
+    // channel's name to move and nothing else. What only a radio can show is
+    // that the real write after it, on a base read moments earlier, is not
+    // refused: the 66 reads come back as the read's did.
+    {
+      const stale: RadioImage = { ...baseline, regions: baseline.regions.map((r) => ({ ...r, data: r.data.slice() })) }
+      memOf(stale)[SETTINGS_BASE] = memOf(stale)[SETTINGS_BASE]! ^ 0x01
+      const staleDoc = driver.decode(stale)
+      const other = [...staleDoc.channels.keys()].sort((a, b) => a - b)[1]!
+      staleDoc.channels.set(other, { ...staleDoc.channels.get(other)!, name: 'STALE' })
+      await expect(
+        session((t, ident) =>
+          driver.writeImage(t, driver.encode(staleDoc, stale), { backup, baseImage: stale, ident }),
+        ),
+      ).rejects.toThrow(/first difference is in the settings, at 0x0e20\)/)
+    }
 
     const report = await session((t, ident) =>
       driver.writeImage(t, edited, { backup, baseImage: baseline, ident }),

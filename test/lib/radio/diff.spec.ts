@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
-import { diffImages, type DiffDriver } from '#core/radio/diff.js'
+import { blocksToSend, diffImages, type DiffDriver } from '#core/radio/diff.js'
 import type { ImageRegion, RadioImage } from '#core/radio/image.js'
 
 function image(regions: ImageRegion[]): RadioImage {
@@ -85,5 +85,37 @@ describe('diffImages', () => {
     const base = image([region(0, [0, 0])])
     const next = image([region(0, [0, 0, 0]), region(0x50, [1])])
     expect(diffImages(base, next, driver).changedBytes).toBe(0)
+  })
+})
+
+describe('blocksToSend', () => {
+  const sparse = image([region(0, new Array(64).fill(0))])
+  const edited = image([region(0, new Array(64).fill(0).map((v, i) => (i === 17 ? 9 : v)))])
+
+  it('counts the changed blocks of a sparse write', () => {
+    const diff = diffImages(sparse, edited, driver)
+    expect(blocksToSend({ diff, image: sparse, driver, wholeImage: false })).toBe(1)
+  })
+
+  it('counts every region of the image for a radio that names no sweep', () => {
+    // The UV-5R Mini: every byte of every region goes, changed or not.
+    const img = image([region(0, new Array(64).fill(0)), region(0x100, new Array(40).fill(0))])
+    expect(blocksToSend({ diff: null, image: img, driver, wholeImage: true })).toBe(7)
+  })
+
+  it('counts only what the sweep sends where the driver names it', () => {
+    // The UV-5R and UV-9R: the owned ranges go and the rest of the image does
+    // not, so counting the image promised blocks that are never sent.
+    const sweeping: DiffDriver = {
+      ...driver,
+      sweptRanges: (start) => (start === 0 ? [[0, 32], [48, 64]] : []),
+    }
+    const img = image([region(0, new Array(64).fill(0)), region(0x100, new Array(64).fill(0))])
+    expect(blocksToSend({ diff: null, image: img, driver: sweeping, wholeImage: true })).toBe(3)
+  })
+
+  it('counts nothing without a driver or an image to count', () => {
+    expect(blocksToSend({ diff: null, image: sparse, driver: null, wholeImage: true })).toBe(0)
+    expect(blocksToSend({ diff: null, image: null, driver, wholeImage: true })).toBe(0)
   })
 })

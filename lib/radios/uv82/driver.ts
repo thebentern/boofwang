@@ -10,6 +10,7 @@ import {
   BackupRequiredError,
   DEFAULT_DRIVER_TIMEOUT_MS,
   DriverError,
+  RadioChangedError,
   WriteBlockedError,
   WriteVerifyError,
   type WriteOperation,
@@ -39,11 +40,15 @@ import {
   UV82_NAME,
   channelAddr,
   nameAddr,
+  NAME_BASE,
   NAME_LENGTH,
+  NAME_SIZE,
   ownedRanges as uv82OwnedRanges,
   REGIONS,
   POWERON_MSG_BASE,
   SETTINGS_BASE,
+  SETTINGS_CLAIM,
+  UNIT_AREAS,
   UV82_POWERON_MSG,
   UV82_SETTINGS,
   type Basetype,
@@ -106,6 +111,39 @@ export function classifyBasetype(version: string): Basetype {
       `Firmware ${JSON.stringify(version)} starts with no UV-82 firmware family this build knows, ` +
       'so its memory layout cannot be assumed.',
   }
+}
+
+/** The unit fingerprint: CHIRP's three per-radio aux spans, hashed together. */
+export async function unitHashOf(mem: Uint8Array): Promise<string | null> {
+  const end = Math.max(...UNIT_AREAS.map(([, e]) => e))
+  if (mem.length < end) return null
+  const parts = UNIT_AREAS.map(([s, e]) => mem.subarray(s, e))
+  const joined = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
+  let off = 0
+  for (const p of parts) {
+    joined.set(p, off)
+    off += p.length
+  }
+  return sha256Hex(joined)
+}
+
+/** The radio address of an image offset in the aux area. */
+const auxAddr = (imageOffset: number) => AUX_START + (imageOffset - IDENT_SIZE - MAIN_SIZE)
+
+/**
+ * The 0x40 blocks that hold `UNIT_AREAS`, as radio addresses.
+ *
+ * 0x1F00, 0x1F40 and 0x1F80: the blocks `_get_aux_data_from_radio` takes
+ * CHIRP's three spans from, on the 0x40 boundaries `readImage` reads the aux
+ * area on, so a span is read the same way on both sides of the comparison.
+ */
+function unitWindows(): number[] {
+  const out = new Set<number>()
+  for (const [s, e] of UNIT_AREAS) {
+    const from = auxAddr(s)
+    for (let a = from - (from % BLOCK_SIZE); a < auxAddr(e); a += BLOCK_SIZE) out.add(a)
+  }
+  return [...out].sort((a, b) => a - b)
 }
 
 export interface Uv5rFamilyOptions {
@@ -177,14 +215,19 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
     writeBlockBytes: BLOCK_SIZE,
 
     /**
-     * Nothing on this radio distinguishes one unit from another.
+     * The three aux spans CHIRP compares before it will upload the whole aux
+     * area.
      *
-     * Its calibration is not exposed as a separate readable region, and the
-     * identify reply carries only firmware. Null means "cannot tell", which
-     * callers must not read as a match.
+     * This used to return null, on the reasoning that calibration is not a
+     * separate readable region and the identify reply carries only firmware.
+     * Both are true, and neither mattered: every read takes the aux area, and
+     * CHIRP had been telling one unit from another by these bytes all along.
+     * Null now only for an image too short to hold them, which callers read as
+     * "cannot tell", never as a match.
      */
-    async unitFingerprint(): Promise<string | null> {
-      return null
+    async unitFingerprint(image: RadioImage): Promise<string | null> {
+      const mem = locate(image, 0)?.region.data
+      return mem ? unitHashOf(mem) : null
     },
 
     match(info) {
@@ -203,9 +246,12 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       ctx.log?.info(`${model.label} ident ${[...ident].map((b) => b.toString(16)).join(' ')}, firmware ${fw.version}`)
       ctx.progress?.({ phase: 'handshake', done: 1, total: 1, label: fw.version })
 
-      // The ident block differs between units, so it already identifies this
-      // radio rather than merely its model - no separate fingerprint read is
-      // needed the way the UV-K5 needs one.
+      // The ident block does not identify the unit, or even the model. This
+      // comment used to say it differed between units; the bench UV-82 sends
+      // `aa 30 79 04 00 05 20 dd`, which is also what a UV-9R, a UV-9R Pro and
+      // a BF-A58S send, and the bench UV-5G sends the UV-9G's eight bytes. It
+      // names a hardware generation, so `identHash` matches any radio of that
+      // generation on the same firmware string. See docs/protocols/uv9r.md.
       return {
         radioId: model.id,
         variant: fw.version,
@@ -311,6 +357,17 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       const next = locate(image, 0)?.region.data
       if (!next) throw new DriverError('This image has no memory region')
 
+      // A base with no memory in it is not the absence of one. Read as none,
+      // it would turn an edit into a diff against whatever the radio holds and
+      // send blocks the confirmation never showed. Both of these need nothing
+      // from the radio, so they are said before anything is read - a short base
+      // would otherwise reach the unit check and be called another radio's.
+      const supplied = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
+      if (ctx.baseImage && !supplied) throw new DriverError('The base image has no memory region')
+      if (supplied && supplied.length !== next.length) {
+        throw new DriverError('The edited image is a different size to the one that was read')
+      }
+
       // Re-identify unless the session already did. Unlike the DM-32UV this
       // radio answers a second handshake happily, but repeating it costs a
       // second and tells us nothing new.
@@ -323,25 +380,108 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       }
 
       /*
-       * The base is what the radio held when it was read.
+       * Which physical radio is on the cable, asked of the radio.
        *
-       * Only blocks that differ from it are sent. That is what keeps a
+       * `identHash` cannot answer it. It covers the ident and the firmware
+       * string, and the bench UV-5G and the UV-5G in CHIRP's test images send
+       * the same of both, as do the bench UV-5R and CHIRP's UV-5G Pro. So the
+       * three spans CHIRP compares before it will upload the whole aux area are
+       * read now, off the radio, and the backup has to be of the same unit.
+       * They are read rather than taken from the base image, because the base
+       * image is what the caller believes the radio holds and this is the check
+       * of that belief.
+       *
+       * Four reads are all this adds to the wire, and they come before
+       * anything is sent: the three, in 0x40 blocks on the boundaries
+       * `readImage` uses, because a sixteen-byte read on the bench UV-5R
+       * answered with another block's bytes - and one main-area block before
+       * them, read and discarded.
+       *
+       * That block is about order. The aux area answers with rubbish until a
+       * block outside it has been read, and the handshake's 0x1E80 covers that
+       * rule, but the handshake ends on 0x1FC0 - the block that drops a byte on
+       * some units - and nothing had ever followed that block with an aux read:
+       * `readImage` reads 0x0000 next, an edit sends its first frame, and
+       * CHIRP reads 0x1FC0 last. With 0x0000 first, each step is one the read
+       * path already takes - 0x1FC0 to 0x0000 exactly, a main block to the aux
+       * area, aux to aux - and the three come back the way `readImage` saw
+       * them, which is what the fingerprint they are held to was made from.
+       */
+      ctx.signal?.throwIfAborted()
+      await readBlock(t, 0x0000, BLOCK_SIZE, false, opts)
+      const liveUnit = new Uint8Array(IMAGE_SIZE)
+      for (const at of unitWindows()) {
+        ctx.signal?.throwIfAborted()
+        liveUnit.set(await readBlock(t, at, BLOCK_SIZE, false, opts), IDENT_SIZE + MAIN_SIZE + (at - AUX_START))
+      }
+      const unitNow = await unitHashOf(liveUnit)
+      if (!ctx.dryRun && ctx.backup) {
+        if (ctx.backup.unitHash == null) {
+          throw new BackupRequiredError(
+            model.id,
+            `The stored backup carries no record of which ${model.label} it came from, so it cannot be shown ` +
+              'to belong to this one. Read this radio again to take a fresh one.',
+          )
+        }
+        if (ctx.backup.unitHash !== unitNow) {
+          throw new BackupRequiredError(
+            model.id,
+            `The stored backup came from a different ${model.label}. Read this one before writing to it.`,
+          )
+        }
+      }
+
+      /*
+       * And the image being written has to be this radio's too.
+       *
+       * The backup check binds the way back to the radio; this binds the image.
+       * A restore hands over a backup and nothing else, and the screen that
+       * calls this passes that image's own fingerprint as the backup's - but
+       * the driver is what enforces, so the image's spans are held to the
+       * radio's here rather than trusted to a caller.
+       */
+      const imageUnit = await unitHashOf(next)
+      if (imageUnit === null) {
+        throw new WriteBlockedError(
+          `This image is ${next.length} bytes and stops before the aux block, so nothing in it says which ` +
+            `${model.label} it came from. Read this radio before writing to it.`,
+        )
+      }
+      if (imageUnit !== unitNow) {
+        throw new WriteBlockedError(
+          `This image was read from a different ${model.label} than the one on the cable. Read this radio ` +
+            'before writing to it.',
+        )
+      }
+
+      /*
+       * What to diff against.
+       *
+       * Only blocks that differ from the base are sent. That is what keeps a
        * one-channel edit to a handful of frames instead of rewriting six
        * kilobytes, and it is also what keeps the write inside the ranges this
        * driver understands - a block with no change in it is never a candidate,
        * so the parts of memory nobody has modeled are never touched.
-       */
-      /*
-       * What to diff against.
        *
-       * An ordinary write supplies the image the radio was read from, so only
-       * edited blocks are sent. A restore does not - it deliberately expects the
-       * radio to differ from the image being restored, which is the whole point
-       * of restoring. There the radio itself is read first and used as the base,
+       * An ordinary write supplies the image the open codeplug came from. That
+       * is what the caller believes the radio holds, which is not always a read
+       * of it, so it is checked against the radio before anything is sent -
+       * see below. A restore supplies none - it deliberately expects the radio
+       * to differ from the image being restored, which is the whole point of
+       * restoring. There the radio itself is read first and used as the base,
        * so a restore still sends only what actually differs rather than
        * rewriting six kilobytes, and there is still a way back from a bad write.
        */
-      let base = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
+      let base = supplied
+      // The base has to be this radio's as well. The diff-driven members send
+      // only the blocks that differ from it, so a base read from another unit
+      // would leave this one holding a mixture of two codeplugs.
+      if (base && (await unitHashOf(base)) !== unitNow) {
+        throw new WriteBlockedError(
+          `The codeplug this edit was built on was read from a different ${model.label} than the one on ` +
+            'the cable. Read this radio and make the edit again.',
+        )
+      }
       if (!base) {
         const live = new Uint8Array(next.length)
         live.set(next.subarray(0, IDENT_SIZE), 0)
@@ -364,9 +504,6 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
           })
         }
         base = live
-      }
-      if (base.length !== next.length) {
-        throw new DriverError('The edited image is a different size to the one that was read')
       }
 
       /*
@@ -450,12 +587,22 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
         }
 
         /*
-         * The ownership check is about the encoder, not about what is sent.
-         * A changed byte outside the owned ranges is a defect wherever it is
-         * found, so it is still a refusal in sweep mode - the sweep decides
+         * The ownership check is about the encoder, not about what is sent, so
+         * it runs where the encoder produced the image: a write with a base. A
+         * changed byte outside the owned ranges is a defect there wherever it
+         * is found, so it is still a refusal in sweep mode - the sweep decides
          * what goes on the wire, never what is allowed to have moved.
+         *
+         * A restore is not the encoder's output. Its image is a backup and its
+         * base is the radio, which is expected to differ from it everywhere,
+         * the VFOs and the channel each display is on included. This check used
+         * to run there too, so a VFO tuned since the backup refused the restore
+         * meant to put the radio back, and blamed boofwang for it. The bench
+         * restores never met that, because each ran straight after its write.
+         * Nothing outside the owned ranges is sent either way, and the WP970I
+         * driver drew the same line first.
          */
-        if (differs) {
+        if (differs && supplied) {
           if (forbidden(off, to)) {
             throw new DriverError(
               `Refusing to write: 0x${off.toString(16)} is one of the windows CHIRP has always skipped, ` +
@@ -484,9 +631,116 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
         label: `0x${b.radioAddr.toString(16).padStart(4, '0')}`,
       }))
 
+      /*
+       * Hold the base to the radio before sending a block of the edit.
+       *
+       * The base is whatever the open codeplug was loaded from, and opening a
+       * file or a stored backup makes that something other than a read of this
+       * radio. When the radio has moved on from it, a diff-driven write sends
+       * the edited blocks and nothing else, so every block nobody edited keeps
+       * the radio's own bytes - while the screen, which takes the written image
+       * as its new baseline, shows the file's. The write verifies and reports
+       * success, because every block it sent did land. An adversarial review
+       * reproduced it on a scripted radio: slot 1 held KEYPAD on the radio and
+       * was empty in a file from the same unit, a settings edit was written and
+       * verified, and the radio still held KEYPAD. A sweep cannot leave that
+       * mixture, since every owned block goes, and it reverts instead: the base
+       * goes back over everything the radio was changed to since, and the diff
+       * behind the confirmation, which is the edit against the base, never
+       * shows it. The unit check above sees neither, because the file is this
+       * radio's, only older.
+       *
+       * So every 0x40 window an owned range touches is read, at the size and on
+       * the boundaries `readImage` uses, and a radio holding anything the
+       * confirmation did not show is refused, with the error the UV-K5 raises
+       * for the same thing. Diffing against what the radio holds instead would
+       * cure the mixture by sending blocks the confirmation never showed - a
+       * keypad change undone, or the rest of an old backup put back - which is
+       * a restore priced as an edit.
+       *
+       * The edit's own bytes pass as well as the base's, on a diff and a sweep
+       * alike. Those are the states a write of this edit can leave, and a
+       * sweep rewrites every owned byte, so one already holding the edit has
+       * nothing to revert. That is what lets the same write, cut off part way,
+       * be sent again unchanged. An earlier draft held a sweep to the base
+       * exactly, which refused that retry and protected nothing.
+       *
+       * Byte by byte, and including the bytes the edit changes. A block goes
+       * whole, so a keypad change sharing a block with the edit would be undone
+       * as surely as one in a block left out. A byte holds several things -
+       * scan, bandwidth, busy lock and PTT ID share one - so an edit to one of
+       * them carries the base's value of the rest. And a channel created in a
+       * slot the radio has since filled from its keypad replaces it while the
+       * diff says "created". The first version of this check let both through
+       * by treating every byte the edit changed as the edit's, whatever the
+       * radio held there; the review of the check caught it.
+       *
+       * It costs 66 reads, several seconds at 9600 baud, on a write that may
+       * send one block, and 0x0000 is read twice - once above for the order,
+       * once here. It runs before the empty write returns too, so that "nothing
+       * to send" is said about the radio rather than about the file.
+       */
+      if (supplied) {
+        const windows = new Set<number>()
+        for (const [s, e] of owned) {
+          const from = s - IDENT_SIZE - ((s - IDENT_SIZE) % BLOCK_SIZE)
+          for (let at = from; at < e - IDENT_SIZE; at += BLOCK_SIZE) windows.add(at)
+        }
+        const order = [...windows].sort((a, b) => a - b)
+
+        const live = new Uint8Array(next.length)
+        for (const [n, at] of order.entries()) {
+          ctx.signal?.throwIfAborted()
+          live.set(await readBlock(t, at, BLOCK_SIZE, false, opts), IDENT_SIZE + at)
+          ctx.progress?.({
+            phase: 'read',
+            done: (n + 1) * BLOCK_SIZE,
+            total: order.length * BLOCK_SIZE,
+            label: 'Checking what the radio holds',
+          })
+        }
+
+        let first = -1
+        let firstEnd = -1
+        let staleBlocks = 0
+        for (const [s, e] of owned) {
+          for (let off = s; off < e; off += WRITE_BLOCK_SIZE) {
+            const to = off + WRITE_BLOCK_SIZE
+            let at = -1
+            for (let i = off; i < to; i++) {
+              if (live[i] !== base[i] && live[i] !== next[i]) {
+                at = i
+                break
+              }
+            }
+            if (at < 0) continue
+            staleBlocks++
+            if (first < 0) {
+              first = at
+              firstEnd = to
+            }
+          }
+        }
+        if (staleBlocks > 0) {
+          // Up to eight bytes, never past the block: the window after the
+          // last block of a range was not read, and its zeros are not the
+          // radio's.
+          const end = Math.min(first + 8, firstEnd)
+          const edited = !equalBytes(next.subarray(first, end), base.subarray(first, end))
+          throw new RadioChangedError(first - IDENT_SIZE, {
+            where: whereInImage(first),
+            blocks: staleBlocks,
+            held: hexDump(live.subarray(first, end)),
+            base: hexDump(base.subarray(first, end)),
+            ...(edited ? { edit: hexDump(next.subarray(first, end)) } : {}),
+          })
+        }
+      }
+
       if (blocks.length === 0) {
         return { blocksWritten: 0, bytesWritten: 0, verified: true, dryRun: ctx.dryRun === true, operations }
       }
+
       if (ctx.dryRun) {
         return {
           blocksWritten: blocks.length,
@@ -649,11 +903,35 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
     },
 
     ownedRanges: (regionStart: number) => (regionStart === 0 ? uv82OwnedRanges() : []),
+
+    // Read only for the UV-5R, the one member that sweeps. The sweep in
+    // `writeImage` takes every owned block outside `NEVER_WRITE`, and both of
+    // those windows fall outside the owned ranges, so the owned ranges are what
+    // a write sends. A test holds the two together.
+    sweptRanges: (regionStart: number) => (regionStart === 0 ? uv82OwnedRanges() : []),
   }
 
   return driver
 }
 
+/**
+ * Where an image offset falls, in the words the channel table and the settings
+ * form use.
+ *
+ * A refusal is read by the person who changed the radio, and "channel 30" is
+ * the keypad edit they remember making where `0x01d0` is nothing at all.
+ * Undefined outside the owned ranges, which the check never compares.
+ */
+function whereInImage(off: number): string | undefined {
+  if (off >= CHANNEL_BASE && off < CHANNEL_BASE + CHANNEL_COUNT * UV82_CHANNEL.size) {
+    return `channel ${Math.floor((off - CHANNEL_BASE) / UV82_CHANNEL.size) + 1}`
+  }
+  if (off >= NAME_BASE && off < NAME_BASE + CHANNEL_COUNT * NAME_SIZE) {
+    return `the name of channel ${Math.floor((off - NAME_BASE) / NAME_SIZE) + 1}`
+  }
+  if (off >= SETTINGS_BASE && off < SETTINGS_BASE + SETTINGS_CLAIM) return 'the settings'
+  return undefined
+}
 
 /**
  * Write one channel back into the image, in place.

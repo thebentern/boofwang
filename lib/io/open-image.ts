@@ -9,6 +9,7 @@ import { imgToImage, looksLikeChirpImg, splitChirpImg, type ChirpMetadata } from
 import { REGIONS as UVK5_REGIONS, regionsFor } from '../radios/uvk5/layout.js'
 import { classifyFirmware } from '../radios/uvk5/variants.js'
 import { REGIONS as UV82_REGIONS } from '../radios/uv82/layout.js'
+import { REGIONS as WP970I_REGIONS } from '../radios/uv9r/layout.js'
 import { VARIANTS as UV5R_VARIANTS } from '../radios/uv5rmini/protocol.js'
 import { PAGE_SIZE, PAGE_TAIL } from '../radios/dm32uv/protocol.js'
 import { logicalAddress } from '../radios/dm32uv/image.js'
@@ -37,6 +38,11 @@ export const RAW_LAYOUTS: readonly RawLayout[] = [
   // came from. A file that size opens as the UV-82, and those codeplugs keep
   // their identity by traveling as .bwp or CHIRP .img, both of which carry it.
   { radioId: 'uv82', layout: 'uv82', regions: UV82_REGIONS },
+  // The WP970I family's 8,200 bytes, which no other radio here shares. The
+  // UV-9G is absent for the reason the UV-5G is: its image is the same size
+  // as the UV-9R's, so a bare .bin of either opens as a UV-9R and keeps its
+  // identity only in a .bwp or a CHIRP .img.
+  { radioId: 'uv9r', layout: 'uv9r', regions: WP970I_REGIONS },
   ...UV5R_VARIANTS.map((v) => ({
     radioId: 'uv5rmini' as const,
     layout: v.id,
@@ -108,6 +114,59 @@ function classicLayoutFor(metadata: ChirpMetadata, memoryLength: number): RawLay
   if (!member) return null
   const layout: RawLayout = { radioId: member.radioId, layout: member.radioId, regions: UV82_REGIONS }
   return totalOf(layout) === memoryLength ? layout : null
+}
+
+/**
+ * The WP970I-family radios a CHIRP `.img` can name.
+ *
+ * Every one is 8,200 bytes in one region, so - as with the classic family -
+ * only the metadata separates them. `UV-9R Pro` is the model CHIRP writes for
+ * that alias, under the class name `DynamicRadioAlias` rather than a class of
+ * its own, which is why model names are matched as well as classes; a factory
+ * UV-9R Pro image on CHIRP's tracker carries exactly that metadata.
+ *
+ * The last entry is the family's other registered classes in
+ * `baofeng_wp970i.py`, and their aliases. They open as a UV-9R - the same
+ * bytes in the same places - which is the classic family's fallback too. They
+ * are listed rather than left to the size lookup because 8,200 bytes is not
+ * this family's alone: CHIRP's MURS-V1, GMRS-V2 and UV-6R are built on the
+ * same `baofeng_common.py` with the same 0x2000 and the same appended ident,
+ * and lay out their channels differently. One of those opened as a UV-9R
+ * would have every channel a slot out, or 72 of them missing, under a toast
+ * that named it correctly.
+ */
+const WP970I_FAMILY: readonly { radioId: RadioId; rclass: readonly string[]; models: readonly string[] }[] = [
+  { radioId: 'uv9g', rclass: ['UV9G'], models: ['UV-9G'] },
+  { radioId: 'uv9r', rclass: ['UV9R'], models: ['UV-9R', 'UV-9R Pro'] },
+  {
+    radioId: 'uv9r',
+    rclass: ['BFA58', 'UV82WP', 'GT3WP', 'RT6', 'BFA58S', 'UVS9X3', 'BF5RXRadio'],
+    models: ['BF-A58', 'UV-82WP', 'GT-3WP', 'RT6', 'BF-A58S', 'UV-S9X3', '5RX', 'RH5X', 'UV-82III'],
+  },
+]
+
+function wp970iLayoutFor(metadata: ChirpMetadata, memoryLength: number): RawLayout | null {
+  const member = WP970I_FAMILY.find(
+    (m) =>
+      (metadata.rclass !== undefined && m.rclass.includes(metadata.rclass)) ||
+      (metadata.model !== undefined && m.models.includes(metadata.model)),
+  )
+  if (!member) return null
+  const layout: RawLayout = { radioId: member.radioId, layout: member.radioId, regions: WP970I_REGIONS }
+  return totalOf(layout) === memoryLength ? layout : null
+}
+
+/**
+ * Whether a CHIRP `.img` of the WP970I family's size names a radio outside it.
+ *
+ * A file whose metadata names nothing still falls through to the size lookup
+ * - there is nothing else to go on, and a bare `.bin` gets the same - but one
+ * that names another radio is taken at its word.
+ */
+function namesAnotherRadio(metadata: ChirpMetadata, memoryLength: number): boolean {
+  if (memoryLength !== totalOf({ radioId: 'uv9r', layout: 'uv9r', regions: WP970I_REGIONS })) return false
+  const named = (metadata.rclass ?? '') !== '' || (metadata.model ?? '') !== ''
+  return named && wp970iLayoutFor(metadata, memoryLength) === null
 }
 
 /**
@@ -189,9 +248,17 @@ export async function openImageFile(bytes: Uint8Array): Promise<OpenedImage> {
 
   if (looksLikeChirpImg(bytes)) {
     const { memory, metadata } = splitChirpImg(bytes)
+    if (namesAnotherRadio(metadata, memory.length)) {
+      const model = [metadata.vendor, metadata.model].filter(Boolean).join(' ') || metadata.rclass
+      throw new OpenImageError(
+        `This is a CHIRP image for a ${model}. It is the same size as a UV-9R image, but it is not one of ` +
+          'the radios CHIRP files with the UV-9R, so boofwang will not guess at its layout.',
+      )
+    }
     const layout =
       uvk5LayoutFor(metadata) ??
       classicLayoutFor(metadata, memory.length) ??
+      wp970iLayoutFor(metadata, memory.length) ??
       RAW_LAYOUTS.find((l) => totalOf(l) === memory.length)
     if (!layout) {
       const model = [metadata.vendor, metadata.model].filter(Boolean).join(' ')
