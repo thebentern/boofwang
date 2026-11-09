@@ -9,9 +9,17 @@ own magic; [uv9g.md](uv9g.md) records only what differs.
 **boofwang has never been connected to one of these radios.** Not an identify,
 not a read, not a write. Everything below is CHIRP's description of the
 family, cross-checked against CHIRP's own driver classes on images other people
-captured. The driver is offered read-only. Its write path exists and is tested
-against a scripted radio, and the registry leaves it off until the bench
-session at the end of this file has been run on a real UV-9R.
+captured.
+
+**Writing is enabled anyway, and that is the exception in this codebase.**
+Every other radio here was written on a bench before the registry let the
+product write it. This family was enabled at the project owner's request, with
+no UV-9R or UV-9G to test on, on evidence that is CHIRP's rather than ours:
+CHIRP's maintainer reports CHIRP downloading and uploading a UV-9R, a UV-9G
+and a UV-9R Pro over an FTDI cable (CHIRP issue 10270, 2023-11-30), and this
+driver sends what CHIRP's upload sends - the same frames, the same pacing, a
+contiguous sweep rather than a diff - inside spans CHIRP itself writes. What
+that leaves owed is the bench session at the end of this file.
 
 ## Which radio this actually is
 
@@ -247,9 +255,9 @@ Things that looked one way until they were checked.
   split; the decoder asks `VALID_BANDS`, and GMRS repeaters read as +5 MHz on
   both radios.
 
-## Writing, when it is turned on
+## Writing
 
-What exists, and what the bench session has to settle:
+What a write does, and what the bench session still has to settle:
 
 - **Reach.** Channel records, names and the settings block. The VFOs, PTT ID
   and ANI codes, power-on message, squelch tables and band limits are read, kept
@@ -284,12 +292,18 @@ What exists, and what the bench session has to settle:
   zero filling reads as receive-only to CHIRP and is passed on only in a record
   nothing changed; whether the firmware treats a zero transmit frequency as no
   transmit is not something CHIRP's parser can say.
-- **Shape.** Diff-driven: only owned sixteen-byte blocks that changed are sent.
-  That is this codebase's default and nothing about this radio settles it. The
-  UV-5R needed a contiguous sweep because a byte there programs once; the UV-5R
-  Mini needed its whole image because it erases a flash page. Both were found by
-  writing. `writesWholeImage` switches this driver to the owned-range sweep, and
-  a test shows the switch works.
+- **Shape.** A sweep: every write sends all 259 owned sixteen-byte blocks in
+  address order - channel records, the settings block, names - whatever the
+  edit was, and nothing at all when no owned block changed. The write page
+  counts those 259 blocks, 4,144 bytes, rather than the 8,208-byte image,
+  because the driver names its sweep as `sweptRanges` and a test holds that
+  count to the frames actually sent. CHIRP never writes
+  these radios sparsely, and with no write of our own to say a diff is safe,
+  CHIRP's shape is the best prior there is. The UV-5R is why that is more than
+  caution: a byte there programs once, and a diff left the tail of a shortened
+  name behind until the sweep replaced it. The UV-82 is why it may be more than
+  this radio needs - a diff is fine there - and a member that clears
+  `writesWholeImage` writes a diff; a test shows the switch works both ways.
 
 ## Not verified
 
@@ -305,8 +319,13 @@ What exists, and what the bench session has to settle:
   on a UV-9R.
 - Whether this radio drops the byte at `0x1FCF`, and whether its sixteen-byte
   reads tell the truth - the UV-5R's do not.
-- Whether a sparse write is safe, and whether a byte reprograms. The write shape
-  is the first thing the bench session finds out.
+- Whether the sweep is what this radio needs. It is CHIRP's shape, chosen
+  because it is the only one known to work; whether a byte reprograms, and so
+  whether a diff would do, is the first thing the bench session finds out.
+- Whether a write lands at all. Every block is read back before the write is
+  called done, but no write has been sent to a real one of these radios by
+  boofwang: a backup of the radio is required before the first one, and
+  restoring it is the way back.
 - Whether the firmware treats a zero transmit filling as receive-only, and what
   it does with a power selector of 3.
 - What a DTCS word past the 105-code table means. CHIRP cannot read one; it is
@@ -348,6 +367,7 @@ BOOFWANG_HW=1 BOOFWANG_HW_WRITE=1 BOOFWANG_HW_PORT=/dev/cu.usbserial-XXXX pnpm v
 It shortens one channel name, writes it, reads the radio in a fresh session and
 requires that only that name moved - its whole tail included, which is the test
 that found the UV-5R's write shape - then restores with no base image and
-requires the original sha256. Only after that passes does the registry line
-pass `enableWrite: true`, with a comment saying what the write path reaches,
-and `test/app/ui-features.spec.ts` loses this radio from its read-only list.
+requires the original sha256. The registry already passes `enableWrite: true`
+without it, at the owner's request; this session is what that line still owes.
+If the cycle fails, turn writing off in the registry before anything else, and
+record here what failed.

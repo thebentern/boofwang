@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { equalBytes } from '#core/codec/struct.js'
+import { blocksToSend } from '#core/radio/diff.js'
 import { BackupRequiredError } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createUv5rMiniDriver, encodeChannel } from '#core/radios/uv5rmini/driver.js'
@@ -256,6 +257,11 @@ describe('the whole image, every time', () => {
     expect(radio.writes).toHaveLength(521)
     expect(report.blocksWritten).toBe(521)
     expect(report.verified).toBe(true)
+
+    // This radio names no `sweptRanges`, so the confirmation counts the whole
+    // image, and the whole image is what went.
+    expect(writable.sweptRanges).toBeUndefined()
+    expect(blocksToSend({ diff: null, image: img, driver: writable, wholeImage: true })).toBe(radio.writes.length)
   })
 
   it('sends the same count when nothing was edited at all', async () => {

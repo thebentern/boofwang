@@ -135,18 +135,21 @@ it; writing them needs a cable.
 | Baofeng UV-5R | 128 channels, analog | Yes | Yes |
 | Baofeng UV-5R Mini | 999 channels, analog | Cable or Bluetooth | Cable or Bluetooth |
 | Baofeng DM-32UV | 4,000 channels, DMR, zones, talk groups, AES keys | Yes | Yes, including the startup picture |
-| Baofeng UV-9R | 128 channels, analog | Yes, not yet tried on a radio | No |
-| Baofeng UV-9G | 128 channels, analog GMRS | Yes, not yet tried on a radio | No |
+| Baofeng UV-9R | 128 channels, analog | Yes, not yet tried on a radio | Yes, not yet tried on a radio |
+| Baofeng UV-9G | 128 channels, analog GMRS | Yes, not yet tried on a radio | Yes, not yet tried on a radio |
 
 CHIRP has no DM-32UV driver. Baofeng's own CPS is Windows-only.
 
-The UV-9R and UV-9G have never been connected to boofwang. Their driver is
+The UV-9R and UV-9G have never been connected to boofwang, and they are the
+only radios here written without a bench session of our own. Their driver is
 CHIRP's WP970I family: the UV-5R's memory map in a different image
 arrangement, behind a slightly different handshake. Its decode agrees with
 CHIRP's own driver field for field on CHIRP's UV-9G test image and on two
-UV-9R captures posted to CHIRP's tracker, but the read itself follows CHIRP's
-protocol unexercised. Writing is implemented and tested against a scripted
-radio, and stays off until a bench session has written one.
+UV-9R captures posted to CHIRP's tracker. Reading and writing follow CHIRP's
+protocol, which CHIRP's maintainer reports working on both radios: a write
+sweeps the channel records, names and settings block the way CHIRP's upload
+does, after a backup of that same radio, and reads every block back. Take the
+backup seriously on these two.
 [docs/protocols/uv9r.md](docs/protocols/uv9r.md) says what is established and
 what is not.
 

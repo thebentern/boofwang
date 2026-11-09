@@ -12,6 +12,7 @@ import {
   type IdentifyResult,
   type RadioDriver,
 } from '#core/radio/driver.js'
+import { blocksToSend, diffImages } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createDriver } from '#core/radio/registry.js'
 import {
@@ -27,12 +28,12 @@ import { type AckModel, drive, fakeRadio, type FakeRadio } from './fake-radio.js
 /**
  * The WP970I family's write path, against a scripted radio.
  *
- * The registry builds this family read-only, and these specs build the
- * driver with `enableWrite` to exercise the path that exists for the day a
- * bench session turns it on. Everything here is what that session will rest
- * on: the refusals, the shape of what is sent, and the read-back. None of it
- * is evidence that a real UV-9R stores what it is sent - that is
- * test/hardware/uv9r.spec.ts's job, and it has not been run.
+ * The registry builds this family with writing on, without a boofwang bench
+ * session behind it, so these specs are most of what stands between the
+ * write path and a real radio: the refusals, the shape of what is sent, the
+ * pacing, and the read-back. None of it is evidence that a real UV-9R stores
+ * what it is sent - that is test/hardware/uv9r.spec.ts's job, and it has not
+ * been run.
  */
 const RAW = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../../../fixtures/images/uv9r-chirp-synthetic.bin', import.meta.url))),
@@ -46,7 +47,13 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-const writable = createUv9rDriver({ enableWrite: true })
+// What the registry builds.
+const writable = createDriver('uv9r')
+// Every owned block: what a sweep sends. 128 channel records, three settings
+// blocks, 128 name records.
+const OWNED_BLOCKS = ownedRanges().flatMap(([a, b]) =>
+  Array.from({ length: (b - a) / WRITE_BLOCK_SIZE }, (_, i) => a + i * WRITE_BLOCK_SIZE),
+)
 const MODELS: readonly AckModel[] = ['answers-host-ack', 'acks-each-read']
 
 interface Session {
@@ -88,11 +95,13 @@ function renamed(base: RadioImage, slot: number, name: string, driver: RadioDriv
 const memOf = (img: RadioImage) => img.regions[0]!.data
 
 describe('the gate', () => {
-  it('is shut in the registry build, and says so by name', async () => {
+  it('is shut in a build that does not enable it, and says so by name', async () => {
+    // The seam that keeps a driver built for a test or a file import off a
+    // radio: only the registry passes `enableWrite`.
     const s = await session()
-    const registry = createDriver('uv9r')
+    const unwritable = createUv9rDriver()
     await expect(
-      drive(registry.writeImage(s.radio.transport, s.baseline, { backup: s.backup, ident: s.ident })),
+      drive(unwritable.writeImage(s.radio.transport, s.baseline, { backup: s.backup, ident: s.ident })),
     ).rejects.toThrow(/Writing the UV-9R is not enabled in this build/)
     expect(s.radio.writes).toHaveLength(0)
   })
@@ -176,7 +185,7 @@ describe('the gate', () => {
       }),
     )
     expect(report.verified).toBe(true)
-    expect(t.radio.writes.map((w) => w.addr)).toEqual([channelAddr(40)])
+    expect(t.radio.writes.map((w) => w.addr)).toEqual(OWNED_BLOCKS)
     expect(equalBytes(t.radio.memory, MEMORY)).toBe(true)
   })
 
@@ -225,15 +234,22 @@ describe.each(MODELS)('writing, when the radio %s', (ackModel) => {
     expect(s.radio.writes).toHaveLength(0)
   })
 
-  it('sends a rename as the one sixteen-byte block that changed, and reads it back', async () => {
+  it('sends a rename as a sweep of every owned block, in order, and reads it back', async () => {
     const s = await session(MEMORY, { ackModel })
     const edited = renamed(s.baseline, 1, 'BOOF')
     const report = await drive(
       writable.writeImage(s.radio.transport, edited, { backup: s.backup, baseImage: s.baseline, ident: s.ident }),
     )
-    expect(report).toMatchObject({ blocksWritten: 1, bytesWritten: WRITE_BLOCK_SIZE, verified: true })
-    // A radio address, with nothing added: this family's image has no prefix.
-    expect(s.radio.writes.map((w) => w.addr)).toEqual([nameAddr(0)])
+    // CHIRP's shape, not a diff: all 259 owned blocks go, the way `_upload`
+    // sends contiguous ranges. Radio addresses with nothing added - this
+    // family's image has no prefix.
+    expect(report).toMatchObject({
+      blocksWritten: OWNED_BLOCKS.length,
+      bytesWritten: OWNED_BLOCKS.length * WRITE_BLOCK_SIZE,
+      verified: true,
+    })
+    expect(OWNED_BLOCKS).toHaveLength(259)
+    expect(s.radio.writes.map((w) => w.addr)).toEqual(OWNED_BLOCKS)
     expect(equalBytes(s.radio.memory, memOf(edited).subarray(0, MEM_SIZE))).toBe(true)
 
     // And a fresh session sees the rename and nothing else.
@@ -246,7 +262,7 @@ describe.each(MODELS)('writing, when the radio %s', (ackModel) => {
     expect(writable.decode(fresh.baseline).channels.get(1)!.name).toBe('BOOF')
   })
 
-  it('restores through the read-first path, sending only what differs', async () => {
+  it('restores through the read-first path, as a sweep', async () => {
     const s = await session(MEMORY, { ackModel })
     const drifted = MEMORY.slice()
     drifted[0x0e20] = 0x09 // squelch, from the keypad
@@ -258,8 +274,9 @@ describe.each(MODELS)('writing, when the radio %s', (ackModel) => {
       }),
     )
     expect(report.verified).toBe(true)
-    expect(t.radio.writes.map((w) => w.addr)).toEqual([0x0e20])
+    expect(t.radio.writes.map((w) => w.addr)).toEqual(OWNED_BLOCKS)
     expect(t.radio.memory[0x0e20]).toBe(MEMORY[0x0e20])
+    expect(equalBytes(t.radio.memory, MEMORY)).toBe(true)
   })
 
   it('leaves what it does not own as the radio has it, on a restore', async () => {
@@ -276,8 +293,9 @@ describe.each(MODELS)('writing, when the radio %s', (ackModel) => {
       }),
     )
     expect(report.verified).toBe(true)
-    expect(t.radio.writes.map((w) => w.addr)).toEqual([nameAddr(0)])
+    expect(t.radio.writes.map((w) => w.addr)).toEqual(OWNED_BLOCKS)
     expect(t.radio.memory[0x0f09]).toBe(tuned[0x0f09])
+    expect(writable.decode({ ...createImage(), regions: [{ start: 0, data: Uint8Array.from([...t.radio.memory, ...IDENT_UV9R]), label: 'image' }] }).channels.get(1)!.name).toBe('BOOF')
   })
 
   it("paces its frames as CHIRP's upload does, 50 ms apart at least", async () => {
@@ -331,6 +349,27 @@ describe('what a write can reach', () => {
     }
   })
 
+  it('is confirmed as the blocks it sends, not as the image', async () => {
+    /*
+     * The write page and the fleet run count a write with `blocksToSend`, and
+     * for a radio that sweeps it used to count the image: 513 blocks and
+     * 8,208 bytes, against 259 blocks sent. That count is what the user
+     * agrees to, and the page repeats it afterwards as what was sent.
+     */
+    const s = await session()
+    const edited = renamed(s.baseline, 1, 'BOOF')
+    const promised = blocksToSend({
+      diff: diffImages(s.baseline, edited, writable),
+      image: s.baseline,
+      driver: writable,
+      wholeImage: writable.schema.capabilities.writesWholeImage === true,
+    })
+    await drive(writable.writeImage(s.radio.transport, edited, { backup: s.backup, baseImage: s.baseline, ident: s.ident }))
+    expect(promised).toBe(259)
+    expect(promised).toBe(s.radio.writes.length)
+    expect(promised * writable.writeBlockBytes).toBe(s.radio.writes.reduce((n, w) => n + w.data.length, 0))
+  })
+
   it('reports a dry run without sending anything', async () => {
     const s = await session()
     const report = await drive(
@@ -341,35 +380,43 @@ describe('what a write can reach', () => {
         dryRun: true,
       }),
     )
-    expect(report).toMatchObject({ dryRun: true, blocksWritten: 1, verified: false })
+    expect(report).toMatchObject({ dryRun: true, blocksWritten: OWNED_BLOCKS.length, verified: false })
     expect(s.radio.writes).toHaveLength(0)
   })
 
-  it('sweeps every owned block when a member says it must', async () => {
-    // No member sets `writesWholeImage` - nothing has been written to one -
-    // but the first write session may find this family needs the UV-5R's
-    // sweep, and the switch has to work when it is thrown.
-    const sweeping = createWp970iFamilyDriver(
+  it('sends only what changed when a member does not sweep', async () => {
+    // Every member sweeps today, because CHIRP does. A bench session may show
+    // a diff is safe on this radio, as it is on the UV-82, and the switch back
+    // has to work when it is thrown.
+    const diffing = createWp970iFamilyDriver(
       {
         id: 'uv9r',
         label: 'UV-9R',
         magics: [MAGIC_WP970I],
-        schema: { ...UV9R_SCHEMA, capabilities: { ...UV9R_SCHEMA.capabilities, writesWholeImage: true } },
+        schema: { ...UV9R_SCHEMA, capabilities: { ...UV9R_SCHEMA.capabilities, writesWholeImage: false } },
         knownIdents: [IDENT_UV9R],
       },
       { enableWrite: true },
     )
-    const s = await session(MEMORY, { driver: sweeping })
+    const s = await session(MEMORY, { driver: diffing })
     const report = await drive(
-      sweeping.writeImage(s.radio.transport, renamed(s.baseline, 1, 'BOOF', sweeping), {
+      diffing.writeImage(s.radio.transport, renamed(s.baseline, 1, 'BOOF', diffing), {
         backup: s.backup,
         baseImage: s.baseline,
         ident: s.ident,
       }),
     )
-    const owned = ownedRanges().reduce((n, [a, b]) => n + (b - a) / WRITE_BLOCK_SIZE, 0)
-    expect(report.blocksWritten).toBe(owned)
-    expect(report.verified).toBe(true)
+    expect(report).toMatchObject({ blocksWritten: 1, verified: true })
+    expect(s.radio.writes.map((w) => w.addr)).toEqual([nameAddr(0)])
+  })
+
+  it('sends nothing at all when no owned block changed, sweep or not', async () => {
+    const s = await session()
+    const report = await drive(
+      writable.writeImage(s.radio.transport, s.baseline, { backup: s.backup, baseImage: s.baseline, ident: s.ident }),
+    )
+    expect(report.blocksWritten).toBe(0)
+    expect(s.radio.writes).toHaveLength(0)
   })
 })
 

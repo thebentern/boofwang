@@ -62,19 +62,26 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // so a sparse write wipes everything sharing that page. It erased 19 channels
   // on a real radio before that was understood. See docs/protocols/uv5rmini.md.
   uv5rmini: () => createUv5rMiniDriver({ enableWrite: true }),
-  // Read-only, deliberately, and not because anything is known to be wrong.
-  // CHIRP's WP970I family behind the UV-9R's magic: the memory map is the
-  // UV-5R's, rearranged, and the decoder agrees with CHIRP's own classes field
-  // for field on four real images of the family. But boofwang has never been
-  // connected to one of these radios - the protocol is CHIRP's, unexercised
-  // here - and no write has ever been sent to one. The write path exists, is
-  // tested against a scripted radio, and stays off until a bench session runs
-  // test/hardware/uv9r.spec.ts. See docs/protocols/uv9r.md.
-  uv9r: () => createUv9rDriver(),
-  // The UV-9G: the same family behind its own magic, read-only for the same
-  // reason. Its decode is checked against CHIRP on CHIRP's own UV-9G test
-  // image. See docs/protocols/uv9g.md.
-  uv9g: () => createUv9gDriver(),
+  // Writing is enabled WITHOUT a boofwang bench session, and this family is the
+  // only one in the registry where that is true. The project owner asked for
+  // full support with no UV-9R to test on, so the evidence is CHIRP's instead
+  // of ours: CHIRP's maintainer reports CHIRP downloading and uploading a
+  // UV-9R, a UV-9G and a UV-9R Pro (CHIRP issue 10270, 2023-11-30), and this
+  // driver sends what CHIRP's upload sends - the same frames, the same 50 ms
+  // pacing, a contiguous sweep of the owned ranges rather than a diff - inside
+  // spans CHIRP itself writes. It reaches channel records, names and the
+  // settings block, nothing else; only on an ident a captured UV-9R has sent
+  // with an empty firmware window; only with a backup of this physical unit;
+  // and every block is read back at the read path's block size before the write
+  // is called done. The decoder agrees with CHIRP's own classes field for field
+  // on four real images of the family. What no one has done is run
+  // test/hardware/uv9r.spec.ts on a radio - see docs/protocols/uv9r.md.
+  uv9r: () => createUv9rDriver({ enableWrite: true }),
+  // The UV-9G: the same family behind its own magic, enabled on the same
+  // terms - CHIRP's maintainer's report covers it too - with its decode
+  // checked against CHIRP on CHIRP's own UV-9G test image. See
+  // docs/protocols/uv9g.md.
+  uv9g: () => createUv9gDriver({ enableWrite: true }),
 }
 
 export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
@@ -85,8 +92,8 @@ export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
   uv5r: createUv5rDriver({ enableWrite: true }).schema,
   dm32uv: createDm32uvDriver({ enableWrite: true }).schema,
   uv5rmini: createUv5rMiniDriver({ enableWrite: true }).schema,
-  uv9r: createUv9rDriver().schema,
-  uv9g: createUv9gDriver().schema,
+  uv9r: createUv9rDriver({ enableWrite: true }).schema,
+  uv9g: createUv9gDriver({ enableWrite: true }).schema,
 }
 
 export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv', 'uv9r', 'uv9g']

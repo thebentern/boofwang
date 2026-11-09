@@ -117,8 +117,8 @@ const changeCount = computed(() => diff.value?.changed ?? 0)
 const blocks = computed(() =>
   blocksToSend({
     diff: codeplug.pendingWrite,
-    imageBytes: codeplug.image?.regions.reduce((n, r) => n + r.data.length, 0) ?? 0,
-    blockBytes: blockBytes.value,
+    image: codeplug.image,
+    driver: codeplug.driverRef,
     wholeImage: codeplug.schema?.capabilities.writesWholeImage === true,
   }),
 )
@@ -471,9 +471,12 @@ async function send() {
           Channels are the only thing boofwang can narrate. A key-slot or
           settings edit encodes to real blocks with no row to show for it, and
           saying so is better than an empty list that reads as "nothing".
+          Only when something did change, though: a radio that sweeps counts
+          its whole sweep in `blocks` with no edit at all, and this paragraph
+          then narrated changes that did not exist.
         -->
         <div
-          v-else-if="blocks > 0"
+          v-else-if="blocks > 0 && (codeplug.pendingWrite?.changedBytes ?? 0) > 0"
           style="border-top: 1px solid var(--ln); padding: 15px 17px; background: var(--pn2)"
         >
           <p style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">

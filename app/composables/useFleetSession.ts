@@ -159,8 +159,8 @@ export function useFleetSession() {
   function pendingBlocks(): number {
     return blocksToSend({
       diff: codeplug.pendingWrite,
-      imageBytes: codeplug.image?.regions.reduce((n, r) => n + r.data.length, 0) ?? 0,
-      blockBytes: codeplug.driverRef?.writeBlockBytes ?? 0,
+      image: codeplug.image,
+      driver: codeplug.driverRef,
       wholeImage: codeplug.schema?.capabilities.writesWholeImage === true,
     })
   }

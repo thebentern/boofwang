@@ -652,6 +652,12 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
     },
 
     ownedRanges: (regionStart: number) => (regionStart === 0 ? uv82OwnedRanges() : []),
+
+    // Read only for the UV-5R, the one member that sweeps. The sweep in
+    // `writeImage` takes every owned block outside `NEVER_WRITE`, and both of
+    // those windows fall outside the owned ranges, so the owned ranges are what
+    // a write sends. A test holds the two together.
+    sweptRanges: (regionStart: number) => (regionStart === 0 ? uv82OwnedRanges() : []),
   }
 
   return driver

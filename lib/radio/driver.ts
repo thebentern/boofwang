@@ -222,6 +222,20 @@ export interface RadioDriver {
   ownedRanges(regionStart: number, image?: RadioImage): readonly (readonly [number, number])[]
 
   /**
+   * What a whole-image write sends from a region, where that is less than the
+   * region.
+   *
+   * Optional, and read only where `writesWholeImage` is set: it exists so the
+   * confirmation counts what goes down the wire. A sweep is not one shape. The
+   * UV-5R Mini sends every byte of every region, while the UV-5R, UV-9R and
+   * UV-9G sweep their owned ranges end to end and send nothing else, so
+   * counting the image told a UV-9R user that 513 blocks were going to the
+   * radio when 259 were, and told them so again afterwards as what had been
+   * sent. Without it, the whole image is the count.
+   */
+  sweptRanges?(regionStart: number, image?: RadioImage): readonly (readonly [number, number])[]
+
+  /**
    * Whether this image has somewhere to put channel `slot`.
    *
    * Optional, and about the unit rather than the model. A radio whose channel

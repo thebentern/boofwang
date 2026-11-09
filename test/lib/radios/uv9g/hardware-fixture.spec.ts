@@ -241,8 +241,9 @@ describe('the round-trip invariant, on real radio bytes', () => {
 })
 
 describe('what the driver claims', () => {
-  it('is read-only in the registry, with CHIRP’s power table', () => {
-    expect(driver.schema.capabilities.write).toBe(false)
+  it('writes from the registry as a sweep, with CHIRP’s power table', () => {
+    expect(driver.schema.capabilities.write).toBe(true)
+    expect(driver.schema.capabilities.writesWholeImage).toBe(true)
     expect(driver.schema.rf.powerLevels.map((l) => [l.label, l.mW, l.raw])).toEqual([
       ['High', 5000, 0],
       ['Med', 1000, 1],

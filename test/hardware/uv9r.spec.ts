@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
 import { createDriver } from '#core/radio/registry.js'
-import { createUv9rDriver } from '#core/radios/uv9r/driver.js'
-import { IMAGE_SIZE } from '#core/radios/uv9r/protocol.js'
 import { readSession, writeCycle } from './wp970i-bench.js'
 
 /**
  * The bench sessions that would settle the Baofeng UV-9R. Never run.
+ *
+ * The registry writes this radio already, on CHIRP's evidence rather than
+ * boofwang's - see lib/radio/registry.ts - so these are what turn that into
+ * evidence of our own, and the first person with a UV-9R and a cable should
+ * run both and record the numbers in docs/protocols/uv9r.md.
  *
  * Skipped unless `BOOFWANG_HW` is set, because they need a UV-9R on a cable and
  * the development serial bridge (`pnpm bridge`) running:
@@ -26,21 +29,9 @@ describe.skipIf(!HW)('UV-9R on the bench', () => {
     await readSession(createDriver('uv9r'))
   })
 
-  it('will not write, and says so', { timeout: 60_000 }, async () => {
-    // The registry's driver, which is the one the product uses.
-    const registry = createDriver('uv9r')
-    expect(registry.schema.capabilities.write).toBe(false)
-    await expect(
-      registry.writeImage({} as never, {
-        radioId: 'uv9r',
-        variant: '',
-        layout: 'uv9r',
-        createdAt: new Date().toISOString(),
-        regions: [{ start: 0, data: new Uint8Array(IMAGE_SIZE), label: 'image' }],
-        meta: {},
-        sha256: '',
-      }, { backup: { id: 'x', identHash: 'x', createdAt: new Date().toISOString() } }),
-    ).rejects.toThrow(/UV-9R is not enabled/)
+  it('is the registry build, which offers writing', () => {
+    // So the write cycle below exercises the product as shipped.
+    expect(createDriver('uv9r').schema.capabilities.write).toBe(true)
   })
 })
 
@@ -51,16 +42,16 @@ describe.skipIf(!HW)('UV-9R on the bench', () => {
  *   BOOFWANG_HW=1 BOOFWANG_HW_WRITE=1 BOOFWANG_HW_PORT=/dev/cu.usbserial-XXXX \
  *     pnpm vitest run test/hardware/uv9r.spec.ts
  *
- * The driver is the one the registry line would build once it passes
- * `enableWrite: true`, and nothing else is forced: if `identify` does not
- * offer writing on this radio by its own rules, the cycle stops before
- * sending a byte. Take the baseline the read session prints and save it to a
- * file before running this.
+ * The driver is the one the registry builds, and nothing is forced: if
+ * `identify` does not offer writing on this radio by its own rules - an ident
+ * no captured UV-9R has sent, a firmware string in the window - the cycle
+ * stops before sending a byte. Take the baseline the read session prints and
+ * save it to a file before running this.
  */
 const HW_WRITE = HW && !!process.env.BOOFWANG_HW_WRITE
 
 describe.skipIf(!HW_WRITE)('UV-9R write cycle on the bench', () => {
   it('shortens one name, verifies in a fresh session, and restores', { timeout: 900_000 }, async () => {
-    await writeCycle(createUv9rDriver({ enableWrite: true }))
+    await writeCycle(createDriver('uv9r'))
   })
 })

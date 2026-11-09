@@ -133,7 +133,7 @@ export default defineNuxtConfig({
         {
           name: 'description',
           content:
-            'Codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-82, Radioddity UV-5G, Baofeng UV-5R, Baofeng UV-5R Mini and Baofeng DM-32UV. Read-only support for the Baofeng UV-9R and UV-9G, not yet tried on a radio. Runs entirely on your device.',
+            'Codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-82, Radioddity UV-5G, Baofeng UV-5R, Baofeng UV-5R Mini and Baofeng DM-32UV. Also the Baofeng UV-9R and UV-9G, not yet tried on a radio. Runs entirely on your device.',
         },
         /*
          * Tints the browser chrome on mobile to match the app's own surface.

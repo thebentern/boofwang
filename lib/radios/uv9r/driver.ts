@@ -73,9 +73,9 @@ export interface Wp970iFamilyOptions {
    * Whether this build may write.
    *
    * Off by default and turned on in the registry, so that a driver built for a
-   * test or a file import cannot reach a radio at all. For this family the
-   * registry does not turn it on: no write has ever been sent to one of these
-   * radios by boofwang. See docs/protocols/uv9r.md.
+   * test or a file import cannot reach a radio at all. The registry turns it
+   * on for this family without a boofwang bench session behind it, and says
+   * why there; docs/protocols/uv9r.md says what that rests on.
    */
   enableWrite?: boolean
 }
@@ -452,19 +452,30 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
       }
 
       /*
-       * Send the owned blocks that changed, or every owned block.
+       * Send every owned block, or only the ones that changed.
        *
-       * A diff is this codebase's default, and nothing about this radio
-       * settles whether it is safe here. The UV-5R family has one radio that
-       * cannot reprogram a byte without a contiguous sweep, which is what
-       * CHIRP always sends; `writesWholeImage` turns this into that sweep. No
-       * member of this family sets it, because no write has been sent to one -
-       * the first write session decides, by renaming a channel to something
-       * shorter and reading the radio back in a fresh session.
+       * Which one is the member's `writesWholeImage`, and this family sets it:
+       * every write is a contiguous sweep of the three owned ranges, in
+       * address order, the way CHIRP's `_upload` sends `_ranges` and never a
+       * diff. No write has been sent to one of these radios by boofwang, so
+       * nothing here says a sparse write is safe, and CLAUDE.md names what
+       * the reference sends as the best prior. The UV-5R is why that is not a
+       * formality: a byte there programs once, a diff left the tail of a
+       * shortened name behind, and only the sweep put it back.
+       *
+       * Nothing at all is sent when no owned block differs. A sweep exists to
+       * make an edit land, and with no edit there is nothing for it to land -
+       * rewriting 259 blocks with the bytes they already hold would only be
+       * risk.
        */
       const sweep = schema.capabilities.writesWholeImage === true
+      const changed = (off: number) => !equalBytes(base.subarray(off, off + WRITE_BLOCK_SIZE), next.subarray(off, off + WRITE_BLOCK_SIZE))
+      const anyChanged = owned.some(([s, e]) => {
+        for (let off = s; off < e; off += WRITE_BLOCK_SIZE) if (changed(off)) return true
+        return false
+      })
       const blocks: { addr: number; data: Uint8Array }[] = []
-      for (const [s, e] of owned) {
+      for (const [s, e] of anyChanged ? owned : []) {
         for (let off = s; off < e; off += WRITE_BLOCK_SIZE) {
           const to = off + WRITE_BLOCK_SIZE
           // A ceiling, asserted in a test as well: nothing boofwang sends is
@@ -472,7 +483,7 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
           if (!inside(CHIRP_UPLOAD_RANGES, off, to)) {
             throw new DriverError(`Refusing to write 0x${off.toString(16)}: CHIRP never uploads that address.`)
           }
-          if (!sweep && equalBytes(base.subarray(off, to), next.subarray(off, to))) continue
+          if (!sweep && !changed(off)) continue
           blocks.push({ addr: off, data: next.slice(off, to) })
         }
       }
@@ -627,6 +638,10 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
     },
 
     ownedRanges: (regionStart: number) => (regionStart === 0 ? wp970iOwnedRanges() : []),
+
+    // The sweep in `writeImage` walks the owned ranges and nothing else, so
+    // they are also what a write sends. A test holds the two together.
+    sweptRanges: (regionStart: number) => (regionStart === 0 ? wp970iOwnedRanges() : []),
   }
 
   return driver

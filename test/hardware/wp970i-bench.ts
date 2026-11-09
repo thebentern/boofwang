@@ -15,8 +15,9 @@ import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial
  * Shared by test/hardware/uv9r.spec.ts and uv9g.spec.ts, which differ only in
  * the driver they hand in. Neither has been run: nobody working on boofwang
  * has one of these radios. When someone does, the read session comes first
- * and its printed numbers go into docs/protocols/uv9r.md; the write cycle is
- * what would justify the registry line that turns writing on.
+ * and its printed numbers go into docs/protocols/uv9r.md. The write cycle is
+ * what the registry line that turns writing on was shipped without, at the
+ * owner's request - it is the evidence that line is still owed.
  */
 export const BRIDGE = process.env.BOOFWANG_BRIDGE ?? 'ws://127.0.0.1:8765'
 export const PORT = process.env.BOOFWANG_HW_PORT ?? ''

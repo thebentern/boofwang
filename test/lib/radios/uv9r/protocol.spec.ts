@@ -77,18 +77,18 @@ describe.each(MODELS)('identify, when the radio %s', (ackModel) => {
     ])
   })
 
-  it('reports read and not write from the registry build, with nothing to explain', async () => {
+  it('offers writing from the registry build on a known ident with an empty firmware window', async () => {
     const radio = fakeRadio(MEMORY, { magic: MAGIC_WP970I, ident: IDENT_UV9R, ackModel })
     const ident = await drive(registry.identify(radio.transport, {}))
-    // The schema says why, through the write gate; the ident has no reason of
-    // its own because nothing is wrong with the radio.
-    expect(ident.caps).toEqual({ read: true, write: false })
+    expect(ident.caps).toEqual({ read: true, write: true })
   })
 
-  it('would offer writing on a known ident, if the build allowed it', async () => {
+  it('offers reading only from a build that does not enable writing', async () => {
+    // The schema says why, through the write gate; the ident carries no
+    // reason of its own because nothing is wrong with the radio.
     const radio = fakeRadio(MEMORY, { magic: MAGIC_WP970I, ident: IDENT_UV9R, ackModel })
-    const ident = await drive(writable.identify(radio.transport, {}))
-    expect(ident.caps).toEqual({ read: true, write: true })
+    const ident = await drive(createUv9rDriver().identify(radio.transport, {}))
+    expect(ident.caps).toEqual({ read: true, write: false })
   })
 })
 

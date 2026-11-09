@@ -169,7 +169,7 @@ export function wp970iSchema(member: {
     model: member.model,
     aliases: member.aliases,
     // Every schema ships read-only; the registry is where writing is turned
-    // on, and for this family it has not been. See docs/protocols/uv9r.md.
+    // on. See lib/radio/registry.ts and docs/protocols/uv9r.md.
     status: 'read-only',
 
     /*
@@ -180,8 +180,14 @@ export function wp970iSchema(member: {
      * BLE-to-serial dongle is made for. CHIRP issue 9837 is a UV-9R Plus whose
      * owner had the wrong shroud on an otherwise correct cable; the connector
      * is the first thing to suspect on this radio, before the driver.
+     *
+     * `writesWholeImage` because CHIRP never writes these radios sparsely:
+     * `_upload` sends contiguous `_ranges`, and that sequence is the only one
+     * reported working on one. So every write sweeps all three owned ranges -
+     * which the confirmation has to say, because it is not the size of the
+     * edit - and no boofwang write has ever told us a diff is safe here.
      */
-    capabilities: { read: true, write: false, transports: ['serial'] },
+    capabilities: { read: true, write: false, transports: ['serial'], writesWholeImage: true },
 
     memory: {
       channelCount: CHANNEL_COUNT,

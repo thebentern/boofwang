@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { BackupRequiredError, DriverError, type BackupRef } from '#core/radio/driver.js'
+import { blocksToSend } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createUv5rDriver } from '#core/radios/uv5r/driver.js'
 import { MAGIC_UV5R_291, MAGIC_UV5R_ORIG } from '#core/radios/uv5r/protocol.js'
@@ -265,5 +266,15 @@ describe('the write gate', () => {
       expect(owned.some(([s, e]) => from >= s && to <= e), `0x${op.addr.toString(16)} is unowned`).toBe(true)
       expect(NEVER_WRITE.some(([s, e]) => from < e && to > s), `0x${op.addr.toString(16)} is skipped`).toBe(false)
     }
+
+    // And the confirmation counts this sweep rather than the image, which
+    // carries an aux block the sweep never sends. `sweptRanges` is the claim
+    // that makes the count right, and these frames are what it is held to.
+    const sent = report.operations.reduce((n, op) => n + op.length, 0)
+    const swept = (writable.sweptRanges?.(0) ?? []).reduce((n, [s, e]) => n + e - s, 0)
+    expect(swept).toBe(sent)
+    expect(blocksToSend({ diff: null, image: image(), driver: writable, wholeImage: true })).toBe(
+      Math.ceil(sent / writable.writeBlockBytes),
+    )
   })
 })

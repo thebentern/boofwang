@@ -590,8 +590,9 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
           <DiffList :diff="diff" :blocks="blocks" :bytes="bytes" />
         </div>
       </div>
+      <!-- Only when something changed: a sweeping radio counts its sweep in `blocks` with no edit at all. -->
       <div
-        v-else-if="blocks > 0"
+        v-else-if="blocks > 0 && (codeplug.pendingWrite?.changedBytes ?? 0) > 0"
         style="border-top: 1px solid var(--ln); padding: 15px 17px; background: var(--pn2)"
       >
         <p style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">

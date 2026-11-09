@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
 import { createDriver } from '#core/radio/registry.js'
-import { createUv9gDriver } from '#core/radios/uv9g/driver.js'
 import { readSession, writeCycle } from './wp970i-bench.js'
 
 /**
@@ -25,13 +24,13 @@ describe.skipIf(!HW)('UV-9G on the bench', () => {
     await readSession(createDriver('uv9g'))
   })
 
-  it('will not write from the registry build', () => {
-    expect(createDriver('uv9g').schema.capabilities.write).toBe(false)
+  it('is the registry build, which offers writing', () => {
+    expect(createDriver('uv9g').schema.capabilities.write).toBe(true)
   })
 })
 
 describe.skipIf(!HW_WRITE)('UV-9G write cycle on the bench', () => {
   it('shortens one name, verifies in a fresh session, and restores', { timeout: 900_000 }, async () => {
-    await writeCycle(createUv9gDriver({ enableWrite: true }))
+    await writeCycle(createDriver('uv9g'))
   })
 })

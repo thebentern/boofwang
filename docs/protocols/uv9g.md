@@ -8,9 +8,9 @@ different. See [../provenance.md](../provenance.md).
 
 **boofwang has never been connected to a UV-9G.** The decoder is checked
 against CHIRP's own `UV9G` class on CHIRP's own UV-9G test image, which is the
-committed fixture; the driver is offered read-only for the reasons
-[uv9r.md](uv9r.md) gives, and every item on its "Not verified" list applies
-here too.
+committed fixture. Writing is enabled on the same terms as the UV-9R's, which
+[uv9r.md](uv9r.md) sets out - CHIRP's maintainer reports uploading a UV-9G
+too - and every item on that file's "Not verified" list applies here.
 
 ## What differs from the UV-9R
 

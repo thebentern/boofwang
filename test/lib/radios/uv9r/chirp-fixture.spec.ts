@@ -343,9 +343,13 @@ describe('what the driver claims', () => {
     }
   })
 
-  it('stays read-only in the registry', () => {
-    expect(driver.schema.capabilities.write).toBe(false)
-    expect(driver.schema.status).toBe('read-only')
+  it('writes from the registry, as a sweep of what it owns', () => {
+    // Enabled without a boofwang bench session - see lib/radio/registry.ts -
+    // and in CHIRP's shape: contiguous owned ranges, never a diff.
+    expect(driver.schema.capabilities.write).toBe(true)
+    expect(driver.schema.capabilities.writesWholeImage).toBe(true)
+    expect(driver.schema.capabilities.writeScope).toBe('channels, channel names and radio settings')
+    expect(driver.schema.capabilities.transports).toEqual(['serial'])
   })
 
   it('fingerprints the unit from the three spans CHIRP compares', async () => {
