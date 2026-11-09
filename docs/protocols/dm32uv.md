@@ -1382,10 +1382,11 @@ What a row takes:
 
 1. A test key in one slot, of one type, and one land-mobile channel that names
    that slot with encryption on. Only on a frequency where a license covers
-   encryption, into a dummy load, at the lowest power. The profile leaves out
-   every encrypted channel where encryption is prohibited, so a profile that
-   lists the channel is the first check. Picking the slot in boofwang's
-   channel editor turns the enable bit on with it.
+   encryption, into a dummy load, at the lowest power. The keys page names
+   every encrypted channel where encryption is prohibited, above the export
+   buttons, so a channel it does not name is the first check. It names them
+   and exports them anyway: the rule is the operator's to apply. Picking the
+   slot in boofwang's channel editor turns the enable bit on with it.
 2. The radio written and read back, and both files exported from that read.
    They describe the codeplug open in boofwang, unwritten edits included, so
    an export taken before the write describes a radio that does not exist.

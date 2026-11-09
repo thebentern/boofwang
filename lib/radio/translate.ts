@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { plural } from '../text/plural.js'
-import { txFrequency, type Channel } from '../model/channel.js'
+import { txFrequency, type Channel, type TxSpec } from '../model/channel.js'
 import { describeTone, nearestCtcss, type ToneSpec } from '../model/tones.js'
 import { hz, mW, type Hz } from '../model/units.js'
 import { clampPower, type BandLimit, type RadioSchema } from './schema.js'
@@ -32,6 +32,7 @@ import { clampPower, type BandLimit, type RadioSchema } from './schema.js'
 export type ClampRule =
   | 'rx-band'
   | 'tx-band'
+  | 'shift'
   | 'tx-inhibit'
   | 'name'
   | 'modulation'
@@ -42,13 +43,14 @@ export type ClampRule =
 
 /** Every rule, in the order they run, so a caller can offer them all. */
 export const ALL_CLAMP_RULES: readonly ClampRule[] = [
-  'rx-band', 'tx-band', 'tx-inhibit', 'name', 'modulation', 'bandwidth', 'tone', 'power', 'step',
+  'rx-band', 'tx-band', 'shift', 'tx-inhibit', 'name', 'modulation', 'bandwidth', 'tone', 'power', 'step',
 ]
 
 /** What each rule is called where a person can see it. */
 export const CLAMP_RULE_LABELS: Readonly<Record<ClampRule, string>> = {
   'rx-band': 'Receive frequency',
   'tx-band': 'Transmit frequency',
+  shift: 'Shift',
   'tx-inhibit': 'Receive-only',
   name: 'Name',
   modulation: 'Mode',
@@ -118,12 +120,32 @@ const nearest = (target: number, options: readonly number[]) =>
   options.reduce((best, o) => (Math.abs(o - target) < Math.abs(best - target) ? o : best), options[0]!)
 
 /**
+ * The widest shift a split may become, by receive frequency, or null where
+ * nothing limits it.
+ *
+ * CHIRP's, from `_import_duplex` in `chirp/import_logic.py`: 15 MHz up to
+ * 500 MHz and 50 MHz above it, to 3 GHz, lower bound exclusive and upper
+ * inclusive, measured from the receive frequency. CHIRP calls anything wider
+ * "abnormally large", and it is what separates a repeater pair from a
+ * cross-band split - 2 m to 70 cm is 300 MHz - and nobody has watched the
+ * UV-K5, the one radio here that stores only a shift, transmit one through it.
+ */
+function maxShiftHz(rxHz: number): number | null {
+  if (rxHz > 0 && rxHz <= 500_000_000) return 15_000_000
+  if (rxHz > 500_000_000 && rxHz <= 3_000_000_000) return 50_000_000
+  return null
+}
+
+/**
  * Put one channel onto `target`, or refuse it.
  *
  * The order is the issue's and it is not arbitrary. Band checks come first
  * because a channel that cannot be received or transmitted is refused outright
  * and there is no point clamping its name. Transmit-inhibit follows, because it
- * can turn a band problem into a refusal. Everything after that is cosmetic by
+ * can turn a band problem into a refusal. The shift sits between them: it can
+ * leave a channel receive-only as well, so it has to run before the rule that
+ * asks whether the radio can honor that, and after the band check, which may
+ * have settled the matter already. Everything after that is cosmetic by
  * comparison and runs in the order a person would read it.
  */
 export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: RadioSchema['rf']): ClampedChannel {
@@ -157,7 +179,7 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
   }
 
   // 2. Transmit band. This one has a safe adjustment - stop transmitting - so
-  //    it is taken, and rule 3 decides whether the radio can honor it.
+  //    it is taken, and rule 4 decides whether the radio can honor it.
   const txHz = txFrequency(next)
   if (txHz !== null) {
     const txBand = bandFor(bands, txHz)
@@ -172,7 +194,41 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
     }
   }
 
-  // 3. Can this radio actually be told not to transmit?
+  // 3. A split, onto a radio that stores only a shift.
+  //
+  //    The UV-K5 is that radio, and its encoder refuses a split outright, so a
+  //    CSV row with `Duplex=split` staged onto it used to arrive as a channel
+  //    nothing could write. CHIRP's import has the answer, in `_import_duplex`:
+  //    a split becomes the shift that reaches the same transmit frequency, and
+  //    one wider than `maxShiftHz` does not become a shift at all. CHIRP
+  //    refuses that one. This takes rule 2's adjustment instead - stop
+  //    transmitting - and leaves rule 4 to decide whether the radio can.
+  //
+  //    Only a channel that may transmit. A receive-only channel's transmit
+  //    side is never what the UV-K5 is told, so its split is left for the
+  //    editor to show if transmit is ever turned back on.
+  if (next.txAllowed && next.tx.kind === 'split' && !rf.duplexes.includes('split')) {
+    const txHz = next.tx.txFreq
+    const delta = txHz - next.rxFreq
+    const limit = maxShiftHz(next.rxFreq)
+    if (limit !== null && Math.abs(delta) > limit) {
+      at('shift', 'txAllowed', 'transmits', 'receive-only',
+        `This radio stores a shift, not a separate transmit frequency, and ${MHZ(txHz)} is ` +
+        `${MHZ(Math.abs(delta))} from the receive frequency, more than the ${limit / 1e6} MHz a shift ` +
+        'is held to here, so the channel arrives receive-only.')
+      next = { ...next, txAllowed: false, txInhibitReason: `Split to ${MHZ(txHz)} is wider than a shift` }
+    } else {
+      const tx: TxSpec =
+        delta === 0
+          ? { kind: 'simplex' }
+          : { kind: 'offset', direction: delta > 0 ? 'plus' : 'minus', offset: hz(Math.abs(delta)) }
+      at('shift', 'tx', `split to ${MHZ(txHz)}`, tx.kind === 'offset' ? `${tx.direction} ${MHZ(tx.offset)}` : 'simplex',
+        'This radio stores a shift, not a separate transmit frequency. This shift transmits on the same one.')
+      next = { ...next, tx }
+    }
+  }
+
+  // 4. Can this radio actually be told not to transmit?
   //
   //    The one rule that refuses rather than adjusts. A receive-only channel on
   //    a radio with no mechanism would be programmed transmit-capable, which is
@@ -184,7 +240,7 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
       'transmit-capable.')
   }
 
-  // 4. Name: the target's length and charset.
+  // 5. Name: the target's length and charset.
   const charset = target.memory.nameCharset
   let name = next.name
   if (charset.length > 0) {
@@ -204,7 +260,7 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
   }
   if (name !== next.name) next = { ...next, name }
 
-  // 5. Modulation. A DMR channel onto an analog radio keeps its frequency and
+  // 6. Modulation. A DMR channel onto an analog radio keeps its frequency and
   //    loses the digital part, which the caller is told about rather than left
   //    to notice. Its talk group, contact and radio ID have no analogue and go
   //    with it - see `dropped` on the result.
@@ -240,7 +296,7 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
     }
   }
 
-  // 6. Bandwidth, downwards only. Widening can put a channel outside a
+  // 7. Bandwidth, downwards only. Widening can put a channel outside a
   //    narrowband rule that applies where its owner is, which is not a
   //    conversion decision to make on somebody's behalf.
   const widths = rf.bandwidths
@@ -256,7 +312,7 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
     next = { ...next, bandwidthHz: chosen }
   }
 
-  // 7. Tones. CTCSS moves to the nearest the radio has, because being a tenth
+  // 8. Tones. CTCSS moves to the nearest the radio has, because being a tenth
   //    of a hertz out still opens the squelch. DTCS does not: the codes are
   //    identifiers, not measurements, and the nearest one is simply a different
   //    code. A wrong DCS code keeps the squelch shut, so it is dropped.
@@ -282,7 +338,7 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
     next = { ...next, tone: { ...next.tone, rx, tx } }
   }
 
-  // 8. Power: the highest level at or below what was asked for. Never above.
+  // 9. Power: the highest level at or below what was asked for. Never above.
   const levels = rf.powerLevels
   if (levels.length > 0 && !levels.some((l) => l.mW === next.power.mW)) {
     const chosen = clampPower(target, next.power.mW)
@@ -291,9 +347,9 @@ export function clampChannel(ch: Channel, target: RadioSchema, rfOverride?: Radi
     next = { ...next, power: { mW: mW(chosen.mW), ...(chosen.label === undefined ? {} : { label: chosen.label }) } }
   }
 
-  // 9. Tuning step, nearest. It affects manual tuning from this channel rather
-  //    than the channel itself, so nearest is fine here where it is not for a
-  //    DCS code.
+  // 10. Tuning step, nearest. It affects manual tuning from this channel
+  //     rather than the channel itself, so nearest is fine here where it is
+  //     not for a DCS code.
   const steps = rf.tuningSteps
   if (steps.length > 0 && !steps.includes(next.tuningStep)) {
     const chosen = nearest(next.tuningStep, steps as readonly number[])
@@ -376,4 +432,49 @@ export function acceptTranslation(
     out.push(row.channel)
   }
   return out.sort((a, b) => a.index - b.index)
+}
+
+/** One adjustment or refusal said once, with every slot it applies to. */
+export interface ClampGroup<T> {
+  readonly rule: ClampRule
+  readonly label: string
+  readonly field: string
+  /** Ascending. */
+  readonly slots: readonly number[]
+  /** The first one met, for its before, after and why. */
+  readonly sample: T
+}
+
+/**
+ * Changes or refusals gathered by rule and field, in the order the rules run.
+ *
+ * By field as well as rule, because one rule can do two different things: the
+ * shift rule rewrites a split as a shift on one channel and makes another
+ * receive-only, and a summary by rule alone showed whichever came first and
+ * hid the other. Fourteen names cut to the same length are still one line.
+ *
+ * Only the sample's `why` is shown with a group, and it is about the sample:
+ * two channels made receive-only for different frequencies share a group and a
+ * field, not a sentence.
+ */
+export function groupClamps<T extends { readonly index: number; readonly rule: ClampRule; readonly field: string }>(
+  items: readonly T[],
+): ClampGroup<T>[] {
+  const groups = new Map<string, { rule: ClampRule; field: string; slots: number[]; sample: T }>()
+  for (const item of items) {
+    const key = `${item.rule}\u0000${item.field}`
+    const group = groups.get(key)
+    if (group) group.slots.push(item.index)
+    else groups.set(key, { rule: item.rule, field: item.field, slots: [item.index], sample: item })
+  }
+  // A stable sort, so fields keep the order they were first met in within a rule.
+  return [...groups.values()]
+    .sort((a, b) => ALL_CLAMP_RULES.indexOf(a.rule) - ALL_CLAMP_RULES.indexOf(b.rule))
+    .map((g) => ({
+      rule: g.rule,
+      label: CLAMP_RULE_LABELS[g.rule],
+      field: g.field,
+      slots: [...new Set(g.slots)].sort((x, y) => x - y),
+      sample: g.sample,
+    }))
 }

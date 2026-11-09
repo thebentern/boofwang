@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import type { Channel } from '#core/model/channel.js'
+import type { Channel, TxSpec } from '#core/model/channel.js'
 import { formatCtcss, type ToneSpec } from '#core/model/tones.js'
 import { encryptionLegality } from '#core/model/encryption.js'
+import { shiftFormOf, txSpecOf, type ShiftChoice } from '#core/model/shift-form.js'
 import { formatFreq, hz, parseFreq } from '#core/model/units.js'
+import { validateChannel } from '#core/validate/rules.js'
 
 /**
  * Editing one channel.
@@ -28,10 +30,50 @@ const rf = computed(() => codeplug.rf ?? schema.value.rf)
 const name = ref(props.channel.name)
 const rxText = ref(formatFreq(props.channel.rxFreq))
 const txAllowed = ref(props.channel.txAllowed)
-const duplex = ref<'simplex' | 'plus' | 'minus'>(
-  props.channel.tx.kind === 'offset' ? props.channel.tx.direction : 'simplex',
-)
-const offsetText = ref(formatFreq(props.channel.tx.kind === 'offset' ? props.channel.tx.offset : hz(0)))
+
+/**
+ * Why the channel was receive-only when it was opened, said in its own words.
+ *
+ * `txInhibitReason` is kept "for the UI to explain rather than just gray out",
+ * and for a long time nothing showed it: a NOAA preset carried "transmitting
+ * on 162 MHz is unlawful" and the editor said only "Receive-only" and how the
+ * radio enforces it. It replaces the mechanism rather than following it,
+ * because a channel read from a radio carries the mechanism as its reason -
+ * each decoder writes how its radio holds the channel, "Transmit frequency is
+ * zero" or "Transmit forbidden on this channel" - and two sentences saying the
+ * same thing is one too many.
+ */
+const arrivedReason = computed(() => {
+  const reason = props.channel.txAllowed ? '' : (props.channel.txInhibitReason ?? '').trim()
+  if (reason === '') return null
+  return /[.!?]$/.test(reason) ? reason : `${reason}.`
+})
+/*
+ * The shift, the offset and the transmit frequency, held as the fields show
+ * them. `shift-form.ts` converts both ways, and its note says why that is not
+ * done here: this editor once opened a split channel as simplex and wrote it
+ * back that way.
+ */
+const initialShift = shiftFormOf(props.channel.tx, props.channel.rxFreq)
+const duplex = ref<ShiftChoice>(initialShift.shift)
+const offsetText = ref(initialShift.offset)
+const txText = ref(initialShift.txFreq)
+const shiftForm = computed(() => ({ shift: duplex.value, offset: offsetText.value, txFreq: txText.value }))
+
+/**
+ * Split where the radio can store a separate transmit frequency, which is what
+ * the schema's `duplexes` says: five radios list it, and the UV-K5, whose
+ * encoder refuses one, does not. A channel that is already split is offered
+ * split on any radio, because the control has to be able to show what the
+ * channel holds.
+ */
+const splitStorable = computed(() => rf.value.duplexes.includes('split'))
+const shiftItems = computed(() => [
+  { value: 'simplex', label: 'Simplex' },
+  { value: 'plus', label: 'Plus (+)' },
+  { value: 'minus', label: 'Minus (−)' },
+  ...(splitStorable.value || props.channel.tx.kind === 'split' ? [{ value: 'split', label: 'Split' }] : []),
+])
 const modulation = ref(props.channel.modulation)
 const bandwidthHz = ref(props.channel.bandwidthHz)
 /*
@@ -80,12 +122,49 @@ const rxError = computed(() => {
     // and refusing those made a decoded channel unsavable - not even
     // renameable.
     const band = rf.value.bands.find((b) => f >= b.loHz && f <= b.hiHz)
+    // Only what the radio cannot do is an error. A band its plan marks
+    // receive-only is a warning, under the transmit switch: see `txWarning`.
     if (!band) return 'Outside every band this radio covers'
-    if (!band.txAllowed && txAllowed.value) return `${band.label} is receive-only on this radio`
     return null
   } catch {
     return 'Not a frequency'
   }
+})
+
+/**
+ * What the shared rules say about where this channel would transmit.
+ *
+ * Asked of `validateChannel` rather than worked out here, with the same bands,
+ * so the editor says what the channel table and the write gate say and cannot
+ * drift from them. It warns and Apply goes through: `lib/validate/rules.ts`
+ * made transmitting into a receive-only allocation a warning on 2026-08-21,
+ * because it is a licensing question and this tool is not the licensing
+ * authority. This editor kept an older check that refused Apply until the
+ * transmit switch went off, so the one screen built for a deliberate edit was
+ * the one place that decision never reached - while the table's own inline
+ * edit let the same frequency straight through.
+ *
+ * The transmit frequency, not the receive one. A shift can carry a channel
+ * into a band its receive frequency is not in, and the old check, reading the
+ * receive frequency, missed exactly that.
+ */
+const txWarning = computed(() => {
+  let draft: Channel
+  try {
+    draft = {
+      ...props.channel,
+      rxFreq: parseFreq(rxText.value),
+      txAllowed: txAllowed.value,
+      tx: txSpecOf(shiftForm.value),
+    }
+  } catch {
+    // Nothing to check until the frequencies parse.
+    return null
+  }
+  const found = validateChannel(draft, schema.value, { bands: rf.value.bands }).find(
+    (d) => d.ruleId === 'regulatory.band.tx-not-permitted',
+  )
+  return found?.message ?? null
 })
 
 const nameError = computed(() =>
@@ -94,7 +173,30 @@ const nameError = computed(() =>
     : null,
 )
 
-const canSave = computed(() => rxError.value === null && nameError.value === null && !encryptionBlocked.value)
+/**
+ * The transmit side's own errors, for the field the shift reads.
+ *
+ * A split's transmit field is a frequency like the receive one, so it gets the
+ * receive field's two errors, and it needs the second: `parseFreq` reads an
+ * emptied field as 0 Hz, which is outside every band rather than unreadable.
+ * Where an offset lands is left to the validator, as it was before split was
+ * here. An offset that does not parse used to throw from `save` and do
+ * nothing at all.
+ */
+const txError = computed(() => {
+  if (!txAllowed.value || duplex.value === 'simplex') return null
+  let tx: TxSpec
+  try {
+    tx = txSpecOf(shiftForm.value)
+  } catch {
+    return 'Not a frequency'
+  }
+  if (tx.kind !== 'split') return null
+  const at = tx.txFreq
+  return rf.value.bands.some((b) => at >= b.loHz && at <= b.hiHz) ? null : 'Outside every band this radio covers'
+})
+
+const canSave = computed(() => rxError.value === null && nameError.value === null && txError.value === null)
 
 /**
  * On a phone this is a full-height sheet, not a centerd dialog.
@@ -150,6 +252,18 @@ function slotOf(id: string): number {
 /** Only a digital channel keys a talk group. */
 const isDigital = computed(() => modulation.value === 'DMR')
 
+/**
+ * Whether encryption is lawful on the frequency in the field above.
+ *
+ * Stated, never enforced. The alert under the key picker gives the rule and
+ * its citation, and Apply goes through either way: the operator holds the
+ * license, and this tool is not the licensing authority. Apply used to refuse,
+ * and on the DM-32UV this was built against the refusal reached further than
+ * anyone meant. Its CPS had encrypted TAC 1-14 on GMRS, so none of those
+ * channels could be saved from here at all - not renamed, not retuned, not
+ * pointed at another talk group - without first taking its encryption off,
+ * the one edit nobody had asked for.
+ */
 const legality = computed(() => {
   try {
     return encryptionLegality(parseFreq(rxText.value))
@@ -157,8 +271,6 @@ const legality = computed(() => {
     return null
   }
 })
-
-const encryptionBlocked = computed(() => encKeyId.value !== 0 && legality.value !== null && !legality.value.allowed)
 
 function buildTone(kind: ToneKind, ctcssV: number, dtcsV: number): ToneSpec | null {
   if (kind === 'ctcss') return { kind: 'ctcss', deciHz: ctcssV }
@@ -173,15 +285,20 @@ function save() {
   // take the whole save down with it.
   const level =
     schema.value.rf.powerLevels.find((l) => l.id === powerId.value) ?? schema.value.rf.powerLevels[0]!
+  let tx: TxSpec
+  try {
+    tx = txSpecOf(shiftForm.value)
+  } catch {
+    // Reachable only with transmit off, where the shift fields are hidden and
+    // `txError` stays quiet: keep what the channel had rather than throw.
+    tx = props.channel.tx
+  }
 
   codeplug.updateChannel(props.channel.index, {
     name: name.value,
     rxFreq,
     txAllowed: txAllowed.value,
-    tx:
-      duplex.value === 'simplex'
-        ? { kind: 'simplex' }
-        : { kind: 'offset', direction: duplex.value, offset: parseFreq(offsetText.value) },
+    tx,
     tone: {
       rx: buildTone(rxToneKind.value, rxCtcss.value, rxDtcs.value),
       tx: buildTone(txToneKind.value, txCtcss.value, txDtcs.value),
@@ -191,7 +308,12 @@ function save() {
     bandwidthHz: bandwidthHz.value,
     power: { mW: level.mW, label: level.label },
     tuningStep: hz(stepHz.value),
-    ...(txAllowed.value ? {} : { txInhibitReason: 'Marked receive-only' }),
+    // A channel that arrived receive-only keeps the reason it arrived with. A
+    // rename used to replace it with "Marked receive-only", telling the next
+    // reader somebody had marked it when a preset or the clamp had.
+    ...(txAllowed.value
+      ? {}
+      : { txInhibitReason: (props.channel.txAllowed ? undefined : props.channel.txInhibitReason) ?? 'Marked receive-only' }),
     ...(supportsEncryption.value
       ? {
           extras: {
@@ -267,26 +389,34 @@ function remove() {
     <UFormField>
       <USwitch v-model="txAllowed" label="This channel may transmit" />
       <template #help>
-        <span v-if="!txAllowed" class="text-warning">
+        <span v-if="!txAllowed && arrivedReason" class="text-warning">{{ arrivedReason }}</span>
+        <span v-else-if="!txAllowed" class="text-warning">
           Receive-only. {{ schema.rf.txInhibit ? schema.rf.txInhibit.mechanism : '' }}
         </span>
+        <span v-else-if="txWarning" class="text-warning">{{ txWarning }}</span>
       </template>
     </UFormField>
 
     <div v-if="txAllowed" :class="pair" class="space-y-4 sm:space-y-0">
       <UFormField label="Shift">
-        <USelect
-          v-model="duplex"
-          class="w-full"
-          :items="[
-            { value: 'simplex', label: 'Simplex' },
-            { value: 'plus', label: 'Plus (+)' },
-            { value: 'minus', label: 'Minus (−)' },
-          ]"
-        />
+        <USelect v-model="duplex" class="w-full" :items="shiftItems" />
+        <!--
+          Said, not enforced. The UV-K5's encoder refuses a split at write time
+          with the same advice, and refusing Apply here would trap a rename
+          behind a shift nobody came to change.
+        -->
+        <template v-if="duplex === 'split' && !splitStorable" #help>
+          <span class="text-warning">
+            This radio stores a shift, not a separate transmit frequency, so a write will refuse this channel
+            as it stands. Pick Plus or Minus, or mark it receive-only.
+          </span>
+        </template>
       </UFormField>
-      <UFormField v-if="duplex !== 'simplex'" label="Offset (MHz)">
+      <UFormField v-if="duplex === 'plus' || duplex === 'minus'" label="Offset (MHz)" :error="txError ?? undefined">
         <UInput v-model="offsetText" class="w-full tabular" />
+      </UFormField>
+      <UFormField v-else-if="duplex === 'split'" label="Transmit (MHz)" :error="txError ?? undefined">
+        <UInput v-model="txText" class="w-full tabular" />
       </UFormField>
     </div>
 
@@ -385,10 +515,15 @@ function remove() {
         </template>
       </UFormField>
 
+      <!--
+        Amber either way. A red alert is an error, and an error is what stops
+        a save or a write here. This stops neither, so the icon and the title
+        carry the difference instead.
+      -->
       <UAlert
         v-if="encKeyId !== 0 && legality"
         :icon="legality.allowed ? 'i-lucide-shield' : 'i-lucide-shield-alert'"
-        :color="legality.allowed ? 'warning' : 'error'"
+        color="warning"
         variant="subtle"
         :title="
           legality.allowed

@@ -22,6 +22,7 @@ for f in \
   chirp/drivers/baofeng_common.py \
   chirp/drivers/generic_csv.py \
   chirp/chirp_common.py \
+  chirp/import_logic.py \
   chirp/bitwise.py
 do
   curl -sSLf "$CHIRP_RAW/$f" -o "$(basename "$f")" && echo "  $(basename "$f")"

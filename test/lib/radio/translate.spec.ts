@@ -2,8 +2,16 @@
 import { describe, expect, it } from 'vitest'
 import { hz, mW } from '#core/model/units.js'
 import { SCHEMAS } from '#core/radio/registry.js'
-import { acceptTranslation, clampChannel, translateChannels } from '#core/radio/translate.js'
-import type { Channel } from '#core/model/channel.js'
+import {
+  acceptTranslation,
+  clampChannel,
+  groupClamps,
+  translateChannels,
+  type ClampChange,
+  type ClampRule,
+} from '#core/radio/translate.js'
+import { txFrequency, type Channel } from '#core/model/channel.js'
+import { encodeShift } from '#core/radios/uvk5/encode.js'
 import type { RadioSchema } from '#core/radio/schema.js'
 
 /**
@@ -78,6 +86,89 @@ describe('a channel that would transmit where it must not', () => {
     const out = clampChannel(channel({ txAllowed: false }), UV82)
     expect(out.channel?.txAllowed).toBe(false)
     expect(out.refusal).toBeNull()
+  })
+})
+
+describe('a split onto a radio that stores only a shift', () => {
+  // The UV-K5 lists no split among its duplexes and its encoder refuses one,
+  // so a CSV row with Duplex=split used to stage as a channel nothing could
+  // write. CHIRP's `_import_duplex` is the rule followed, thresholds and all.
+  const split = (rx: number, tx: number) => channel({ rxFreq: hz(rx), tx: { kind: 'split', txFreq: hz(tx) } })
+  const shiftOf = (out: ReturnType<typeof clampChannel>) => out.changes.find((c) => c.rule === 'shift')
+
+  it('becomes the shift that reaches the same transmit frequency', () => {
+    const out = clampChannel(split(146_520_000, 147_120_000), UVK5)
+    expect(out.channel?.tx).toEqual({ kind: 'offset', direction: 'plus', offset: hz(600_000) })
+    expect(txFrequency(out.channel!)).toBe(147_120_000)
+    expect(shiftOf(out)).toMatchObject({ field: 'tx', before: 'split to 147.12000 MHz', after: 'plus 0.60000 MHz' })
+  })
+
+  it('becomes a minus shift below the receive frequency, and simplex on it', () => {
+    expect(clampChannel(split(146_940_000, 146_340_000), UVK5).channel?.tx).toEqual({
+      kind: 'offset',
+      direction: 'minus',
+      offset: hz(600_000),
+    })
+    expect(clampChannel(split(146_520_000, 146_520_000), UVK5).channel?.tx).toEqual({ kind: 'simplex' })
+  })
+
+  it('is something the UV-K5 encoder will write, where the split was not', () => {
+    const before = split(146_520_000, 147_120_000)
+    expect(() => encodeShift(before)).toThrow(/split/)
+    expect(() => encodeShift(clampChannel(before, UVK5).channel!)).not.toThrow()
+  })
+
+  it('arrives receive-only when it is wider than a shift is held to', () => {
+    // 2 m to 70 cm. CHIRP refuses this one. Stopping transmit is rule 2's
+    // adjustment, and it keeps the channel to listen on.
+    const out = clampChannel(split(146_520_000, 446_000_000), UVK5)
+    expect(out.refusal).toBeNull()
+    expect(out.channel?.txAllowed).toBe(false)
+    expect(out.channel?.tx).toEqual({ kind: 'split', txFreq: hz(446_000_000) })
+    expect(shiftOf(out)).toMatchObject({ field: 'txAllowed', before: 'transmits', after: 'receive-only' })
+    expect(shiftOf(out)?.why).toContain('15 MHz')
+  })
+
+  it('holds a shift to 15 MHz up to 500 MHz and 50 MHz above, as CHIRP does', () => {
+    // One wide band, so only the limit decides. Exactly the limit converts and
+    // a hertz more does not; 500 MHz itself belongs to the lower range.
+    const band = { loHz: hz(100_000_000), hiHz: hz(1_000_000_000), label: 'wide', txAllowed: true }
+    const wide = { ...UVK5, rf: { ...UVK5.rf, bands: [band] } } as RadioSchema
+    const transmits = (rx: number, tx: number) => clampChannel(split(rx, tx), wide).channel?.txAllowed
+    expect(transmits(400_000_000, 415_000_000)).toBe(true)
+    expect(transmits(400_000_000, 415_000_001)).toBe(false)
+    expect(transmits(500_000_000, 485_000_000)).toBe(true)
+    expect(transmits(500_000_000, 484_999_999)).toBe(false)
+    expect(transmits(600_000_000, 650_000_000)).toBe(true)
+    expect(transmits(600_000_000, 650_000_001)).toBe(false)
+  })
+
+  it('leaves a split alone on a radio that stores one', () => {
+    const out = clampChannel(split(146_520_000, 147_120_000), UV82)
+    expect(out.channel?.tx).toEqual({ kind: 'split', txFreq: hz(147_120_000) })
+    expect(ruleIds(out)).not.toContain('shift')
+  })
+
+  it('says a conversion and a receive-only arrival apart', () => {
+    // Both are the shift rule. Summarized by rule alone, as the copy dialog
+    // does, whichever came first stood for both and the receive-only one -
+    // the one that matters - could vanish behind a routine conversion.
+    const groups = groupClamps([
+      ...clampChannel({ ...split(146_520_000, 147_120_000), index: 18 }, UVK5).changes,
+      ...clampChannel({ ...split(146_520_000, 446_000_000), index: 19 }, UVK5).changes,
+    ])
+    expect(groups.map((g) => [g.label, g.field, g.slots, g.sample.after])).toEqual([
+      ['Shift', 'tx', [18], 'plus 0.60000 MHz'],
+      ['Shift', 'txAllowed', [19], 'receive-only'],
+    ])
+  })
+
+  it('leaves the split of a receive-only channel alone', () => {
+    // Its transmit side is not what the UV-K5 is told. Turning transmit back
+    // on is the editor's business, and the editor says what this radio holds.
+    const out = clampChannel({ ...split(146_520_000, 147_120_000), txAllowed: false }, UVK5)
+    expect(out.channel?.tx).toEqual({ kind: 'split', txFreq: hz(147_120_000) })
+    expect(ruleIds(out)).not.toContain('shift')
   })
 })
 
@@ -279,5 +370,45 @@ describe('a DMR channel arriving on a radio that has no DMR', () => {
     const fm = channel({ extras: { vendor: { colorCode: '7', anything: 'x' } } })
     const out = clampChannel(fm, UV82)
     expect(out.channel?.extras.vendor).toEqual({ colorCode: '7', anything: 'x' })
+  })
+})
+
+describe('what the clamp did, said once per kind of change', () => {
+  const change = (index: number, rule: ClampRule, field: string): ClampChange => ({
+    index,
+    rule,
+    field,
+    before: 'before',
+    after: 'after',
+    why: `why for ${index}`,
+  })
+  const groups = groupClamps([
+    change(5, 'name', 'name'),
+    change(3, 'shift', 'txAllowed'),
+    change(2, 'name', 'name'),
+    change(4, 'shift', 'tx'),
+    change(2, 'power', 'power'),
+  ])
+
+  it('gathers by rule and field, in the order the rules run', () => {
+    // Within a rule, fields keep the order they were first met in.
+    expect(groups.map((g) => [g.label, g.field, g.slots])).toEqual([
+      ['Shift', 'txAllowed', [3]],
+      ['Shift', 'tx', [4]],
+      ['Name', 'name', [2, 5]],
+      ['Power', 'power', [2]],
+    ])
+  })
+
+  it('keeps the first one met as the sample, whose why it shows', () => {
+    // Slot 5 came first, so its why is the one shown, labeled with its slot.
+    expect(groups[2]!.sample.why).toBe('why for 5')
+  })
+
+  it('gathers refusals the same way', () => {
+    const refused = [223_500_000, 224_000_000].map(
+      (rx, i) => clampChannel(channel({ index: 10 + i, rxFreq: hz(rx) }), UV82).refusal!,
+    )
+    expect(groupClamps(refused).map((g) => [g.label, g.slots])).toEqual([['Receive frequency', [10, 11]]])
   })
 })

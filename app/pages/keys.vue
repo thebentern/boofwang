@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { planMonitorExport, planMonitorKeys } from '#core/io/monitor-profile.js'
 import { plural } from '#core/text/plural.js'
+import { ranges } from '#core/text/ranges.js'
 
 /**
  * The Keys screen: the notice, then the key slots, then the monitor export.
@@ -37,22 +38,32 @@ const monitor = computed(() => {
 
 const keyCount = computed(() => monitor.value?.keys.exported.length ?? 0)
 
-const slotList = (slots: readonly number[]) =>
-  new Intl.ListFormat('en', { type: 'conjunction' }).format(slots.map(String))
-
-/** Why the keys file holds less than the profile names, said once and here. */
+/**
+ * Why the keys file holds less than the profile names, said once and here.
+ *
+ * Said, and never acted on. It used to explain a disabled button, which left
+ * the explanation as all the button could offer. The button stays live now,
+ * and the confirmation says what the file holds even when that is nothing, so
+ * the choice stays with the person making it.
+ */
 const keysNote = computed(() => {
   const m = monitor.value
   if (!m) return ''
-  if (m.profile.keySlots.length === 0) return 'No channel in the profile encrypts, so there are no keys to export.'
+  if (m.profile.keySlots.length === 0) return 'No channel in the profile encrypts, so the keys file holds no keys.'
   const missing = m.keys.withoutKey
   if (missing.length === 0) return ''
   const n = missing.length
   return (
-    `${plural(n, 'Slot', 'Slots')} ${slotList(missing)} ${plural(n, 'is', 'are')} used by a channel in the ` +
+    `${plural(n, 'Slot', 'Slots')} ${ranges(missing)} ${plural(n, 'is', 'are')} used by a channel in the ` +
     `profile and ${plural(n, 'holds', 'hold')} no key, so the keys file leaves ${plural(n, 'it', 'them')} out.`
   )
 })
+
+const slideLabel = computed(() =>
+  keyCount.value > 0
+    ? `Slide to save ${keyCount.value} ${plural(keyCount.value, 'key')} in clear`
+    : 'Slide to save an empty keys file',
+)
 
 const confirmingKeys = ref(false)
 const savingKeys = ref(false)
@@ -159,7 +170,6 @@ async function exportKeys() {
             risk="caution"
             icon="i-lucide-key-round"
             label="Export monitor keys"
-            :disabled="keyCount === 0"
             @click="confirmingKeys = true"
           />
         </div>
@@ -170,14 +180,19 @@ async function exportKeys() {
           {{ keysNote }}
         </p>
 
-        <div v-if="confirmingKeys && keyCount > 0" style="margin-top: 14px">
+        <div v-if="confirmingKeys" style="margin-top: 14px">
           <p style="font-size: 13.5px; line-height: 1.6; color: var(--mu); max-width: 74ch; margin-bottom: 9px">
-            This file holds {{ keyCount }} encryption {{ plural(keyCount, 'key') }} in clear, for
-            {{ plural(keyCount, 'slot') }} {{ slotList(monitor.keys.exported) }}. Anyone who has it can decrypt
-            what those channels send. Handle it like the radio itself.
+            <template v-if="keyCount > 0">
+              This file holds {{ keyCount }} encryption {{ plural(keyCount, 'key') }} in clear, for
+              {{ plural(keyCount, 'slot') }} {{ ranges(monitor.keys.exported) }}. Anyone who has it can decrypt
+              what those channels send. Handle it like the radio itself.
+            </template>
+            <template v-else>
+              This file holds no keys, only which radio it came from and when it was saved.
+            </template>
           </p>
           <ConfirmSlide
-            :label="`Slide to save ${keyCount} ${plural(keyCount, 'key')} in clear`"
+            :label="slideLabel"
             risk="caution"
             icon="i-lucide-key-round"
             busy-label="Saving"

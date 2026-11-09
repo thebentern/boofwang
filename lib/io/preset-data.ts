@@ -458,10 +458,44 @@ export function presetToClampedChannel(
 ): { channel: Channel | null; changes: readonly ClampChange[]; refusal: ClampRefusal | null } {
   const base = presetToChannel(source, set, index, schema, importedAt)
   const clamped = clampChannel(base, schema, rf)
+
+  /*
+   * `presetToChannel` cuts the name and settles the power before the clamp
+   * runs, so the clamp never sees either as a change, and a caller showing
+   * what this radio makes of a preset showed neither. They are said here in
+   * the clamp's own terms. Power only for a channel that will transmit: a
+   * NOAA channel's power is never used, and saying it is noise.
+   */
+  const own: ClampChange[] = []
+  if (base.name !== source.name) {
+    own.push({
+      index,
+      rule: 'name',
+      field: 'name',
+      before: JSON.stringify(source.name),
+      after: JSON.stringify(base.name),
+      why: `This radio shows ${schema.memory.nameLength} characters.`,
+    })
+  }
+  const watts = (mw: number) => `${(mw / 1000).toFixed(1)} W`
+  if (clamped.channel?.txAllowed === true && base.power.mW !== source.powerMW) {
+    own.push({
+      index,
+      rule: 'power',
+      field: 'power',
+      before: source.powerMW === undefined ? 'not stated' : watts(source.powerMW),
+      after: watts(base.power.mW),
+      why:
+        source.powerMW === undefined
+          ? "The set states no power, so the channel is staged at this radio's highest level."
+          : 'The closest level this radio has without going over.',
+    })
+  }
+
   return {
     // The slot is the caller's decision, not the pipeline's.
     channel: clamped.channel === null ? null : { ...clamped.channel, index },
-    changes: clamped.changes,
+    changes: [...own, ...clamped.changes],
     refusal: clamped.refusal,
   }
 }

@@ -10,6 +10,8 @@ import {
   type PresetChannel,
   type PresetSet,
 } from '#core/io/preset-data.js'
+import { groupClamps } from '#core/radio/translate.js'
+import { ranges } from '#core/text/ranges.js'
 
 /**
  * The complete route to a programmed radio for someone who never opens the
@@ -52,7 +54,17 @@ const PLAN_KIND = {
   add: { label: 'add', icon: 'i-lucide-plus', tone: 'in' },
   move: { label: 'move', icon: 'i-lucide-arrow-up-down', tone: 'cn' },
   over: { label: 'over', icon: 'i-lucide-trash-2', tone: 'dg' },
+  out: { label: 'out', icon: 'i-lucide-circle-minus', tone: 'dg' },
 } as const
+
+/**
+ * The staging time the plan clamps with, which is not the real one.
+ *
+ * It reaches only a staged channel's provenance, and the clamp never reads
+ * provenance, so the plan cannot decide differently from `stage` for want of
+ * the real clock.
+ */
+const PLAN_STAMP = new Date(0).toISOString()
 
 type PlanKind = keyof typeof PLAN_KIND
 
@@ -229,6 +241,11 @@ function channelLabel(c: Channel): string {
   return c.name.trim() || `slot ${c.index}`
 }
 
+/** `slot 18` · `slots 18 and 19` · `slots 1 to 14`. */
+function slotWords(slots: readonly number[]): string {
+  return `${slots.length === 1 ? 'slot' : 'slots'} ${ranges(slots)}`
+}
+
 /**
  * What staging would do, recomputed from the start slot and the policy.
  *
@@ -294,13 +311,40 @@ const plan = computed(() => {
     }
   }
 
+  /*
+   * What this radio makes of each placement, from the call `stage` makes.
+   *
+   * Staging used to clamp only as it wrote, and to report only what it
+   * refused, in a toast after the fact. A name cut short, a power level
+   * lowered, a tone dropped or a channel left receive-only all went in
+   * without a word - the tone too, though the clamp's own header says a tone
+   * it cannot carry is dropped "and said out loud". The plan is where a
+   * consequence is meant to be seen, so it is said here, before anything is
+   * committed.
+   */
+  const schema = codeplug.schema
+  const outcomes = new Map<number, ReturnType<typeof presetToClampedChannel>>()
+  if (schema) {
+    for (const p of placements) {
+      outcomes.set(p.slot, presetToClampedChannel(p.source, set, p.slot, schema, PLAN_STAMP, codeplug.rf ?? undefined))
+    }
+  }
+  const refused = new Set([...outcomes].filter(([, o]) => o.channel === null).map(([slot]) => slot))
+  // A refused channel's earlier adjustments never land, so they are not news.
+  const adjusted = groupClamps([...outcomes.values()].flatMap((o) => (o.channel === null ? [] : o.changes)))
+  const leftOut = groupClamps([...outcomes.values()].flatMap((o) => (o.refusal === null ? [] : [o.refusal])))
+
   const rows: PlanRow[] = []
   for (const p of placements) {
+    // Refused takes precedence over replacing: `stage` skips the slot, so a
+    // channel already there stays.
     const replaced = mode === 'over' ? held.get(p.slot) : undefined
     rows.push(
-      replaced
-        ? { key: `p${p.slot}`, slot: p.slot, kind: 'over', text: `replaces ${channelLabel(replaced)} (existing)` }
-        : { key: `p${p.slot}`, slot: p.slot, kind: 'add', text: presetLine(p.source) },
+      refused.has(p.slot)
+        ? { key: `p${p.slot}`, slot: p.slot, kind: 'out', text: presetLine(p.source) }
+        : replaced
+          ? { key: `p${p.slot}`, slot: p.slot, kind: 'over', text: `replaces ${channelLabel(replaced)} (existing)` }
+          : { key: `p${p.slot}`, slot: p.slot, kind: 'add', text: presetLine(p.source) },
     )
   }
   for (const m of moves) {
@@ -341,6 +385,11 @@ const plan = computed(() => {
   }
   else if (replacedSlots.length > 0) {
     chipText = `${replacedSlots.length} overwritten`
+    chipTone = 'dg'
+    borderColor = 'var(--dgL)'
+  }
+  else if (refused.size > 0) {
+    chipText = `${refused.size} left out`
     chipTone = 'dg'
     borderColor = 'var(--dgL)'
   }
@@ -387,6 +436,9 @@ const plan = computed(() => {
     rows,
     placements,
     moves,
+    refused: refused.size,
+    adjusted,
+    leftOut,
     lost: lostSlots.length,
     chipText,
     chipTone,
@@ -406,8 +458,9 @@ const rangeLabel = computed(() => {
   return lo === hi ? `slot ${lo} of ${capacity.value}` : `slots ${lo}–${hi} of ${capacity.value}`
 })
 
+/** What lands, which is not every placement once the radio has refused some. */
 const stageLabel = computed(() => {
-  const n = plan.value.placements.length
+  const n = plan.value.placements.length - plan.value.refused
   return `Add ${n} channel${n === 1 ? '' : 's'}`
 })
 
@@ -829,6 +882,50 @@ function stage() {
                 </span>
                 <span class="truncate" style="font-size: 13.5px; color: var(--tx)">{{ row.text }}</span>
               </div>
+            </div>
+
+            <!--
+              What this radio makes of the channels, once per kind of change.
+              What cannot go comes first: those are not adjustments, they are
+              rows that will not arrive.
+            -->
+            <div
+              v-if="plan.leftOut.length > 0 || plan.adjusted.length > 0"
+              class="grid gap-3"
+              style="border-top: 1px solid var(--ln); padding: 13px 16px"
+            >
+              <section v-if="plan.leftOut.length > 0" class="grid gap-2" aria-label="Left out">
+                <div class="flex items-center gap-[7px]">
+                  <UIcon name="i-lucide-circle-minus" style="width: 12px; height: 12px; color: var(--dg)" />
+                  <span class="label-xs" style="letter-spacing: 0.07em; color: var(--dg)">Left out</span>
+                </div>
+                <div v-for="g in plan.leftOut" :key="`${g.rule}-${g.field}`">
+                  <div style="font-size: 13px; color: var(--tx)">
+                    {{ g.label }} <span class="tabular" style="color: var(--fn)">· {{ slotWords(g.slots) }}</span>
+                  </div>
+                  <p style="margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--fn)">
+                    {{ g.sample.why }}
+                  </p>
+                </div>
+              </section>
+
+              <section v-if="plan.adjusted.length > 0" class="grid gap-2" aria-label="Adjusted to fit this radio">
+                <div class="flex items-center gap-[7px]">
+                  <UIcon name="i-lucide-sliders-horizontal" style="width: 12px; height: 12px; color: var(--cn)" />
+                  <span class="label-xs" style="letter-spacing: 0.07em; color: var(--cn)">Adjusted to fit this radio</span>
+                </div>
+                <div v-for="g in plan.adjusted" :key="`${g.rule}-${g.field}`">
+                  <div style="font-size: 13px; color: var(--tx)">
+                    {{ g.label }} <span class="tabular" style="color: var(--fn)">· {{ slotWords(g.slots) }}</span>
+                  </div>
+                  <div class="font-mono" style="font-size: 12px; color: var(--mu); margin-top: 2px">
+                    <template v-if="g.slots.length > 1">slot {{ g.sample.index }}: </template>{{ g.sample.before }} → {{ g.sample.after }}
+                  </div>
+                  <p style="margin: 2px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--fn)">
+                    {{ g.sample.why }}
+                  </p>
+                </div>
+              </section>
             </div>
 
             <div style="border-top: 1px solid var(--ln); padding: 17px 19px" class="grid gap-2">

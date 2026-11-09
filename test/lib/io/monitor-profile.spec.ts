@@ -31,9 +31,10 @@ import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
  * The committed DM-32UV capture: 45 channels, 18 of them DMR, and 22 AES-256
  * key slots named `Encrypt 1` to `Encrypt 22` whose key material is redacted
  * to zeros. Its own encryption - TAC 1-14 on slots 1-14, all on GMRS - is
- * withheld from every export, so the tests that need encryption clear it and
- * arm their own by hand - and one arms it in the raw bytes, so that the names
- * the profile reads are checked against the names the real decoder writes.
+ * flagged in every export, so the tests that need an arrangement of their own
+ * clear it and arm theirs by hand - and one arms it in the raw bytes, so that
+ * the names the profile reads are checked against the names the real decoder
+ * writes.
  */
 const fixture = (name: string) => fileURLToPath(new URL(`../../fixtures/images/${name}`, import.meta.url))
 const BLOB = new Uint8Array(readFileSync(fixture('dm32uv-DM32.01.01.040.blocks.bin')))
@@ -169,8 +170,8 @@ const CHANNEL_FIELDS = [
 const parseProfile = (json: string) => JSON.parse(json) as MonitorProfile
 const parseKeys = (json: string) => JSON.parse(json) as MonitorKeys
 
-/** Every channel a plan left out, with the service whose rule caught it, in notice order. */
-const withheld = (plan: ReturnType<typeof planMonitorExport>) =>
+/** Every channel a plan flagged, with the service whose rule caught it, in notice order. */
+const flagged = (plan: ReturnType<typeof planMonitorExport>) =>
   plan.warnings.flatMap((w) => w.channels.map((c): [number, string] => [c.index, w.service]))
 
 describe('a monitor profile cannot carry key material', () => {
@@ -271,12 +272,18 @@ describe('a monitor profile cannot carry key material', () => {
             expect(text.includes(k.name.toLowerCase()), `slot ${k.slot}'s name leaked`).toBe(false)
           }
 
-          // And the keys file is exactly the slots a lawfully encrypting
-          // channel uses that hold a real key - slots 23 and 24 hold nothing.
-          const used = new Set(digital.flatMap((_, i) => {
-            const p = plan[i]!
-            return p.enabled && p.lawful && p.slot >= 1 ? [p.slot] : []
-          }))
+          // Every digital channel is described, and flagged exactly when it
+          // encrypts where encryption is prohibited.
+          const encrypts = (i: number) => plan[i]!.enabled && plan[i]!.slot >= 1
+          const exported = planMonitorExport(cp, { includeAnalog: true })
+          for (const c of digital) expect(exported.channels.some((m) => m.index === c.index)).toBe(true)
+          expect(flagged(exported).map(([index]) => index).sort((a, b) => a - b)).toEqual(
+            digital.flatMap((c, i) => (encrypts(i) && !plan[i]!.lawful ? [c.index] : [])),
+          )
+
+          // And the keys file is exactly the slots an encrypting channel uses
+          // that hold a real key, lawful or not - slots 23 and 24 hold nothing.
+          const used = new Set(digital.flatMap((_, i) => (encrypts(i) ? [plan[i]!.slot] : [])))
           const expected = cp.encryptionKeys.filter((k) => used.has(k.slot) && !isBlankKey(k.keyHex)).map((k) => k.slot)
           expect(parseKeys(buildMonitorKeys(cp, { exportedAt: AT })).keys.map((k) => k.slot)).toEqual(expected)
         },
@@ -292,22 +299,25 @@ describe('the keys file', () => {
 
   it('holds the slots an exported channel uses, and only real keys', () => {
     // Slot 17 travels exactly like slot 3. The table has 22 slots, not the
-    // eight the specification says, and a slot past eight is a slot.
+    // eight the specification says, and a slot past eight is a slot. Slots 4
+    // and 9 are used only by channels encrypted on GMRS and on amateur, and
+    // travel like the rest: the notice states the rule, and the key is the
+    // operator's to take.
     expect(file.keys).toEqual([
       { slot: 3, type: 'aes256', keyHex: SECRET_A },
+      { slot: 4, type: 'aes256', keyHex: keyFor(4) },
+      { slot: 9, type: 'aes256', keyHex: keyFor(9) },
       { slot: 17, type: 'aes256', keyHex: SECRET_B },
     ])
   })
 
   it('skips a slot that is empty or all zeros, and says which', () => {
-    expect(planMonitorKeys(cp)).toEqual({ exported: [3, 17], withoutKey: [5, 6] })
+    expect(planMonitorKeys(cp)).toEqual({ exported: [3, 4, 9, 17], withoutKey: [5, 6] })
   })
 
-  it('carries nothing on account of a channel it left out', () => {
-    // Slot 4 is used only by an encrypted GMRS channel, slot 9 only by an
-    // encrypted amateur one, and slot 2 by nothing at all.
-    const slots = file.keys.map((k) => k.slot)
-    for (const slot of [2, 4, 9]) expect(slots).not.toContain(slot)
+  it('carries nothing for a slot no channel uses', () => {
+    // Slot 2 holds a real key, and no channel names it.
+    expect(file.keys.map((k) => k.slot)).not.toContain(2)
   })
 
   it('carries nothing a channel names without turning encryption on', () => {
@@ -321,9 +331,10 @@ describe('the keys file', () => {
   })
 
   it('is empty for the capture as committed, whose keys are zeros', () => {
+    // TAC 1-14 use slots 1-14, and every one of them was redacted.
     const committed = decode()
-    committed.channels.set(28, encrypt(committed.channels.get(28)!, 1, hz(451_012_500)))
-    expect(planMonitorKeys(committed)).toEqual({ exported: [], withoutKey: [1] })
+    const tac = Array.from({ length: 14 }, (_, i) => i + 1)
+    expect(planMonitorKeys(committed)).toEqual({ exported: [], withoutKey: tac })
     expect(parseKeys(buildMonitorKeys(committed, { exportedAt: AT })).keys).toEqual([])
   })
 
@@ -348,7 +359,7 @@ describe('which channels a profile carries', () => {
   it('is DMR only unless asked otherwise', () => {
     const { channels } = planMonitorExport(cp)
     expect(channels.every((c) => c.modulation === 'DMR')).toBe(true)
-    expect(channels.map((c) => c.index)).toEqual([28, 29, 30, 31, 33, 34, 35, 36, 37, 38, 39, 40, 41, 43, 44, 45])
+    expect(channels.map((c) => c.index)).toEqual(Array.from({ length: 18 }, (_, i) => 28 + i))
   })
 
   it('takes analog channels on request, with nothing digital said about them', () => {
@@ -362,34 +373,38 @@ describe('which channels a profile carries', () => {
   it('does not read an analog channel as encrypted', () => {
     // Channel 1 is FM on GMRS with a vendor block naming slot 7, enable bit
     // set - fields that mean PTT ID settings, not encryption, on an analog
-    // channel. Read as encryption it would be left out with a warning; it is
-    // neither.
+    // channel. Read as encryption it would carry slot 7 and a GMRS notice; it
+    // carries neither.
     const plan = planMonitorExport(cp, { includeAnalog: true })
     expect(plan.channels.find((c) => c.index === 1)?.keySlot).toBeNull()
-    expect(withheld(plan).map(([index]) => index)).not.toContain(1)
+    expect(flagged(plan).map(([index]) => index)).not.toContain(1)
   })
 
-  it('leaves out an encrypted channel where encryption is prohibited, and says why', () => {
+  it('keeps an encrypted channel where encryption is prohibited, and states the rule', () => {
+    // Stated, not enforced: the channel and its slot are described like any
+    // other, and the notice is the whole of the response.
     const plan = planMonitorExport(cp)
     const { channels, warnings } = plan
-    expect(withheld(plan)).toEqual([[32, 'GMRS/FRS'], [42, 'amateur']])
-    expect(channels.some((c) => c.index === 32 || c.index === 42)).toBe(false)
+    expect(flagged(plan)).toEqual([[32, 'GMRS/FRS'], [42, 'amateur']])
+    expect(channels.filter((c) => c.index === 32 || c.index === 42).map((c) => [c.index, c.keySlot])).toEqual([
+      [32, 4],
+      [42, 9],
+    ])
     expect(warnings[0]!.message).toContain('47 CFR 95.1731 / 95.587')
     expect(warnings[1]!.message).toBe(
-      'Channel 42, LR DMR, is encrypted on 443.125000 MHz and is left out of the monitor files. Encryption is ' +
-        'prohibited on the amateur bands: transmissions may not be encoded to obscure their meaning. ' +
-        '47 CFR 97.113(a)(4).',
+      'Channel 42, LR DMR, is encrypted on 443.125000 MHz. Encryption is prohibited on the amateur bands: ' +
+        'transmissions may not be encoded to obscure their meaning. 47 CFR 97.113(a)(4).',
     )
   })
 
-  it('says each rule once, however many channels it leaves out', () => {
+  it('says each rule once, however many channels it covers', () => {
     // Beside 32 on GMRS: a run of three and a stray, each on its own GMRS
     // frequency. Beside 42 on amateur: one more, which makes a pair.
     const many = armed()
     for (const index of [34, 35, 36, 38, 44]) many.channels.set(index, encrypt(many.channels.get(index)!, 4))
     const plan = planMonitorExport(many)
     expect(plan.warnings.map((w) => w.service)).toEqual(['GMRS/FRS', 'amateur'])
-    expect(withheld(plan)).toEqual([
+    expect(flagged(plan)).toEqual([
       [32, 'GMRS/FRS'],
       [34, 'GMRS/FRS'],
       [35, 'GMRS/FRS'],
@@ -399,10 +414,10 @@ describe('which channels a profile carries', () => {
       [44, 'amateur'],
     ])
     expect(plan.warnings.map((w) => w.message)).toEqual([
-      'Channels 32, 34 to 36, and 38 are encrypted and are left out of the monitor files. Encryption is ' +
-        'prohibited on GMRS and FRS: messages may not be encoded to obscure their meaning. 47 CFR 95.1731 / 95.587.',
-      'Channels 42 and 44 are encrypted and are left out of the monitor files. Encryption is prohibited on the ' +
-        'amateur bands: transmissions may not be encoded to obscure their meaning. 47 CFR 97.113(a)(4).',
+      'Channels 32, 34 to 36, and 38 are encrypted. Encryption is prohibited on GMRS and FRS: messages may not ' +
+        'be encoded to obscure their meaning. 47 CFR 95.1731 / 95.587.',
+      'Channels 42 and 44 are encrypted. Encryption is prohibited on the amateur bands: transmissions may not be ' +
+        'encoded to obscure their meaning. 47 CFR 97.113(a)(4).',
     ])
   })
 
@@ -413,7 +428,7 @@ describe('which channels a profile carries', () => {
     weather.channels.set(43, encrypt(weather.channels.get(43)!, 4, hz(162_400_000)))
     weather.channels.set(45, encrypt(weather.channels.get(45)!, 4, hz(162_550_000)))
     expect(planMonitorExport(weather).warnings.map((w) => w.message)).toEqual([
-      'Channels 43 and 45 are encrypted and are left out of the monitor files. Weather channels are receive-only.',
+      'Channels 43 and 45 are encrypted. Weather channels are receive-only.',
     ])
   })
 
@@ -424,15 +439,17 @@ describe('which channels a profile carries', () => {
     for (const i of [34, 35, 36, 37, 38, 39, 40, 41]) expect(indices).toContain(i)
   })
 
-  it('keeps an encrypted channel where a license can authorize it', () => {
+  it('keeps every encrypted channel, lawful or not, with its service', () => {
     const plan = planMonitorExport(cp)
     expect(plan.channels.filter((c) => c.keySlot !== null).map((c) => [c.index, c.keySlot, c.service])).toEqual([
       [28, 3, 'land mobile'],
       [29, 17, 'land mobile'],
       [30, 5, 'land mobile'],
       [31, 6, 'land mobile'],
+      [32, 4, 'GMRS/FRS'],
+      [42, 9, 'amateur'],
     ])
-    expect(plan.keySlots).toEqual([3, 5, 6, 17])
+    expect(plan.keySlots).toEqual([3, 4, 5, 6, 9, 17])
   })
 
   it('describes a slot that holds no key as none, rather than dropping it', () => {
@@ -440,8 +457,10 @@ describe('which channels a profile carries', () => {
     // tester hearing it needs to know that is the slot with nothing in it.
     expect(parseProfile(buildMonitorProfile(cp, { exportedAt: AT })).keySlots).toEqual([
       { slot: 3, type: 'aes256', airKid: null, airAlgId: null },
+      { slot: 4, type: 'aes256', airKid: null, airAlgId: null },
       { slot: 5, type: 'aes256', airKid: null, airAlgId: null },
       { slot: 6, type: 'none', airKid: null, airAlgId: null },
+      { slot: 9, type: 'aes256', airKid: null, airAlgId: null },
       { slot: 17, type: 'aes256', airKid: null, airAlgId: null },
     ])
   })
@@ -457,10 +476,7 @@ describe('which channels a profile carries', () => {
 describe('the committed capture, described for a receiver', () => {
   const cp = decode()
   const profile = parseProfile(buildMonitorProfile(cp, { exportedAt: AT }))
-  // TAC 1-14 are encrypted on GMRS, so the profile above withholds them. What
-  // a receiver would be told about them once encryption is off:
-  const clear = parseProfile(buildMonitorProfile(withoutEncryption(decode()), { exportedAt: AT }))
-  const ch = (i: number) => clear.channels.find((c) => c.index === i)!
+  const ch = (i: number) => profile.channels.find((c) => c.index === i)!
 
   it('reads the vendor fields under the names the driver writes them', () => {
     // If the driver renamed one, the profile would read nothing there and say
@@ -470,9 +486,8 @@ describe('the committed capture, described for a receiver', () => {
     for (const key of MONITOR_VENDOR_KEYS) expect(Object.keys(vendor), `the driver no longer writes ${key}`).toContain(key)
   })
 
-  it('carries the four amateur digital channels, and all eighteen once encryption is off', () => {
-    expect(profile.channels.map((c) => c.index)).toEqual([42, 43, 44, 45])
-    expect(clear.channels.map((c) => c.index)).toEqual(Array.from({ length: 18 }, (_, i) => 28 + i))
+  it('carries all eighteen digital channels, the fourteen it flags included', () => {
+    expect(profile.channels.map((c) => c.index)).toEqual(Array.from({ length: 18 }, (_, i) => 28 + i))
   })
 
   it('names the talk group a channel transmits to by its number on the air', () => {
@@ -492,46 +507,36 @@ describe('the committed capture, described for a receiver', () => {
     expect(profile.rxGroups.find((g) => g.name === 'AR')?.members).toEqual([3105, 310501, 3100])
   })
 
-  it('withholds the fourteen channels the CPS encrypted on GMRS, and says why once', () => {
-    // TAC 1-14 name slots 1-14 in their own bytes. None of those slots is
-    // listed, because no channel that uses one is exported.
+  it('flags the fourteen channels the CPS encrypted on GMRS, and states the rule once', () => {
+    // TAC 1-14 name slots 1-14 in their own bytes and are described with them.
+    // Their keys are another matter - see the keys file, which finds zeros.
     const plan = planMonitorExport(cp)
-    expect(withheld(plan)).toEqual(Array.from({ length: 14 }, (_, i) => [28 + i, 'GMRS/FRS']))
+    expect(flagged(plan)).toEqual(Array.from({ length: 14 }, (_, i) => [28 + i, 'GMRS/FRS']))
     expect(plan.warnings.map((w) => w.message)).toEqual([
-      'Channels 28 to 41 are encrypted and are left out of the monitor files. Encryption is prohibited on ' +
-        'GMRS and FRS: messages may not be encoded to obscure their meaning. 47 CFR 95.1731 / 95.587.',
+      'Channels 28 to 41 are encrypted. Encryption is prohibited on GMRS and FRS: messages may not be encoded ' +
+        'to obscure their meaning. 47 CFR 95.1731 / 95.587.',
     ])
-    expect(profile.keySlots).toEqual([])
+    const tac = Array.from({ length: 14 }, (_, i) => i + 1)
+    expect(tac.map((n) => ch(27 + n).keySlot)).toEqual(tac)
+    expect(profile.keySlots).toEqual(tac.map((slot) => ({ slot, type: 'aes256', airKid: null, airAlgId: null })))
   })
 
   it('finds encryption where the radio keeps it, through the real decoder', () => {
     // The capture's own: TAC 1 names slot 1 at 0x1E with 0x1F bit 6 set.
-    // Moved to land mobile, that is the slot it is described with.
-    const tac = decode()
-    const tac1 = tac.channels.get(28)!
-    tac.channels.set(28, { ...tac1, rxFreq: hz(451_012_500) })
-    expect(planMonitorExport(tac).channels.find((m) => m.index === 28)?.keySlot).toBe(1)
+    expect(ch(28).keySlot).toBe(1)
 
     // 0x1E and 0x1F bit 6 written into channel 42's record in the image
-    // rather than into the document, so the decoder has to find them.
+    // rather than into the document, so the decoder has to find them. The
+    // channel stays where the capture has it, on the amateur band, and is
+    // described with slot 12 - a slot past eight - and flagged.
     const img = image()
     const at = channelSlot(42)!
     const page = img.regions.find((r) => r.start === logicalAddress(at.blockId))!.data
     page[at.offset + 0x1f] = page[at.offset + 0x1f]! | 0x40
     page[at.offset + 0x1e] = 12
-    const armedBytes = decode(img)
-
-    // Where the capture has it, on the amateur band, it is left out and said so.
-    const onAmateur = planMonitorExport(armedBytes)
-    expect(withheld(onAmateur)).toContainEqual([42, 'amateur'])
-    expect(onAmateur.channels.some((c) => c.index === 42)).toBe(false)
-
-    // Moved to land mobile, the same bytes name slot 12 - a slot past eight.
-    const c = armedBytes.channels.get(42)!
-    armedBytes.channels.set(42, { ...c, rxFreq: hz(451_012_500) })
-    const moved = planMonitorExport(armedBytes)
-    expect(moved.channels.find((m) => m.index === 42)?.keySlot).toBe(12)
-    expect(moved.keySlots).toEqual([12])
+    const plan = planMonitorExport(decode(img))
+    expect(plan.channels.find((m) => m.index === 42)?.keySlot).toBe(12)
+    expect(flagged(plan)).toContainEqual([42, 'amateur'])
   })
 
   it('does not take 0x2A or 0x1D bit 7 for encryption', () => {
@@ -544,7 +549,7 @@ describe('the committed capture, described for a receiver', () => {
     page[at.offset + 0x2a] = 12
     const plan = planMonitorExport(decode(img))
     expect(plan.channels.find((c) => c.index === 43)?.keySlot).toBeNull()
-    expect(withheld(plan).map(([index]) => index)).not.toContain(43)
+    expect(flagged(plan).map(([index]) => index)).not.toContain(43)
   })
 })
 

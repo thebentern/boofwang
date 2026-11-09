@@ -10,6 +10,7 @@ import {
 } from '../model/codeplug.js'
 import { encryptionLegality, isBlankKey, type EncryptionLegality } from '../model/encryption.js'
 import { formatFreq, type Hz } from '../model/units.js'
+import { ranges } from '../text/ranges.js'
 
 /**
  * A codeplug described for a receiver rather than for a radio.
@@ -169,15 +170,15 @@ export interface MonitorKeys {
   readonly keys: readonly MonitorKey[]
 }
 
-/** An encrypted channel left out because encryption is unlawful where it is. */
-export interface MonitorWithheldChannel {
+/** An encrypted channel on a band where encryption is unlawful. Exported all the same. */
+export interface MonitorFlaggedChannel {
   readonly index: number
   readonly name: string
   readonly rxHz: Hz
 }
 
 /**
- * Every channel left out under one rule, said once.
+ * Every channel one rule is about, said once.
  *
  * One notice per rule rather than per channel. The DM-32UV this was built
  * against holds fourteen encrypted GMRS channels, and a notice each made
@@ -189,7 +190,7 @@ export interface MonitorWarning {
   /** The service whose rule this is, as `encryptionLegality` names it. */
   readonly service: string
   /** In slot order. */
-  readonly channels: readonly MonitorWithheldChannel[]
+  readonly channels: readonly MonitorFlaggedChannel[]
   /** For a person: which channels, then the rule, once. */
   readonly message: string
 }
@@ -326,24 +327,33 @@ function toMonitorChannel(c: Channel, keySlot: number | null, talkGroups: Readon
 }
 
 /**
- * Which channels go into the files, and which are left out and why.
+ * Which channels go into the files, and what to say about them.
  *
- * An encrypted channel where encryption is not lawful - amateur, GMRS, MURS,
- * and the receive-only weather and air channels - is left out of both files
- * and reported instead, in one notice per rule. The channel editor refuses to
- * give such a channel a key, but a radio programmed by anything else can
- * arrive holding one, and the radio encrypts there regardless. A monitor
- * profile would be a working set of instructions for decrypting that traffic,
- * and on those bands that is not a test of a license anybody holds. Whether a
- * key reaches the keys file follows from this, because the keys come only from
- * the channels that stay.
+ * Every channel goes in. An encrypted one where encryption is not lawful -
+ * amateur, GMRS, MURS, and the receive-only weather and air channels - is
+ * described like any other and named in a notice as well, one per rule, with
+ * the rule and its citation. boofwang states the rule and the operator, who
+ * holds the license, decides: the reasoning `lib/validate/rules.ts` gives for
+ * the band plan, and the keys page's own.
+ *
+ * These channels were left out of both files at first, on the grounds that a
+ * profile of them is a working set of instructions for decrypting traffic no
+ * license on those bands authorizes. That refused nothing. The rule is about
+ * what goes on the air, and these files transmit nothing; the radio encrypts
+ * on those channels whatever a file says; the keys are the operator's own, on
+ * the keys page and in every full codeplug export; and a receive test is how
+ * somebody finds out that a radio they were handed encrypts on GMRS at all.
+ * What it did do was hollow the export out on the radio it was built against,
+ * whose CPS encrypted TAC 1-14 on GMRS: the profile described four of its
+ * eighteen DMR channels, the keys file could never hold a key, and its button
+ * sat disabled saying no channel encrypts.
  */
 export function planMonitorExport(cp: Codeplug, opts: MonitorOptions = {}): MonitorPlan {
   const talkGroups = talkGroupsBySlot(cp)
   const channels: MonitorChannel[] = []
   // By service, which is one rule each. A Map keeps the order the rules were
   // first met in, so the notices follow the channel list.
-  const withheld = new Map<string, { legality: EncryptionLegality; channels: MonitorWithheldChannel[] }>()
+  const flagged = new Map<string, { legality: EncryptionLegality; channels: MonitorFlaggedChannel[] }>()
 
   for (const c of sortedChannels(cp)) {
     const wanted = c.modulation === 'DMR' || (opts.includeAnalog === true && ANALOG.has(c.modulation))
@@ -353,20 +363,19 @@ export function planMonitorExport(cp: Codeplug, opts: MonitorOptions = {}): Moni
     if (keySlot !== null) {
       const legality = encryptionLegality(c.rxFreq)
       if (!legality.allowed) {
-        const group = withheld.get(legality.service) ?? { legality, channels: [] }
+        const group = flagged.get(legality.service) ?? { legality, channels: [] }
         group.channels.push({ index: c.index, name: c.name, rxHz: c.rxFreq })
-        withheld.set(legality.service, group)
-        continue
+        flagged.set(legality.service, group)
       }
     }
     channels.push(toMonitorChannel(c, keySlot, talkGroups))
   }
 
-  const warnings = [...withheld.values()].map(
-    ({ legality, channels: left }): MonitorWarning => ({
+  const warnings = [...flagged.values()].map(
+    ({ legality, channels: caught }): MonitorWarning => ({
       service: legality.service,
-      channels: left,
-      message: withheldMessage(legality, left),
+      channels: caught,
+      message: flaggedMessage(legality, caught),
     }),
   )
   const keySlots = [...new Set(channels.flatMap((c) => (c.keySlot === null ? [] : [c.keySlot])))]
@@ -374,37 +383,20 @@ export function planMonitorExport(cp: Codeplug, opts: MonitorOptions = {}): Moni
 }
 
 /**
- * The notice for the channels one rule left out.
+ * The notice for the channels one rule is about.
  *
  * A single channel is named, with its frequency, because that much fits in a
  * sentence. Several are given by number only - the channel list is where their
  * names and frequencies are, and fourteen of each would bury the rule again.
  */
-function withheldMessage(legality: EncryptionLegality, left: readonly MonitorWithheldChannel[]): string {
+function flaggedMessage(legality: EncryptionLegality, caught: readonly MonitorFlaggedChannel[]): string {
   const rule = legality.reason + (legality.cfr === undefined ? '' : ` ${legality.cfr}.`)
-  if (left.length === 1) {
-    const c = left[0]!
+  if (caught.length === 1) {
+    const c = caught[0]!
     const who = c.name ? `Channel ${c.index}, ${c.name},` : `Channel ${c.index}`
-    return `${who} is encrypted on ${formatFreq(c.rxHz)} MHz and is left out of the monitor files. ${rule}`
+    return `${who} is encrypted on ${formatFreq(c.rxHz)} MHz. ${rule}`
   }
-  const which = channelRanges(left.map((c) => c.index))
-  return `Channels ${which} are encrypted and are left out of the monitor files. ${rule}`
-}
-
-/**
- * Ascending channel numbers as a person would write them: a run of three or
- * more as "28 to 41", anything shorter one by one, so "12, 15, and 20 to 22".
- */
-function channelRanges(indices: readonly number[]): string {
-  const parts: string[] = []
-  for (let i = 0; i < indices.length; ) {
-    let j = i
-    while (j + 1 < indices.length && indices[j + 1] === indices[j]! + 1) j++
-    if (j - i >= 2) parts.push(`${indices[i]} to ${indices[j]}`)
-    else for (let k = i; k <= j; k++) parts.push(String(indices[k]))
-    i = j + 1
-  }
-  return new Intl.ListFormat('en', { type: 'conjunction' }).format(parts)
+  return `Channels ${ranges(caught.map((c) => c.index))} are encrypted. ${rule}`
 }
 
 /**

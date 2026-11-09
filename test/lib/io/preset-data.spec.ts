@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { PRESET_SETS, presetToChannel, presetToClampedChannel } from '#core/io/preset-data.js'
 import { SCHEMAS } from '#core/radio/registry.js'
-import { hz } from '#core/model/units.js'
+import { hz, mW, watts } from '#core/model/units.js'
 
 /**
  * The bundled sets are the one place boofwang puts frequencies into a radio
@@ -118,5 +118,46 @@ describe('presetToClampedChannel', () => {
         expect(out.channel.txAllowed, `${set.id} ${p.name}`).toBe(false)
       }
     }
+  })
+})
+
+describe('presetToClampedChannel says what presetToChannel settled', () => {
+  // The name cut and the power choice happen before the clamp runs, so the
+  // clamp never saw them as changes and the presets plan never showed them.
+  const SCHEMA = SCHEMAS.uv82!
+  const gmrs = PRESET_SETS.find((s) => s.id === 'gmrs')!
+  const first = gmrs.channels.find((c) => c.txAllowed)!
+  const { powerMW: _stated, ...unstated } = first
+
+  it('says when it cuts the name', () => {
+    const out = presetToClampedChannel({ ...first, name: 'A VERY LONG NAME' }, gmrs, 1, SCHEMA, WHEN)
+    expect(out.channel?.name).toBe('A VERY LONG NAME'.slice(0, SCHEMA.memory.nameLength))
+    expect(out.changes.find((c) => c.rule === 'name')).toMatchObject({
+      before: '"A VERY LONG NAME"',
+      after: JSON.stringify(out.channel!.name),
+      why: `This radio shows ${SCHEMA.memory.nameLength} characters.`,
+    })
+  })
+
+  it('says what power a set that states none is staged at', () => {
+    const out = presetToClampedChannel(unstated, gmrs, 1, SCHEMA, WHEN)
+    expect(out.changes.find((c) => c.rule === 'power')).toMatchObject({ before: 'not stated', after: '4.0 W' })
+  })
+
+  it('says when a stated power comes down to what the radio has', () => {
+    const out = presetToClampedChannel({ ...first, powerMW: watts(50) }, gmrs, 1, SCHEMA, WHEN)
+    expect(out.changes.find((c) => c.rule === 'power')).toMatchObject({ before: '50.0 W', after: '4.0 W' })
+  })
+
+  it('says nothing about the power of a channel that never transmits', () => {
+    const noaa = PRESET_SETS.find((s) => s.id === 'noaa')!
+    const out = presetToClampedChannel(noaa.channels[0]!, noaa, 1, SCHEMA, WHEN)
+    expect(out.channel?.txAllowed).toBe(false)
+    expect(out.changes.some((c) => c.rule === 'power')).toBe(false)
+  })
+
+  it('says nothing when the name fits and the power is a level the radio has', () => {
+    const out = presetToClampedChannel({ ...first, name: 'GMRS', powerMW: mW(1000) }, gmrs, 1, SCHEMA, WHEN)
+    expect(out.changes.filter((c) => c.rule === 'name' || c.rule === 'power')).toEqual([])
   })
 })
