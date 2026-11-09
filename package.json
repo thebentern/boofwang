@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "Browser-based codeplug editor and programmer for the Quansheng UV-K5, Baofeng UV-5R Mini, and Baofeng DM-32UV",
+  "description": "Browser-based codeplug editor and programmer for Baofeng, Quansheng and Radioddity handheld radios",
   "repository": {
     "type": "git",
     "url": "https://github.com/thebentern/boofwang.git"

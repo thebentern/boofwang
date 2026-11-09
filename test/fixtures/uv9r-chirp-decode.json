@@ -1,0 +1,435 @@
+{
+ "1": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "SIMPLEX",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 146520000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 146520000,
+  "txtone": null
+ },
+ "10": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "X-TONE",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147360000,
+  "rxtone": {
+   "deciHz": 670,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 147360000,
+  "txtone": null
+ },
+ "11": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "XD-",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147420000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 147420000,
+  "txtone": {
+   "code": 645,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "12": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "XDD",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147480000,
+  "rxtone": {
+   "code": 754,
+   "kind": "dtcs",
+   "polarity": "R"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 147480000,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "128": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "LAST",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 462562500,
+  "rxtone": {
+   "deciHz": 2541,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 462562500,
+  "txtone": {
+   "deciHz": 2541,
+   "kind": "ctcss"
+  }
+ },
+ "13": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "split",
+  "lowpower": 0,
+  "name": "XBAND",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 146000000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 446000000,
+  "txtone": null
+ },
+ "14": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "NOAA1",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 162550000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "15": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "SKIPME",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 145500000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "skip",
+  "tx": 145500000,
+  "txtone": null
+ },
+ "16": {
+  "bcl": "True",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "BCL",
+  "power": "High",
+  "pttid": "Both",
+  "rx": 145600000,
+  "rxtone": null,
+  "scode": "15",
+  "skip": "none",
+  "tx": 145600000,
+  "txtone": null
+ },
+ "17": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "1234567",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 145700000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 145700000,
+  "txtone": null
+ },
+ "18": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "abc",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 145800000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 145800000,
+  "txtone": null
+ },
+ "19": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "off",
+  "lowpower": 0,
+  "name": "ZEROTX",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147555000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 0,
+  "txtone": null
+ },
+ "2": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "-",
+  "lowpower": 1,
+  "name": "RPT-",
+  "power": "Med",
+  "pttid": "Off",
+  "rx": 147000000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 146400000,
+  "txtone": {
+   "deciHz": 1000,
+   "kind": "ctcss"
+  }
+ },
+ "20": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "AB CD",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147600000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 147600000,
+  "txtone": null
+ },
+ "21": {
+  "error": "AttributeError: No attribute power in struct memory"
+ },
+ "22": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "FFFF",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147700000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 147700000,
+  "txtone": null
+ },
+ "24": {
+  "bcl": "False",
+  "bw": 12500,
+  "duplex": "",
+  "lowpower": 2,
+  "name": "LOW",
+  "power": "Low",
+  "pttid": "Off",
+  "rx": 151820000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 151820000,
+  "txtone": null
+ },
+ "25": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 0,
+  "name": "BIGSHFT",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 420000000,
+  "rxtone": null,
+  "scode": "1",
+  "skip": "none",
+  "tx": 520000000,
+  "txtone": null
+ },
+ "3": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "+",
+  "lowpower": 2,
+  "name": "RPT+",
+  "power": "Low",
+  "pttid": "Off",
+  "rx": 442000000,
+  "rxtone": {
+   "deciHz": 1230,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 447000000,
+  "txtone": {
+   "deciHz": 1230,
+   "kind": "ctcss"
+  }
+ },
+ "4": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "DTCSN",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 446000000,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 446000000,
+  "txtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  }
+ },
+ "5": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "DTCSRN",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 446500000,
+  "rxtone": {
+   "code": 754,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 446500000,
+  "txtone": {
+   "code": 754,
+   "kind": "dtcs",
+   "polarity": "R"
+  }
+ },
+ "6": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "XTONE",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147120000,
+  "rxtone": {
+   "deciHz": 1230,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 147120000,
+  "txtone": {
+   "deciHz": 1000,
+   "kind": "ctcss"
+  }
+ },
+ "7": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "X-DTCS",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147180000,
+  "rxtone": {
+   "code": 411,
+   "kind": "dtcs",
+   "polarity": "R"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 147180000,
+  "txtone": null
+ },
+ "8": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "XT2D",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147240000,
+  "rxtone": {
+   "code": 23,
+   "kind": "dtcs",
+   "polarity": "N"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 147240000,
+  "txtone": {
+   "deciHz": 885,
+   "kind": "ctcss"
+  }
+ },
+ "9": {
+  "bcl": "False",
+  "bw": 25000,
+  "duplex": "",
+  "lowpower": 0,
+  "name": "XD2T",
+  "power": "High",
+  "pttid": "Off",
+  "rx": 147300000,
+  "rxtone": {
+   "deciHz": 1413,
+   "kind": "ctcss"
+  },
+  "scode": "1",
+  "skip": "none",
+  "tx": 147300000,
+  "txtone": {
+   "code": 155,
+   "kind": "dtcs",
+   "polarity": "R"
+  }
+ }
+}

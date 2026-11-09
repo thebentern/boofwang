@@ -76,7 +76,7 @@ conformance suite. Found by grepping the repo for every existing id.
 | `test/lib/radio/bulk-edit.spec.ts` | Bulk edit across every implemented driver. |
 | `test/lib/validate/rules.spec.ts` | Shared validation rules against every schema. |
 | `test/lib/validate/references.spec.ts` | Channel-reference handling across every driver. |
-| `test/app/ui-features.spec.ts` | Iterates a literal list of all five ids; also asserts every DMR panel is gated on a schema feature rather than "a codeplug is open". |
+| `test/app/ui-features.spec.ts` | Iterates a literal list of every id; also asserts every DMR panel is gated on a schema feature rather than "a codeplug is open". |
 | `test/lib/radio/place.spec.ts` | A literal list, currently four ids. Decide whether yours belongs and say why in a comment if it does not. |
 | `test/lib/transport/native-serial-port.spec.ts` | Each driver's `serial` options. |
 | `test/lib/io/open-image.spec.ts` | Opening a CHIRP `.img` resolves to the right radio. |

@@ -49,9 +49,10 @@ describe('every raw layout is distinguishable by size', () => {
     // images are the same 6,472 bytes as the UV-82's, and a second entry of
     // that length would turn the size guess into a coin toss. A bare .bin of
     // either opens as a UV-82; the identity survives in .bwp and CHIRP .img
-    // instead.
+    // instead. The UV-9G is missing from the UV-9R's 8,200 bytes for the same
+    // reason.
     const ids = new Set(RAW_LAYOUTS.map((l) => l.radioId))
-    expect([...ids].sort()).toEqual(['uv5rmini', 'uv82', 'uvk5'])
+    expect([...ids].sort()).toEqual(['uv5rmini', 'uv82', 'uv9r', 'uvk5'])
   })
 })
 
@@ -148,6 +149,99 @@ describe('a UV-5R, which shares its length with the UV-82 and the UV-5G', () => 
   it('opens as a UV-82 from a bare .bin, which carries nothing', async () => {
     const opened = await openImageFile(FAMILY.slice())
     expect(opened.image.radioId).toBe('uv82')
+  })
+})
+
+describe('the WP970I family, whose two members share a length', () => {
+  const read = (name: string) =>
+    new Uint8Array(readFileSync(fileURLToPath(new URL(`../../fixtures/images/${name}`, import.meta.url))))
+  const UV9G = read('uv9g-chirp-test.bin')
+  const UV9R = read('uv9r-chirp-synthetic.bin')
+  const imageOf = (radioId: 'uv9r' | 'uv9g', data: Uint8Array): RadioImage => ({
+    radioId,
+    variant: '',
+    layout: radioId,
+    createdAt: '2026-11-09T00:00:00.000Z',
+    regions: [{ start: 0, data: data.slice(), label: 'image' }],
+    meta: {},
+    sha256: '',
+  })
+  /** A .img as CHIRP saves one: memory, the magic, then base64 of Python's json.dumps. */
+  const chirpFile = (memory: Uint8Array, metadata: Record<string, string>) =>
+    Uint8Array.from([
+      ...memory,
+      ...CHIRP_MAGIC,
+      ...new TextEncoder().encode(btoa(JSON.stringify(metadata).replace(/","/g, '", "').replace(/":"/g, '": "'))),
+    ])
+
+  it("opens CHIRP's own UV-9G test image as a UV-9G, though its class names nothing", async () => {
+    // The trailer `tests/images/Baofeng_UV-9G.img` carries. `DynamicRadioAlias`
+    // is CHIRP's class for an alias, so the model is the only name in it.
+    const file = chirpFile(UV9G, {
+      vendor: 'Baofeng',
+      model: 'UV-9G',
+      chirp_version: '0.3.0dev',
+      rclass: 'DynamicRadioAlias',
+      variant: '',
+    })
+    const opened = await openImageFile(file)
+    expect(opened.image.radioId).toBe('uv9g')
+    expect(opened.image.layout).toBe('uv9g')
+    expect(opened.image.regions[0]!.data).toEqual(UV9G)
+  })
+
+  it('opens a UV-9R Pro file as a UV-9R, which is what CHIRP reads it as', async () => {
+    // The metadata of the factory UV-9R Pro image on CHIRP's tracker.
+    const file = chirpFile(UV9R, {
+      vendor: 'Baofeng',
+      model: 'UV-9R Pro',
+      chirp_version: 'daily-20220408',
+      rclass: 'DynamicRadioAlias',
+      variant: '',
+    })
+    expect((await openImageFile(file)).image.radioId).toBe('uv9r')
+  })
+
+  it.each(['uv9r', 'uv9g'] as const)('keeps a %s its identity through a .img boofwang writes', async (id) => {
+    const img = await encodeChirpImg(imageOf(id, id === 'uv9r' ? UV9R : UV9G))
+    const { metadata } = splitChirpImg(img)
+    expect(metadata.rclass).toBe(id === 'uv9r' ? 'UV9R' : 'UV9G')
+    const opened = await openImageFile(img)
+    expect(opened.image.radioId).toBe(id)
+    expect(opened.image.regions[0]!.data.length).toBe(0x2008)
+  })
+
+  it('opens a sibling CHIRP knows by another class as a UV-9R, rather than refusing it', async () => {
+    // A BF-A58S: the UV-9R's magic, memory map and ident, under a class of its
+    // own. Same bytes in the same places, and the same fallback the classic
+    // family takes for an unrecognized class.
+    const file = chirpFile(UV9R, { vendor: 'Baofeng', model: 'BF-A58S', rclass: 'BFA58S', variant: '' })
+    expect((await openImageFile(file)).image.radioId).toBe('uv9r')
+  })
+
+  it("refuses a CHIRP image of another baofeng_common radio that happens to be this size", async () => {
+    // CHIRP's MURS-V1, GMRS-V2 and UV-6R also keep 0x2000 bytes with the
+    // ident appended, and lay their channels out differently. Opened as a
+    // UV-9R, a MURS-V1 had every channel a slot out. An adversarial review
+    // found it; the metadata names the radio, and that is taken at its word.
+    const file = chirpFile(UV9R, { vendor: 'BTECH', model: 'MURS-V1', rclass: 'MURSV1', variant: '' })
+    await expect(openImageFile(file)).rejects.toThrow(/BTECH MURS-V1.*not one of the radios CHIRP files with the UV-9R/)
+  })
+
+  it('opens an alias CHIRP saves under DynamicRadioAlias, like the Rugged RH5X, as a UV-9R', async () => {
+    const file = chirpFile(UV9R, { vendor: 'Rugged', model: 'RH5X', rclass: 'DynamicRadioAlias', variant: '' })
+    expect((await openImageFile(file)).image.radioId).toBe('uv9r')
+  })
+
+  it('still falls back to the size when the metadata names nothing', async () => {
+    const file = chirpFile(UV9R, {})
+    expect((await openImageFile(file)).image.radioId).toBe('uv9r')
+  })
+
+  it('opens a bare 8,200-byte .bin as a UV-9R, which carries nothing', async () => {
+    const opened = await openImageFile(UV9G.slice())
+    expect(opened.note).toEqual({ kind: 'raw', guessedFrom: 'size' })
+    expect(opened.image.radioId).toBe('uv9r')
   })
 })
 

@@ -104,6 +104,11 @@ export const CHIRP_IDENTITY: Partial<Record<RadioId, { vendor: string; model: st
   // CHIRP to open it.
   uv5r: { vendor: 'Baofeng', model: 'UV-5R', rclass: 'BaofengUV5RGeneric' },
   uv5rmini: { vendor: 'Baofeng', model: '5RM', rclass: 'BF5RM' },
+  // Both registered classes in `baofeng_wp970i.py`. Neither can be found by
+  // CHIRP from the bytes alone - `UV9G.match_model` returns False outright
+  // and `UV9R` has no file ids - so these names are how CHIRP opens the file.
+  uv9r: { vendor: 'Baofeng', model: 'UV-9R', rclass: 'UV9R' },
+  uv9g: { vendor: 'Baofeng', model: 'UV-9G', rclass: 'UV9G' },
 }
 
 function concat(regions: readonly ImageRegion[]): Uint8Array {

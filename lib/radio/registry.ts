@@ -6,6 +6,8 @@ import { createUv5gDriver } from '../radios/uv5g/driver.js'
 import { createUv5rDriver } from '../radios/uv5r/driver.js'
 import { createUv5rMiniDriver } from '../radios/uv5rmini/driver.js'
 import { createUvk5Driver } from '../radios/uvk5/driver.js'
+import { createUv9rDriver } from '../radios/uv9r/driver.js'
+import { createUv9gDriver } from '../radios/uv9g/driver.js'
 import type { RadioDriver } from './driver.js'
 import type { RadioSchema } from './schema.js'
 
@@ -60,6 +62,19 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // so a sparse write wipes everything sharing that page. It erased 19 channels
   // on a real radio before that was understood. See docs/protocols/uv5rmini.md.
   uv5rmini: () => createUv5rMiniDriver({ enableWrite: true }),
+  // Read-only, deliberately, and not because anything is known to be wrong.
+  // CHIRP's WP970I family behind the UV-9R's magic: the memory map is the
+  // UV-5R's, rearranged, and the decoder agrees with CHIRP's own classes field
+  // for field on four real images of the family. But boofwang has never been
+  // connected to one of these radios - the protocol is CHIRP's, unexercised
+  // here - and no write has ever been sent to one. The write path exists, is
+  // tested against a scripted radio, and stays off until a bench session runs
+  // test/hardware/uv9r.spec.ts. See docs/protocols/uv9r.md.
+  uv9r: () => createUv9rDriver(),
+  // The UV-9G: the same family behind its own magic, read-only for the same
+  // reason. Its decode is checked against CHIRP on CHIRP's own UV-9G test
+  // image. See docs/protocols/uv9g.md.
+  uv9g: () => createUv9gDriver(),
 }
 
 export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
@@ -70,9 +85,11 @@ export const SCHEMAS: Record<RadioId, RadioSchema | null> = {
   uv5r: createUv5rDriver({ enableWrite: true }).schema,
   dm32uv: createDm32uvDriver({ enableWrite: true }).schema,
   uv5rmini: createUv5rMiniDriver({ enableWrite: true }).schema,
+  uv9r: createUv9rDriver().schema,
+  uv9g: createUv9gDriver().schema,
 }
 
-export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv']
+export const RADIO_IDS: readonly RadioId[] = ['uvk5', 'uv82', 'uv5g', 'uv5r', 'uv5rmini', 'dm32uv', 'uv9r', 'uv9g']
 
 export function createDriver(id: RadioId): RadioDriver {
   const factory = DRIVER_FACTORIES[id]

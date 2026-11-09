@@ -203,9 +203,12 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       ctx.log?.info(`${model.label} ident ${[...ident].map((b) => b.toString(16)).join(' ')}, firmware ${fw.version}`)
       ctx.progress?.({ phase: 'handshake', done: 1, total: 1, label: fw.version })
 
-      // The ident block differs between units, so it already identifies this
-      // radio rather than merely its model - no separate fingerprint read is
-      // needed the way the UV-K5 needs one.
+      // The ident block does not identify the unit, or even the model. This
+      // comment used to say it differed between units; the bench UV-82 sends
+      // `aa 30 79 04 00 05 20 dd`, which is also what a UV-9R, a UV-9R Pro and
+      // a BF-A58S send, and the bench UV-5G sends the UV-9G's eight bytes. It
+      // names a hardware generation, so `identHash` matches any radio of that
+      // generation on the same firmware string. See docs/protocols/uv9r.md.
       return {
         radioId: model.id,
         variant: fw.version,

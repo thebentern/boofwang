@@ -20,6 +20,8 @@ const MODEL_NAMES: Record<RadioId, string> = {
   uv5r: 'UV-5R',
   uv5rmini: 'UV-5R Mini',
   dm32uv: 'DM-32UV',
+  uv9r: 'UV-9R',
+  uv9g: 'UV-9G',
 }
 
 /**

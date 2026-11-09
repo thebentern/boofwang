@@ -12,7 +12,7 @@ redistributing this code to be able to trace that.
 
 | Source | License | What we take from it |
 |---|---|---|
-| [CHIRP](https://chirpmyradio.com/) ([kk7ds/chirp](https://github.com/kk7ds/chirp)) | GPL-3.0 | Memory layouts, protocol framing and field encodings for the Quansheng UV-K5 under both stock firmware (`chirp/drivers/uvk5.py`) and the egzumer custom firmware (`chirp/drivers/uvk5_egzumer.py`), for the Baofeng UV-5R Mini (`chirp/drivers/baofeng_uv17Pro.py`) and for the Baofeng UV-82, Radioddity UV-5G and Baofeng UV-5R (`chirp/drivers/uv5r.py`, which serves the whole UV-5R family); the CSV column model (`chirp/drivers/generic_csv.py`, `chirp/chirp_common.py`); the CTCSS/DTCS/tuning-step tables; the stock channel configurations under `chirp/stock_configs/`; and the rule for carrying a split onto a radio that stores only a shift, with its 15 MHz and 50 MHz limits (`_import_duplex` in `chirp/import_logic.py`), which `lib/radio/translate.ts` follows. |
+| [CHIRP](https://chirpmyradio.com/) ([kk7ds/chirp](https://github.com/kk7ds/chirp)) | GPL-3.0 | Memory layouts, protocol framing and field encodings for the Quansheng UV-K5 under both stock firmware (`chirp/drivers/uvk5.py`) and the egzumer custom firmware (`chirp/drivers/uvk5_egzumer.py`), for the Baofeng UV-5R Mini (`chirp/drivers/baofeng_uv17Pro.py`) and for the Baofeng UV-82, Radioddity UV-5G and Baofeng UV-5R (`chirp/drivers/uv5r.py`, which serves the whole UV-5R family); for the Baofeng UV-9R and UV-9G (`chirp/drivers/baofeng_wp970i.py`, whose protocol is `chirp/drivers/baofeng_common.py`); CHIRP's own UV-9G test image (`tests/images/Baofeng_UV-9G.img`), committed less its metadata trailer as `test/fixtures/images/uv9g-chirp-test.bin`; the CSV column model (`chirp/drivers/generic_csv.py`, `chirp/chirp_common.py`); the CTCSS/DTCS/tuning-step tables; the stock channel configurations under `chirp/stock_configs/`; and the rule for carrying a split onto a radio that stores only a shift, with its 15 MHz and 50 MHz limits (`_import_duplex` in `chirp/import_logic.py`), which `lib/radio/translate.ts` follows. |
 | [egzumer/uv-k5-firmware-custom](https://github.com/egzumer/uv-k5-firmware-custom) | Apache-2.0 | The firmware the `EGZUMER ` layout describes. No code is taken from it; boofwang's knowledge of its EEPROM comes from CHIRP's driver above. Listed because the layout is that project's design. |
 | [infamy/DM32-Protocol-Spec](https://github.com/infamy/DM32-Protocol-Spec) | MIT | Nearly all of what boofwang knows about the Baofeng DM-32UV: serial handshake, command set, the logical-block page map, record layouts and the encryption key slot format. The exception is where a channel keeps its encryption, which comes from qdmr below. There is no CHIRP driver for this radio. |
 | [qdmr](https://github.com/hmatuschek/qdmr) (`lib/dm32uv_codeplug.hh`) | GPL-3.0 | Where a DM-32UV channel keeps its encryption: the key slot at `0x1E` and the enable bit at `0x1F` bit 6, with `0x1D` bit 7 as private-call acknowledge. The DM-32 specification puts them at `0x2A` and `0x1D` bit 7; qdmr's offsets agree with two radios read on 2026-11-08 and replaced the specification's in `lib/radios/dm32uv/layout.ts`. Only those offsets are taken - no code. |
@@ -21,7 +21,8 @@ redistributing this code to be able to trace that.
 | [NOAA/NWS](https://www.weather.gov/nwr/) | Public domain (US Government) | Weather radio channel frequencies. |
 
 Because CHIRP is GPL-3.0, files in `lib/radios/uvk5/`, `lib/radios/uv82/`,
-`lib/radios/uv5g/`, `lib/radios/uv5r/` and `lib/radios/uv5rmini/` that transcribe its layout tables
+`lib/radios/uv5g/`, `lib/radios/uv5r/`, `lib/radios/uv5rmini/`,
+`lib/radios/uv9r/` and `lib/radios/uv9g/` that transcribe its layout tables
 are derivative works of CHIRP. That is compatible with boofwang's own license,
 and this table is the attribution.
 
@@ -71,6 +72,18 @@ UV-5R-family fixtures, and
 `test/fixtures/images/uvk5-egzumer-synthetic.bin` and the JSON of what CHIRP
 reads back out of it. **That fixture is synthetic, not a hardware capture** —
 see [protocols/uvk5.md](protocols/uvk5.md).
+
+For the WP970I family, `scripts/dump-wp970i-family.py` builds CHIRP's real
+`UV9R` and `UV9G` classes over an image and records what `get_memory` and
+`get_settings` report, and `scripts/gen-uv9r-fixture.py` drives CHIRP's `UV9R`
+to write `test/fixtures/images/uv9r-chirp-synthetic.bin` - **synthetic too**,
+for the same reason, see [protocols/uv9r.md](protocols/uv9r.md).
+
+The script also fetches two real UV-9R captures that their owners attached to
+CHIRP's issue tracker (issues 4511 and 9932). Those are their uploaders' and
+carry no license, so they are fetched into `reference/chirp-tickets/` for a
+local cross-check and never committed; only CHIRP's reading of them is, as
+`test/fixtures/uv9r-reference-chirp-decode.json`.
 
 ## Assets, and the licenses that travel with them
 
