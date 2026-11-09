@@ -18,13 +18,13 @@ import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial
  *
  *   BOOFWANG_HW=1 BOOFWANG_HW_PORT=/dev/cu.usbserial-XXXX pnpm vitest run test/hardware
  *
- * It reads and never writes, which is the whole point. It has now been run
- * once, on 2026-09-05, and the numbers are in `docs/protocols/uv5r.md`: a real
- * UV-5R identified and read twice, byte-identical. That is evidence about the
- * read path and none at all about a write landing where it is aimed, so this
- * driver stays read-only and the write half of this file stays unwritten.
- * `docs/protocols/uv5r.md` lists what else has to happen first - an
- * independent reader outside the app is the next step, not a write.
+ * This half reads and never writes. It was run on 2026-09-05, and the numbers
+ * are in `docs/protocols/uv5r.md`: a real UV-5R identified and read twice,
+ * byte-identical. That is evidence about the read path and none at all about
+ * a write landing where it is aimed - which is what the write cycle further
+ * down, gated separately, was for. It ran the same day and is why the
+ * registry writes this radio. This comment said the driver stayed read-only
+ * for some time after that stopped being true.
  *
  * Run it and paste the printed numbers into that document. The two reads have
  * to agree byte for byte: a radio that hands back a different image on the
@@ -184,7 +184,14 @@ describe.skipIf(!HW_WRITE)('UV-5R write cycle on the bench', () => {
       expect(ident.radioId).toBe('uv5r')
       return { baseline: await writable.readImage(t, ident, {}), ident0: ident }
     })
-    const backup = { id: 'bench', identHash: ident0.identHash, createdAt: new Date().toISOString() }
+    // With the fingerprint a read stores, which the driver now holds against
+    // three aux blocks it reads off the radio before sending anything.
+    const backup = {
+      id: 'bench',
+      identHash: ident0.identHash,
+      unitHash: await writable.unitFingerprint(baseline),
+      createdAt: new Date().toISOString(),
+    }
 
     // A rename is the smallest edit that exercises the whole path: diff, block
     // write, acknowledgment, read-back.
@@ -196,6 +203,16 @@ describe.skipIf(!HW_WRITE)('UV-5R write cycle on the bench', () => {
     const renamed = ch.name === 'BOOF' ? 'BOOF2' : 'BOOF'
     doc.channels.set(slot, { ...ch, name: renamed })
     const edited = writable.encode(doc, baseline)
+
+    // A backup of some other UV-5R is refused once those three blocks are in.
+    // That nothing is sent first is held to the driver in uv5g/write.spec.ts;
+    // what only a radio can show is the write after it, which is refused too
+    // unless the blocks come back in a write session as they did in the read.
+    await expect(
+      session((t, ident) =>
+        writable.writeImage(t, edited, { backup: { ...backup, unitHash: '0'.repeat(64) }, baseImage: baseline, ident }),
+      ),
+    ).rejects.toThrow(/different UV-5R/)
 
     const report = await session((t, ident) =>
       writable.writeImage(t, edited, { backup, baseImage: baseline, ident }),

@@ -44,6 +44,7 @@ import {
   REGIONS,
   POWERON_MSG_BASE,
   SETTINGS_BASE,
+  UNIT_AREAS,
   UV82_POWERON_MSG,
   UV82_SETTINGS,
   type Basetype,
@@ -106,6 +107,39 @@ export function classifyBasetype(version: string): Basetype {
       `Firmware ${JSON.stringify(version)} starts with no UV-82 firmware family this build knows, ` +
       'so its memory layout cannot be assumed.',
   }
+}
+
+/** The unit fingerprint: CHIRP's three per-radio aux spans, hashed together. */
+export async function unitHashOf(mem: Uint8Array): Promise<string | null> {
+  const end = Math.max(...UNIT_AREAS.map(([, e]) => e))
+  if (mem.length < end) return null
+  const parts = UNIT_AREAS.map(([s, e]) => mem.subarray(s, e))
+  const joined = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
+  let off = 0
+  for (const p of parts) {
+    joined.set(p, off)
+    off += p.length
+  }
+  return sha256Hex(joined)
+}
+
+/** The radio address of an image offset in the aux area. */
+const auxAddr = (imageOffset: number) => AUX_START + (imageOffset - IDENT_SIZE - MAIN_SIZE)
+
+/**
+ * The 0x40 blocks that hold `UNIT_AREAS`, as radio addresses.
+ *
+ * 0x1F00, 0x1F40 and 0x1F80: the blocks `_get_aux_data_from_radio` takes
+ * CHIRP's three spans from, on the 0x40 boundaries `readImage` reads the aux
+ * area on, so a span is read the same way on both sides of the comparison.
+ */
+function unitWindows(): number[] {
+  const out = new Set<number>()
+  for (const [s, e] of UNIT_AREAS) {
+    const from = auxAddr(s)
+    for (let a = from - (from % BLOCK_SIZE); a < auxAddr(e); a += BLOCK_SIZE) out.add(a)
+  }
+  return [...out].sort((a, b) => a - b)
 }
 
 export interface Uv5rFamilyOptions {
@@ -177,14 +211,19 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
     writeBlockBytes: BLOCK_SIZE,
 
     /**
-     * Nothing on this radio distinguishes one unit from another.
+     * The three aux spans CHIRP compares before it will upload the whole aux
+     * area.
      *
-     * Its calibration is not exposed as a separate readable region, and the
-     * identify reply carries only firmware. Null means "cannot tell", which
-     * callers must not read as a match.
+     * This used to return null, on the reasoning that calibration is not a
+     * separate readable region and the identify reply carries only firmware.
+     * Both are true, and neither mattered: every read takes the aux area, and
+     * CHIRP had been telling one unit from another by these bytes all along.
+     * Null now only for an image too short to hold them, which callers read as
+     * "cannot tell", never as a match.
      */
-    async unitFingerprint(): Promise<string | null> {
-      return null
+    async unitFingerprint(image: RadioImage): Promise<string | null> {
+      const mem = locate(image, 0)?.region.data
+      return mem ? unitHashOf(mem) : null
     },
 
     match(info) {
@@ -326,6 +365,81 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       }
 
       /*
+       * Which physical radio is on the cable, asked of the radio.
+       *
+       * `identHash` cannot answer it. It covers the ident and the firmware
+       * string, and the bench UV-5G and the UV-5G in CHIRP's test images send
+       * the same of both, as do the bench UV-5R and CHIRP's UV-5G Pro. So the
+       * three spans CHIRP compares before it will upload the whole aux area are
+       * read now, off the radio, and the backup has to be of the same unit.
+       * They are read rather than taken from the base image, because the base
+       * image is what the caller believes the radio holds and this is the check
+       * of that belief.
+       *
+       * Four reads are all this adds to the wire, and they come before
+       * anything is sent: the three, in 0x40 blocks on the boundaries
+       * `readImage` uses, because a sixteen-byte read on the bench UV-5R
+       * answered with another block's bytes - and one main-area block before
+       * them, read and discarded.
+       *
+       * That block is about order. The aux area answers with rubbish until a
+       * block outside it has been read, and the handshake's 0x1E80 covers that
+       * rule, but the handshake ends on 0x1FC0 - the block that drops a byte on
+       * some units - and nothing had ever followed that block with an aux read:
+       * `readImage` reads 0x0000 next, an edit sends its first frame, and
+       * CHIRP reads 0x1FC0 last. With 0x0000 first, each step is one the read
+       * path already takes - 0x1FC0 to 0x0000 exactly, a main block to the aux
+       * area, aux to aux - and the three come back the way `readImage` saw
+       * them, which is what the fingerprint they are held to was made from.
+       */
+      ctx.signal?.throwIfAborted()
+      await readBlock(t, 0x0000, BLOCK_SIZE, false, opts)
+      const liveUnit = new Uint8Array(IMAGE_SIZE)
+      for (const at of unitWindows()) {
+        ctx.signal?.throwIfAborted()
+        liveUnit.set(await readBlock(t, at, BLOCK_SIZE, false, opts), IDENT_SIZE + MAIN_SIZE + (at - AUX_START))
+      }
+      const unitNow = await unitHashOf(liveUnit)
+      if (!ctx.dryRun && ctx.backup) {
+        if (ctx.backup.unitHash == null) {
+          throw new BackupRequiredError(
+            model.id,
+            `The stored backup carries no record of which ${model.label} it came from, so it cannot be shown ` +
+              'to belong to this one. Read this radio again to take a fresh one.',
+          )
+        }
+        if (ctx.backup.unitHash !== unitNow) {
+          throw new BackupRequiredError(
+            model.id,
+            `The stored backup came from a different ${model.label}. Read this one before writing to it.`,
+          )
+        }
+      }
+
+      /*
+       * And the image being written has to be this radio's too.
+       *
+       * The backup check binds the way back to the radio; this binds the image.
+       * A restore hands over a backup and nothing else, and the screen that
+       * calls this passes that image's own fingerprint as the backup's - but
+       * the driver is what enforces, so the image's spans are held to the
+       * radio's here rather than trusted to a caller.
+       */
+      const imageUnit = await unitHashOf(next)
+      if (imageUnit === null) {
+        throw new WriteBlockedError(
+          `This image is ${next.length} bytes and stops before the aux block, so nothing in it says which ` +
+            `${model.label} it came from. Read this radio before writing to it.`,
+        )
+      }
+      if (imageUnit !== unitNow) {
+        throw new WriteBlockedError(
+          `This image was read from a different ${model.label} than the one on the cable. Read this radio ` +
+            'before writing to it.',
+        )
+      }
+
+      /*
        * The base is what the radio held when it was read.
        *
        * Only blocks that differ from it are sent. That is what keeps a
@@ -345,6 +459,15 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
        * rewriting six kilobytes, and there is still a way back from a bad write.
        */
       let base = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
+      // The base has to be this radio's as well. The diff-driven members send
+      // only the blocks that differ from it, so a base read from another unit
+      // would leave this one holding a mixture of two codeplugs.
+      if (base && (await unitHashOf(base)) !== unitNow) {
+        throw new WriteBlockedError(
+          `The codeplug this edit was built on was read from a different ${model.label} than the one on ` +
+            'the cable. Read this radio and make the edit again.',
+        )
+      }
       if (!base) {
         const live = new Uint8Array(next.length)
         live.set(next.subarray(0, IDENT_SIZE), 0)

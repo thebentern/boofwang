@@ -54,8 +54,10 @@ export interface StoredBackup {
    * Fingerprint of the physical unit, when the driver can produce one.
    *
    * `identHash` only identifies the firmware, so two identical radios share it.
-   * This is what distinguishes them. Absent on backups taken before the check
-   * existed, which the write path treats as "cannot confirm", not "matches".
+   * This is what distinguishes them. Absent on backups taken before their
+   * driver could fingerprint, and `chooseBackup` computes it from the backup's
+   * own bytes before a write is offered one. A null that still reaches a
+   * driver means "cannot confirm", not "matches".
    */
   unitHash?: string | null
   sha256: string

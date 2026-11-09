@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { transplantCodeplug, TransplantError } from '#core/radio/transplant.js'
+import type { RadioImage } from '#core/radio/image.js'
+import { nothingToTransplant, transplantCodeplug, TransplantError } from '#core/radio/transplant.js'
+import { createUv5gDriver } from '#core/radios/uv5g/driver.js'
+import { REGIONS as UV82_REGIONS, UNIT_AREAS as UV82_UNIT_AREAS } from '#core/radios/uv82/layout.js'
 import { emptyCodeplug, type Channel, type Codeplug } from '#core/model/index.js'
 import { NO_TONE } from '#core/model/tones.js'
 import { hz, mW } from '#core/model/units.js'
@@ -222,5 +227,49 @@ describe('transplantCodeplug', () => {
     expect(recipient.channels.get(7)!.name).toBe('MINE')
     expect(recipient.zones[0]!.name).toBe('MINE')
     expect(recipient.settings.squelch).toBe(1)
+  })
+})
+
+describe('whether opening a file of the same model needs to ask', () => {
+  const RAW = new Uint8Array(
+    readFileSync(fileURLToPath(new URL('../../fixtures/images/uv5g-HN5RV011.bin', import.meta.url))),
+  )
+  const uv5g = createUv5gDriver()
+  const image = (bytes: Uint8Array, radioId: RadioImage['radioId'] = 'uv5g'): RadioImage => ({
+    radioId,
+    variant: 'HN5RV011',
+    layout: radioId,
+    createdAt: NOW,
+    regions: UV82_REGIONS.map((r) => ({ start: r.start, data: bytes.slice(r.start, r.start + r.length), label: r.label })),
+    meta: {},
+    sha256: '',
+  })
+  const changed = (at: number) => {
+    const out = RAW.slice()
+    out[at] = out[at]! ^ 0x01
+    return out
+  }
+
+  it('skips the question for the open codeplug\'s own bytes from the same radio', async () => {
+    expect(await nothingToTransplant(image(RAW), image(RAW), uv5g)).toBe(true)
+  })
+
+  it('asks about a file from the same radio that holds different bytes', async () => {
+    // A channel byte, which is what an older file of the same radio differs
+    // in. Opening it would make it the base a diff-driven write works from.
+    expect(await nothingToTransplant(image(changed(0x0008)), image(RAW), uv5g)).toBe(false)
+  })
+
+  it('asks about a file from another radio of the same model', async () => {
+    expect(await nothingToTransplant(image(changed(UV82_UNIT_AREAS[0]![0])), image(RAW), uv5g)).toBe(false)
+  })
+
+  it('asks when the driver cannot tell one radio from another', async () => {
+    const blind = { unitFingerprint: async () => null }
+    expect(await nothingToTransplant(image(RAW), image(RAW), blind)).toBe(false)
+  })
+
+  it('asks about a file of another model, which is not this question at all', async () => {
+    expect(await nothingToTransplant(image(RAW, 'uv82'), image(RAW), uv5g)).toBe(false)
   })
 })

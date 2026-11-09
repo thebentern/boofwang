@@ -189,6 +189,14 @@ because `identHash` covers only model, firmware and build date.
 Return `null` only when there is genuinely nothing unit-specific, and remember
 callers must read `null` as "cannot tell", never as "matches".
 
+Before deciding there is nothing, read what the reference compares before it
+uploads. The UV-5R family's driver returned `null` because its calibration is
+not a separate readable region. Meanwhile CHIRP's `_do_upload` had always told
+one unit from another by three aux spans that were in every image boofwang
+read. Then find two radios `identHash` cannot separate and confirm the bytes
+differ. CHIRP's `tests/images` held a second UV-5G with the bench unit's ident
+and firmware, and it was the cheapest evidence there was.
+
 ### Read-only regions
 
 Regions marked `readOnly` are claimed by nobody, which is what makes them

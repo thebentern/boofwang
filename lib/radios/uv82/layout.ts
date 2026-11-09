@@ -270,11 +270,44 @@ export const nameAddr = (i: number) => NAME_BASE + i * NAME_SIZE
 /**
  * One region covering the whole image.
  *
- * Unlike the UV-K5 there is no separate calibration area to protect: the ident
- * prefix is not radio memory at all, and the aux block is part of the same
- * logical image.
+ * The ident prefix is not radio memory at all, and the aux block is part of the
+ * same logical image - including the calibration in `UNIT_AREAS`, which is not
+ * marked off as a region of its own. What keeps it unwritten is that nothing
+ * claims it: the owned ranges all end at 0x1808, and the write path never
+ * sends a block past the main area.
  */
 export const REGIONS = [{ start: 0x0000, length: IMAGE_SIZE, label: 'image', readOnly: false }] as const
+
+/**
+ * The bytes that say which physical radio an image came from, as image offsets.
+ *
+ * CHIRP's own answer, and CHIRP's own numbers: `_do_upload` in uv5r.py takes
+ * `aux_i1` to `aux_i3` from exactly these offsets and compares them with the
+ * three spans `_get_aux_data_from_radio` reads off the radio - radio 0x1F00 to
+ * 0x1F60, 0x1F70 to 0x1F80 and 0x1F90 to 0x1FC0. When all three match it
+ * uploads the whole aux area, these bytes included and unchanged. When any
+ * differs it uploads only the welcome message, the squelch thresholds and the
+ * band limits, which sit outside them - and on a radio with the dropped-byte
+ * quirk it refuses the upload outright, with "Upload back to same radio". So
+ * CHIRP moves these bytes only through its range override, which sends
+ * everything regardless.
+ *
+ * Nothing documents what is in them; they look like per-frequency
+ * calibration. What a fingerprint needs is that two radios `identHash` cannot
+ * tell apart differ here, and they do: the bench UV-5G and the one in CHIRP's
+ * test images send the same ident and the same firmware and differ in 34 of
+ * these 160 bytes. Two radios that calibrated identically would collide, the
+ * weakness the DM-32UV's calibration hash shares. See docs/protocols/uv82.md.
+ *
+ * The hash of these is stored in every backup, so they must never change: a
+ * different selection would make every backup on file look like another
+ * radio's.
+ */
+export const UNIT_AREAS: readonly (readonly [number, number])[] = [
+  [0x1848, 0x18a8],
+  [0x18b8, 0x18c8],
+  [0x18d8, 0x1908],
+]
 
 /** Byte ranges this driver understands well enough to rewrite. */
 export function ownedRanges(): (readonly [number, number])[] {

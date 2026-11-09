@@ -261,11 +261,12 @@ What a write does, and what the bench session still has to settle:
 
 - **Reach.** Channel records, names and the settings block. The VFOs, PTT ID
   and ANI codes, power-on message, squelch tables and band limits are read, kept
-  in every backup and never sent - and so is the calibration CHIRP itself
+  in every backup and never sent - and so are the per-unit spans CHIRP itself
   refuses to upload across radios. `writeScope` says so on the restore screen.
 - **Which radio.** A backup must carry the fingerprint of the unit on the cable:
   a hash of `0x1F00-0x1F60`, `0x1F70-0x1F80` and `0x1F90-0x1FC0`, the three spans
-  `_get_aux_data_from_radio` compares before CHIRP will upload calibration. They
+  `_get_aux_data_from_radio` compares before CHIRP will upload the whole aux
+  area. They look like calibration and nothing documents them. They
   differ between the UV-9G and UV-9R Pro captures, which share a date code. The
   image being written must carry the same spans, and so must the base an edit
   was built on, so a restore of another unit's backup is refused by the driver

@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest'
 import { equalBytes } from '#core/codec/struct.js'
 import { BackupRequiredError, DriverError, type BackupRef } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
-import { createUv82Driver, encodeChannel } from '#core/radios/uv82/driver.js'
+import { createUv82Driver, encodeChannel, unitHashOf } from '#core/radios/uv82/driver.js'
 import { CHANNEL_COUNT, REGIONS, UV82_CHANNEL, channelAddr, ownedRanges } from '#core/radios/uv82/layout.js'
-import { IDENT_SIZE, MAIN_SIZE, NEVER_WRITE, WRITE_BLOCK_SIZE } from '#core/radios/uv82/protocol.js'
+import { AUX_START, IDENT_SIZE, MAIN_SIZE, NEVER_WRITE, WRITE_BLOCK_SIZE } from '#core/radios/uv82/protocol.js'
 
 const RAW = new Uint8Array(
   readFileSync(fileURLToPath(new URL('../../../fixtures/images/uv82-N822413.bin', import.meta.url))),
@@ -222,7 +222,14 @@ describe('the write gate', () => {
           const addr = (cmd[1]! << 8) | cmd[2]!
           const size = cmd[3]!
           out.push(0x06, 0x58, cmd[1]!, cmd[2]!, cmd[3]!)
-          for (let i = 0; i < size; i++) out.push(contents[IDENT_SIZE + addr + i] ?? 0xff)
+          // The main block, then the aux area at radio 0x1EC0, which follows
+          // it in the image. This stub served the aux area as erased flash
+          // until a write began reading the per-unit spans there.
+          for (let i = 0; i < size; i++) {
+            const a = addr + i
+            const off = a < MAIN_SIZE ? IDENT_SIZE + a : a >= AUX_START ? IDENT_SIZE + MAIN_SIZE + (a - AUX_START) : -1
+            out.push(off >= 0 ? (contents[off] ?? 0xff) : 0xff)
+          }
         } else if (cmd[0] === 0x58) {
           const addr = (cmd[1]! << 8) | cmd[2]!
           sent.push({ addr, data: cmd.slice(4) })
@@ -245,7 +252,7 @@ describe('the write gate', () => {
     // write to those blocks instead of rewriting six kilobytes.
     const live = RAW.slice()
     const report = await writable.writeImage(radio(live), image(), {
-      backup: { ...backup, identHash: 'match' },
+      backup: { ...backup, identHash: 'match', unitHash: await unitHashOf(RAW) },
       ident,
     })
     expect(report.blocksWritten, 'the radio already holds this image').toBe(0)
@@ -268,11 +275,24 @@ describe('the write gate', () => {
     drifted[0x0e28] = 0xaa
 
     const report = await writable.writeImage(radio(drifted), image(), {
-      backup: { ...backup, identHash: 'match' },
+      backup: { ...backup, identHash: 'match', unitHash: await unitHashOf(RAW) },
       ident,
     })
     expect(report.blocksWritten).toBe(1)
     expect(report.verified).toBe(true)
+  })
+
+  it('refuses a backup taken before backups recorded which UV-82 they came from', async () => {
+    // What every UV-82 backup stored before the fingerprint existed looks like
+    // to the driver. The app computes the fingerprint from such a backup's own
+    // bytes before it gets here (see lib/storage/choose-backup.ts), so a null
+    // that arrives means bytes that cannot be fingerprinted, and that fails
+    // closed.
+    const port = radio(RAW.slice())
+    await expect(
+      writable.writeImage(port, image(), { backup: { ...backup, identHash: 'match' }, ident }),
+    ).rejects.toThrow(BackupRequiredError)
+    expect((port as { sent: unknown[] }).sent).toEqual([])
   })
 })
 

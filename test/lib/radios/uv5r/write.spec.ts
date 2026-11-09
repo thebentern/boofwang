@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { BackupRequiredError, DriverError, type BackupRef } from '#core/radio/driver.js'
 import { blocksToSend } from '#core/radio/diff.js'
 import type { RadioImage } from '#core/radio/image.js'
+import { unitHashOf } from '#core/radios/uv82/driver.js'
 import { createUv5rDriver } from '#core/radios/uv5r/driver.js'
 import { MAGIC_UV5R_291, MAGIC_UV5R_ORIG } from '#core/radios/uv5r/protocol.js'
 import { REGIONS, ownedRanges } from '#core/radios/uv82/layout.js'
@@ -53,12 +54,12 @@ function image(): RadioImage {
 
 const driver = createUv5rDriver()
 /**
- * A build with writing forced on.
+ * The build the registry creates, with writing on.
  *
- * The registry does not create one of these - the UV-5R ships read-only. It
- * exists so that the refusals which would guard a future write can be tested
- * now, rather than being written for the first time on the day someone flips
- * the flag with a radio on the bench.
+ * This comment used to call the UV-5R read-only and this build a forced one,
+ * which stopped being true when the registry enabled writing after the
+ * 2026-09-05 bench session. `driver` above is the read-only build a schema
+ * ships as before the registry says otherwise.
  */
 const writable = createUv5rDriver({ enableWrite: true })
 
@@ -158,7 +159,7 @@ describe('identify, over the wire', () => {
   })
 })
 
-describe('what identify will let a write reach, if writing is ever enabled', () => {
+describe('what identify will let a write reach', () => {
   it('clears a firmware it can vouch for', async () => {
     const ident = await writable.identify(radio(withFirmware('BFB297')), {})
     expect(ident.caps).toEqual({ read: true, write: true })
@@ -200,9 +201,8 @@ describe('the write gate', () => {
   const transport = {} as never
 
   it('refuses because this build does not write this radio, and says which radio', async () => {
-    // The state the UV-5R actually ships in. Not a placeholder: one has been
-    // read on a cable now, and nothing has ever been sent to one, so there is
-    // still no evidence a write would land correctly.
+    // The read-only build: what a driver built for a test or a file import
+    // gets, and what the registry's line is the only way out of.
     await expect(driver.writeImage(transport, image(), { backup })).rejects.toThrow(/UV-5R/)
   })
 
@@ -216,7 +216,10 @@ describe('the write gate', () => {
     ).rejects.toThrow(DriverError)
   })
 
-  it('refuses a backup taken from a different unit', async () => {
+  it('refuses a backup whose identify hash is another radio\'s', async () => {
+    // The firmware-level check. Telling two units on the same firmware apart
+    // is the aux-span fingerprint's job, tested in uv5g/write.spec.ts on the
+    // code this driver shares.
     const ident = {
       radioId: 'uv5r' as const,
       variant: 'BFB297',
@@ -250,7 +253,7 @@ describe('the write gate', () => {
       identHash: 'match',
     }
     const report = await writable.writeImage(radio(RAW.slice()), image(), {
-      backup: { ...backup, identHash: 'match' },
+      backup: { ...backup, identHash: 'match', unitHash: await unitHashOf(RAW) },
       ident,
     })
     expect(writable.schema.capabilities.writesWholeImage).toBe(true)

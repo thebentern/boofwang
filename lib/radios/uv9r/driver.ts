@@ -166,12 +166,13 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
     writeBlockBytes: WRITE_BLOCK_SIZE,
 
     /**
-     * The three aux spans CHIRP compares before it will upload calibration.
+     * The three aux spans CHIRP compares before it will upload the whole aux
+     * area.
      *
-     * This family reads all 0x2000 bytes, so unlike the UV-5R family's driver
-     * there is something per-unit to hash: CHIRP's own test of whether an
-     * image belongs to the radio on the cable. Null only for an image too
-     * short to hold them, and callers read null as "cannot tell".
+     * CHIRP's own test of whether an image belongs to the radio on the cable,
+     * and the same three spans the UV-5R family's driver hashes, at the same
+     * radio addresses. Null only for an image too short to hold them, and
+     * callers read null as "cannot tell".
      */
     async unitFingerprint(image: RadioImage): Promise<string | null> {
       const mem = locate(image, 0)?.region.data

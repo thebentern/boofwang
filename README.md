@@ -361,8 +361,10 @@ for every fixture.
   is absent or belongs to a different radio.
 - Where a driver can fingerprint the physical radio, the backup must match that
   radio and not merely the model and firmware. The DM-32UV uses its calibration
-  block; identifiers derived only from firmware cannot distinguish two identical
-  radios.
+  block. The UV-82, UV-5G, UV-5R, UV-9R and UV-9G use the three aux spans CHIRP
+  compares before it will upload the whole aux area, read off the radio before
+  anything is sent. Identifiers derived only from firmware cannot distinguish
+  two identical radios.
 - Every write is preceded by a byte diff. A change outside the ranges the driver
   claims to own blocks the write; it indicates a defect in the encoder.
 - **Every block written is read back and compared.** An acknowledgment says a

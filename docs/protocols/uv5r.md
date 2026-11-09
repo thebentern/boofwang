@@ -285,6 +285,15 @@ Everything that needs a radio:
   is still the missing step.
 - **The dongle route is offered and untested**, as it is for every radio that
   offers it.
+- **The unit fingerprint's reads have not been sent to this radio.** Since
+  2026-11-09 a write reads radio `0x0000`, then `0x1F00`, `0x1F40` and
+  `0x1F80`, before sending anything, and refuses a backup or an image of
+  another unit. The write session above predates that, and this unit drops the
+  byte at `0x1FCF`, which is why `0x0000` comes first: nothing had read the aux
+  area straight after the handshake's `0x1FC0`. `test/hardware/uv5r.spec.ts`
+  now exercises it and has not been run since. This radio and CHIRP's UV-5G Pro
+  test image send the same ident and firmware and differ in 22 of the 160
+  bytes; see [uv82.md](uv82.md#which-radio-is-on-the-cable).
 
 ## What a bench session would settle, in order
 

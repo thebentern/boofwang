@@ -6,7 +6,7 @@ import {
   programmedOnly,
 } from '#core/radio/place.js'
 import { createDriver } from '#core/radio/registry.js'
-import { transplantCodeplug, type TransplantResult } from '#core/radio/transplant.js'
+import { nothingToTransplant, transplantCodeplug, type TransplantResult } from '#core/radio/transplant.js'
 import {
   acceptTranslation,
   translateChannels,
@@ -66,18 +66,16 @@ const acceptedRules = ref(new Set<ClampRule>(ALL_CLAMP_RULES))
  * Could this file be applied to the radio already open, rather than replacing it?
  *
  * Only for the same model - translating between models is a different problem
- * and does not exist yet. The fingerprint decides whether it is worth asking:
- * a file from the same physical unit has nothing to transplant, since applying
- * it and opening it come to the same thing. A driver with nothing per-unit to
- * hash returns null, and that means "cannot tell", never "matches" - so the
- * question gets asked, which is the side that loses nothing.
+ * and does not exist yet - and not when the file is the open codeplug's own
+ * bytes from the same physical radio, the one case with nothing to transplant.
+ * A file from the same radio with different bytes still gets the question;
+ * `nothingToTransplant` says why. Asking is the side that loses nothing.
  */
 async function couldBeDonor(image: RadioImage, driver: RadioDriver): Promise<boolean> {
   const mine = codeplug.image
   if (!mine || !codeplug.doc || !codeplug.schema) return false
   if (image.radioId !== mine.radioId) return false
-  const [theirs, ours] = await Promise.all([driver.unitFingerprint(image), driver.unitFingerprint(mine)])
-  return !(theirs !== null && ours !== null && theirs === ours)
+  return !(await nothingToTransplant(image, mine, driver))
 }
 
 /** The merge as it stands, or null when it cannot be built. */

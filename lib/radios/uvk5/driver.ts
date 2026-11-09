@@ -169,11 +169,16 @@ export function createUvk5Driver(options: Uvk5DriverOptions = {}): RadioDriver {
     writeBlockBytes: MEM_BLOCK,
 
     /**
-     * Nothing on this radio distinguishes one unit from another.
+     * Null, because `identify` already makes `identHash` per-unit here.
      *
-     * Its calibration is not exposed as a separate readable region, and the
-     * identify reply carries only firmware. Null means "cannot tell", which
-     * callers must not read as a match.
+     * The hello reply carries only firmware, but `identify` reads the
+     * calibration and hashes it into `identHash`, so a backup of another unit
+     * fails that check before this one would be asked. This comment once said
+     * calibration was not readable at all, which was never true of this driver,
+     * and the same reasoning kept the UV-5R family's fingerprint null although
+     * CHIRP tells those units apart. Null still means "cannot tell" to the
+     * callers that use it alone - the fleet's same-radio check, and whether
+     * opening a file needs to ask - and never "matches".
      */
     async unitFingerprint(): Promise<string | null> {
       return null

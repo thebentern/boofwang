@@ -40,13 +40,21 @@ do
 done
 curl -sSLf "https://raw.githubusercontent.com/infamy/DM32-Protocol-Spec/main/LICENSE" -o dm32/LICENSE 2>/dev/null || true
 
-# CHIRP's own test images for the WP970I family. Its test suite opens these
-# with the real driver classes, which makes them the one capture of this memory
-# format that is published under a license boofwang can redistribute - see
+# CHIRP's own test images. Its test suite opens these with the real driver
+# classes, which makes them the one capture of the WP970I family's memory format
+# published under a license boofwang can redistribute - see
 # docs/protocols/uv9r.md for which of them is committed as a fixture and why.
+# The four classic-family images are further radios of the models on the bench:
+# a UV-5G and a UV-5G Pro that send the bench UV-5G's and UV-5R's ident and
+# firmware, which is what shows the unit fingerprint telling apart radios
+# `identHash` cannot. Only the bytes that claim rests on are committed, in
+# test/fixtures/uv5r-family-chirp-units.json, and
+# test/lib/radios/uv82/unit-fingerprint.spec.ts checks them against these
+# images when they are here; see docs/protocols/uv82.md.
 echo "Fetching CHIRP test images (GPL-3.0) ..."
 mkdir -p chirp-images
-for f in Baofeng_UV-9G.img Baofeng_BF-A58S.img; do
+for f in Baofeng_UV-9G.img Baofeng_BF-A58S.img \
+         Radioddity_UV-5G.img Baofeng_UV-5G_Pro.img Baofeng_UV-5R.img Baofeng_F-11.img; do
   curl -sSLf "$CHIRP_RAW/tests/images/$f" -o "chirp-images/$f" && echo "  chirp-images/$f"
 done
 

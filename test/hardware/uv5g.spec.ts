@@ -59,7 +59,14 @@ describe.skipIf(!HW)('UV-5G on the bench', () => {
       expect(ident.caps.write, ident.caps.reason ?? '').toBe(true)
       return { baseline: await driver.readImage(t, ident, {}), ident0: ident }
     })
-    const backup = { id: 'bench', identHash: ident0.identHash, createdAt: new Date().toISOString() }
+    // With the fingerprint a read stores, which the driver now holds against
+    // three aux blocks it reads off the radio before sending anything.
+    const backup = {
+      id: 'bench',
+      identHash: ident0.identHash,
+      unitHash: await driver.unitFingerprint(baseline),
+      createdAt: new Date().toISOString(),
+    }
 
     // Rename the first named channel. The name table is one of the three
     // ranges the driver owns, and a rename is the smallest edit that proves
@@ -70,6 +77,16 @@ describe.skipIf(!HW)('UV-5G on the bench', () => {
     expect(ch.name).not.toBe('BOOF')
     doc.channels.set(slot, { ...ch, name: 'BOOF' })
     const edited = driver.encode(doc, baseline)
+
+    // A backup of some other UV-5G is refused once those three blocks are in.
+    // That nothing is sent first is held to the driver in uv5g/write.spec.ts;
+    // what only a radio can show is the write after it, which is refused too
+    // unless the blocks come back in a write session as they did in the read.
+    await expect(
+      session((t, ident) =>
+        driver.writeImage(t, edited, { backup: { ...backup, unitHash: '0'.repeat(64) }, baseImage: baseline, ident }),
+      ),
+    ).rejects.toThrow(/different UV-5G/)
 
     const report = await session((t, ident) =>
       driver.writeImage(t, edited, { backup, baseImage: baseline, ident }),
