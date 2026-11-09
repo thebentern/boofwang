@@ -247,12 +247,13 @@ export function transplantCodeplug(input: TransplantInput): TransplantResult {
  * same physical radio. The question used to be skipped for any file from the
  * same radio, on the reasoning that applying it and opening it come to the
  * same thing, and when the bytes differ they do not. Opening makes the file's
- * image the base a write is worked out against, and the UV-82 and UV-5G send
- * only the blocks that differ from it. A file older than what the radio
- * holds, opened, edited and written, leaves the radio its own blocks wherever
- * the two disagree and nothing was edited, while the screen shows the file's.
- * Applying keeps the open codeplug's image as the base. The adversarial review
- * of the UV-5R family's fingerprint found this, when that fingerprint started
+ * image the base a write is worked out against. A file older than what the
+ * radio holds, opened, edited and written, used to leave the UV-82 and UV-5G
+ * their own blocks wherever the two disagreed and nothing was edited, while
+ * the screen showed the file's; the driver now reads the radio first and
+ * refuses instead. Applying keeps the open codeplug's image as the base, so
+ * the edit can be written rather than refused. The adversarial review of the
+ * UV-5R family's fingerprint found this, when that fingerprint started
  * skipping the question on those two radios.
  *
  * A driver with nothing per-unit to hash returns null, and that means "cannot

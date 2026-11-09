@@ -323,6 +323,13 @@ What a write does, and what the bench session still has to settle:
 - Whether the sweep is what this radio needs. It is CHIRP's shape, chosen
   because it is the only one known to work; whether a byte reprograms, and so
   whether a diff would do, is the first thing the bench session finds out.
+- A stale base is not checked. This driver sweeps as the UV-5R does, so an
+  edit built on a base the radio has moved on from - an old backup opened,
+  edited and written after the keypad changed the radio - puts the base back
+  over everything changed since, and the diff behind the confirmation shows
+  only the edit. The UV-5R family's driver reads the owned ranges first and
+  refuses that - see [what opening a file does to a
+  write](uv82.md#what-opening-a-file-does-to-a-write) - and this one does not.
 - Whether a write lands at all. Every block is read back before the write is
   called done, but no write has been sent to a real one of these radios by
   boofwang: a backup of the radio is required before the first one, and

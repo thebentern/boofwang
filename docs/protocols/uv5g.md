@@ -127,6 +127,12 @@ images are why the check exists: same ident, same firmware, and 34 of the 160
 bytes CHIRP compares between units different. See
 [uv82.md](uv82.md#which-radio-is-on-the-cable).
 
+It also predates the base check. A write with a base now reads the owned
+ranges as well and refuses if the radio holds anything there that is neither
+the base's nor the edit's, and the spec sends an edit built on a base with its
+squelch moved to see that refused too - see [What opening a file does to a
+write](uv82.md#what-opening-a-file-does-to-a-write).
+
 ## First contact can be refused
 
 The one defect this radio surfaced was in boofwang, not in it. After the unit

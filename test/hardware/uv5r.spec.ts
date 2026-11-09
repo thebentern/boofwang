@@ -5,7 +5,7 @@ import type { IdentifyResult } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
 import { createUv5rDriver } from '#core/radios/uv5r/driver.js'
 import { classifyBasetype, MAGIC_UV5R_291, MAGIC_UV5R_ORIG } from '#core/radios/uv5r/protocol.js'
-import { NAME_LENGTH, nameAddr } from '#core/radios/uv82/layout.js'
+import { NAME_LENGTH, SETTINGS_BASE, nameAddr } from '#core/radios/uv82/layout.js'
 import { IMAGE_SIZE } from '#core/radios/uv82/protocol.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial-port.js'
@@ -213,6 +213,28 @@ describe.skipIf(!HW_WRITE)('UV-5R write cycle on the bench', () => {
         writable.writeImage(t, edited, { backup: { ...backup, unitHash: '0'.repeat(64) }, baseImage: baseline, ident }),
       ),
     ).rejects.toThrow(/different UV-5R/)
+
+    // An edit built on a base the radio does not hold - squelch one step off -
+    // is refused once the owned ranges are read, before the sweep sends a
+    // frame, and refused for that byte rather than for some other drift. It
+    // renames the second channel, so a sweep that leaked would show in the
+    // fresh read below, which allows the first channel's name to move and
+    // nothing else, and would already be refused by the real write's own
+    // check. What only a radio can show is that the real write after it, on a
+    // base read moments earlier, is not refused: the 66 reads come back as the
+    // read's did.
+    {
+      const stale: RadioImage = { ...baseline, regions: baseline.regions.map((r) => ({ ...r, data: r.data.slice() })) }
+      memOf(stale)[SETTINGS_BASE] = memOf(stale)[SETTINGS_BASE]! ^ 0x01
+      const staleDoc = writable.decode(stale)
+      const other = [...staleDoc.channels.keys()].sort((a, b) => a - b)[1]!
+      staleDoc.channels.set(other, { ...staleDoc.channels.get(other)!, name: 'STALE' })
+      await expect(
+        session((t, ident) =>
+          writable.writeImage(t, writable.encode(staleDoc, stale), { backup, baseImage: stale, ident }),
+        ),
+      ).rejects.toThrow(/first difference is in the settings, at 0x0e20\)/)
+    }
 
     const report = await session((t, ident) =>
       writable.writeImage(t, edited, { backup, baseImage: baseline, ident }),

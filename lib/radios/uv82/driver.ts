@@ -10,6 +10,7 @@ import {
   BackupRequiredError,
   DEFAULT_DRIVER_TIMEOUT_MS,
   DriverError,
+  RadioChangedError,
   WriteBlockedError,
   WriteVerifyError,
   type WriteOperation,
@@ -39,11 +40,14 @@ import {
   UV82_NAME,
   channelAddr,
   nameAddr,
+  NAME_BASE,
   NAME_LENGTH,
+  NAME_SIZE,
   ownedRanges as uv82OwnedRanges,
   REGIONS,
   POWERON_MSG_BASE,
   SETTINGS_BASE,
+  SETTINGS_CLAIM,
   UNIT_AREAS,
   UV82_POWERON_MSG,
   UV82_SETTINGS,
@@ -353,6 +357,17 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       const next = locate(image, 0)?.region.data
       if (!next) throw new DriverError('This image has no memory region')
 
+      // A base with no memory in it is not the absence of one. Read as none,
+      // it would turn an edit into a diff against whatever the radio holds and
+      // send blocks the confirmation never showed. Both of these need nothing
+      // from the radio, so they are said before anything is read - a short base
+      // would otherwise reach the unit check and be called another radio's.
+      const supplied = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
+      if (ctx.baseImage && !supplied) throw new DriverError('The base image has no memory region')
+      if (supplied && supplied.length !== next.length) {
+        throw new DriverError('The edited image is a different size to the one that was read')
+      }
+
       // Re-identify unless the session already did. Unlike the DM-32UV this
       // radio answers a second handshake happily, but repeating it costs a
       // second and tells us nothing new.
@@ -440,25 +455,24 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
       }
 
       /*
-       * The base is what the radio held when it was read.
+       * What to diff against.
        *
-       * Only blocks that differ from it are sent. That is what keeps a
+       * Only blocks that differ from the base are sent. That is what keeps a
        * one-channel edit to a handful of frames instead of rewriting six
        * kilobytes, and it is also what keeps the write inside the ranges this
        * driver understands - a block with no change in it is never a candidate,
        * so the parts of memory nobody has modeled are never touched.
-       */
-      /*
-       * What to diff against.
        *
-       * An ordinary write supplies the image the radio was read from, so only
-       * edited blocks are sent. A restore does not - it deliberately expects the
-       * radio to differ from the image being restored, which is the whole point
-       * of restoring. There the radio itself is read first and used as the base,
+       * An ordinary write supplies the image the open codeplug came from. That
+       * is what the caller believes the radio holds, which is not always a read
+       * of it, so it is checked against the radio before anything is sent -
+       * see below. A restore supplies none - it deliberately expects the radio
+       * to differ from the image being restored, which is the whole point of
+       * restoring. There the radio itself is read first and used as the base,
        * so a restore still sends only what actually differs rather than
        * rewriting six kilobytes, and there is still a way back from a bad write.
        */
-      let base = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
+      let base = supplied
       // The base has to be this radio's as well. The diff-driven members send
       // only the blocks that differ from it, so a base read from another unit
       // would leave this one holding a mixture of two codeplugs.
@@ -490,9 +504,6 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
           })
         }
         base = live
-      }
-      if (base.length !== next.length) {
-        throw new DriverError('The edited image is a different size to the one that was read')
       }
 
       /*
@@ -576,12 +587,22 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
         }
 
         /*
-         * The ownership check is about the encoder, not about what is sent.
-         * A changed byte outside the owned ranges is a defect wherever it is
-         * found, so it is still a refusal in sweep mode - the sweep decides
+         * The ownership check is about the encoder, not about what is sent, so
+         * it runs where the encoder produced the image: a write with a base. A
+         * changed byte outside the owned ranges is a defect there wherever it
+         * is found, so it is still a refusal in sweep mode - the sweep decides
          * what goes on the wire, never what is allowed to have moved.
+         *
+         * A restore is not the encoder's output. Its image is a backup and its
+         * base is the radio, which is expected to differ from it everywhere,
+         * the VFOs and the channel each display is on included. This check used
+         * to run there too, so a VFO tuned since the backup refused the restore
+         * meant to put the radio back, and blamed boofwang for it. The bench
+         * restores never met that, because each ran straight after its write.
+         * Nothing outside the owned ranges is sent either way, and the WP970I
+         * driver drew the same line first.
          */
-        if (differs) {
+        if (differs && supplied) {
           if (forbidden(off, to)) {
             throw new DriverError(
               `Refusing to write: 0x${off.toString(16)} is one of the windows CHIRP has always skipped, ` +
@@ -610,9 +631,116 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
         label: `0x${b.radioAddr.toString(16).padStart(4, '0')}`,
       }))
 
+      /*
+       * Hold the base to the radio before sending a block of the edit.
+       *
+       * The base is whatever the open codeplug was loaded from, and opening a
+       * file or a stored backup makes that something other than a read of this
+       * radio. When the radio has moved on from it, a diff-driven write sends
+       * the edited blocks and nothing else, so every block nobody edited keeps
+       * the radio's own bytes - while the screen, which takes the written image
+       * as its new baseline, shows the file's. The write verifies and reports
+       * success, because every block it sent did land. An adversarial review
+       * reproduced it on a scripted radio: slot 1 held KEYPAD on the radio and
+       * was empty in a file from the same unit, a settings edit was written and
+       * verified, and the radio still held KEYPAD. A sweep cannot leave that
+       * mixture, since every owned block goes, and it reverts instead: the base
+       * goes back over everything the radio was changed to since, and the diff
+       * behind the confirmation, which is the edit against the base, never
+       * shows it. The unit check above sees neither, because the file is this
+       * radio's, only older.
+       *
+       * So every 0x40 window an owned range touches is read, at the size and on
+       * the boundaries `readImage` uses, and a radio holding anything the
+       * confirmation did not show is refused, with the error the UV-K5 raises
+       * for the same thing. Diffing against what the radio holds instead would
+       * cure the mixture by sending blocks the confirmation never showed - a
+       * keypad change undone, or the rest of an old backup put back - which is
+       * a restore priced as an edit.
+       *
+       * The edit's own bytes pass as well as the base's, on a diff and a sweep
+       * alike. Those are the states a write of this edit can leave, and a
+       * sweep rewrites every owned byte, so one already holding the edit has
+       * nothing to revert. That is what lets the same write, cut off part way,
+       * be sent again unchanged. An earlier draft held a sweep to the base
+       * exactly, which refused that retry and protected nothing.
+       *
+       * Byte by byte, and including the bytes the edit changes. A block goes
+       * whole, so a keypad change sharing a block with the edit would be undone
+       * as surely as one in a block left out. A byte holds several things -
+       * scan, bandwidth, busy lock and PTT ID share one - so an edit to one of
+       * them carries the base's value of the rest. And a channel created in a
+       * slot the radio has since filled from its keypad replaces it while the
+       * diff says "created". The first version of this check let both through
+       * by treating every byte the edit changed as the edit's, whatever the
+       * radio held there; the review of the check caught it.
+       *
+       * It costs 66 reads, several seconds at 9600 baud, on a write that may
+       * send one block, and 0x0000 is read twice - once above for the order,
+       * once here. It runs before the empty write returns too, so that "nothing
+       * to send" is said about the radio rather than about the file.
+       */
+      if (supplied) {
+        const windows = new Set<number>()
+        for (const [s, e] of owned) {
+          const from = s - IDENT_SIZE - ((s - IDENT_SIZE) % BLOCK_SIZE)
+          for (let at = from; at < e - IDENT_SIZE; at += BLOCK_SIZE) windows.add(at)
+        }
+        const order = [...windows].sort((a, b) => a - b)
+
+        const live = new Uint8Array(next.length)
+        for (const [n, at] of order.entries()) {
+          ctx.signal?.throwIfAborted()
+          live.set(await readBlock(t, at, BLOCK_SIZE, false, opts), IDENT_SIZE + at)
+          ctx.progress?.({
+            phase: 'read',
+            done: (n + 1) * BLOCK_SIZE,
+            total: order.length * BLOCK_SIZE,
+            label: 'Checking what the radio holds',
+          })
+        }
+
+        let first = -1
+        let firstEnd = -1
+        let staleBlocks = 0
+        for (const [s, e] of owned) {
+          for (let off = s; off < e; off += WRITE_BLOCK_SIZE) {
+            const to = off + WRITE_BLOCK_SIZE
+            let at = -1
+            for (let i = off; i < to; i++) {
+              if (live[i] !== base[i] && live[i] !== next[i]) {
+                at = i
+                break
+              }
+            }
+            if (at < 0) continue
+            staleBlocks++
+            if (first < 0) {
+              first = at
+              firstEnd = to
+            }
+          }
+        }
+        if (staleBlocks > 0) {
+          // Up to eight bytes, never past the block: the window after the
+          // last block of a range was not read, and its zeros are not the
+          // radio's.
+          const end = Math.min(first + 8, firstEnd)
+          const edited = !equalBytes(next.subarray(first, end), base.subarray(first, end))
+          throw new RadioChangedError(first - IDENT_SIZE, {
+            where: whereInImage(first),
+            blocks: staleBlocks,
+            held: hexDump(live.subarray(first, end)),
+            base: hexDump(base.subarray(first, end)),
+            ...(edited ? { edit: hexDump(next.subarray(first, end)) } : {}),
+          })
+        }
+      }
+
       if (blocks.length === 0) {
         return { blocksWritten: 0, bytesWritten: 0, verified: true, dryRun: ctx.dryRun === true, operations }
       }
+
       if (ctx.dryRun) {
         return {
           blocksWritten: blocks.length,
@@ -786,6 +914,24 @@ export function createUv5rFamilyDriver(model: Uv5rFamilyModel, options: Uv5rFami
   return driver
 }
 
+/**
+ * Where an image offset falls, in the words the channel table and the settings
+ * form use.
+ *
+ * A refusal is read by the person who changed the radio, and "channel 30" is
+ * the keypad edit they remember making where `0x01d0` is nothing at all.
+ * Undefined outside the owned ranges, which the check never compares.
+ */
+function whereInImage(off: number): string | undefined {
+  if (off >= CHANNEL_BASE && off < CHANNEL_BASE + CHANNEL_COUNT * UV82_CHANNEL.size) {
+    return `channel ${Math.floor((off - CHANNEL_BASE) / UV82_CHANNEL.size) + 1}`
+  }
+  if (off >= NAME_BASE && off < NAME_BASE + CHANNEL_COUNT * NAME_SIZE) {
+    return `the name of channel ${Math.floor((off - NAME_BASE) / NAME_SIZE) + 1}`
+  }
+  if (off >= SETTINGS_BASE && off < SETTINGS_BASE + SETTINGS_CLAIM) return 'the settings'
+  return undefined
+}
 
 /**
  * Write one channel back into the image, in place.

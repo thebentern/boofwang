@@ -28,18 +28,19 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   uvk5: () => createUvk5Driver({ enableWrite: true }),
   // Writing is enabled and deliberately narrow: the channel records, the
   // settings block and the name table, sent as the 16-byte blocks that differ
-  // from the image the radio was read from. The two windows CHIRP has always
-  // skipped fall outside all three, so a diff-driven write cannot reach them.
-  // The unit check that came after the bench session (2026-11-09) adds four
-  // reads that session never sent. See docs/protocols/uv82.md.
+  // from the base, once the radio has been read and found still to hold it.
+  // The two windows CHIRP has always skipped fall outside all three, so a
+  // diff-driven write cannot reach them. The unit and base checks that came
+  // after the bench session (2026-11-09) add four reads to every write and 66
+  // to an edit, none of which that session sent. See docs/protocols/uv82.md.
   uv82: () => createUv82Driver({ enableWrite: true }),
   // The UV-82's driver behind a different ident magic: CHIRP's
   // RadioddityUV5GRadio is a bare subclass of BaofengUV5R and this mirrors it.
   // Writing is enabled after a verified session on the bench radio (firmware
   // HN5RV011): rename, write, independent read showing exactly five bytes
-  // moved, restore to the original sha256. The unit check added since
-  // (2026-11-09) reads four blocks that session never sent. See
-  // docs/protocols/uv5g.md.
+  // moved, restore to the original sha256. The unit and base checks added
+  // since (2026-11-09) read four blocks on every write and 66 more on an edit,
+  // none of which that session sent. See docs/protocols/uv5g.md.
   uv5g: () => createUv5gDriver({ enableWrite: true }),
   // Writing is enabled, and deliberately scoped: channel records, zone names,
   // talk groups and the key slots, sent as whole 4 KiB pages. This radio's
@@ -58,8 +59,9 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // and a tri-power BF-F8HP alike, so `writeImage` decodes and re-encodes what
   // the radio sent and refuses if a byte moves rather than trusting the string.
   // Rename, sweep, verify, fresh read and restore to the original sha256 all
-  // passed on the bench unit. The unit check added since (2026-11-09) reads
-  // four blocks that session never sent. See docs/protocols/uv5r.md.
+  // passed on the bench unit. The unit and base checks added since
+  // (2026-11-09) read four blocks on every write and 66 more before an edit's
+  // sweep, none of which that session sent. See docs/protocols/uv5r.md.
   uv5r: () => createUv5rDriver({ enableWrite: true }),
   // A UV-17 Pro family radio despite the name: 115200 baud, obfuscated 64-byte
   // blocks. Writing sends the WHOLE image every time - this radio erases a
