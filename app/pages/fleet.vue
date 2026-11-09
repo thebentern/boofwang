@@ -145,10 +145,10 @@ async function program(unit: FleetUnit) {
  * The slide confirmation, held so a failed attempt can put the handle back.
  *
  * The write page gets this for nothing - it swaps to a different view and back,
- * which remounts the field. This card stays on screen through a failure, so
- * without clearing it the word from the attempt that failed is still in the box
- * and the button is armed again with nothing asked of the person. The friction
- * is the point; it has to be paid per attempt.
+ * which remounts the control. This card stays on screen through a failure, so
+ * without a reset the handle from the attempt that failed would still sit at
+ * the end of the track: a confirmation already given, for an attempt that is
+ * over. The friction is the point; it has to be paid per attempt.
  */
 const confirm = useTemplateRef<{ reset: () => void }>('confirm')
 
@@ -175,7 +175,7 @@ function skip() {
  * Ending the run throws away the record of which radios were done.
  *
  * That is the one thing a fleet session produces that is not on a radio and
- * not in a backup, so once anything has been written this asks for the word -
+ * not in a backup, so once anything has been written this asks for the slide -
  * with the CSV of the record offered beside it, which is what somebody
  * actually wants when they reach for this button.
  */
@@ -601,7 +601,7 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
         </p>
       </div>
 
-      <!-- Warnings, then blockers, then the word. -->
+      <!-- Warnings, then blockers, then the slide. -->
       <div v-if="warnings.length" style="border-top: 1px solid var(--ln); padding: 13px 19px">
         <p
           v-for="w in warnings"

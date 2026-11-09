@@ -205,7 +205,7 @@ async function send() {
 
         <!--
           Destructive, per the risk register: this discards the picture on the
-          radio now, so the confirmation names that and asks for the word. A
+          radio now, so the confirmation names that and asks for the slide. A
           plain button here was the one write in the application that did not.
         -->
         <div class="mt-4">
