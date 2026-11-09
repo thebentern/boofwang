@@ -15,7 +15,7 @@ import { formatBuild } from '#core/version/build.js'
  *
  *   nothing open, or nothing changed   safe        one click
  *   a transfer running                 no offer    the reload would cut a write
- *   unwritten edits                    destructive names them, then a typed word
+ *   unwritten edits                    destructive names them, then a slide
  *
  * The middle row is not a confirmation. Reloading during a read is a lost
  * afternoon; reloading during a write is a radio left half programmed, and
@@ -57,7 +57,7 @@ const visible = computed(() => pending.value && !dismissed.value)
 /*
  * A new build arriving while a transfer runs must not surprise anybody when the
  * transfer ends, so the panel closes itself back to its collapsed state rather
- * than leaving a typed confirmation open across a change of circumstances.
+ * than leaving a confirmation open across a change of circumstances.
  */
 watch([blocked, costly], () => (confirming.value = false))
 </script>

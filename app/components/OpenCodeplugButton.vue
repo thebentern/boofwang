@@ -312,14 +312,6 @@ async function openInstead({ image, note }: OpenedImage, driver: RadioDriver) {
 }
 
 /**
- * Lift the donor's contents onto the open codeplug and hand it to the write flow.
- *
- * Nothing is sent here. The merge is an unsaved edit like any other, so it
- * reaches the radio through the one write path there is - which is what keeps
- * the backup check, the diff and the typed word in front of a change this
- * large.
- */
-/**
  * Copy the accepted rows into free slots, as one undoable action.
  *
  * They go after everything already programmed rather than over it: this is a
@@ -355,6 +347,13 @@ async function copyForeignChannels() {
   await navigateTo('/channels')
 }
 
+/**
+ * Lift the donor's contents onto the open codeplug and hand it to the write flow.
+ *
+ * Nothing is sent here. The merge is an unsaved edit like any other, so it
+ * reaches the radio through the one write path there is - which is what keeps
+ * the backup check, the diff and the slide in front of a change this large.
+ */
 async function applyToOpen() {
   const result = build(copyRadioIds.value, copyKeys.value)
   if (!result || cannotWrite.value !== null) return

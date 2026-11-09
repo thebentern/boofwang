@@ -34,8 +34,8 @@ only through a clip-on dongle stay read-only on this platform until one of them
 has survived a write over that link. A store listing must not say more.
 
 Everything in the risk register applies unchanged. A write is never one click
-from idle, a backup precedes every write, and the typed confirmation is the
-same token on a phone keyboard.
+from idle, a backup precedes every write, and the confirmation is the same
+slide it is at a desk.
 
 ## Building and running
 

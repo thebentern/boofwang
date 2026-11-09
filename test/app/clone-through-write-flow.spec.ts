@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
  *
  * It is the largest change the app can make - every channel, every zone, every
  * talk group at once - which makes it exactly the change that must go past the
- * backup check, the line-by-line diff and the typed word. A component that
+ * backup check, the line-by-line diff and the slide. A component that
  * merged and then sent would be a second way to reach the radio, and the second
  * way is always the one that skips something.
  *

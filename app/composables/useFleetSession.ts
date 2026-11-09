@@ -24,12 +24,12 @@ import type { MasterFacts } from '~/stores/fleet'
  * an already-handshaken port is answered with silence. Saving a click is not
  * worth being the first person to find out what that does.
  *
- * And the write is confirmed by typing, once per radio, like every other write
- * in boofwang. That is about five seconds against the two or three minutes a
- * DM-32UV takes to read and write, so it is noise in the time it costs and the
- * single most important rule in the codebase in what it buys. There is no fleet
- * exception to "a write is never one click from idle" because there is no
- * version of this screen that is worth one.
+ * And the write is confirmed by the slide, once per radio, like every other
+ * write in boofwang. That is about two seconds against the two or three
+ * minutes a DM-32UV takes to read and write, so it is noise in the time it
+ * costs and the single most important rule in the codebase in what it buys.
+ * There is no fleet exception to "a write is never one click from idle"
+ * because there is no version of this screen that is worth one.
  */
 export function useFleetSession() {
   const fleet = useFleetStore()
@@ -137,7 +137,7 @@ export function useFleetSession() {
         copyEncryptionKeys: fleet.copyKeys,
       })
       // The same handover a one-radio clone makes: the merged document becomes
-      // an unsaved edit, and the diff, the gate and the typed word all happen
+      // an unsaved edit, and the diff, the gate and the slide all happen
       // afterwards against it.
       codeplug.replaceDocument(plan.codeplug)
       fleet.setPlan(plan, unitHash)
