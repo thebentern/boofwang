@@ -18,7 +18,9 @@ no UV-9R or UV-9G to test on, on evidence that is CHIRP's rather than ours:
 CHIRP's maintainer reports CHIRP downloading and uploading a UV-9R, a UV-9G
 and a UV-9R Pro over an FTDI cable (CHIRP issue 10270, 2023-11-30), and this
 driver sends what CHIRP's upload sends - the same frames, the same pacing, a
-contiguous sweep rather than a diff - inside spans CHIRP itself writes. What
+contiguous sweep rather than a diff - inside spans CHIRP itself writes. It
+reads more before the first of them than CHIRP does, 73 blocks to CHIRP's six,
+to hold the backup, the image and the base to the radio on the cable. What
 that leaves owed is the bench session at the end of this file.
 
 ## Which radio this actually is
@@ -283,10 +285,43 @@ What a write does, and what the bench session still has to settle:
 - **A new channel** in a slot that was empty is programmed from zeros, as
   `set_memory` programs it. A programmed record is patched, so the bits nobody
   has explained survive an edit.
-- **A restore** sends the backup's own bytes for the owned blocks that differ
-  from what the radio holds now. It skips the round-trip check an edit gets:
-  the bytes are the radio's own, and refusing on what the radio holds now would
-  block exactly the recovery a restore is for.
+- **A base the radio has moved on from.** An edit is a sweep, so one built on a
+  base older than the radio - a backup opened, edited and written after the
+  keypad changed something - would put the base back over every change since,
+  while the diff behind the confirmation, the edit against the base, showed
+  none of them. So before anything is sent, an edit reads every `0x40` window
+  the owned ranges touch, 66 of them, and refuses with `RadioChangedError`
+  unless each owned byte holds the base's value or the edit's. The error names
+  the place in words ("channel 30"), counts the blocks that differ and gives
+  the bytes. The edit's own bytes pass so that a sweep cut off part way can be
+  sent again unchanged. An edit with nothing to send is checked too, so "nothing
+  to send" is said about the radio rather than about the file. This is the
+  check the UV-5R family's driver gained first; see [what opening a file does
+  to a write](uv82.md#what-opening-a-file-does-to-a-write).
+- **What that check refuses that it need not.** The owned settings include
+  `displayab` (A/B) and `fmradio` at radio `0x0E4A`, `workmode` (VFO/MR) at
+  `0x0E4C` and `keylock` at `0x0E4D`. Pressing A/B, FM, VFO/MR or locking the
+  keys between reading and writing makes the write refuse until the radio is
+  read again and the edit is made on that read. If the firmware stores the
+  lock each time automatic key lock engages, a radio with it on would refuse
+  any write made after the lock had engaged; nobody has looked. The memory
+  channel at `0x0E76` is outside the owned ranges and not compared, so
+  changing channel on the radio refuses nothing.
+- **A restore** sends the backup's own bytes for the owned blocks: all 259 of
+  them when any differs from what the radio holds now, since this family
+  sweeps, and nothing when none does. It skips the round-trip check an edit
+  gets: the bytes are the radio's own, and refusing on what the radio holds
+  now would block exactly the recovery a restore is for. It needs no
+  stale-base check, because it brings no base and reads the radio for itself.
+- **The reads before a write, in order.** The handshake reads `0x1E80`,
+  `0x1EC0` and `0x1FC0`. Then come `0x0000` (read and discarded), the unit
+  windows `0x1F00`, `0x1F40` and `0x1F80`, and then the 66 owned windows for an
+  edit or the owned span for a restore. `0x0000` is there for the order. The
+  handshake ends on `0x1FC0`, the block some units drop a byte from, and neither
+  CHIRP nor the read path ever follows it with an aux read: `_download` and
+  `readImage` read `0x0000` next, and `_upload` reads the unit blocks before
+  `0x1FC0`. This driver went straight from `0x1FC0` to `0x1F00` until the UV-5R
+  family's adversarial review found the same order in that driver.
 - **Pacing.** 50 ms after every frame before the acknowledgment is read, as
   `_upload` and `_send_block` both do.
 - **Receive-only.** Written as `FF FF FF FF`, on every record that changed. A
@@ -323,13 +358,10 @@ What a write does, and what the bench session still has to settle:
 - Whether the sweep is what this radio needs. It is CHIRP's shape, chosen
   because it is the only one known to work; whether a byte reprograms, and so
   whether a diff would do, is the first thing the bench session finds out.
-- A stale base is not checked. This driver sweeps as the UV-5R does, so an
-  edit built on a base the radio has moved on from - an old backup opened,
-  edited and written after the keypad changed the radio - puts the base back
-  over everything changed since, and the diff behind the confirmation shows
-  only the edit. The UV-5R family's driver reads the owned ranges first and
-  refuses that - see [what opening a file does to a
-  write](uv82.md#what-opening-a-file-does-to-a-write) - and this one does not.
+- How a UV-9R takes the reads before a write. An edit now makes 73 reads before
+  its first frame - the handshake's three, `0x0000`, the three unit windows and
+  the 66 owned windows - where CHIRP's `_upload` makes six. The stale-base check
+  and that order have met only the scripted radio.
 - Whether a write lands at all. Every block is read back before the write is
   called done, but no write has been sent to a real one of these radios by
   boofwang: a backup of the radio is required before the first one, and

@@ -6,6 +6,7 @@ import { equalBytes } from '#core/codec/struct.js'
 import {
   BackupRequiredError,
   DriverError,
+  RadioChangedError,
   WriteBlockedError,
   WriteVerifyError,
   type BackupRef,
@@ -417,6 +418,225 @@ describe('what a write can reach', () => {
     )
     expect(report.blocksWritten).toBe(0)
     expect(s.radio.writes).toHaveLength(0)
+  })
+})
+
+describe('a base the radio has moved on from', () => {
+  /** One byte changed on the radio after it was read, as its keypad would. */
+  function keyed(s: Session, at: number) {
+    s.radio.memory[at] = s.radio.memory[at]! ^ 0x01
+  }
+  const write = (s: Session, image: RadioImage, driver: RadioDriver = writable) =>
+    drive(driver.writeImage(s.radio.transport, image, { backup: s.backup, baseImage: s.baseline, ident: s.ident }))
+
+  it('is refused before anything is sent, and says where in words', async () => {
+    // Channel 30's receive frequency, turned on the keypad after the read. The
+    // sweep would put the old one back, and the confirmation - the rename
+    // against the base - would never have shown it. A byte inside the record,
+    // so the address is the byte's and not the block's.
+    const s = await session()
+    keyed(s, channelAddr(29) + 3)
+    const refused = write(s, renamed(s.baseline, 1, 'BOOF'))
+    await expect(refused).rejects.toThrow(RadioChangedError)
+    await expect(refused).rejects.toThrow(/1 block differs; the first difference is in channel 30, at 0x01d3\)/)
+    expect(s.radio.writes).toHaveLength(0)
+  })
+
+  it('counts blocks, not bytes', async () => {
+    const s = await session()
+    keyed(s, channelAddr(29) + 3)
+    keyed(s, channelAddr(29) + 5)
+    keyed(s, 0x0e20) // the squelch, from the menu
+    keyed(s, nameAddr(5) + 2)
+    await expect(write(s, renamed(s.baseline, 1, 'BOOF'))).rejects.toThrow(
+      /3 blocks differ; the first difference is in channel 30/,
+    )
+    expect(s.radio.writes).toHaveLength(0)
+  })
+
+  it('refuses a keypad change in the very block the edit rewrites', async () => {
+    // Renamed on the radio after the read, and renamed again in the edit: the
+    // radio holds neither the base's bytes nor the edit's, and the sweep would
+    // undo its name while the confirmation showed only the edit's.
+    const s = await session()
+    s.radio.memory.set(new TextEncoder().encode('KEYPAD'), nameAddr(0))
+    await expect(write(s, renamed(s.baseline, 1, 'BOOF'))).rejects.toThrow(/in the name of channel 1,/)
+    expect(s.radio.writes).toHaveLength(0)
+  })
+
+  it('refuses a keypad change that shares a byte with the edit', async () => {
+    /*
+     * Scan, bandwidth, busy lock and PTT ID share the last byte of a channel
+     * record. Scan is turned off for channel 2 on the radio and busy lock on
+     * in the app, so the byte the write sends carries the base's scan bit.
+     * The first version of the UV-5R family's check counted every byte the
+     * edit changed as the edit's and let this through; its review found it.
+     */
+    const s = await session()
+    const at = channelAddr(1) + 0x0f
+    s.radio.memory[at] = s.radio.memory[at]! & ~0x04
+    const doc = writable.decode(s.baseline)
+    const ch = doc.channels.get(2)!
+    doc.channels.set(2, { ...ch, extras: { ...ch.extras, vendor: { ...ch.extras.vendor, busyChannelLockout: '1' } } })
+    const next = writable.encode(doc, s.baseline)
+    expect(memOf(next)[at], 'the edit changes that byte, which is the case at issue').not.toBe(MEMORY[at])
+    await expect(write(s, next)).rejects.toThrow(/first difference is in channel 2,/)
+    expect(s.radio.writes).toHaveLength(0)
+  })
+
+  it('refuses a channel created in a slot the radio has since filled', async () => {
+    // Slot 100 was empty when the radio was read, and a channel was stored
+    // there from the keypad since. Creating one in the app changes every byte
+    // of that record, so a check that took the edit's bytes as the edit's
+    // would let the new channel replace the keypad's while the diff said
+    // "created".
+    const s = await session()
+    s.radio.memory.set(MEMORY.subarray(channelAddr(1), channelAddr(2)), channelAddr(99))
+    const doc = writable.decode(s.baseline)
+    expect(doc.channels.has(100)).toBe(false)
+    doc.channels.set(100, { ...doc.channels.get(3)!, index: 100 })
+    await expect(write(s, writable.encode(doc, s.baseline))).rejects.toThrow(/first difference is in channel 100,/)
+    expect(s.radio.writes).toHaveLength(0)
+  })
+
+  it('takes the same write again after it was cut off part way', async () => {
+    // Two names change, and a sweep goes in address order, so one cut off
+    // between them left the first name as the edit has it and the second as
+    // the base had it. Both are states this write can leave, so it goes again
+    // and lands. Holding the radio to the base, or to either image whole,
+    // would refuse this and protect nothing.
+    const s = await session()
+    const doc = writable.decode(s.baseline)
+    for (const [index, name] of [[1, 'BOOF'], [2, 'BAAF']] as const) {
+      doc.channels.set(index, { ...doc.channels.get(index)!, name })
+    }
+    const edited = writable.encode(doc, s.baseline)
+    s.radio.memory.set(memOf(edited).subarray(nameAddr(0), nameAddr(0) + WRITE_BLOCK_SIZE), nameAddr(0))
+    expect(equalBytes(s.radio.memory.subarray(nameAddr(1), nameAddr(2)), memOf(s.baseline).subarray(nameAddr(1), nameAddr(2)))).toBe(true)
+    expect(equalBytes(s.radio.memory.subarray(nameAddr(1), nameAddr(2)), memOf(edited).subarray(nameAddr(1), nameAddr(2)))).toBe(false)
+    const report = await write(s, edited)
+    expect(report.verified).toBe(true)
+    expect(equalBytes(s.radio.memory, memOf(edited).subarray(0, MEM_SIZE))).toBe(true)
+  })
+
+  it('says a write with nothing to send is about the radio, not about the file', async () => {
+    const s = await session()
+    keyed(s, channelAddr(29))
+    await expect(write(s, s.baseline)).rejects.toThrow(RadioChangedError)
+  })
+
+  it('holds a member that writes a diff to the same check', async () => {
+    // The member a bench session may one day switch to, and the one a stale
+    // base would leave holding a mixture of two codeplugs rather than a
+    // reverted radio.
+    const diffing = createWp970iFamilyDriver(
+      {
+        id: 'uv9r',
+        label: 'UV-9R',
+        magics: [MAGIC_WP970I],
+        schema: { ...UV9R_SCHEMA, capabilities: { ...UV9R_SCHEMA.capabilities, writesWholeImage: false } },
+        knownIdents: [IDENT_UV9R],
+      },
+      { enableWrite: true },
+    )
+    const s = await session(MEMORY, { driver: diffing })
+    keyed(s, channelAddr(29))
+    await expect(write(s, renamed(s.baseline, 1, 'BOOF', diffing), diffing)).rejects.toThrow(RadioChangedError)
+    expect(s.radio.writes).toHaveLength(0)
+  })
+
+  it('runs on a dry run too, whose reads are real', async () => {
+    const s = await session()
+    keyed(s, channelAddr(29))
+    await expect(
+      drive(
+        writable.writeImage(s.radio.transport, renamed(s.baseline, 1, 'BOOF'), {
+          backup: s.backup,
+          baseImage: s.baseline,
+          ident: s.ident,
+          dryRun: true,
+        }),
+      ),
+    ).rejects.toThrow(RadioChangedError)
+  })
+
+  it('refuses a base with no memory in it, before reading anything', async () => {
+    // Read as no base, it turned an edit into a restore: swept against a fresh
+    // read with every check that holds an edit to its base skipped. The review
+    // of this check proved it on this radio, a channel 30 keyed in between.
+    const s = await session()
+    const before = s.radio.wire.length
+    await expect(
+      drive(
+        writable.writeImage(s.radio.transport, renamed(s.baseline, 1, 'BOOF'), {
+          backup: s.backup,
+          baseImage: { ...s.baseline, regions: [] },
+          ident: s.ident,
+        }),
+      ),
+    ).rejects.toThrow(/base image has no memory region/)
+    expect(s.radio.wire.slice(before)).toEqual([])
+  })
+
+  it('refuses a base of another size, before reading anything', async () => {
+    const s = await session()
+    const before = s.radio.wire.length
+    const short: RadioImage = { ...s.baseline, regions: [{ ...s.baseline.regions[0]!, data: memOf(s.baseline).slice(0, 0x100) }] }
+    await expect(
+      drive(
+        writable.writeImage(s.radio.transport, renamed(s.baseline, 1, 'BOOF'), {
+          backup: s.backup,
+          baseImage: short,
+          ident: s.ident,
+        }),
+      ),
+    ).rejects.toThrow(/different size to the one that was read/)
+    expect(s.radio.wire.slice(before)).toEqual([])
+  })
+})
+
+describe('the order of the reads before a write', () => {
+  /*
+   * The handshake ends on 0x1FC0, the block some units drop a byte from, and
+   * neither CHIRP nor boofwang's read path has ever followed it with an aux
+   * read. This driver did, going straight to the unit windows at 0x1F00, until
+   * the UV-5R family's adversarial review found the same order there. These
+   * let the write do its own handshake, so the whole order is on one wire.
+   */
+  const windows = [
+    ...Array.from({ length: 32 }, (_, i) => i * 0x40),
+    0x0e00,
+    0x0e40,
+    ...Array.from({ length: 32 }, (_, i) => 0x1000 + i * 0x40),
+  ].map((a) => `read ${a.toString(16)}/40`)
+  const handshakeThenUnit = [
+    'read 1e80/40',
+    'read 1ec0/40',
+    'read 1fc0/40',
+    'read 0/40',
+    'read 1f00/40',
+    'read 1f40/40',
+    'read 1f80/40',
+  ]
+
+  it('puts a main-area block between the handshake and the aux area, and checks the radio before sending', async () => {
+    const s = await session()
+    const radio = fakeRadio(MEMORY, { magic: MAGIC_WP970I, ident: IDENT_UV9R })
+    await drive(writable.writeImage(radio.transport, renamed(s.baseline, 1, 'BOOF'), { backup: s.backup, baseImage: s.baseline }))
+    const firstWrite = radio.wire.findIndex((w) => w.startsWith('write'))
+    expect(firstWrite).toBeGreaterThan(0)
+    expect(windows).toHaveLength(66)
+    expect(radio.wire.slice(0, firstWrite)).toEqual([...handshakeThenUnit, ...windows])
+  })
+
+  it('keeps that order on a restore, which reads the radio for itself and nothing more', async () => {
+    // The whole conversation, so that the 66 windows an edit reads would show
+    // here if a restore ever took them on: a restore brings no base to check.
+    const s = await session()
+    const radio = fakeRadio(MEMORY, { magic: MAGIC_WP970I, ident: IDENT_UV9R })
+    await drive(writable.writeImage(radio.transport, s.baseline, { backup: s.backup }))
+    const span = Array.from({ length: 0x1800 / 0x40 }, (_, i) => `read ${(i * 0x40).toString(16)}/40`)
+    expect(radio.wire).toEqual([...handshakeThenUnit, ...span])
   })
 })
 

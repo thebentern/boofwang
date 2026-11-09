@@ -4,7 +4,7 @@ import { hexDump } from '#core/codec/checksum.js'
 import { equalBytes } from '#core/codec/struct.js'
 import type { IdentifyResult, RadioDriver } from '#core/radio/driver.js'
 import type { RadioImage } from '#core/radio/image.js'
-import { nameAddr, NAME_LENGTH } from '#core/radios/uv9r/layout.js'
+import { nameAddr, NAME_LENGTH, SETTINGS_BASE } from '#core/radios/uv9r/layout.js'
 import { IMAGE_SIZE, MEM_SIZE } from '#core/radios/uv9r/protocol.js'
 import { SerialTransport } from '#core/transport/serial-transport.js'
 import { BridgeSerialPort, listBridgePorts } from '#core/transport/bridge-serial-port.js'
@@ -120,6 +120,31 @@ export async function writeCycle(driver: RadioDriver): Promise<void> {
   const renamed = ch.name.slice(0, 2) === 'BF' ? 'XB' : 'BF'
   doc.channels.set(ch.index, { ...ch, name: renamed })
   const edited = driver.encode(doc, baseline)
+
+  // An edit built on a base the radio does not hold - the squelch one step
+  // off - is refused once the 66 owned windows are read, and for that byte.
+  // The edit renames another channel, so that without the check it would
+  // have a sweep to send: an edit that changed nothing would return before
+  // sending anything, and a leak would have nothing to leak. A sweep sends
+  // every owned block, so a frame that leaked from it would be overwritten by
+  // the real write below and never show in its fresh read; the radio is read
+  // straight after the refusal instead, and must still be the baseline. What
+  // only a radio can show is the real write after it, on a base read moments
+  // earlier, passing the same check: the 66 reads have to come back as the
+  // read's did.
+  {
+    const stale: RadioImage = { ...baseline, regions: baseline.regions.map((r) => ({ ...r, data: r.data.slice() })) }
+    memOf(stale)[SETTINGS_BASE] = memOf(stale)[SETTINGS_BASE]! ^ 0x01
+    const staleDoc = driver.decode(stale)
+    const other = [...staleDoc.channels.values()].find((c) => c.index !== ch.index)
+    expect(other, 'the radio holds no second channel to rename').toBeTruthy()
+    staleDoc.channels.set(other!.index, { ...other!, name: 'STALE' })
+    await expect(
+      session((t, ident) => driver.writeImage(t, driver.encode(staleDoc, stale), { backup, baseImage: stale, ident })),
+    ).rejects.toThrow(/first difference is in the settings, at 0x0e20\)/)
+    const untouched = await session((t, ident) => driver.readImage(t, ident, {}))
+    expect(untouched.sha256, 'the refused write changed the radio').toBe(baseline.sha256)
+  }
 
   const report = await session((t, ident) => driver.writeImage(t, edited, { backup, baseImage: baseline, ident }))
   expect(report.verified).toBe(true)

@@ -76,7 +76,9 @@ export const DRIVER_FACTORIES: Record<RadioId, (() => RadioDriver) | null> = {
   // UV-9R, a UV-9G and a UV-9R Pro (CHIRP issue 10270, 2023-11-30), and this
   // driver sends what CHIRP's upload sends - the same frames, the same 50 ms
   // pacing, a contiguous sweep of the owned ranges rather than a diff - inside
-  // spans CHIRP itself writes. It reaches channel records, names and the
+  // spans CHIRP itself writes. It reads more first: 73 blocks before an edit's
+  // first frame where CHIRP reads six, to hold the backup, the image and the
+  // base to the radio (2026-11-09). It reaches channel records, names and the
   // settings block, nothing else; only on an ident a captured UV-9R has sent
   // with an empty firmware window; only with a backup of this physical unit;
   // and every block is read back at the read path's block size before the write

@@ -9,6 +9,7 @@ import {
   BackupRequiredError,
   DEFAULT_DRIVER_TIMEOUT_MS,
   DriverError,
+  RadioChangedError,
   WriteBlockedError,
   WriteVerifyError,
   type Diagnostic,
@@ -27,14 +28,18 @@ import { decodeToneWord, encodeToneWord } from '../uv82/driver.js'
 import {
   BANDWIDTH_NARROW_HZ,
   BANDWIDTH_WIDE_HZ,
+  CHANNEL_BASE,
   CHANNEL_COUNT,
   channelAddr,
   nameAddr,
+  NAME_BASE,
   NAME_LENGTH,
+  NAME_SIZE,
   ownedRanges as wp970iOwnedRanges,
   POWERON_MSG_BASE,
   REGIONS,
   SETTINGS_BASE,
+  SETTINGS_CLAIM,
   UNIT_AREAS,
   VALID_BANDS,
   WP970I_CHANNEL,
@@ -300,6 +305,18 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
         throw new DriverError(`A ${model.label} image is ${IMAGE_SIZE} bytes; this one is ${next.length}.`)
       }
 
+      // A base with no memory in it is not the absence of one. Read as none,
+      // it turned an edit into a restore - the radio read and swept against,
+      // every check that holds an edit to its base skipped - and the review of
+      // the stale-base check below proved it on a scripted radio. Both of
+      // these need nothing from the radio, so they are said before anything
+      // is read, as the UV-5R family's driver says them.
+      const supplied = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
+      if (ctx.baseImage && !supplied) throw new DriverError('The base image has no memory region')
+      if (supplied && supplied.length !== next.length) {
+        throw new DriverError('The edited image is a different size to the one that was read')
+      }
+
       // The session's own identification when there is one. CHIRP never
       // handshakes twice in a session, and whether this radio would answer a
       // second one is not something anybody has seen.
@@ -313,12 +330,26 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
        * Which physical radio is on the cable, asked of the radio.
        *
        * `identHash` cannot answer it - a UV-82 and a UV-9R send the same ident
-       * - so the three spans CHIRP compares before uploading calibration are
-       * read now, off the radio, and the backup has to be of the same unit.
-       * Read here rather than taken from the base image, because a base image
-       * is what the caller believes the radio holds and this is the check of
-       * that belief.
+       * - so the three spans CHIRP compares before it will upload the whole
+       * aux area are read now, off the radio, and the backup has to be of the
+       * same unit. Read here rather than taken from the base image, because a
+       * base image is what the caller believes the radio holds and this is the
+       * check of that belief.
+       *
+       * 0x0000 is read first and discarded, for the order alone. The handshake
+       * ends on 0x1FC0, the block some units drop a byte from, and nothing had
+       * ever followed it with an aux read: CHIRP's `_download` and `readImage`
+       * read 0x0000 next, and CHIRP's `_upload` reads these blocks before
+       * 0x1FC0. This driver read 0x1F00 straight after it until the UV-5R
+       * family's review found the same order there, where the bench UV-5R is
+       * one of those units. With 0x0000 first, the step after 0x1FC0 is the
+       * one `_download` and `readImage` take, and the aux reads follow a block
+       * outside the aux area, as they do in `readImage`'s sweep. That is a
+       * claim about kinds of step: the sweep itself never goes from 0x0000 to
+       * 0x1F00.
        */
+      ctx.signal?.throwIfAborted()
+      await readBlock(t, 0x0000, BLOCK_SIZE, false, opts)
       const liveUnit = new Uint8Array(MEM_SIZE)
       for (const at of unitWindows()) {
         ctx.signal?.throwIfAborted()
@@ -367,12 +398,8 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
        * which keeps a restore to what actually differs and keeps it inside the
        * ranges this driver understands.
        */
-      const supplied = ctx.baseImage ? locate(ctx.baseImage, 0)?.region.data : undefined
       let base: Uint8Array
       if (supplied) {
-        if (supplied.length !== next.length) {
-          throw new DriverError('The edited image is a different size to the one that was read')
-        }
         if ((await unitHashOf(supplied)) !== unitNow) {
           throw new WriteBlockedError(
             `The codeplug this edit was built on was read from a different ${model.label} than the one on ` +
@@ -494,6 +521,88 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
         length: WRITE_BLOCK_SIZE,
         label: `0x${b.addr.toString(16).padStart(4, '0')}`,
       }))
+
+      /*
+       * Hold the base to the radio before sending a block of the edit.
+       *
+       * The base is whatever the open codeplug was loaded from, and opening a
+       * file or a stored backup makes that something other than a read of
+       * this radio. This family sweeps, so it cannot leave the mixture a
+       * diff-driven write can; it reverts instead. Every owned block goes, so
+       * an old base goes back over everything the radio was changed to since -
+       * a keypad edit, another program's write - while the diff behind the
+       * confirmation, which is the edit against the base, never shows it. The
+       * unit check above sees none of that, because an older backup of this
+       * radio is still this radio's.
+       *
+       * So every 0x40 window an owned range touches is read, at the size and
+       * on the boundaries `readImage` uses, and a radio holding anything the
+       * confirmation did not show is refused, with the error the UV-5R family
+       * and the UV-K5 raise for the same thing. Byte by byte, and a byte
+       * passes when it holds the base's value or the edit's: those are the
+       * states a write of this edit can leave, and a sweep rewrites every owned
+       * byte, so one already holding the edit has nothing to revert. That is
+       * what lets the same write, cut off part way, be sent again unchanged.
+       *
+       * It costs 66 reads, several seconds at 9600 baud, ahead of a 259-frame
+       * sweep, and 0x0000 is read twice - once above for the order, once here.
+       * It runs before the empty write returns too, so that "nothing to send"
+       * is said about the radio rather than about the file. A restore supplies
+       * no base and reads the radio for itself, and needs none of it.
+       */
+      if (supplied) {
+        const windows = new Set<number>()
+        for (const [s, e] of owned) {
+          for (let at = s - (s % BLOCK_SIZE); at < e; at += BLOCK_SIZE) windows.add(at)
+        }
+        const order = [...windows].sort((a, b) => a - b)
+
+        const live = new Uint8Array(MEM_SIZE)
+        for (const [n, at] of order.entries()) {
+          ctx.signal?.throwIfAborted()
+          live.set(await readBlock(t, at, BLOCK_SIZE, false, opts), at)
+          ctx.progress?.({
+            phase: 'read',
+            done: (n + 1) * BLOCK_SIZE,
+            total: order.length * BLOCK_SIZE,
+            label: 'Checking what the radio holds',
+          })
+        }
+
+        let first = -1
+        let firstEnd = -1
+        let staleBlocks = 0
+        for (const [s, e] of owned) {
+          for (let off = s; off < e; off += WRITE_BLOCK_SIZE) {
+            const to = off + WRITE_BLOCK_SIZE
+            let at = -1
+            for (let i = off; i < to; i++) {
+              if (live[i] !== base[i] && live[i] !== next[i]) {
+                at = i
+                break
+              }
+            }
+            if (at < 0) continue
+            staleBlocks++
+            if (first < 0) {
+              first = at
+              firstEnd = to
+            }
+          }
+        }
+        if (staleBlocks > 0) {
+          // Up to eight bytes, never past the block the difference is in.
+          const end = Math.min(first + 8, firstEnd)
+          const edited = !equalBytes(next.subarray(first, end), base.subarray(first, end))
+          throw new RadioChangedError(first, {
+            where: whereInMemory(first),
+            blocks: staleBlocks,
+            held: hexDump(live.subarray(first, end)),
+            base: hexDump(base.subarray(first, end)),
+            ...(edited ? { edit: hexDump(next.subarray(first, end)) } : {}),
+          })
+        }
+      }
 
       if (blocks.length === 0) {
         return { blocksWritten: 0, bytesWritten: 0, verified: true, dryRun: ctx.dryRun === true, operations }
@@ -646,6 +755,27 @@ export function createWp970iFamilyDriver(model: Wp970iFamilyModel, options: Wp97
   }
 
   return driver
+}
+
+/**
+ * Where an address is, in words rather than as a number.
+ *
+ * A refusal is read by whoever changed the radio, and "channel 30" points at
+ * something where 0x01d0 points at nothing. The number is the slot as
+ * boofwang's channel table shows it, counted from 1; CHIRP counts these
+ * memories from 0, and how the radio's own display numbers them nobody here
+ * has seen. Undefined outside the owned ranges, which the stale-base check
+ * never compares.
+ */
+function whereInMemory(addr: number): string | undefined {
+  if (addr >= CHANNEL_BASE && addr < CHANNEL_BASE + CHANNEL_COUNT * WP970I_CHANNEL.size) {
+    return `channel ${Math.floor((addr - CHANNEL_BASE) / WP970I_CHANNEL.size) + 1}`
+  }
+  if (addr >= NAME_BASE && addr < NAME_BASE + CHANNEL_COUNT * NAME_SIZE) {
+    return `the name of channel ${Math.floor((addr - NAME_BASE) / NAME_SIZE) + 1}`
+  }
+  if (addr >= SETTINGS_BASE && addr < SETTINGS_BASE + SETTINGS_CLAIM) return 'the settings'
+  return undefined
 }
 
 /** The 0x40 windows that hold `UNIT_AREAS`: 0x1F00, 0x1F40 and 0x1F80. */

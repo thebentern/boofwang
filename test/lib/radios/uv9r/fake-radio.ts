@@ -52,6 +52,12 @@ export interface FakeRadio {
   readonly writes: { addr: number; data: Uint8Array; at: number }[]
   /** Every block read, in order. */
   readonly reads: { addr: number; size: number }[]
+  /**
+   * Every read and write together, in the order the radio saw them, as
+   * `read 1f00/40` and `write 1000`. The two lists above cannot say whether a
+   * read came before a write, and that is what an order test is about.
+   */
+  readonly wire: string[]
   /** How many lone 0x06 bytes the host sent once cloning had begun. */
   hostAcks: number
   /** The radio's memory, as writes leave it. */
@@ -71,6 +77,7 @@ export function fakeRadio(memory: Uint8Array, opts: FakeRadioOptions): FakeRadio
   const radio: FakeRadio = {
     writes: [],
     reads: [],
+    wire: [],
     hostAcks: 0,
     memory: mem,
     transport: {
@@ -123,6 +130,7 @@ export function fakeRadio(memory: Uint8Array, opts: FakeRadioOptions): FakeRadio
           const addr = (data[1]! << 8) | data[2]!
           const size = data[3]!
           radio.reads.push({ addr, size })
+          radio.wire.push(`read ${addr.toString(16)}/${size.toString(16)}`)
           if (ackModel === 'acks-each-read' && !firstRead) out.push(0x06)
           firstRead = false
           out.push(0x58, data[1]!, data[2]!, size)
@@ -139,6 +147,7 @@ export function fakeRadio(memory: Uint8Array, opts: FakeRadioOptions): FakeRadio
           const addr = (data[1]! << 8) | data[2]!
           const payload = data.slice(4)
           radio.writes.push({ addr, data: payload, at: Date.now() })
+          radio.wire.push(`write ${addr.toString(16)}`)
           if (addr !== opts.ignoreWritesAt) mem.set(payload, addr)
           out.push(0x06)
           return
