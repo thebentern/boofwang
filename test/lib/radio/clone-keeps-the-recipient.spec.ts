@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createDriver, SCHEMAS } from '#core/radio/registry.js'
 import { cloneImage } from '#core/radio/image.js'
 import { transplantCodeplug } from '#core/radio/transplant.js'
+import { planFleetUnit } from '#core/radio/fleet.js'
 import { logicalAddress } from '#core/radios/dm32uv/image.js'
 import { PAGE_SIZE } from '#core/radios/dm32uv/protocol.js'
 import type { Channel } from '#core/model/channel.js'
@@ -265,5 +266,54 @@ describe('cloning DMR identity onto a Baofeng DM-32UV', () => {
     const onRadio = driver.decode(driver.encode(codeplug, recipient))
 
     expect(onRadio.encryptionKeys.map((k) => k.keyHex)).toEqual(donorDoc.encryptionKeys.map((k) => k.keyHex))
+  })
+})
+
+/**
+ * A fleet run's settings, proven through the bytes.
+ *
+ * `fleet.spec.ts` shows the plan takes the master's settings and keeps the
+ * radio's power-on screen and fixed position. Between the plan and the radio
+ * sits `encodeSettings`, which patches block 0x04 one field at a time, and
+ * this is where a per-unit field that leaked anyway, or a moved one the
+ * encoder dropped, would show.
+ */
+describe('a fleet run’s settings on a Baofeng DM-32UV', () => {
+  const driver = createDriver('dm32uv')
+  const schema = SCHEMAS.dm32uv!
+
+  it('writes the master’s settings and keeps the radio’s own power-on screen and position', () => {
+    const recipient = dm32uvImage()
+    const mine = driver.decode(recipient)
+    const master = driver.decode(dm32uvImage())
+    const was = mine.settings
+
+    // Two that move, from two groups, and one from each group that stays.
+    master.settings.backlightBrightness = (Number(was.backlightBrightness) + 1) % 6
+    master.settings['alertTones.keyPress'] = Number(was['alertTones.keyPress']) ^ 1
+    master.settings.powerOnLine1 = 'MASTER'
+    master.settings.latitude = '12.345678'
+
+    const plan = planFleetUnit({
+      master, recipient: mine, schema, now: CREATED,
+      unit: { id: 'u1', label: 'Unit 1', dmrId: null, name: '' },
+    })
+    expect(plan.settingsChanged.map((c) => c.label)).toEqual(['Backlight brightness', 'Key press'])
+
+    const out = driver.encode(plan.codeplug, recipient)
+    const back = driver.decode(out)
+    expect(back.settings.backlightBrightness).toBe(master.settings.backlightBrightness)
+    expect(back.settings['alertTones.keyPress']).toBe(master.settings['alertTones.keyPress'])
+    expect(back.settings.powerOnLine1).toBe(was.powerOnLine1)
+    expect(back.settings.latitude).toBe(was.latitude)
+
+    // And nothing the driver does not claim moved, block 0x04's gaps included.
+    const moved: string[] = []
+    out.regions.forEach((region, ri) => {
+      for (const i of unownedOffsets(driver, out, ri)) {
+        if (region.data[i] !== recipient.regions[ri]!.data[i]) moved.push(`${region.label}+0x${i.toString(16)}`)
+      }
+    })
+    expect(moved.slice(0, 20), `${moved.length} unclaimed byte(s) changed`).toEqual([])
   })
 })

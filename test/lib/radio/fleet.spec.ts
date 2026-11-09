@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
 import {
+  describeFleetSettings,
+  describeSettingsChange,
   planFleetUnit,
   unitAlreadyProgrammed,
   validateFleetRoster,
@@ -293,5 +295,51 @@ describe('catching the same handset twice in one run', () => {
 
   it('lets a different radio take the next row', () => {
     expect(unitAlreadyProgrammed('cal-bbbb', 'u2', { u1: outcome() })).toBeNull()
+  })
+})
+
+describe('the master’s settings in a fleet run', () => {
+  it('carries them, apart from the ones that belong to each radio', () => {
+    const m = master()
+    m.settings = { backlightBrightness: 5, powerOnLine1: 'G0SEC', 'alertTones.keyPress': 1 }
+    const r = member({ settings: { backlightBrightness: 1, powerOnLine1: 'M0DAV', 'alertTones.keyPress': 1 } })
+    const plan = planFleetUnit({ master: m, unit: UNIT, recipient: r, schema: DM32UV_SCHEMA, now: NOW })
+
+    expect(plan.codeplug.settings).toEqual({ backlightBrightness: 5, powerOnLine1: 'M0DAV', 'alertTones.keyPress': 1 })
+    // Only what moves on this radio is listed: its key beep already matched,
+    // and its power-on text was never going to change.
+    expect(plan.settingsChanged).toEqual([{ group: 'Display', label: 'Backlight brightness' }])
+  })
+
+  it('leaves every setting alone on a radio whose schema has not marked its own', () => {
+    const m = master()
+    m.radio = 'uvk5'
+    m.settings = { squelch: 9 }
+    const r = member({ settings: { squelch: 1 } })
+    r.radio = 'uvk5'
+    const plan = planFleetUnit({ master: m, unit: UNIT, recipient: r, schema: UVK5_SCHEMA, now: NOW })
+
+    expect(plan.codeplug.settings).toEqual({ squelch: 1 })
+    expect(plan.settingsChanged).toEqual([])
+  })
+
+  it('says what a run does with settings, from the schema alone', () => {
+    expect(describeFleetSettings(DM32UV_SCHEMA)).toBe(
+      'Settings come from the master as well, except each radio’s own power-on screen and fixed APRS position.',
+    )
+    expect(describeFleetSettings(UVK5_SCHEMA)).toBe('Each radio keeps its own settings.')
+  })
+
+  it('names a few changed settings, and counts many by group', () => {
+    const one = { group: 'Display', label: 'Backlight brightness' }
+    expect(describeSettingsChange([one])).toBe('1 setting changes to match the master: Backlight brightness.')
+    expect(describeSettingsChange([one, { group: 'Keys', label: 'SK1 short press' }])).toBe(
+      '2 settings change to match the master: Backlight brightness · SK1 short press.',
+    )
+    const many = [
+      ...Array.from({ length: 5 }, (_, i) => ({ group: 'Keys', label: `Key ${i}` })),
+      ...Array.from({ length: 3 }, (_, i) => ({ group: 'Menu items', label: `Item ${i}` })),
+    ]
+    expect(describeSettingsChange(many)).toBe('8 settings change to match the master: Keys 5 · Menu items 3.')
   })
 })

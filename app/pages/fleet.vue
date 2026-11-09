@@ -2,7 +2,7 @@
 import { diffChannels } from '#core/radio/channel-diff.js'
 import { evaluateWriteGate } from '#core/radio/write-gate.js'
 import { exportFleetRecord, exportFleetRoster, parseFleetRoster } from '#core/io/fleet-roster.js'
-import type { FleetUnit } from '#core/radio/fleet.js'
+import { describeFleetSettings, describeSettingsChange, type FleetUnit } from '#core/radio/fleet.js'
 
 /**
  * One codeplug onto a room full of radios.
@@ -61,6 +61,9 @@ const masterKeys = computed(() => {
   void codeplug.revision
   return codeplug.doc?.encryptionKeys.filter((k) => k.keyHex !== '').length ?? 0
 })
+
+/** What the master's settings do in this run, which the schema alone decides. */
+const settingsNote = computed(() => (fleet.schema ? describeFleetSettings(fleet.schema) : ''))
 
 // ------------------------------------------------------------------ roster --
 
@@ -303,6 +306,7 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
         <p class="note">
           Each radio keeps its own DMR IDs. The roster sets the first one, which channels use by default.
         </p>
+        <p v-if="settingsNote" class="note">{{ settingsNote }}</p>
       </div>
 
       <label
@@ -584,6 +588,19 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
         </p>
       </div>
 
+      <!--
+        What changes, in settings. The channel list below has no row for
+        these, and a run changes them on every radio it reaches.
+      -->
+      <div
+        v-if="fleet.plan.settingsChanged.length"
+        style="border-top: 1px solid var(--ln); padding: 13px 19px"
+      >
+        <p style="font-size: 13.5px; line-height: 1.55; color: var(--mu); max-width: 76ch">
+          {{ describeSettingsChange(fleet.plan.settingsChanged) }}
+        </p>
+      </div>
+
       <!-- What changes, in channels. -->
       <div v-if="diff && diff.changed > 0" style="border-top: 1px solid var(--ln)">
         <div style="max-height: 300px; overflow-y: auto; padding: 15px 17px">
@@ -597,7 +614,8 @@ const holdLabel = computed(() => (device.lastKind === 'bluetooth' ? 'Keep the li
         <p style="font-size: 13px; line-height: 1.6; color: var(--fn); max-width: 74ch">
           Nothing in the channel list changes. The
           <span class="font-mono tabular">{{ bytes.toLocaleString() }} bytes</span> about to be sent are
-          elsewhere in the codeplug: a zone or talk group name, an RX group, the radio ID, or a key slot.
+          elsewhere in the codeplug: a setting, a zone or talk group name, an RX group, the radio ID, or a key
+          slot.
         </p>
       </div>
 

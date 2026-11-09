@@ -1452,3 +1452,10 @@ is all anybody can say about where it goes.
   written such a channel or heard one, and neither the KID nor the ALGID the
   radio sends is known here. See "Channel encryption bytes" and "Over-the-air
   key IDs" above.
+- **A fleet run carrying the master's settings.** Block `0x04` is verified one
+  field at a time (see "Hardware verification" under the block 0x04 session
+  above), but no session has written a whole set of settings from one radio's
+  read onto another unit. Which settings stay with the handset - the power-on
+  screen and its two lines, and the fixed APRS position with its beacon switch -
+  is a reading of what each field means, declared in the schema, not something
+  a second radio has shown.

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { Codeplug, DmrRadioId } from '../model/codeplug.js'
+import { andList } from '../text/list.js'
 import type { RadioSchema } from './schema.js'
 import type { CopiedFeature, SkippedFeature } from './transplant.js'
-import { transplantCodeplug } from './transplant.js'
+import { settingsKeptByEachRadio, transplantCodeplug } from './transplant.js'
 
 /**
  * One codeplug onto a room full of radios, varying only what belongs to each
@@ -86,6 +87,12 @@ export interface FleetOverride {
   readonly to: string
 }
 
+/** A setting a run gives a new value on one radio, named as the settings page names it. */
+export interface FleetSettingChange {
+  readonly group: string
+  readonly label: string
+}
+
 export interface FleetPlan {
   /** The document to encode onto this unit's own image. */
   readonly codeplug: Codeplug
@@ -102,6 +109,14 @@ export interface FleetPlan {
    * slots are there instead of finding out from somebody on the repeater.
    */
   readonly carriedRadioIds: readonly DmrRadioId[]
+  /**
+   * The settings this plan gives a new value, in the settings page's order.
+   *
+   * The channel diff has no row for these, so without them the only sign that
+   * a write turns somebody's key beep back on is a byte count. Every radio gets
+   * its own list, because each one starts from its own settings.
+   */
+  readonly settingsChanged: readonly FleetSettingChange[]
 }
 
 export interface FleetPlanInput {
@@ -132,6 +147,13 @@ export interface FleetPlanInput {
  * is where the IDs come from, and an option to take the master's instead would
  * be an option to give twenty radios one identity.
  *
+ * `copySettings` is on, which a one-radio clone leaves off. A club's plan is
+ * its keys, tones, menus and timers as much as its channels, and the APRS
+ * report channels are channel numbers into the bank the master has just
+ * replaced, so keeping each radio's own would aim them at whichever channel
+ * landed on the old number. What belongs to the handset stays, on a schema
+ * that says which that is; on any other, every setting stays as it always did.
+ *
  * The override lands in the first radio ID slot because that is the one a
  * channel falls back to when it names a slot the radio does not have, which is
  * exactly what happens to every channel arriving from a master built on a
@@ -146,11 +168,13 @@ export function planFleetUnit(input: FleetPlanInput): FleetPlan {
     schema,
     now,
     copyRadioIds: false,
+    copySettings: true,
     ...(input.copyEncryptionKeys === undefined ? {} : { copyEncryptionKeys: input.copyEncryptionKeys }),
   })
 
   const doc = merged.codeplug
   const overrides: FleetOverride[] = []
+  const settingsChanged = changedSettings(schema, recipient.settings, doc.settings)
 
   // A radio with no DMR identity to set has nothing to vary, and the roster's
   // columns are hidden for it. Returning the transplant unchanged is the whole
@@ -158,7 +182,7 @@ export function planFleetUnit(input: FleetPlanInput): FleetPlan {
   // per-unit backup, diff and write are what the run is really made of.
   const feature = schema.features.radioIds
   if (feature === false) {
-    return { ...merged, overrides, carriedRadioIds: [] }
+    return { ...merged, overrides, carriedRadioIds: [], settingsChanged }
   }
 
   const ids = doc.radioIds
@@ -167,7 +191,7 @@ export function planFleetUnit(input: FleetPlanInput): FleetPlan {
   const wantId = unit.dmrId
 
   if (wantId === null && wantName === '') {
-    return { ...merged, overrides, carriedRadioIds: ids.slice(1).map((r) => ({ ...r })) }
+    return { ...merged, overrides, carriedRadioIds: ids.slice(1).map((r) => ({ ...r })), settingsChanged }
   }
 
   const nextId = wantId ?? current?.dmrId ?? 0
@@ -188,7 +212,56 @@ export function planFleetUnit(input: FleetPlanInput): FleetPlan {
   const carried = ids.slice(1).map((r) => ({ ...r }))
   doc.radioIds = [first, ...carried]
 
-  return { ...merged, overrides, carriedRadioIds: carried.map((r) => ({ ...r })) }
+  return { ...merged, overrides, carriedRadioIds: carried.map((r) => ({ ...r })), settingsChanged }
+}
+
+/** Every declared setting whose value differs between the two, in schema order. */
+function changedSettings(
+  schema: RadioSchema,
+  before: Codeplug['settings'],
+  after: Codeplug['settings'],
+): FleetSettingChange[] {
+  const out: FleetSettingChange[] = []
+  const seen = new Set<string>()
+  for (const group of schema.settings) {
+    for (const field of group.fields) {
+      if (seen.has(field.key) || !(field.key in after)) continue
+      seen.add(field.key)
+      if (!Object.is(before[field.key], after[field.key])) out.push({ group: group.label, label: field.label })
+    }
+  }
+  return out
+}
+
+/**
+ * What a run does with the master's settings, for the card that says what
+ * every radio gets.
+ *
+ * From the schema alone, because it is true of every radio in the run before
+ * any of them is plugged in.
+ */
+export function describeFleetSettings(schema: RadioSchema): string {
+  const kept = settingsKeptByEachRadio(schema)
+  if (kept === null) return 'Each radio keeps its own settings.'
+  if (kept.length === 0) return 'Settings come from the master as well.'
+  return `Settings come from the master as well, except each radio’s own ${andList(kept)}.`
+}
+
+/**
+ * One sentence for the settings a write changes, short enough to read before
+ * the slide.
+ *
+ * Each setting is named while there are few enough to read, and counted by
+ * group past that: a list of forty labels is one nobody reads, which is how
+ * the one that matters gets missed.
+ */
+export function describeSettingsChange(changes: readonly FleetSettingChange[]): string {
+  const n = changes.length
+  const head = `${n} ${n === 1 ? 'setting changes' : 'settings change'} to match the master`
+  if (n <= 6) return `${head}: ${changes.map((c) => c.label).join(' · ')}.`
+  const groups = new Map<string, number>()
+  for (const c of changes) groups.set(c.group, (groups.get(c.group) ?? 0) + 1)
+  return `${head}: ${[...groups].map(([group, count]) => `${group} ${count}`).join(' · ')}.`
 }
 
 /**

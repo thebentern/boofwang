@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import type { Codeplug } from '../model/codeplug.js'
+import { andList } from '../text/list.js'
 import type { RadioSchema } from './schema.js'
 
 /**
@@ -17,6 +18,11 @@ import type { RadioSchema } from './schema.js'
  * Two things deliberately stay behind unless they are asked for by name. Both
  * are cases where doing the obvious thing is wrong in a way that is invisible
  * to the person who did it and obvious to everybody else.
+ *
+ * Settings stay too, unless they are asked for and the schema has said which
+ * of them belong to the handset. A fleet run asks, because a club's plan is
+ * its keys, tones and menus as much as its channels. A file opened to get
+ * somebody's channels does not.
  *
  * Only what the RadioSchema declares moves. A radio-specific list the schema
  * has no feature flag for - the DM-32UV's roaming channels, say - is left as
@@ -36,6 +42,7 @@ export type TransplantFeature =
   | 'radioIds'
   | 'encryptionKeys'
   | 'settings'
+  | 'unitSettings'
 
 /** Something that came across, and how much of it. */
 export interface CopiedFeature {
@@ -80,6 +87,18 @@ export interface TransplantInput {
    * they opened to get channels is a surprise.
    */
   readonly copyEncryptionKeys?: boolean | undefined
+  /**
+   * Copy the donor's settings as well, all but the ones that belong to the
+   * handset.
+   *
+   * Honored only on a schema that sets `features.settingsTransplant`, which is
+   * the claim that its per-unit settings are marked; on any other, every
+   * setting stays, asked for or not. And only the fields the schema declares
+   * move. A value the driver decodes and the settings page never shows is one
+   * nobody here can vouch for the meaning of, so it stays with the radio it
+   * came from.
+   */
+  readonly copySettings?: boolean | undefined
 }
 
 export class TransplantError extends Error {
@@ -224,7 +243,42 @@ export function transplantCodeplug(input: TransplantInput): TransplantResult {
   }
 
   const donorSettings = Object.keys(donor.settings).length
-  if (donorSettings > 0) {
+  if (donorSettings > 0 && input.copySettings === true && schema.features.settingsTransplant === true) {
+    let moved = 0
+    let kept = 0
+    const keptAs: string[] = []
+    const seen = new Set<string>()
+    for (const group of schema.settings) {
+      for (const field of group.fields) {
+        if (seen.has(field.key) || !(field.key in donor.settings)) continue
+        seen.add(field.key)
+        if (field.perUnit !== undefined) {
+          kept++
+          if (!keptAs.includes(field.perUnit)) keptAs.push(field.perUnit)
+          continue
+        }
+        const value = donor.settings[field.key]
+        // Scalars only. A structured value would be shared by reference
+        // between the donor's document and this one, so it stays with the
+        // radio; no schema that opts in decodes one, the DM-32UV's bitfields
+        // arriving flattened into dotted keys.
+        if (typeof value === 'object' && value !== null) continue
+        merged.settings[field.key] = value
+        moved++
+      }
+    }
+    if (moved > 0) copied.push({ feature: 'settings', label: 'radio settings', count: moved })
+    if (kept > 0) {
+      skipped.push({
+        feature: 'unitSettings',
+        label: 'settings that belong to the radio',
+        count: kept,
+        reason:
+          `Your radio keeps its own ${andList(keptAs)}. ` +
+          'Those belong to the handset rather than to the channel plan.',
+      })
+    }
+  } else if (donorSettings > 0) {
     skipped.push({
       feature: 'settings',
       label: 'radio settings',
@@ -234,4 +288,22 @@ export function transplantCodeplug(input: TransplantInput): TransplantResult {
   }
 
   return { codeplug: merged, copied, skipped }
+}
+
+/**
+ * What a settings transplant leaves on each radio, as the phrases the schema
+ * gives its per-unit fields, in schema order and without repeats.
+ *
+ * Null when the schema lets no setting move at all, which is a different
+ * sentence from "they all move".
+ */
+export function settingsKeptByEachRadio(schema: RadioSchema): readonly string[] | null {
+  if (schema.features.settingsTransplant !== true) return null
+  const out: string[] = []
+  for (const group of schema.settings) {
+    for (const field of group.fields) {
+      if (field.perUnit !== undefined && !out.includes(field.perUnit)) out.push(field.perUnit)
+    }
+  }
+  return out
 }

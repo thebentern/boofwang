@@ -20,6 +20,12 @@ const ON_OFF = [
   { value: 1, label: 'On' },
 ]
 
+// What the settings that belong to the handset are part of, named once so the
+// sentence that says what stayed cannot split one thing into two by a typo.
+// See `settingsTransplant` below for how the fields were chosen.
+const POWER_ON_SCREEN = 'power-on screen'
+const FIXED_POSITION = 'fixed APRS position'
+
 /**
  * The settings this build is prepared to change.
  *
@@ -44,9 +50,10 @@ export const DM32UV_SETTINGS_GROUPS = [
           { value: 2, label: 'Battery voltage' },
         ],
         icon: 'lucide:monitor',
+        perUnit: POWER_ON_SCREEN,
       },
-      { key: 'powerOnLine1', label: 'Power-on line 1', type: 'string', maxLength: 13 },
-      { key: 'powerOnLine2', label: 'Power-on line 2', type: 'string', maxLength: 13 },
+      { key: 'powerOnLine1', label: 'Power-on line 1', type: 'string', maxLength: 13, perUnit: POWER_ON_SCREEN },
+      { key: 'powerOnLine2', label: 'Power-on line 2', type: 'string', maxLength: 13, perUnit: POWER_ON_SCREEN },
       {
         key: 'backlightBrightness',
         label: 'Backlight brightness',
@@ -681,12 +688,12 @@ export const DM32UV_SETTINGS_GROUPS = [
     description:
       'Position reporting. The latitude and longitude below are the fixed position the radio falls back on.',
     fields: [
-      { key: 'aprsFixedBeacon.enabled', label: 'Fixed beacon', type: 'bool', icon: 'lucide:radio-tower' },
+      { key: 'aprsFixedBeacon.enabled', label: 'Fixed beacon', type: 'bool', icon: 'lucide:radio-tower', perUnit: FIXED_POSITION },
       { key: 'aprsScheduledSendTime', label: 'Send every', type: 'int', min: 0, max: 240, help: '0 is off; each step is 30 seconds.' },
-      { key: 'latitude', label: 'Latitude', type: 'string', maxLength: 9, help: 'Nine characters exactly, e.g. 23.000000.' },
-      { key: 'latitudeDirection', label: 'North or south', type: 'string', maxLength: 1 },
-      { key: 'longitude', label: 'Longitude', type: 'string', maxLength: 9, help: 'Nine characters exactly, e.g. 118.00000.' },
-      { key: 'longitudeDirection', label: 'East or west', type: 'string', maxLength: 1 },
+      { key: 'latitude', label: 'Latitude', type: 'string', maxLength: 9, help: 'Nine characters exactly, e.g. 23.000000.', perUnit: FIXED_POSITION },
+      { key: 'latitudeDirection', label: 'North or south', type: 'string', maxLength: 1, perUnit: FIXED_POSITION },
+      { key: 'longitude', label: 'Longitude', type: 'string', maxLength: 9, help: 'Nine characters exactly, e.g. 118.00000.', perUnit: FIXED_POSITION },
+      { key: 'longitudeDirection', label: 'East or west', type: 'string', maxLength: 1, perUnit: FIXED_POSITION },
       {
         key: 'aprsUploadId',
         label: 'Upload ID',
@@ -847,6 +854,18 @@ export const DM32UV_SCHEMA: RadioSchema = {
     // power-on picture, and the reason the flag exists rather than a
     // driver-id comparison in the layout.
     bootPicture: { width: BOOT_IMAGE_WIDTH, height: BOOT_IMAGE_HEIGHT },
+    /*
+     * Settings may travel with a copied codeplug, all but the eight marked
+     * `perUnit` above: the power-on screen and its two lines of text, which
+     * carry the owner's callsign as often as not, and the fixed APRS position
+     * with the switch that beacons it, which would otherwise have every radio
+     * in a fleet reporting the master's location as its own. The picture itself
+     * is not in the codeplug at all. Chosen by reading every group, not from a
+     * capture. `aprsUploadId` moves: it reads as where reports are sent, with a
+     * private-or-group call type beside it, and the radio's own identity is in
+     * the radio ID bank, which a fleet run never copies.
+     */
+    settingsTransplant: true,
   },
 
   extraFields: [

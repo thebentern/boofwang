@@ -210,6 +210,15 @@ apply the roster row to the master, show the diff, slide to confirm. Each radio'
 document is rendered onto **its own** image, so calibration and every undecoded
 byte stay with the radio they came from, exactly as in a one-radio clone.
 
+The master's settings go too - keys, tones, menus, timers, one-touch calls -
+on a radio whose schema marks the settings that belong to the handset. On the
+DM-32UV those are the power-on screen with its two lines of text, and the
+fixed APRS position; each radio keeps its own. The startup picture is not in
+the codeplug at all, so a run never touches it. A radio whose schema has not
+been gone through that way keeps every setting it has. Each radio's step lists
+the settings that will change on it, because the channel diff has no row for
+them.
+
 There is deliberately no bulk send and no fleet exception to the slide
 confirmation. The slide is about two seconds against the two or three minutes
 a DM-32UV takes to read and write.

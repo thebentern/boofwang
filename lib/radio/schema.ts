@@ -60,6 +60,17 @@ export interface FieldSpec {
    * no channel to follow. `planRenumber` reports those rather than moving them.
    */
   readonly channelRef?: boolean
+  /**
+   * This setting belongs to the handset rather than the channel plan, so a
+   * codeplug copied from another radio leaves it as it is.
+   *
+   * The value names what the setting is part of - "power-on screen" - because
+   * the sentence that says what stayed behind is built from it, and three
+   * fields reported as one thing read better than three labels. No setting
+   * moves at all unless the schema sets `features.settingsTransplant`, and that
+   * flag is the claim that every field which should carry this does.
+   */
+  readonly perUnit?: string
 }
 
 export interface SettingGroup {
@@ -277,6 +288,19 @@ export interface RadioSchema {
      * separate job.
      */
     readonly bootPicture: false | { readonly width: number; readonly height: number }
+    /**
+     * Whether a codeplug copied from another handset may bring its settings.
+     *
+     * Absent or false keeps every setting with the radio it is on, which is
+     * the only safe answer for a schema nobody has gone through field by field:
+     * some radios file the owner's callsign or a DMR identity among their
+     * settings, and copying those across a fleet is the shared-identity failure
+     * the roster exists to prevent. True is the claim that every setting which
+     * belongs to the handset carries `FieldSpec.perUnit`, so the rest can move.
+     * Optional so that a schema nobody has audited this way, including one
+     * written before the flag existed, lands on the safe side.
+     */
+    readonly settingsTransplant?: boolean
   }
 
   /** Per-radio channel fields with no cross-radio meaning; rendered generically. */

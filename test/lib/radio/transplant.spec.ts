@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it } from 'vitest'
-import { transplantCodeplug, TransplantError } from '#core/radio/transplant.js'
+import { settingsKeptByEachRadio, transplantCodeplug, TransplantError } from '#core/radio/transplant.js'
+import { SCHEMAS } from '#core/radio/registry.js'
+import type { RadioSchema } from '#core/radio/schema.js'
 import { emptyCodeplug, type Channel, type Codeplug } from '#core/model/index.js'
 import { NO_TONE } from '#core/model/tones.js'
 import { hz, mW } from '#core/model/units.js'
@@ -222,5 +224,125 @@ describe('transplantCodeplug', () => {
     expect(recipient.channels.get(7)!.name).toBe('MINE')
     expect(recipient.zones[0]!.name).toBe('MINE')
     expect(recipient.settings.squelch).toBe(1)
+  })
+})
+
+describe('transplanting settings', () => {
+  // Real DM-32UV keys, so what is tested is that schema's own marks: two that
+  // move, one from each group that stays, and one the schema never declares.
+  const MASTER = {
+    backlightBrightness: 5,
+    'alertTones.keyPress': 1,
+    powerOnLine1: 'G0SEC',
+    latitude: '51.500000',
+    undeclared: 7,
+  }
+  const MINE = {
+    backlightBrightness: 1,
+    'alertTones.keyPress': 0,
+    powerOnLine1: 'M0DAV',
+    latitude: '52.000000',
+    undeclared: 3,
+  }
+
+  function pair() {
+    const donor = fullDonor()
+    donor.settings = { ...MASTER }
+    const recipient = ownRadio()
+    recipient.settings = { ...MINE }
+    return { donor, recipient }
+  }
+
+  const settled = (over: Partial<Parameters<typeof transplantCodeplug>[0]> = {}) =>
+    transplantCodeplug({ ...pair(), schema: DM32UV_SCHEMA, now: NOW, ...over })
+
+  it('keeps every setting unless they are asked for', () => {
+    const { codeplug, copied, skipped } = settled()
+    expect(codeplug.settings).toEqual(MINE)
+    expect(copied.some((c) => c.feature === 'settings')).toBe(false)
+    expect(skipped.find((s) => s.feature === 'settings')!.count).toBe(5)
+  })
+
+  it('treats anything other than a literal true as no', () => {
+    expect(settled({ copySettings: undefined }).codeplug.settings).toEqual(MINE)
+    expect(settled({ copySettings: false }).codeplug.settings).toEqual(MINE)
+  })
+
+  it('copies them on request, all but the ones that belong to the handset', () => {
+    const { codeplug, copied, skipped } = settled({ copySettings: true })
+    expect(codeplug.settings).toEqual({
+      backlightBrightness: 5,
+      'alertTones.keyPress': 1,
+      powerOnLine1: 'M0DAV',
+      latitude: '52.000000',
+      // Decoded somewhere and shown nowhere, so nobody here can vouch for what
+      // it means, and it is not this module's to move.
+      undeclared: 3,
+    })
+    expect(copied.find((c) => c.feature === 'settings')!.count).toBe(2)
+    expect(skipped.some((s) => s.feature === 'settings')).toBe(false)
+
+    const kept = skipped.find((s) => s.feature === 'unitSettings')!
+    expect(kept.count).toBe(2)
+    expect(kept.reason).toBe(
+      'Your radio keeps its own power-on screen and fixed APRS position. ' +
+        'Those belong to the handset rather than to the channel plan.',
+    )
+  })
+
+  it('keeps every setting on a schema that has not said which belong to the handset', () => {
+    // Nobody has gone through the UV-K5's settings field by field, so asking
+    // changes nothing. The failure this guards against is a callsign or an
+    // identity filed among some radio's settings, copied to a whole fleet.
+    const { donor, recipient } = pair()
+    donor.radio = 'uvk5'
+    donor.settings = { squelch: 9 }
+    recipient.radio = 'uvk5'
+    recipient.settings = { squelch: 1 }
+
+    const { codeplug, skipped } = transplantCodeplug({
+      donor, recipient, schema: UVK5_SCHEMA, now: NOW, copySettings: true,
+    })
+    expect(codeplug.settings).toEqual({ squelch: 1 })
+    expect(skipped.find((s) => s.feature === 'settings')!.reason).toMatch(/DMR ID/)
+    expect(settingsKeptByEachRadio(UVK5_SCHEMA)).toBeNull()
+  })
+
+  it('mutates neither argument', () => {
+    const { donor, recipient } = pair()
+    const { codeplug } = transplantCodeplug({ donor, recipient, schema: DM32UV_SCHEMA, now: NOW, copySettings: true })
+
+    codeplug.settings.backlightBrightness = 0
+    expect(donor.settings.backlightBrightness).toBe(5)
+    expect(recipient.settings.backlightBrightness).toBe(1)
+  })
+
+  it('holds back exactly the DM-32UV’s power-on screen and fixed position', () => {
+    // Pinned, so a mark cannot be dropped in passing: each one removed sends
+    // the master's value to every radio in a fleet.
+    const schema: RadioSchema = DM32UV_SCHEMA
+    const marked = schema.settings.flatMap((g) =>
+      g.fields.filter((f) => f.perUnit !== undefined).map((f) => `${f.key}: ${f.perUnit}`),
+    )
+    expect(marked).toEqual([
+      'powerOnInterface: power-on screen',
+      'powerOnLine1: power-on screen',
+      'powerOnLine2: power-on screen',
+      'aprsFixedBeacon.enabled: fixed APRS position',
+      'latitude: fixed APRS position',
+      'latitudeDirection: fixed APRS position',
+      'longitude: fixed APRS position',
+      'longitudeDirection: fixed APRS position',
+    ])
+    expect(settingsKeptByEachRadio(schema)).toEqual(['power-on screen', 'fixed APRS position'])
+  })
+
+  it('is allowed only on the radios whose settings have been gone through', () => {
+    // A radio joins this list by marking its per-unit settings first. The flag
+    // is the claim that the marks are complete, so it is the last step.
+    const opted = Object.values(SCHEMAS)
+      .filter((s) => s?.features.settingsTransplant === true)
+      .map((s) => s!.id)
+    expect(opted).toEqual(['dm32uv'])
   })
 })
